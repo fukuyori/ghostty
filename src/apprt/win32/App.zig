@@ -12,10 +12,11 @@ const CoreApp = @import("../../App.zig");
 const CoreSurface = @import("../../Surface.zig");
 const global = @import("../../global.zig");
 const input = @import("../../input.zig");
+const math = @import("../../math.zig");
 const d3d11_buffer = @import("../../renderer/d3d11/buffer.zig");
-const D3D11Pipeline = @import("../../renderer/d3d11/Pipeline.zig");
 const D3D11RenderPass = @import("../../renderer/d3d11/RenderPass.zig");
 const D3D11Sampler = @import("../../renderer/d3d11/Sampler.zig");
+const D3D11Shaders = @import("../../renderer/d3d11/shaders.zig");
 const D3D11Texture = @import("../../renderer/d3d11/Texture.zig");
 const DirectComposition = @import("DirectComposition.zig");
 const Surface = @import("Surface.zig");
@@ -2243,14 +2244,22 @@ test "restore Win32 native window state after fullscreen" {
     try structured_buffer.sync(&.{ 1, 2, 3, 4 });
     try std.testing.expect(structured_buffer.shader_view != null);
 
-    const ConstantBuffer = d3d11_buffer.Buffer([3]f32);
+    const ConstantBuffer = d3d11_buffer.Buffer(D3D11Shaders.Uniforms);
     var constant_buffer = try ConstantBuffer.init(.{
         .device = presenter.device,
         .context = presenter.context,
         .bind_flags = .{ .CONSTANT_BUFFER = 1 },
     }, 1);
     defer constant_buffer.deinit();
-    try constant_buffer.sync(&.{.{ 0.0, 0.0, 0.0 }});
+    var uniforms = std.mem.zeroes(D3D11Shaders.Uniforms);
+    uniforms.projection_matrix = math.ortho2d(0, 320, 240, 0);
+    uniforms.screen_size = .{ 320, 240 };
+    uniforms.cell_size = .{ 10, 20 };
+    uniforms.grid_size = .{ 2, 2 };
+    uniforms.cursor_pos = .{ std.math.maxInt(u16), std.math.maxInt(u16) };
+    uniforms.cursor_color = .{ 255, 255, 255, 255 };
+    uniforms.bg_color = .{ 0, 0, 0, 0 };
+    try constant_buffer.sync(&.{uniforms});
 
     const texture_data = [_]u8{
         0, 0, 0, 0,
@@ -2270,57 +2279,46 @@ test "restore Win32 native window state after fullscreen" {
     const sampler = try D3D11Sampler.init(.{ .device = presenter.device });
     defer sampler.deinit();
 
-    const vertex_shader =
-        \\struct Output {
-        \\    float4 position : SV_POSITION;
-        \\};
-        \\Output main(uint vertex_id : SV_VertexID) {
-        \\    static const float2 positions[3] = {
-        \\        float2(0.0, 0.5),
-        \\        float2(0.5, -0.5),
-        \\        float2(-0.5, -0.5)
-        \\    };
-        \\    Output output;
-        \\    output.position = float4(positions[vertex_id], 0.0, 1.0);
-        \\    return output;
-        \\}
-    ;
-    const pixel_shader =
-        \\cbuffer Constants : register(b1) {
-        \\    float3 tint;
-        \\};
-        \\StructuredBuffer<uint> values : register(t0);
-        \\Texture2D<float4> glyphs : register(t1);
-        \\SamplerState linear_sampler : register(s0);
-        \\float4 main() : SV_TARGET {
-        \\    float sampled = glyphs.Sample(linear_sampler, float2(0.5, 0.5)).r;
-        \\    float red = 0.249 + float(values[0]) * 0.001 + tint.r + sampled;
-        \\    return float4(red, 0.125, 0.0, 0.5);
-        \\}
-    ;
-    const pipeline = try D3D11Pipeline.init(.{
+    const CellTextBuffer = d3d11_buffer.Buffer(D3D11Shaders.CellText);
+    var cell_buffer = try CellTextBuffer.init(.{
         .device = presenter.device,
-        .vertex_source = vertex_shader,
-        .pixel_source = pixel_shader,
-    });
-    defer pipeline.deinit();
+        .context = presenter.context,
+        .bind_flags = .{ .VERTEX_BUFFER = 1 },
+    }, 1);
+    defer cell_buffer.deinit();
+    try cell_buffer.sync(&.{.{
+        .glyph_pos = .{ 4, 8 },
+        .glyph_size = .{ 10, 16 },
+        .bearings = .{ 1, -2 },
+        .grid_pos = .{ 1, 1 },
+        .color = .{ 64, 32, 0, 128 },
+        .atlas = .color,
+        .bools = .{ .is_cursor_glyph = true },
+    }});
+
+    var shaders = try D3D11Shaders.Shaders.init(presenter.device);
+    defer shaders.deinit();
 
     const pass = D3D11RenderPass.init(.{
         .context = presenter.context,
         .target = &resized_target,
         .clear_color = .{ 0, 0, 0, 0 },
     });
-    pass.setPipeline(&pipeline);
-    pass.setVertexBuffer(buffer.buffer, @sizeOf(u32));
+    pass.setPipeline(&shaders.pipelines.cell_text);
+    pass.setVertexBuffer(cell_buffer.buffer, shaders.pipelines.cell_text.stride);
     pass.setUniformBuffer(1, constant_buffer.buffer);
-    var resources = [_]?*win32.ID3D11ShaderResourceView{
+    var vertex_resources = [_]?*win32.ID3D11ShaderResourceView{
         structured_buffer.shader_view.?,
+    };
+    pass.setVertexShaderResources(0, &vertex_resources);
+    var pixel_resources = [_]?*win32.ID3D11ShaderResourceView{
+        texture.shader_view,
         texture.shader_view,
     };
-    pass.setShaderResources(0, &resources);
+    pass.setPixelShaderResources(0, &pixel_resources);
     var samplers = [_]?*win32.ID3D11SamplerState{sampler.sampler};
-    pass.setSamplers(0, &samplers);
-    pass.draw(3, 1);
+    pass.setPixelSamplers(0, &samplers);
+    pass.draw(4, 1);
     pass.complete();
     try presenter.presentTarget(&resized_target, 0);
 

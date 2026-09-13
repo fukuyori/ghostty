@@ -56,6 +56,24 @@ pub fn setShaderResources(
     self.context.PSSetShaderResources(slot, count, resources.ptr);
 }
 
+pub fn setVertexShaderResources(
+    self: *const Self,
+    slot: u32,
+    resources: []?*win32.ID3D11ShaderResourceView,
+) void {
+    if (resources.len == 0) return;
+    self.context.VSSetShaderResources(slot, @intCast(resources.len), resources.ptr);
+}
+
+pub fn setPixelShaderResources(
+    self: *const Self,
+    slot: u32,
+    resources: []?*win32.ID3D11ShaderResourceView,
+) void {
+    if (resources.len == 0) return;
+    self.context.PSSetShaderResources(slot, @intCast(resources.len), resources.ptr);
+}
+
 pub fn setSamplers(
     self: *const Self,
     slot: u32,
@@ -65,6 +83,15 @@ pub fn setSamplers(
     const count: u32 = @intCast(samplers.len);
     self.context.VSSetSamplers(slot, count, samplers.ptr);
     self.context.PSSetSamplers(slot, count, samplers.ptr);
+}
+
+pub fn setPixelSamplers(
+    self: *const Self,
+    slot: u32,
+    samplers: []?*win32.ID3D11SamplerState,
+) void {
+    if (samplers.len == 0) return;
+    self.context.PSSetSamplers(slot, @intCast(samplers.len), samplers.ptr);
 }
 
 pub fn draw(
