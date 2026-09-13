@@ -6,12 +6,14 @@
 const Self = @This();
 
 const win32 = @import("win32").everything;
+const D3D11Target = @import("../../renderer/d3d11/Target.zig");
 
 const log = @import("std").log.scoped(.win32_direct_composition);
 
 device: *win32.ID3D11Device,
 context: *win32.ID3D11DeviceContext,
 swap_chain: *win32.IDXGISwapChain1,
+back_buffer: ?D3D11Target,
 composition_device: *win32.IDCompositionDevice,
 composition_target: *win32.IDCompositionTarget,
 composition_visual: *win32.IDCompositionVisual,
@@ -21,12 +23,20 @@ pub const Error = error{
     QueryDxgiDevice,
     CreateDxgiFactory,
     CreateSwapChain,
+    CreateTexture,
+    GetSwapChainBuffer,
+    CreateRenderTarget,
+    RenderTargetUnavailable,
+    TargetSizeMismatch,
+    TargetFormatMismatch,
     CreateCompositionDevice,
     CreateCompositionTarget,
     CreateCompositionVisual,
     SetCompositionContent,
     SetCompositionRoot,
     CommitComposition,
+    Present,
+    ResizeSwapChain,
     GetSwapChainDescription,
 };
 
@@ -104,6 +114,9 @@ pub fn init(hwnd: win32.HWND, width: u32, height: u32) Error!Self {
     );
     errdefer _ = swap_chain.IUnknown.Release();
 
+    var back_buffer = try D3D11Target.fromSwapChain(device, swap_chain);
+    errdefer back_buffer.deinit();
+
     var composition_device_raw: ?*anyopaque = null;
     try check(
         win32.DCompositionCreateDevice(
@@ -158,6 +171,7 @@ pub fn init(hwnd: win32.HWND, width: u32, height: u32) Error!Self {
         .device = device,
         .context = context,
         .swap_chain = swap_chain,
+        .back_buffer = back_buffer,
         .composition_device = composition_device,
         .composition_target = composition_target.?,
         .composition_visual = composition_visual.?,
@@ -170,12 +184,85 @@ pub fn deinit(self: *Self) void {
     _ = self.composition_target.SetRoot(null);
     _ = self.composition_device.Commit();
 
+    if (self.back_buffer) |*back_buffer| {
+        back_buffer.deinit();
+        self.back_buffer = null;
+    }
     _ = self.composition_visual.IUnknown.Release();
     _ = self.composition_target.IUnknown.Release();
     _ = self.composition_device.IUnknown.Release();
     _ = self.swap_chain.IUnknown.Release();
     _ = self.context.IUnknown.Release();
     _ = self.device.IUnknown.Release();
+}
+
+/// Clear the current back buffer with an already-premultiplied RGBA color.
+/// The Ghostty renderer uses premultiplied alpha, matching the swap chain.
+pub fn clear(self: *Self, color: [4]f32) Error!void {
+    const back_buffer = if (self.back_buffer) |*target| target else return error.RenderTargetUnavailable;
+    back_buffer.clear(self.context, color);
+}
+
+/// Create a renderer-owned target compatible with this presenter's swap chain.
+pub fn createTarget(self: *Self, width: u32, height: u32) Error!D3D11Target {
+    return try D3D11Target.init(
+        self.device,
+        width,
+        height,
+        win32.DXGI_FORMAT_B8G8R8A8_UNORM,
+    );
+}
+
+/// Copy a completed GPU target into the composition swap chain and present it.
+/// This path never maps the texture into CPU memory.
+pub fn presentTarget(
+    self: *Self,
+    target: *const D3D11Target,
+    sync_interval: u32,
+) Error!void {
+    const back_buffer = if (self.back_buffer) |*buffer| buffer else return error.RenderTargetUnavailable;
+    try target.copyTo(self.context, back_buffer);
+    try self.present(sync_interval);
+}
+
+/// Submit the current back buffer to DirectComposition.
+pub fn present(self: *Self, sync_interval: u32) Error!void {
+    try check(
+        self.swap_chain.IDXGISwapChain.Present(sync_interval, 0),
+        error.Present,
+        "IDXGISwapChain.Present",
+    );
+}
+
+/// Resize the swap chain and rebuild its render-target view. DXGI requires all
+/// references to the old back buffers to be released before ResizeBuffers.
+pub fn resize(self: *Self, width: u32, height: u32) Error!void {
+    if (self.back_buffer) |*back_buffer| {
+        back_buffer.deinit();
+        self.back_buffer = null;
+    }
+
+    const result = self.swap_chain.IDXGISwapChain.ResizeBuffers(
+        0,
+        @max(width, 1),
+        @max(height, 1),
+        win32.DXGI_FORMAT_UNKNOWN,
+        0,
+    );
+    if (!win32.SUCCEEDED(result)) {
+        // ResizeBuffers leaves the original buffers intact on failure. Restore
+        // the view so the presenter can continue displaying the old size.
+        self.back_buffer = D3D11Target.fromSwapChain(
+            self.device,
+            self.swap_chain,
+        ) catch null;
+        try check(result, error.ResizeSwapChain, "IDXGISwapChain.ResizeBuffers");
+    }
+
+    self.back_buffer = try D3D11Target.fromSwapChain(
+        self.device,
+        self.swap_chain,
+    );
 }
 
 pub fn getSwapChainDescription(self: *const Self) Error!win32.DXGI_SWAP_CHAIN_DESC1 {

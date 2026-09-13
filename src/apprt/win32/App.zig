@@ -12,6 +12,11 @@ const CoreApp = @import("../../App.zig");
 const CoreSurface = @import("../../Surface.zig");
 const global = @import("../../global.zig");
 const input = @import("../../input.zig");
+const d3d11_buffer = @import("../../renderer/d3d11/buffer.zig");
+const D3D11Pipeline = @import("../../renderer/d3d11/Pipeline.zig");
+const D3D11RenderPass = @import("../../renderer/d3d11/RenderPass.zig");
+const D3D11Sampler = @import("../../renderer/d3d11/Sampler.zig");
+const D3D11Texture = @import("../../renderer/d3d11/Texture.zig");
 const DirectComposition = @import("DirectComposition.zig");
 const Surface = @import("Surface.zig");
 
@@ -2198,6 +2203,126 @@ test "restore Win32 native window state after fullscreen" {
         win32.DXGI_ALPHA_MODE_PREMULTIPLIED,
         swap_chain_desc.AlphaMode,
     );
+
+    var target = try presenter.createTarget(800, 600);
+    defer target.deinit();
+    target.bind(presenter.context);
+    target.clear(presenter.context, .{ 0.0, 0.0, 0.0, 0.0 });
+    try presenter.presentTarget(&target, 0);
+    try presenter.resize(320, 240);
+    const resized_desc = try presenter.getSwapChainDescription();
+    try std.testing.expectEqual(@as(u32, 320), resized_desc.Width);
+    try std.testing.expectEqual(@as(u32, 240), resized_desc.Height);
+    try std.testing.expectError(
+        error.TargetSizeMismatch,
+        presenter.presentTarget(&target, 0),
+    );
+    var resized_target = try presenter.createTarget(320, 240);
+    defer resized_target.deinit();
+    resized_target.bind(presenter.context);
+    resized_target.clear(presenter.context, .{ 0.0, 0.0, 0.0, 0.0 });
+    try presenter.presentTarget(&resized_target, 0);
+
+    const TestBuffer = d3d11_buffer.Buffer(u32);
+    var buffer = try TestBuffer.init(.{
+        .device = presenter.device,
+        .context = presenter.context,
+        .bind_flags = .{ .VERTEX_BUFFER = 1 },
+    }, 1);
+    defer buffer.deinit();
+    try buffer.sync(&.{ 1, 2, 3, 4 });
+    try std.testing.expectEqual(@as(usize, 8), buffer.len);
+
+    var structured_buffer = try TestBuffer.init(.{
+        .device = presenter.device,
+        .context = presenter.context,
+        .bind_flags = .{ .SHADER_RESOURCE = 1 },
+        .structured = true,
+    }, 4);
+    defer structured_buffer.deinit();
+    try structured_buffer.sync(&.{ 1, 2, 3, 4 });
+    try std.testing.expect(structured_buffer.shader_view != null);
+
+    const ConstantBuffer = d3d11_buffer.Buffer([3]f32);
+    var constant_buffer = try ConstantBuffer.init(.{
+        .device = presenter.device,
+        .context = presenter.context,
+        .bind_flags = .{ .CONSTANT_BUFFER = 1 },
+    }, 1);
+    defer constant_buffer.deinit();
+    try constant_buffer.sync(&.{.{ 0.0, 0.0, 0.0 }});
+
+    const texture_data = [_]u8{
+        0, 0, 0, 0,
+        0, 0, 0, 0,
+        0, 0, 0, 0,
+        0, 0, 0, 0,
+    };
+    const texture = try D3D11Texture.init(.{
+        .device = presenter.device,
+        .context = presenter.context,
+        .format = win32.DXGI_FORMAT_B8G8R8A8_UNORM,
+        .render_target = true,
+    }, 2, 2, &texture_data);
+    defer texture.deinit();
+    try texture.replaceRegion(1, 1, 1, 1, &.{ 0, 0, 0, 0 });
+
+    const sampler = try D3D11Sampler.init(.{ .device = presenter.device });
+    defer sampler.deinit();
+
+    const vertex_shader =
+        \\struct Output {
+        \\    float4 position : SV_POSITION;
+        \\};
+        \\Output main(uint vertex_id : SV_VertexID) {
+        \\    static const float2 positions[3] = {
+        \\        float2(0.0, 0.5),
+        \\        float2(0.5, -0.5),
+        \\        float2(-0.5, -0.5)
+        \\    };
+        \\    Output output;
+        \\    output.position = float4(positions[vertex_id], 0.0, 1.0);
+        \\    return output;
+        \\}
+    ;
+    const pixel_shader =
+        \\cbuffer Constants : register(b1) {
+        \\    float3 tint;
+        \\};
+        \\StructuredBuffer<uint> values : register(t0);
+        \\Texture2D<float4> glyphs : register(t1);
+        \\SamplerState linear_sampler : register(s0);
+        \\float4 main() : SV_TARGET {
+        \\    float sampled = glyphs.Sample(linear_sampler, float2(0.5, 0.5)).r;
+        \\    float red = 0.249 + float(values[0]) * 0.001 + tint.r + sampled;
+        \\    return float4(red, 0.125, 0.0, 0.5);
+        \\}
+    ;
+    const pipeline = try D3D11Pipeline.init(.{
+        .device = presenter.device,
+        .vertex_source = vertex_shader,
+        .pixel_source = pixel_shader,
+    });
+    defer pipeline.deinit();
+
+    const pass = D3D11RenderPass.init(.{
+        .context = presenter.context,
+        .target = &resized_target,
+        .clear_color = .{ 0, 0, 0, 0 },
+    });
+    pass.setPipeline(&pipeline);
+    pass.setVertexBuffer(buffer.buffer, @sizeOf(u32));
+    pass.setUniformBuffer(1, constant_buffer.buffer);
+    var resources = [_]?*win32.ID3D11ShaderResourceView{
+        structured_buffer.shader_view.?,
+        texture.shader_view,
+    };
+    pass.setShaderResources(0, &resources);
+    var samplers = [_]?*win32.ID3D11SamplerState{sampler.sampler};
+    pass.setSamplers(0, &samplers);
+    pass.draw(3, 1);
+    pass.complete();
+    try presenter.presentTarget(&resized_target, 0);
 
     const original_style = getWindowStyle(hwnd).?;
     try std.testing.expect(setWindowDecorations(&surface, false));
