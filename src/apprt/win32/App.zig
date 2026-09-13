@@ -10,6 +10,7 @@ const configpkg = @import("../../config.zig");
 const Config = configpkg.Config;
 const CoreApp = @import("../../App.zig");
 const CoreSurface = @import("../../Surface.zig");
+const global = @import("../../global.zig");
 const input = @import("../../input.zig");
 const Surface = @import("Surface.zig");
 
@@ -763,6 +764,37 @@ fn handleFocus(app: *App, focused: bool) void {
     }
 }
 
+fn handleImeStartComposition(app: *App, hwnd: win32.HWND) void {
+    const core = app.surface.core_surface orelse return;
+
+    const cursor = cursor: {
+        core.renderer_state.mutex.lockUncancelable(global.io());
+        defer core.renderer_state.mutex.unlock(global.io());
+        break :cursor core.renderer_state.terminal.screens.active.cursor;
+    };
+
+    const context = win32.ImmGetContext(hwnd) orelse {
+        log.debug("IME composition started without an input context", .{});
+        return;
+    };
+    defer _ = win32.ImmReleaseContext(hwnd, context);
+
+    const point: win32.POINT = .{
+        .x = @intCast(cursor.x * core.size.cell.width + core.size.padding.left),
+        .y = @intCast(cursor.y * core.size.cell.height + core.size.padding.top),
+    };
+    var form: win32.COMPOSITIONFORM = .{
+        .dwStyle = win32.CFS_POINT,
+        .ptCurrentPos = point,
+        .rcArea = std.mem.zeroes(win32.RECT),
+    };
+    if (win32.ImmSetCompositionWindow(context, &form) == 0) {
+        log.warn("ImmSetCompositionWindow failed", .{});
+    } else {
+        log.debug("positioned IME composition window x={d} y={d}", .{ point.x, point.y });
+    }
+}
+
 fn wndProc(
     hwnd: win32.HWND,
     msg: u32,
@@ -800,6 +832,10 @@ fn wndProc(
         win32.WM_SETFOCUS, win32.WM_KILLFOCUS => {
             if (getApp(hwnd)) |app| handleFocus(app, msg == win32.WM_SETFOCUS);
             return 0;
+        },
+        win32.WM_IME_STARTCOMPOSITION => {
+            if (getApp(hwnd)) |app| handleImeStartComposition(app, hwnd);
+            return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
         },
         win32.WM_PAINT => {
             var ps: win32.PAINTSTRUCT = std.mem.zeroes(win32.PAINTSTRUCT);
