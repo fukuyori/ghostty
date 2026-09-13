@@ -101,6 +101,8 @@ fn initOpenGL(self: *Self) !void {
         log.err("wglMakeCurrent failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         return error.Win32Error;
     }
+
+    self.updateViewport();
 }
 
 pub fn swapBuffers(self: *Self) void {
@@ -109,6 +111,17 @@ pub fn swapBuffers(self: *Self) void {
             log.warn("SwapBuffers failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         }
     }
+}
+
+/// Keep the default framebuffer viewport synchronized with the drawable
+/// client area. The renderer thread calls this while it owns the WGL context.
+pub fn updateViewport(self: *const Self) void {
+    win32.glViewport(
+        0,
+        0,
+        @intCast(self.width),
+        @intCast(self.height),
+    );
 }
 
 pub fn makeContextCurrent(self: *Self) void {

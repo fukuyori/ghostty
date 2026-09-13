@@ -477,6 +477,10 @@ fn drawFrame(self: *Thread, now: bool) void {
             .{ .instant = {} },
         );
     } else {
+        if (comptime @hasDecl(apprt.runtime.Surface, "updateViewport")) {
+            self.surface.updateViewport();
+        }
+
         self.renderer.drawFrame(false) catch |err|
             log.warn("error drawing err={}", .{err});
 
