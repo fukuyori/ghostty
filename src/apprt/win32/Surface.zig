@@ -8,6 +8,7 @@ const win32 = @import("win32").everything;
 const apprt = @import("../../apprt.zig");
 const CoreSurface = @import("../../Surface.zig");
 const global = @import("../../global.zig");
+const terminal = @import("../../terminal/main.zig");
 
 const log = std.log.scoped(.win32_surface);
 const App = @import("App.zig");
@@ -131,22 +132,304 @@ pub fn supportsClipboard(_: *Self, clipboard: apprt.Clipboard) bool {
 }
 
 pub fn clipboardRequest(
-    _: *Self,
-    _: apprt.Clipboard,
-    _: apprt.ClipboardRequest,
+    self: *Self,
+    clipboard: apprt.Clipboard,
+    req: apprt.ClipboardRequest,
 ) !apprt.ClipboardReadResult {
-    return .unsupported;
+    if (!self.supportsClipboard(clipboard)) return .unsupported;
+
+    // Kitty writes carry their contents in the request and don't need to
+    // inspect the clipboard before entering the permission flow.
+    if (req == .kitty_write) {
+        self.completeClipboardRequest(req, &.{}, &.{});
+        return .started;
+    }
+
+    const format: u32 = @intFromEnum(win32.CF_UNICODETEXT);
+    if (win32.IsClipboardFormatAvailable(format) == 0) return .unavailable;
+
+    // Paste events only need a MIME listing, not the clipboard contents.
+    if (req == .list) {
+        self.completeClipboardRequest(req, &.{}, &.{"text/plain"});
+        return .started;
+    }
+
+    const alloc = self.core().alloc;
+    const text = text: {
+        if (!self.openClipboard()) {
+            log.warn("OpenClipboard failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            return .unavailable;
+        }
+        defer if (win32.CloseClipboard() == 0) {
+            log.warn("CloseClipboard failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        };
+
+        const handle = win32.GetClipboardData(format) orelse {
+            log.warn("GetClipboardData failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            return .unavailable;
+        };
+        const hglobal: isize = @bitCast(@intFromPtr(handle));
+        const raw = win32.GlobalLock(hglobal) orelse {
+            log.warn("GlobalLock failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            return .unavailable;
+        };
+        defer _ = win32.GlobalUnlock(hglobal);
+
+        const byte_len = win32.GlobalSize(hglobal);
+        if (byte_len < @sizeOf(u16)) return .unavailable;
+        const wide_ptr: [*]const u16 = @ptrCast(@alignCast(raw));
+        const wide_all = wide_ptr[0 .. byte_len / @sizeOf(u16)];
+        const wide_len = std.mem.indexOfScalar(u16, wide_all, 0) orelse {
+            log.warn("CF_UNICODETEXT data is not null terminated", .{});
+            return .unavailable;
+        };
+        const utf8 = std.unicode.utf16LeToUtf8Alloc(alloc, wide_all[0..wide_len]) catch |err| switch (err) {
+            error.OutOfMemory => return err,
+            else => {
+                log.warn("clipboard contains invalid UTF-16: {}", .{err});
+                return .unavailable;
+            },
+        };
+        defer alloc.free(utf8);
+
+        break :text try normalizeClipboardRead(alloc, utf8);
+    };
+    defer alloc.free(text);
+
+    // The clipboard must be closed before a confirmation dialog is shown.
+    const contents = [_]terminal.clipboard.Content{.{
+        .mime = "text/plain",
+        .data = text,
+    }};
+    self.completeClipboardRequest(req, &contents, &.{"text/plain"});
+    return .started;
+}
+
+fn openClipboard(self: *Self) bool {
+    for (0..5) |attempt| {
+        if (win32.OpenClipboard(self.hwnd) != 0) return true;
+        if (attempt < 4) win32.Sleep(5);
+    }
+    return false;
 }
 
 pub fn setClipboard(
-    _: *Self,
-    _: apprt.Clipboard,
-    _: []const apprt.ClipboardContent,
-    _: bool,
-) !void {}
+    self: *Self,
+    clipboard: apprt.Clipboard,
+    contents: []const apprt.ClipboardContent,
+    confirm: bool,
+) !void {
+    if (!self.supportsClipboard(clipboard)) return error.UnsupportedClipboard;
+    if (confirm and !self.confirmClipboardAccess(.write)) return;
+
+    const text = clipboardTextContent(contents);
+    if (contents.len > 0 and text == null) return error.UnsupportedClipboardContent;
+
+    var hglobal: isize = 0;
+    defer {
+        if (hglobal != 0) _ = win32.GlobalFree(hglobal);
+    }
+    if (text) |value| {
+        const alloc = self.core().alloc;
+        const normalized = try normalizeClipboardWrite(alloc, value);
+        defer alloc.free(normalized);
+
+        const utf16 = try std.unicode.utf8ToUtf16LeAllocZ(alloc, normalized);
+        defer alloc.free(utf16);
+
+        hglobal = win32.GlobalAlloc(
+            win32.GMEM_MOVEABLE,
+            (utf16.len + 1) * @sizeOf(u16),
+        );
+        if (hglobal == 0) {
+            log.err("GlobalAlloc failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            return error.Win32Clipboard;
+        }
+
+        const raw = win32.GlobalLock(hglobal) orelse {
+            log.err("GlobalLock failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            return error.Win32Clipboard;
+        };
+        const dst: [*]u16 = @ptrCast(@alignCast(raw));
+        @memcpy(dst[0 .. utf16.len + 1], utf16.ptr[0 .. utf16.len + 1]);
+        _ = win32.GlobalUnlock(hglobal);
+    }
+
+    if (!self.openClipboard()) {
+        log.warn("OpenClipboard failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return error.Win32Clipboard;
+    }
+    defer if (win32.CloseClipboard() == 0) {
+        log.warn("CloseClipboard failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+    };
+
+    if (win32.EmptyClipboard() == 0) {
+        log.err("EmptyClipboard failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return error.Win32Clipboard;
+    }
+
+    // No representations means clear the destination clipboard.
+    if (text == null) return;
+
+    const handle: win32.HANDLE = @ptrFromInt(@as(usize, @bitCast(hglobal)));
+    if (win32.SetClipboardData(@intFromEnum(win32.CF_UNICODETEXT), handle) == null) {
+        log.err("SetClipboardData failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return error.Win32Clipboard;
+    }
+
+    // SetClipboardData transfers ownership to Windows on success.
+    hglobal = 0;
+}
+
+const ClipboardAccess = enum { read, write };
+
+fn completeClipboardRequest(
+    self: *Self,
+    req: apprt.ClipboardRequest,
+    contents: []const terminal.clipboard.Content,
+    available: []const []const u8,
+) void {
+    self.core().completeClipboardRequest(req, .{
+        .contents = contents,
+        .available = available,
+    }) catch |err| switch (err) {
+        error.UnsafePaste, error.UnauthorizedPaste => {
+            const access: ClipboardAccess = switch (req) {
+                .osc_52_write, .kitty_write => .write,
+                else => .read,
+            };
+            if (!self.confirmClipboardAccess(access)) {
+                self.core().denyClipboardRequest(req);
+                return;
+            }
+
+            self.core().completeClipboardRequest(req, .{
+                .contents = contents,
+                .available = available,
+                .confirmed = true,
+            }) catch |complete_err| {
+                log.err("failed to complete confirmed clipboard request: {}", .{complete_err});
+            };
+        },
+
+        else => log.err("failed to complete clipboard request: {}", .{err}),
+    };
+}
+
+fn confirmClipboardAccess(self: *Self, access: ClipboardAccess) bool {
+    const caption = std.unicode.utf8ToUtf16LeStringLiteral("Ghostty clipboard access");
+    const message = switch (access) {
+        .read => std.unicode.utf8ToUtf16LeStringLiteral(
+            "Clipboard access was requested. Allow clipboard contents to be pasted or read?",
+        ),
+        .write => std.unicode.utf8ToUtf16LeStringLiteral(
+            "A terminal program requested permission to write to the clipboard. Allow it?",
+        ),
+    };
+    const style: win32.MESSAGEBOX_STYLE = .{
+        .YESNO = 1,
+        .ICONHAND = 1,
+        .ICONQUESTION = 1,
+    };
+    return win32.MessageBoxW(self.hwnd, message, caption, style) == win32.IDYES;
+}
+
+fn clipboardTextContent(contents: []const apprt.ClipboardContent) ?[]const u8 {
+    for (contents) |content| {
+        if (terminal.clipboard.isTextMime(content.mime)) return content.data;
+    }
+    return null;
+}
+
+/// Convert Windows clipboard line endings to the terminal's LF convention.
+fn normalizeClipboardRead(alloc: std.mem.Allocator, text: []const u8) ![]u8 {
+    var len = text.len;
+    var i: usize = 0;
+    while (i + 1 < text.len) : (i += 1) {
+        if (text[i] == '\r' and text[i + 1] == '\n') {
+            len -= 1;
+            i += 1;
+        }
+    }
+
+    const result = try alloc.alloc(u8, len);
+    i = 0;
+    var out: usize = 0;
+    while (i < text.len) {
+        if (text[i] == '\r') {
+            result[out] = '\n';
+            out += 1;
+            i += 1;
+            if (i < text.len and text[i] == '\n') i += 1;
+        } else {
+            result[out] = text[i];
+            out += 1;
+            i += 1;
+        }
+    }
+    return result;
+}
+
+/// Convert LF or CR line endings to the CRLF convention used by CF_UNICODETEXT.
+fn normalizeClipboardWrite(alloc: std.mem.Allocator, text: []const u8) ![]u8 {
+    var len = text.len;
+    var i: usize = 0;
+    while (i < text.len) {
+        if (text[i] == '\r') {
+            len += @intFromBool(i + 1 >= text.len or text[i + 1] != '\n');
+            if (i + 1 < text.len and text[i + 1] == '\n') i += 1;
+        } else if (text[i] == '\n') {
+            len += 1;
+        }
+        i += 1;
+    }
+
+    const result = try alloc.alloc(u8, len);
+    i = 0;
+    var out: usize = 0;
+    while (i < text.len) {
+        if (text[i] == '\r') {
+            result[out] = '\r';
+            result[out + 1] = '\n';
+            out += 2;
+            i += 1;
+            if (i < text.len and text[i] == '\n') i += 1;
+        } else if (text[i] == '\n') {
+            result[out] = '\r';
+            result[out + 1] = '\n';
+            out += 2;
+            i += 1;
+        } else {
+            result[out] = text[i];
+            out += 1;
+            i += 1;
+        }
+    }
+    return result;
+}
 
 pub fn defaultTermioEnv(_: *Self) !std.process.Environ.Map {
     return try global.environMap();
 }
 
 pub fn redrawInspector(_: *Self) void {}
+
+test "Win32 clipboard normalizes line endings when reading" {
+    const value = try normalizeClipboardRead(std.testing.allocator, "a\r\nb\rc\nd");
+    defer std.testing.allocator.free(value);
+    try std.testing.expectEqualStrings("a\nb\nc\nd", value);
+}
+
+test "Win32 clipboard normalizes line endings when writing" {
+    const value = try normalizeClipboardWrite(std.testing.allocator, "a\r\nb\rc\nd");
+    defer std.testing.allocator.free(value);
+    try std.testing.expectEqualStrings("a\r\nb\r\nc\r\nd", value);
+}
+
+test "Win32 clipboard selects the first text representation" {
+    const contents = [_]apprt.ClipboardContent{
+        .{ .mime = "image/png", .data = "binary" },
+        .{ .mime = "UTF8_STRING", .data = "text" },
+    };
+    try std.testing.expectEqualStrings("text", clipboardTextContent(&contents).?);
+}
