@@ -8,6 +8,7 @@ const win32 = @import("win32").everything;
 const apprt = @import("../../apprt.zig");
 const CoreSurface = @import("../../Surface.zig");
 const global = @import("../../global.zig");
+const input = @import("../../input.zig");
 const terminal = @import("../../terminal/main.zig");
 
 const log = std.log.scoped(.win32_surface);
@@ -23,6 +24,32 @@ height: u32 = 600,
 cursor_pos: apprt.CursorPos = .{ .x = 0, .y = 0 },
 title: ?[:0]const u8 = null,
 
+/// Metadata from a text-producing keydown, merged into the following
+/// WM_CHAR/WM_SYSCHAR event so the core receives one complete key event.
+pending_text_key: ?PendingTextKey = null,
+
+/// WM_CHAR transports supplementary Unicode characters as a UTF-16
+/// surrogate pair, one message at a time.
+pending_high_surrogate: ?u16 = null,
+
+/// Buttons captured by this window. Keeping this separately from WPARAM lets
+/// us release core state when Windows cancels capture unexpectedly.
+mouse_buttons_down: u8 = 0,
+
+/// True while TrackMouseEvent is waiting to deliver WM_MOUSELEAVE.
+tracking_mouse_leave: bool = false,
+
+/// WM_MOUSEHWHEEL may report partial wheel ticks. The core treats horizontal
+/// non-precision events as whole ticks, so retain the remainder here.
+horizontal_wheel_remainder: i32 = 0,
+
+pub const PendingTextKey = struct {
+    action: input.Action,
+    key: input.Key,
+    mods: input.Mods,
+    unshifted_codepoint: u21,
+};
+
 pub fn core(self: *Self) *CoreSurface {
     return self.core_surface.?;
 }
@@ -31,8 +58,9 @@ pub fn rtApp(self: *Self) *App {
     return self.app.?;
 }
 
-pub fn init(self: *Self, hwnd: win32.HWND) !void {
-    self.* = .{ .hwnd = hwnd };
+pub fn init(self: *Self, app: *App, hwnd: win32.HWND) !void {
+    self.* = .{ .hwnd = hwnd, .app = app };
+    errdefer self.deinit();
     self.updateClientSize();
     try self.initOpenGL();
 }
@@ -192,7 +220,7 @@ pub fn setTitle(self: *Self, value: [:0]const u8) !void {
 }
 
 pub fn close(self: *Self, confirm: bool) void {
-    self.rtApp().requestSurfaceClose(confirm);
+    self.rtApp().requestSurfaceClose(self, confirm);
 }
 
 pub fn supportsClipboard(_: *Self, clipboard: apprt.Clipboard) bool {

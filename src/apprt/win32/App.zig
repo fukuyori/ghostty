@@ -15,6 +15,7 @@ const input = @import("../../input.zig");
 const Surface = @import("Surface.zig");
 
 const log = std.log.scoped(.win32);
+const WindowList = std.ArrayListUnmanaged(*Surface);
 
 /// User-defined wakeup message sent via PostMessage to break out of
 /// GetMessage and run the core app's tick.
@@ -28,34 +29,8 @@ core_app: *CoreApp,
 config: *Config,
 alloc: Allocator,
 running: bool = true,
-hwnd: ?win32.HWND = null,
-surface: Surface = undefined,
-
-/// Metadata from a text-producing keydown, merged into the following
-/// WM_CHAR/WM_SYSCHAR event so the core receives one complete key event.
-pending_text_key: ?PendingTextKey = null,
-
-/// WM_CHAR transports supplementary Unicode characters as a UTF-16
-/// surrogate pair, one message at a time.
-pending_high_surrogate: ?u16 = null,
-
-/// Buttons captured by this window. Keeping this separately from WPARAM lets
-/// us release core state when Windows cancels capture unexpectedly.
-mouse_buttons_down: u8 = 0,
-
-/// True while TrackMouseEvent is waiting to deliver WM_MOUSELEAVE.
-tracking_mouse_leave: bool = false,
-
-/// WM_MOUSEHWHEEL may report partial wheel ticks. The core treats horizontal
-/// non-precision events as whole ticks, so retain the remainder here.
-horizontal_wheel_remainder: i32 = 0,
-
-const PendingTextKey = struct {
-    action: input.Action,
-    key: input.Key,
-    mods: input.Mods,
-    unshifted_codepoint: u21,
-};
+thread_id: u32,
+windows: WindowList = .empty,
 
 pub fn init(
     self: *App,
@@ -65,29 +40,21 @@ pub fn init(
     _ = opts;
 
     const alloc = core_app.alloc;
-    var config = try Config.load(alloc);
-    errdefer config.deinit();
-
     const config_ptr = try alloc.create(Config);
-    config_ptr.* = config;
+    errdefer alloc.destroy(config_ptr);
+    config_ptr.* = try Config.load(alloc);
+    errdefer config_ptr.deinit();
 
     self.* = .{
         .core_app = core_app,
         .config = config_ptr,
         .alloc = alloc,
+        .thread_id = win32.GetCurrentThreadId(),
     };
+    errdefer self.windows.deinit(self.alloc);
 
+    try registerWindowClass();
     try self.createWindow();
-
-    _ = win32.SetWindowLongPtrW(
-        self.hwnd.?,
-        win32.GWLP_USERDATA,
-        @bitCast(@intFromPtr(self)),
-    );
-
-    try self.surface.init(self.hwnd.?);
-    try self.initCoreSurface();
-    self.showWindow();
 }
 
 pub fn run(self: *App) !void {
@@ -104,51 +71,64 @@ pub fn run(self: *App) !void {
             log.err("GetMessage failed: err={d}", .{@intFromEnum(win32.GetLastError())});
             return error.Win32Error;
         }
+        if (msg.hwnd == null and msg.message == WM_WAKEUP) {
+            self.core_app.tick(self) catch |err| {
+                log.err("core app tick failed: {}", .{err});
+            };
+            continue;
+        }
         _ = win32.TranslateMessage(&msg);
         _ = win32.DispatchMessageW(&msg);
     }
 }
 
 pub fn terminate(self: *App) void {
-    self.surface.deinit();
-    self.destroyWindow();
+    while (self.windows.pop()) |surface| {
+        surface.deinit();
+        if (destroyWindow(surface)) self.alloc.destroy(surface);
+    }
+    self.windows.deinit(self.alloc);
     self.config.deinit();
     self.alloc.destroy(self.config);
 }
 
-fn destroyWindow(self: *App) void {
-    if (self.hwnd) |hwnd| {
-        if (win32.DestroyWindow(hwnd) == 0) {
-            log.warn("DestroyWindow failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-            return;
-        }
-        self.hwnd = null;
+fn destroyWindow(surface: *Surface) bool {
+    if (win32.DestroyWindow(surface.hwnd) == 0) {
+        log.warn("DestroyWindow failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return false;
     }
+    return true;
 }
 
 pub fn wakeup(self: *App) void {
-    if (self.hwnd) |hwnd| {
-        if (win32.PostMessageW(hwnd, WM_WAKEUP, 0, 0) == 0) {
-            log.warn("PostMessage(WM_WAKEUP) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        }
+    if (win32.PostThreadMessageW(self.thread_id, WM_WAKEUP, 0, 0) == 0) {
+        log.warn("PostThreadMessage(WM_WAKEUP) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
     }
 }
 
-pub fn requestSurfaceClose(self: *App, confirm: bool) void {
-    const hwnd = self.hwnd orelse return;
-    if (win32.PostMessageW(hwnd, WM_CLOSE_SURFACE, @intFromBool(confirm), 0) == 0) {
+pub fn requestSurfaceClose(_: *App, surface: *Surface, confirm: bool) void {
+    if (win32.PostMessageW(surface.hwnd, WM_CLOSE_SURFACE, @intFromBool(confirm), 0) == 0) {
         log.warn("PostMessage(WM_CLOSE_SURFACE) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
     }
 }
 
-fn closeSurface(self: *App, confirm: bool) void {
-    const hwnd = self.hwnd orelse return;
-    if (confirm and !confirmSurfaceClose(hwnd)) return;
+fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
+    if (confirm and !confirmSurfaceClose(surface.hwnd)) return;
 
     // Keep the HWND and its DC alive until the renderer has stopped and the
     // surface has released all native rendering resources.
-    self.surface.deinit();
-    self.destroyWindow();
+    surface.deinit();
+    if (!destroyWindow(surface)) return;
+    if (self.removeWindow(surface)) self.alloc.destroy(surface);
+}
+
+fn removeWindow(self: *App, surface: *Surface) bool {
+    for (self.windows.items, 0..) |candidate, i| {
+        if (candidate != surface) continue;
+        _ = self.windows.swapRemove(i);
+        return true;
+    }
+    return false;
 }
 
 fn confirmSurfaceClose(hwnd: win32.HWND) bool {
@@ -171,8 +151,6 @@ pub fn performAction(
     comptime action: apprt.Action.Key,
     value: apprt.Action.Value(action),
 ) !bool {
-    _ = self;
-
     switch (action) {
         .quit => {
             win32.PostQuitMessage(0);
@@ -192,7 +170,10 @@ pub fn performAction(
                 return true;
             },
         },
-        .new_window => return false,
+        .new_window => {
+            try self.createWindow();
+            return true;
+        },
         else => return false,
     }
 }
@@ -210,15 +191,14 @@ pub fn redrawInspector(_: *App, surface: *Surface) void {
     surface.redrawInspector();
 }
 
-fn initCoreSurface(self: *App) !void {
+fn initCoreSurface(self: *App, surface: *Surface) !void {
     const alloc = self.alloc;
-    self.surface.app = self;
 
     const core_surface = try alloc.create(CoreSurface);
     errdefer alloc.destroy(core_surface);
 
-    try self.core_app.addSurface(&self.surface);
-    errdefer self.core_app.deleteSurface(&self.surface);
+    try self.core_app.addSurface(surface);
+    errdefer self.core_app.deleteSurface(surface);
 
     var config = try apprt.surface.newConfig(
         self.core_app,
@@ -232,17 +212,40 @@ fn initCoreSurface(self: *App) !void {
         &config,
         self.core_app,
         self,
-        &self.surface,
+        surface,
     ) catch |err| {
         log.err("failed to initialize core surface: {}", .{err});
         return err;
     };
 
-    self.surface.core_surface = core_surface;
+    surface.core_surface = core_surface;
     log.info("core surface initialized successfully", .{});
 }
 
 fn createWindow(self: *App) !void {
+    const surface = try self.alloc.create(Surface);
+    errdefer self.alloc.destroy(surface);
+
+    const hwnd = try createNativeWindow();
+    errdefer _ = win32.DestroyWindow(hwnd);
+
+    try surface.init(self, hwnd);
+    errdefer surface.deinit();
+
+    _ = win32.SetWindowLongPtrW(
+        hwnd,
+        win32.GWLP_USERDATA,
+        @bitCast(@intFromPtr(surface)),
+    );
+
+    try self.windows.append(self.alloc, surface);
+    errdefer _ = self.removeWindow(surface);
+
+    try self.initCoreSurface(surface);
+    showWindow(surface);
+}
+
+fn registerWindowClass() !void {
     const class_name = win32.L("GhosttyWindow");
     const hinstance = win32.GetModuleHandleW(null);
 
@@ -265,8 +268,13 @@ fn createWindow(self: *App) !void {
         log.err("RegisterClassExW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         return error.Win32Error;
     }
+}
 
-    self.hwnd = win32.CreateWindowExW(
+fn createNativeWindow() !win32.HWND {
+    const class_name = win32.L("GhosttyWindow");
+    const hinstance = win32.GetModuleHandleW(null);
+
+    return win32.CreateWindowExW(
         .{},
         class_name,
         win32.L("Ghostty"),
@@ -285,13 +293,12 @@ fn createWindow(self: *App) !void {
     };
 }
 
-fn showWindow(self: *App) void {
-    const hwnd = self.hwnd orelse return;
-    _ = win32.ShowWindow(hwnd, win32.SW_SHOWNORMAL);
-    _ = win32.UpdateWindow(hwnd);
+fn showWindow(surface: *Surface) void {
+    _ = win32.ShowWindow(surface.hwnd, win32.SW_SHOWNORMAL);
+    _ = win32.UpdateWindow(surface.hwnd);
 }
 
-fn getApp(hwnd: win32.HWND) ?*App {
+fn getSurface(hwnd: win32.HWND) ?*Surface {
     const ptr = win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA);
     if (ptr == 0) return null;
     return @ptrFromInt(@as(usize, @bitCast(ptr)));
@@ -518,17 +525,17 @@ fn decodeUtf16CodeUnit(pending: *?u16, unit: u16) ?u21 {
     return unit;
 }
 
-fn handleTextInput(app: *App, wparam: win32.WPARAM) win32.LRESULT {
+fn handleTextInput(surface: *Surface, wparam: win32.WPARAM) win32.LRESULT {
     const unit: u16 = @truncate(wparam);
-    const codepoint = decodeUtf16CodeUnit(&app.pending_high_surrogate, unit) orelse
+    const codepoint = decodeUtf16CodeUnit(&surface.pending_high_surrogate, unit) orelse
         return 0;
-    defer app.pending_text_key = null;
+    defer surface.pending_text_key = null;
 
     // Control characters are already represented by their WM_KEYDOWN event.
     if (codepoint < 0x20 or codepoint == 0x7F) return 0;
 
-    const core = app.surface.core_surface orelse return 0;
-    const pending = app.pending_text_key;
+    const core = surface.core_surface orelse return 0;
+    const pending = surface.pending_text_key;
     const mods = if (pending) |value| value.mods else getModifiers();
 
     // Left-Alt shortcuts were dispatched as physical key events. WM_SYSCHAR
@@ -630,23 +637,23 @@ fn accumulateWheelTicks(remainder: *i32, delta: i16) i32 {
 }
 
 fn updateCursorPosition(
-    app: *App,
+    surface: *Surface,
     pos: apprt.CursorPos,
     mods: input.Mods,
     force: bool,
 ) void {
-    const previous = app.surface.cursor_pos;
-    app.surface.cursor_pos = pos;
+    const previous = surface.cursor_pos;
+    surface.cursor_pos = pos;
     if (!force and previous.x == pos.x and previous.y == pos.y) return;
 
-    const core = app.surface.core_surface orelse return;
+    const core = surface.core_surface orelse return;
     core.cursorPosCallback(pos, mods) catch |err| {
         log.err("cursor position callback error: {}", .{err});
     };
 }
 
-fn trackMouseLeave(app: *App, hwnd: win32.HWND) void {
-    if (app.tracking_mouse_leave) return;
+fn trackMouseLeave(surface: *Surface, hwnd: win32.HWND) void {
+    if (surface.tracking_mouse_leave) return;
 
     var event: win32.TRACKMOUSEEVENT = .{
         .cbSize = @sizeOf(win32.TRACKMOUSEEVENT),
@@ -658,32 +665,32 @@ fn trackMouseLeave(app: *App, hwnd: win32.HWND) void {
         log.warn("TrackMouseEvent failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         return;
     }
-    app.tracking_mouse_leave = true;
+    surface.tracking_mouse_leave = true;
 }
 
 fn handleMouseButton(
-    app: *App,
+    surface: *Surface,
     hwnd: win32.HWND,
     event: MouseButtonEvent,
     lparam: win32.LPARAM,
 ) win32.LRESULT {
     const mods = getModifiers();
-    updateCursorPosition(app, mousePoint(lparam), mods, true);
+    updateCursorPosition(surface, mousePoint(lparam), mods, true);
 
     if (event.state == .press) {
-        if (app.mouse_buttons_down == 0) _ = win32.SetCapture(hwnd);
-        app.mouse_buttons_down |= event.bit;
+        if (surface.mouse_buttons_down == 0) _ = win32.SetCapture(hwnd);
+        surface.mouse_buttons_down |= event.bit;
     } else {
-        app.mouse_buttons_down &= ~event.bit;
+        surface.mouse_buttons_down &= ~event.bit;
     }
 
-    if (app.surface.core_surface) |core| {
+    if (surface.core_surface) |core| {
         _ = core.mouseButtonCallback(event.state, event.button, mods) catch |err| {
             log.err("mouse button callback error: {}", .{err});
         };
     }
 
-    if (event.state == .release and app.mouse_buttons_down == 0 and
+    if (event.state == .release and surface.mouse_buttons_down == 0 and
         win32.GetCapture() == hwnd)
     {
         if (win32.ReleaseCapture() == 0) {
@@ -695,10 +702,10 @@ fn handleMouseButton(
     return if (event.xbutton) 1 else 0;
 }
 
-fn releaseMouseButtons(app: *App) void {
-    const down = app.mouse_buttons_down;
+fn releaseMouseButtons(surface: *Surface) void {
+    const down = surface.mouse_buttons_down;
     if (down == 0) return;
-    app.mouse_buttons_down = 0;
+    surface.mouse_buttons_down = 0;
 
     const buttons = [_]struct { u8, input.MouseButton }{
         .{ 1 << 0, .left },
@@ -707,7 +714,7 @@ fn releaseMouseButtons(app: *App) void {
         .{ 1 << 3, .four },
         .{ 1 << 4, .five },
     };
-    const core = app.surface.core_surface orelse return;
+    const core = surface.core_surface orelse return;
     const mods = getModifiers();
     for (buttons) |entry| {
         if (down & entry[0] == 0) continue;
@@ -718,7 +725,7 @@ fn releaseMouseButtons(app: *App) void {
 }
 
 fn updateWheelCursorPosition(
-    app: *App,
+    surface: *Surface,
     hwnd: win32.HWND,
     lparam: win32.LPARAM,
     mods: input.Mods,
@@ -732,23 +739,23 @@ fn updateWheelCursorPosition(
         log.warn("ScreenToClient failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         return;
     }
-    updateCursorPosition(app, .{
+    updateCursorPosition(surface, .{
         .x = @floatFromInt(point.x),
         .y = @floatFromInt(point.y),
     }, mods, true);
 }
 
 fn handleMouseWheel(
-    app: *App,
+    surface: *Surface,
     hwnd: win32.HWND,
     msg: u32,
     wparam: win32.WPARAM,
     lparam: win32.LPARAM,
 ) void {
     const mods = getModifiers();
-    updateWheelCursorPosition(app, hwnd, lparam, mods);
+    updateWheelCursorPosition(surface, hwnd, lparam, mods);
 
-    const core = app.surface.core_surface orelse return;
+    const core = surface.core_surface orelse return;
     const delta: i32 = wheelDelta(wparam);
     if (msg == win32.WM_MOUSEWHEEL) {
         const ticks = @as(f64, @floatFromInt(delta)) /
@@ -759,7 +766,7 @@ fn handleMouseWheel(
         return;
     }
 
-    const ticks = accumulateWheelTicks(&app.horizontal_wheel_remainder, @intCast(delta));
+    const ticks = accumulateWheelTicks(&surface.horizontal_wheel_remainder, @intCast(delta));
     if (ticks == 0) return;
     core.scrollCallback(@floatFromInt(ticks), 0, .{}) catch |err| {
         log.err("horizontal scroll callback error: {}", .{err});
@@ -767,12 +774,12 @@ fn handleMouseWheel(
 }
 
 fn handleDpiChanged(
-    app: *App,
+    surface: *Surface,
     hwnd: win32.HWND,
     wparam: win32.WPARAM,
     lparam: win32.LPARAM,
 ) void {
-    if (app.surface.core_surface) |core| {
+    if (surface.core_surface) |core| {
         core.contentScaleCallback(dpiScale(wparam)) catch |err| {
             log.err("content scale callback error: {}", .{err});
         };
@@ -793,23 +800,23 @@ fn handleDpiChanged(
     }
 }
 
-fn handleFocus(app: *App, focused: bool) void {
+fn handleFocus(surface: *Surface, focused: bool) void {
     if (!focused) {
-        app.pending_text_key = null;
-        app.pending_high_surrogate = null;
-        releaseMouseButtons(app);
+        surface.pending_text_key = null;
+        surface.pending_high_surrogate = null;
+        releaseMouseButtons(surface);
     }
 
-    app.core_app.focusEvent(focused);
-    if (app.surface.core_surface) |core| {
+    surface.rtApp().core_app.focusEvent(focused);
+    if (surface.core_surface) |core| {
         core.focusCallback(focused) catch |err| {
             log.err("focus callback error: {}", .{err});
         };
     }
 }
 
-fn handleImeStartComposition(app: *App, hwnd: win32.HWND) void {
-    const core = app.surface.core_surface orelse return;
+fn handleImeStartComposition(surface: *Surface, hwnd: win32.HWND) void {
+    const core = surface.core_surface orelse return;
 
     const cursor = cursor: {
         core.renderer_state.mutex.lockUncancelable(global.io());
@@ -847,11 +854,11 @@ fn wndProc(
 ) callconv(.winapi) win32.LRESULT {
     switch (msg) {
         win32.WM_CLOSE => {
-            if (getApp(hwnd)) |app| {
-                if (app.surface.core_surface) |surface| {
-                    surface.close();
+            if (getSurface(hwnd)) |surface| {
+                if (surface.core_surface) |core| {
+                    core.close();
                 } else {
-                    app.requestSurfaceClose(false);
+                    surface.rtApp().requestSurfaceClose(surface, false);
                 }
             } else {
                 _ = win32.DestroyWindow(hwnd);
@@ -859,17 +866,19 @@ fn wndProc(
             return 0;
         },
         WM_CLOSE_SURFACE => {
-            if (getApp(hwnd)) |app| app.closeSurface(wparam != 0);
+            if (getSurface(hwnd)) |surface| {
+                surface.rtApp().closeSurface(surface, wparam != 0);
+            }
             return 0;
         },
         win32.WM_SIZE => {
-            if (getApp(hwnd)) |app| {
+            if (getSurface(hwnd)) |surface| {
                 const width: u32 = @intCast(lparam & 0xFFFF);
                 const height: u32 = @intCast((lparam >> 16) & 0xFFFF);
                 if (width > 0 and height > 0) {
-                    app.surface.width = width;
-                    app.surface.height = height;
-                    if (app.surface.core_surface) |core| {
+                    surface.width = width;
+                    surface.height = height;
+                    if (surface.core_surface) |core| {
                         core.sizeCallback(.{
                             .width = width,
                             .height = height,
@@ -882,15 +891,15 @@ fn wndProc(
             return 0;
         },
         win32.WM_DPICHANGED => {
-            if (getApp(hwnd)) |app| handleDpiChanged(app, hwnd, wparam, lparam);
+            if (getSurface(hwnd)) |surface| handleDpiChanged(surface, hwnd, wparam, lparam);
             return 0;
         },
         win32.WM_SETFOCUS, win32.WM_KILLFOCUS => {
-            if (getApp(hwnd)) |app| handleFocus(app, msg == win32.WM_SETFOCUS);
+            if (getSurface(hwnd)) |surface| handleFocus(surface, msg == win32.WM_SETFOCUS);
             return 0;
         },
         win32.WM_IME_STARTCOMPOSITION => {
-            if (getApp(hwnd)) |app| handleImeStartComposition(app, hwnd);
+            if (getSurface(hwnd)) |surface| handleImeStartComposition(surface, hwnd);
             return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
         },
         win32.WM_PAINT => {
@@ -902,16 +911,16 @@ fn wndProc(
             return 0;
         },
         win32.WM_MOUSEMOVE => {
-            if (getApp(hwnd)) |app| {
-                trackMouseLeave(app, hwnd);
-                updateCursorPosition(app, mousePoint(lparam), getModifiers(), false);
+            if (getSurface(hwnd)) |surface| {
+                trackMouseLeave(surface, hwnd);
+                updateCursorPosition(surface, mousePoint(lparam), getModifiers(), false);
             }
             return 0;
         },
         win32.WM_MOUSELEAVE => {
-            if (getApp(hwnd)) |app| {
-                app.tracking_mouse_leave = false;
-                updateCursorPosition(app, .{ .x = -1, .y = -1 }, getModifiers(), true);
+            if (getSurface(hwnd)) |surface| {
+                surface.tracking_mouse_leave = false;
+                updateCursorPosition(surface, .{ .x = -1, .y = -1 }, getModifiers(), true);
             }
             return 0;
         },
@@ -924,33 +933,33 @@ fn wndProc(
         win32.WM_XBUTTONDOWN,
         win32.WM_XBUTTONUP,
         => {
-            if (getApp(hwnd)) |app| {
+            if (getSurface(hwnd)) |surface| {
                 if (mouseButtonEvent(msg, wparam)) |event| {
-                    return handleMouseButton(app, hwnd, event, lparam);
+                    return handleMouseButton(surface, hwnd, event, lparam);
                 }
             }
             return 0;
         },
         win32.WM_MOUSEWHEEL, win32.WM_MOUSEHWHEEL => {
-            if (getApp(hwnd)) |app| handleMouseWheel(app, hwnd, msg, wparam, lparam);
+            if (getSurface(hwnd)) |surface| handleMouseWheel(surface, hwnd, msg, wparam, lparam);
             return 0;
         },
         win32.WM_CAPTURECHANGED => {
-            if (getApp(hwnd)) |app| releaseMouseButtons(app);
+            if (getSurface(hwnd)) |surface| releaseMouseButtons(surface);
             return 0;
         },
         win32.WM_CHAR, win32.WM_SYSCHAR => {
-            if (getApp(hwnd)) |app| return handleTextInput(app, wparam);
+            if (getSurface(hwnd)) |surface| return handleTextInput(surface, wparam);
             return 0;
         },
         win32.WM_KEYDOWN, win32.WM_SYSKEYDOWN => {
-            if (getApp(hwnd)) |app| {
-                if (app.surface.core_surface) |core| {
+            if (getSurface(hwnd)) |surface| {
+                if (surface.core_surface) |core| {
                     const mods = getModifiers();
                     const key = mapVirtualKey(wparam, lparam);
 
                     if (!shouldDispatchKeyPress(wparam, mods)) {
-                        app.pending_text_key = .{
+                        surface.pending_text_key = .{
                             .action = keyAction(lparam),
                             .key = key,
                             .mods = mods,
@@ -959,7 +968,7 @@ fn wndProc(
                         return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
                     }
 
-                    app.pending_text_key = null;
+                    surface.pending_text_key = null;
                     if (key != .unidentified) {
                         const effect = core.keyCallback(.{
                             .action = keyAction(lparam),
@@ -977,8 +986,8 @@ fn wndProc(
             return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
         },
         win32.WM_KEYUP, win32.WM_SYSKEYUP => {
-            if (getApp(hwnd)) |app| {
-                if (app.surface.core_surface) |core| {
+            if (getSurface(hwnd)) |surface| {
+                if (surface.core_surface) |core| {
                     const key = mapVirtualKey(wparam, lparam);
                     if (key != .unidentified) {
                         _ = core.keyCallback(.{
@@ -991,14 +1000,6 @@ fn wndProc(
                         };
                     }
                 }
-            }
-            return 0;
-        },
-        WM_WAKEUP => {
-            if (getApp(hwnd)) |app| {
-                app.core_app.tick(app) catch |err| {
-                    log.err("core app tick failed: {}", .{err});
-                };
             }
             return 0;
         },
