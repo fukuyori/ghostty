@@ -1,5 +1,5 @@
 /// Win32 surface - represents a terminal surface within a window.
-/// Manages the WGL OpenGL context and provides the interface expected by
+/// Manages native renderer state and provides the interface expected by
 /// CoreSurface.
 const Self = @This();
 
@@ -24,6 +24,10 @@ width: u32 = 800,
 height: u32 = 600,
 cursor_pos: apprt.CursorPos = .{ .x = 0, .y = 0 },
 title: ?[:0]const u8 = null,
+
+/// Whether DWM currently owns an active transient-window backdrop for this
+/// surface. This avoids repeating the native call on unrelated config reloads.
+background_blur: bool = false,
 
 /// Initial client size requested by the core. Later updates replace the
 /// default used by reset_window_size without resizing an already visible

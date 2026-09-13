@@ -19,6 +19,7 @@ const D3D11RenderPass = @import("../../renderer/d3d11/RenderPass.zig");
 const D3D11Sampler = @import("../../renderer/d3d11/Sampler.zig");
 const D3D11Shaders = @import("../../renderer/d3d11/shaders.zig");
 const D3D11Texture = @import("../../renderer/d3d11/Texture.zig");
+const Backdrop = @import("Backdrop.zig");
 const DirectComposition = @import("DirectComposition.zig");
 const Surface = @import("Surface.zig");
 
@@ -209,6 +210,7 @@ pub fn performAction(
                     if (!setWindowDecorations(core.rt_surface, decorated)) {
                         log.warn("failed to apply window-decoration setting", .{});
                     }
+                    updateWindowBackgroundBlur(core.rt_surface, value.config);
                 },
                 .app => {
                     const config = try value.config.clone(self.alloc);
@@ -1249,6 +1251,7 @@ fn initCoreSurface(
     };
 
     surface.core_surface = core_surface;
+    updateWindowBackgroundBlur(surface, &config);
     log.info("core surface initialized successfully", .{});
 }
 
@@ -1334,12 +1337,59 @@ fn nativeWindowExStyle() win32.WINDOW_EX_STYLE {
         .{};
 }
 
+/// Keep the native backdrop synchronized with the renderer's background
+/// opacity. DWM system backdrops are only useful with the D3D11
+/// DirectComposition path; OpenGL retains its existing transparent behavior.
+fn updateWindowBackgroundBlur(surface: *Surface, config: *const Config) void {
+    const enabled = windowBackgroundBlurEnabled(config);
+    if (surface.background_blur == enabled) return;
+
+    Backdrop.set(
+        surface.hwnd,
+        if (enabled) .transient_window else .none,
+    ) catch |err| {
+        // Older Windows versions don't recognize the system-backdrop
+        // attribute. Keep rendering with ordinary transparency in that case.
+        log.warn("failed to apply Win32 background blur: {}", .{err});
+        return;
+    };
+    surface.background_blur = enabled;
+}
+
+fn windowBackgroundBlurEnabled(config: *const Config) bool {
+    return build_config.renderer == .d3d11 and
+        config.@"background-opacity" < 1 and
+        config.@"background-blur".enabled();
+}
+
 test "Win32 D3D11 windows bypass the legacy redirect bitmap" {
     const style = nativeWindowExStyle();
     try std.testing.expectEqual(
         @as(u1, @intFromBool(build_config.renderer == .d3d11)),
         style.NOREDIRECTIONBITMAP,
     );
+}
+
+test "Win32 background blur requires D3D11 and transparent background" {
+    var config = try Config.default(std.testing.allocator);
+    defer config.deinit();
+
+    config.@"background-opacity" = 0.75;
+    config.@"background-blur" = .true;
+    try std.testing.expectEqual(
+        build_config.renderer == .d3d11,
+        windowBackgroundBlurEnabled(&config),
+    );
+
+    config.@"background-opacity" = 1;
+    try std.testing.expect(!windowBackgroundBlurEnabled(&config));
+
+    config.@"background-opacity" = 0.75;
+    config.@"background-blur" = .false;
+    try std.testing.expect(!windowBackgroundBlurEnabled(&config));
+
+    config.@"background-blur" = .{ .radius = 0 };
+    try std.testing.expect(!windowBackgroundBlurEnabled(&config));
 }
 
 fn showWindow(surface: *Surface) void {
