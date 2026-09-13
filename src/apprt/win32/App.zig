@@ -12,10 +12,13 @@ const CoreApp = @import("../../App.zig");
 const CoreSurface = @import("../../Surface.zig");
 const global = @import("../../global.zig");
 const input = @import("../../input.zig");
+const DirectComposition = @import("DirectComposition.zig");
 const Surface = @import("Surface.zig");
 
 const log = std.log.scoped(.win32);
 const WindowList = std.ArrayListUnmanaged(*Surface);
+const window_class_name = win32.L("GhosttyWindow");
+const default_window_title = win32.L("Ghostty");
 
 /// User-defined wakeup message sent via PostMessage to break out of
 /// GetMessage and run the core app's tick.
@@ -175,6 +178,17 @@ pub fn performAction(
             try self.createWindow(.{});
             return true;
         },
+        .close_window => return closeWindow(target),
+        .close_all_windows => return self.closeAllWindows(),
+        .goto_window => return self.gotoWindow(target, value),
+        .present_terminal => return presentTerminal(target),
+        .toggle_visibility => return self.toggleVisibility(),
+        .toggle_maximize => return toggleMaximize(target),
+        .toggle_fullscreen => return toggleFullscreen(target, value),
+        .toggle_window_decorations => return toggleWindowDecorations(target),
+        .float_window => return floatWindow(target, value),
+        .initial_size => return setInitialSize(target, value),
+        .reset_window_size => return resetWindowSize(target),
         .open_url => return self.openUrl(target, value),
         .open_config => return try self.openConfig(target, value),
         .reload_config => {
@@ -183,7 +197,12 @@ pub fn performAction(
         },
         .config_change => {
             switch (target) {
-                .surface => {},
+                .surface => |core| {
+                    const decorated = value.config.@"window-decoration" != .none;
+                    if (!setWindowDecorations(core.rt_surface, decorated)) {
+                        log.warn("failed to apply window-decoration setting", .{});
+                    }
+                },
                 .app => {
                     const config = try value.config.clone(self.alloc);
                     self.config.deinit();
@@ -194,6 +213,525 @@ pub fn performAction(
         },
         else => return false,
     }
+}
+
+fn closeWindow(target: apprt.Target) bool {
+    const surface = targetSurface(target) orelse {
+        log.warn("close_window targeted the application", .{});
+        return false;
+    };
+    const core = surface.core_surface orelse return false;
+    core.close();
+    return true;
+}
+
+fn closeAllWindows(self: *App) bool {
+    if (self.windows.items.len == 0) return false;
+
+    // Match the native app behavior: ask once for the complete operation,
+    // rather than showing one confirmation for every running terminal.
+    var confirm_hwnd: ?win32.HWND = null;
+    for (self.windows.items) |surface| {
+        const core = surface.core_surface orelse continue;
+        if (core.needsConfirmQuit()) {
+            confirm_hwnd = surface.hwnd;
+            break;
+        }
+    }
+    if (confirm_hwnd) |hwnd| {
+        if (!confirmAllWindowsClose(hwnd)) return true;
+    }
+
+    // Closing is posted to the message queue. The list therefore remains
+    // stable throughout this loop and each close follows normal teardown.
+    for (self.windows.items) |surface| {
+        self.requestSurfaceClose(surface, false);
+    }
+    return true;
+}
+
+fn confirmAllWindowsClose(hwnd: win32.HWND) bool {
+    const message = win32.L("All terminal sessions will be terminated. Close all windows?");
+    const caption = win32.L("Close All Windows?");
+    const style: win32.MESSAGEBOX_STYLE = .{
+        // MB_ICONWARNING is the combined 0x30 value in Win32.
+        .ICONHAND = 1,
+        .ICONQUESTION = 1,
+        .YESNO = 1,
+        .DEFBUTTON2 = 1,
+    };
+    return win32.MessageBoxW(hwnd, message, caption, style) == win32.IDYES;
+}
+
+fn presentTerminal(target: apprt.Target) bool {
+    const surface = targetSurface(target) orelse {
+        log.warn("present_terminal targeted the application", .{});
+        return false;
+    };
+    return presentSurface(surface);
+}
+
+fn presentSurface(surface: *Surface) bool {
+    surface.hidden_by_visibility_toggle = false;
+    surface.focused_before_visibility_toggle = false;
+    if (win32.IsIconic(surface.hwnd) != 0) {
+        _ = win32.ShowWindow(surface.hwnd, win32.SW_RESTORE);
+    } else if (win32.IsWindowVisible(surface.hwnd) == 0) {
+        _ = win32.ShowWindow(surface.hwnd, win32.SW_SHOW);
+    }
+
+    // Windows can refuse foreground activation when another process owns the
+    // foreground lock. The terminal was still presented, so this does not
+    // make the action itself fail.
+    _ = win32.SetForegroundWindow(surface.hwnd);
+    _ = win32.SetFocus(surface.hwnd);
+    return true;
+}
+
+fn toggleVisibility(self: *App) bool {
+    var restore_any = false;
+    for (self.windows.items) |surface| {
+        if (surface.hidden_by_visibility_toggle) {
+            restore_any = true;
+            break;
+        }
+    }
+
+    if (restore_any) {
+        var first: ?*Surface = null;
+        var focus: ?*Surface = null;
+        for (self.windows.items) |surface| {
+            if (!surface.hidden_by_visibility_toggle) continue;
+            surface.hidden_by_visibility_toggle = false;
+            _ = win32.ShowWindow(surface.hwnd, win32.SW_SHOWNA);
+            if (first == null) first = surface;
+            if (surface.focused_before_visibility_toggle) focus = surface;
+            surface.focused_before_visibility_toggle = false;
+        }
+        if (focus orelse first) |surface| _ = presentSurface(surface);
+        return true;
+    }
+
+    const focused = self.core_app.focusedSurface();
+    if (focused) |core| {
+        for (self.windows.items) |surface| {
+            if (surface.core_surface != core) continue;
+            if (surface.fullscreen) return true;
+            break;
+        }
+    }
+
+    var hidden_any = false;
+    for (self.windows.items) |surface| {
+        if (win32.IsWindowVisible(surface.hwnd) == 0) continue;
+        surface.hidden_by_visibility_toggle = true;
+        surface.focused_before_visibility_toggle = if (focused) |core|
+            surface.core_surface == core
+        else
+            false;
+        _ = win32.ShowWindow(surface.hwnd, win32.SW_HIDE);
+        hidden_any = true;
+    }
+    return hidden_any;
+}
+
+fn gotoWindow(
+    self: *App,
+    target: apprt.Target,
+    direction: apprt.action.GotoWindow,
+) bool {
+    const current = targetSurface(target) orelse {
+        log.warn("goto_window targeted the application", .{});
+        return false;
+    };
+    if (self.windows.items.len < 2) return false;
+
+    var start: usize = 0;
+    for (self.windows.items, 0..) |surface, i| {
+        if (surface == current) {
+            start = i;
+            break;
+        }
+    }
+
+    var offset: usize = 1;
+    while (offset < self.windows.items.len) : (offset += 1) {
+        const index = switch (direction) {
+            .next => (start + offset) % self.windows.items.len,
+            .previous => (start + self.windows.items.len - offset) % self.windows.items.len,
+        };
+        const candidate = self.windows.items[index];
+        if (win32.IsWindowVisible(candidate.hwnd) == 0) continue;
+        if (win32.IsIconic(candidate.hwnd) != 0) continue;
+        return presentSurface(candidate);
+    }
+    return false;
+}
+
+fn targetSurface(target: apprt.Target) ?*Surface {
+    return switch (target) {
+        .app => null,
+        .surface => |surface| surface.rt_surface,
+    };
+}
+
+fn toggleMaximize(target: apprt.Target) bool {
+    const surface = targetSurface(target) orelse {
+        log.warn("toggle_maximize targeted the application", .{});
+        return false;
+    };
+    if (surface.fullscreen) return true;
+
+    _ = win32.ShowWindow(
+        surface.hwnd,
+        if (win32.IsZoomed(surface.hwnd) != 0)
+            win32.SW_RESTORE
+        else
+            win32.SW_MAXIMIZE,
+    );
+    return true;
+}
+
+fn toggleFullscreen(
+    target: apprt.Target,
+    mode: apprt.action.Fullscreen,
+) bool {
+    _ = mode;
+    const surface = targetSurface(target) orelse {
+        log.warn("toggle_fullscreen targeted the application", .{});
+        return false;
+    };
+    return setFullscreen(surface, !surface.fullscreen);
+}
+
+fn setFullscreen(surface: *Surface, enabled: bool) bool {
+    if (surface.fullscreen == enabled) return true;
+    return if (enabled)
+        enterFullscreen(surface)
+    else
+        leaveFullscreen(surface);
+}
+
+fn enterFullscreen(surface: *Surface) bool {
+    var placement: win32.WINDOWPLACEMENT = std.mem.zeroes(win32.WINDOWPLACEMENT);
+    placement.length = @sizeOf(win32.WINDOWPLACEMENT);
+    if (win32.GetWindowPlacement(surface.hwnd, &placement) == 0) {
+        log.warn("GetWindowPlacement failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return false;
+    }
+    const style = getWindowStyle(surface.hwnd) orelse return false;
+
+    const monitor = win32.MonitorFromWindow(
+        surface.hwnd,
+        win32.MONITOR_DEFAULTTONEAREST,
+    ) orelse {
+        log.warn("MonitorFromWindow failed", .{});
+        return false;
+    };
+    var info: win32.MONITORINFO = .{
+        .cbSize = @sizeOf(win32.MONITORINFO),
+        .rcMonitor = std.mem.zeroes(win32.RECT),
+        .rcWork = std.mem.zeroes(win32.RECT),
+        .dwFlags = 0,
+    };
+    if (win32.GetMonitorInfoW(monitor, &info) == 0) {
+        log.warn("GetMonitorInfoW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return false;
+    }
+
+    const fullscreen_style = styleWithDecorations(style, false);
+    if (!setWindowStyle(surface.hwnd, fullscreen_style)) return false;
+
+    const rect = info.rcMonitor;
+    if (win32.SetWindowPos(
+        surface.hwnd,
+        if (surface.always_on_top) win32.HWND_TOPMOST else null,
+        rect.left,
+        rect.top,
+        rect.right - rect.left,
+        rect.bottom - rect.top,
+        .{ .NOOWNERZORDER = 1, .DRAWFRAME = 1 },
+    ) == 0) {
+        log.warn("SetWindowPos entering fullscreen failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        _ = setWindowStyle(surface.hwnd, style);
+        _ = win32.SetWindowPlacement(surface.hwnd, &placement);
+        _ = refreshWindowFrame(surface.hwnd);
+        return false;
+    }
+
+    surface.windowed_style = style;
+    surface.windowed_placement = placement;
+    surface.fullscreen = true;
+    return true;
+}
+
+fn leaveFullscreen(surface: *Surface) bool {
+    const saved_style = surface.windowed_style orelse {
+        log.warn("fullscreen window has no saved style", .{});
+        return false;
+    };
+    const placement = surface.windowed_placement orelse {
+        log.warn("fullscreen window has no saved placement", .{});
+        return false;
+    };
+    const current_style = getWindowStyle(surface.hwnd) orelse return false;
+    const restored_style = styleWithDecorations(
+        saved_style,
+        surface.decorated,
+    );
+    if (!setWindowStyle(surface.hwnd, restored_style)) return false;
+
+    if (win32.SetWindowPlacement(surface.hwnd, &placement) == 0) {
+        log.warn("SetWindowPlacement leaving fullscreen failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        _ = setWindowStyle(surface.hwnd, current_style);
+        return false;
+    }
+    if (!refreshWindowFrame(surface.hwnd)) return false;
+
+    surface.fullscreen = false;
+    surface.windowed_style = null;
+    surface.windowed_placement = null;
+    return true;
+}
+
+fn toggleWindowDecorations(target: apprt.Target) bool {
+    const surface = targetSurface(target) orelse {
+        log.warn("toggle_window_decorations targeted the application", .{});
+        return false;
+    };
+    return setWindowDecorations(surface, !surface.decorated);
+}
+
+fn setWindowDecorations(surface: *Surface, decorated: bool) bool {
+    if (surface.decorated == decorated) return true;
+
+    // A fullscreen window is intentionally borderless. Remember the requested
+    // state and apply it to the saved window style when fullscreen exits.
+    if (surface.fullscreen) {
+        surface.decorated = decorated;
+        return true;
+    }
+
+    const old_style = getWindowStyle(surface.hwnd) orelse return false;
+    const new_style = styleWithDecorations(old_style, decorated);
+    if (!setWindowStyle(surface.hwnd, new_style)) return false;
+    if (!refreshWindowFrame(surface.hwnd)) {
+        _ = setWindowStyle(surface.hwnd, old_style);
+        _ = refreshWindowFrame(surface.hwnd);
+        return false;
+    }
+
+    surface.decorated = decorated;
+    return true;
+}
+
+fn styleWithDecorations(style: u32, decorated: bool) u32 {
+    const mask: u32 = @bitCast(win32.WS_OVERLAPPEDWINDOW);
+    return if (decorated) style | mask else style & ~mask;
+}
+
+fn getWindowStyle(hwnd: win32.HWND) ?u32 {
+    win32.SetLastError(.NO_ERROR);
+    const value = win32.GetWindowLongPtrW(hwnd, win32.GWL_STYLE);
+    if (value == 0 and win32.GetLastError() != .NO_ERROR) {
+        log.warn("GetWindowLongPtrW(GWL_STYLE) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return null;
+    }
+    return @truncate(@as(usize, @bitCast(value)));
+}
+
+fn setWindowStyle(hwnd: win32.HWND, style: u32) bool {
+    win32.SetLastError(.NO_ERROR);
+    const value = win32.SetWindowLongPtrW(
+        hwnd,
+        win32.GWL_STYLE,
+        @bitCast(@as(usize, style)),
+    );
+    if (value == 0 and win32.GetLastError() != .NO_ERROR) {
+        log.warn("SetWindowLongPtrW(GWL_STYLE) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return false;
+    }
+    return true;
+}
+
+fn refreshWindowFrame(hwnd: win32.HWND) bool {
+    if (win32.SetWindowPos(
+        hwnd,
+        null,
+        0,
+        0,
+        0,
+        0,
+        .{
+            .NOMOVE = 1,
+            .NOSIZE = 1,
+            .NOZORDER = 1,
+            .NOACTIVATE = 1,
+            .DRAWFRAME = 1,
+        },
+    ) == 0) {
+        log.warn("SetWindowPos refreshing frame failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return false;
+    }
+    return true;
+}
+
+fn floatWindow(
+    target: apprt.Target,
+    mode: apprt.action.FloatWindow,
+) bool {
+    const surface = targetSurface(target) orelse {
+        log.warn("float_window targeted the application", .{});
+        return false;
+    };
+    const enabled = switch (mode) {
+        .on => true,
+        .off => false,
+        .toggle => !surface.always_on_top,
+    };
+    if (enabled == surface.always_on_top) return true;
+
+    return setAlwaysOnTop(surface, enabled);
+}
+
+fn setAlwaysOnTop(surface: *Surface, enabled: bool) bool {
+    if (win32.SetWindowPos(
+        surface.hwnd,
+        if (enabled) win32.HWND_TOPMOST else win32.HWND_NOTOPMOST,
+        0,
+        0,
+        0,
+        0,
+        .{ .NOMOVE = 1, .NOSIZE = 1, .NOACTIVATE = 1 },
+    ) == 0) {
+        log.warn("SetWindowPos changing topmost state failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return false;
+    }
+
+    surface.always_on_top = enabled;
+    return true;
+}
+
+fn setInitialSize(
+    target: apprt.Target,
+    value: apprt.action.InitialSize,
+) bool {
+    const surface = targetSurface(target) orelse {
+        log.warn("initial_size targeted the application", .{});
+        return false;
+    };
+    if (value.width == 0 or value.height == 0) return false;
+
+    surface.initial_client_size = value;
+    if (!surface.shown) return resizeClientArea(surface, value);
+    return true;
+}
+
+fn resetWindowSize(target: apprt.Target) bool {
+    const surface = targetSurface(target) orelse {
+        log.warn("reset_window_size targeted the application", .{});
+        return false;
+    };
+    if (surface.fullscreen) return false;
+
+    if (surface.default_maximized) {
+        _ = win32.ShowWindow(surface.hwnd, win32.SW_MAXIMIZE);
+        return true;
+    }
+
+    const size = surface.initial_client_size orelse return false;
+    if (win32.IsZoomed(surface.hwnd) != 0) {
+        _ = win32.ShowWindow(surface.hwnd, win32.SW_RESTORE);
+    }
+    return resizeClientArea(surface, size);
+}
+
+fn resizeClientArea(
+    surface: *Surface,
+    size: apprt.action.InitialSize,
+) bool {
+    const hwnd = surface.hwnd;
+    const style_bits: u32 = @truncate(@as(
+        usize,
+        @bitCast(win32.GetWindowLongPtrW(hwnd, win32.GWL_STYLE)),
+    ));
+    const ex_style_bits: u32 = @truncate(@as(
+        usize,
+        @bitCast(win32.GetWindowLongPtrW(hwnd, win32.GWL_EXSTYLE)),
+    ));
+    const style: win32.WINDOW_STYLE = @bitCast(style_bits);
+    const ex_style: win32.WINDOW_EX_STYLE = @bitCast(ex_style_bits);
+
+    const max_dimension: u32 = @intCast(std.math.maxInt(i32) / 2);
+    var rect: win32.RECT = .{
+        .left = 0,
+        .top = 0,
+        .right = @intCast(@min(size.width, max_dimension)),
+        .bottom = @intCast(@min(size.height, max_dimension)),
+    };
+    const dpi = dpi: {
+        const value = win32.GetDpiForWindow(hwnd);
+        break :dpi if (value > 0) value else win32.USER_DEFAULT_SCREEN_DPI;
+    };
+    if (win32.AdjustWindowRectExForDpi(
+        &rect,
+        style,
+        0,
+        ex_style,
+        dpi,
+    ) == 0) {
+        log.warn("AdjustWindowRectExForDpi failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return false;
+    }
+
+    var outer = WindowExtent{
+        .width = rect.right - rect.left,
+        .height = rect.bottom - rect.top,
+    };
+    if (win32.MonitorFromWindow(
+        hwnd,
+        win32.MONITOR_DEFAULTTONEAREST,
+    )) |monitor| {
+        var info: win32.MONITORINFO = .{
+            .cbSize = @sizeOf(win32.MONITORINFO),
+            .rcMonitor = std.mem.zeroes(win32.RECT),
+            .rcWork = std.mem.zeroes(win32.RECT),
+            .dwFlags = 0,
+        };
+        if (win32.GetMonitorInfoW(monitor, &info) != 0) {
+            outer = clampWindowExtent(outer, info.rcWork);
+        } else {
+            log.warn("GetMonitorInfoW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        }
+    }
+
+    if (win32.SetWindowPos(
+        hwnd,
+        null,
+        0,
+        0,
+        outer.width,
+        outer.height,
+        .{ .NOMOVE = 1, .NOZORDER = 1, .NOACTIVATE = 1 },
+    ) == 0) {
+        log.warn("SetWindowPos for client size failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return false;
+    }
+    return true;
+}
+
+const WindowExtent = struct {
+    width: i32,
+    height: i32,
+};
+
+fn clampWindowExtent(extent: WindowExtent, work_area: win32.RECT) WindowExtent {
+    const work_width = @max(work_area.right - work_area.left, 1);
+    const work_height = @max(work_area.bottom - work_area.top, 1);
+    return .{
+        .width = std.math.clamp(extent.width, 1, work_width),
+        .height = std.math.clamp(extent.height, 1, work_height),
+    };
 }
 
 fn openUrl(
@@ -684,7 +1222,14 @@ fn initCoreSurface(
     if (opts.title) |title| {
         config.title = try config.arenaAlloc().dupeZ(u8, title);
     }
-
+    surface.default_maximized = config.maximize;
+    surface.default_fullscreen = config.fullscreen != .false;
+    if (!setWindowDecorations(
+        surface,
+        config.@"window-decoration" != .none,
+    )) {
+        log.warn("failed to apply initial window-decoration setting", .{});
+    }
     core_surface.init(
         alloc,
         &config,
@@ -724,7 +1269,6 @@ fn createWindow(self: *App, opts: WindowOptions) !void {
 }
 
 fn registerWindowClass() !void {
-    const class_name = win32.L("GhosttyWindow");
     const hinstance = win32.GetModuleHandleW(null);
 
     const wc: win32.WNDCLASSEXW = .{
@@ -738,7 +1282,7 @@ fn registerWindowClass() !void {
         .hCursor = win32.LoadCursorW(null, win32.IDC_ARROW),
         .hbrBackground = null,
         .lpszMenuName = null,
-        .lpszClassName = class_name,
+        .lpszClassName = window_class_name,
         .hIconSm = null,
     };
 
@@ -749,13 +1293,12 @@ fn registerWindowClass() !void {
 }
 
 fn createNativeWindow() !win32.HWND {
-    const class_name = win32.L("GhosttyWindow");
     const hinstance = win32.GetModuleHandleW(null);
 
     return win32.CreateWindowExW(
         .{},
-        class_name,
-        win32.L("Ghostty"),
+        window_class_name,
+        default_window_title,
         win32.WS_OVERLAPPEDWINDOW,
         win32.CW_USEDEFAULT,
         win32.CW_USEDEFAULT,
@@ -772,8 +1315,18 @@ fn createNativeWindow() !win32.HWND {
 }
 
 fn showWindow(surface: *Surface) void {
-    _ = win32.ShowWindow(surface.hwnd, win32.SW_SHOWNORMAL);
+    _ = win32.ShowWindow(
+        surface.hwnd,
+        if (surface.default_maximized)
+            win32.SW_MAXIMIZE
+        else
+            win32.SW_SHOWNORMAL,
+    );
     _ = win32.UpdateWindow(surface.hwnd);
+    surface.shown = true;
+    if (surface.default_fullscreen and !setFullscreen(surface, true)) {
+        log.warn("failed to enter configured fullscreen mode", .{});
+    }
 }
 
 fn getSurface(hwnd: win32.HWND) ?*Surface {
@@ -1376,6 +1929,16 @@ fn wndProc(
             if (getSurface(hwnd)) |surface| handleFocus(surface, msg == win32.WM_SETFOCUS);
             return 0;
         },
+        win32.WM_SHOWWINDOW => {
+            if (getSurface(hwnd)) |surface| {
+                if (surface.core_surface) |core| {
+                    core.occlusionCallback(wparam != 0) catch |err| {
+                        log.err("visibility callback error: {}", .{err});
+                    };
+                }
+            }
+            return 0;
+        },
         win32.WM_IME_STARTCOMPOSITION => {
             if (getSurface(hwnd)) |surface| handleImeStartComposition(surface, hwnd);
             return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
@@ -1556,6 +2119,121 @@ test "decode Win32 DPI scale" {
     try std.testing.expectEqual(
         apprt.ContentScale{ .x = 1.5, .y = 2.0 },
         dpiScale(wparam),
+    );
+}
+
+test "clamp Win32 window size to monitor work area" {
+    const work_area: win32.RECT = .{
+        .left = 0,
+        .top = 40,
+        .right = 1920,
+        .bottom = 1080,
+    };
+
+    try std.testing.expectEqual(
+        WindowExtent{ .width = 800, .height = 600 },
+        clampWindowExtent(.{ .width = 800, .height = 600 }, work_area),
+    );
+    try std.testing.expectEqual(
+        WindowExtent{ .width = 1920, .height = 1040 },
+        clampWindowExtent(.{ .width = 3000, .height = 2000 }, work_area),
+    );
+    try std.testing.expectEqual(
+        WindowExtent{ .width = 1, .height = 1 },
+        clampWindowExtent(.{ .width = 0, .height = -1 }, work_area),
+    );
+}
+
+test "toggle Win32 decoration style bits" {
+    const base: u32 = @bitCast(win32.WINDOW_STYLE{
+        .VISIBLE = 1,
+        .MAXIMIZE = 1,
+        .BORDER = 1,
+        .DLGFRAME = 1,
+        .SYSMENU = 1,
+        .THICKFRAME = 1,
+        .GROUP = 1,
+        .TABSTOP = 1,
+    });
+    const undecorated: win32.WINDOW_STYLE = @bitCast(
+        styleWithDecorations(base, false),
+    );
+    try std.testing.expectEqual(@as(u1, 1), undecorated.VISIBLE);
+    try std.testing.expectEqual(@as(u1, 1), undecorated.MAXIMIZE);
+    try std.testing.expectEqual(@as(u1, 0), undecorated.BORDER);
+    try std.testing.expectEqual(@as(u1, 0), undecorated.DLGFRAME);
+    try std.testing.expectEqual(@as(u1, 0), undecorated.SYSMENU);
+    try std.testing.expectEqual(@as(u1, 0), undecorated.THICKFRAME);
+
+    const decorated: win32.WINDOW_STYLE = @bitCast(styleWithDecorations(
+        @bitCast(undecorated),
+        true,
+    ));
+    try std.testing.expectEqual(@as(u1, 1), decorated.VISIBLE);
+    try std.testing.expectEqual(@as(u1, 1), decorated.MAXIMIZE);
+    try std.testing.expectEqual(@as(u1, 1), decorated.BORDER);
+    try std.testing.expectEqual(@as(u1, 1), decorated.DLGFRAME);
+    try std.testing.expectEqual(@as(u1, 1), decorated.SYSMENU);
+    try std.testing.expectEqual(@as(u1, 1), decorated.THICKFRAME);
+}
+
+test "restore Win32 native window state after fullscreen" {
+    try registerWindowClass();
+    defer _ = win32.UnregisterClassW(
+        window_class_name,
+        win32.GetModuleHandleW(null),
+    );
+
+    const hwnd = try createNativeWindow();
+    defer _ = win32.DestroyWindow(hwnd);
+    var surface: Surface = .{ .hwnd = hwnd };
+
+    var presenter = try DirectComposition.init(hwnd, 800, 600);
+    defer presenter.deinit();
+    try std.testing.expectEqual(win32.FALSE, win32.IsWindowVisible(hwnd));
+    const swap_chain_desc = try presenter.getSwapChainDescription();
+    try std.testing.expectEqual(@as(u32, 800), swap_chain_desc.Width);
+    try std.testing.expectEqual(@as(u32, 600), swap_chain_desc.Height);
+    try std.testing.expectEqual(
+        win32.DXGI_ALPHA_MODE_PREMULTIPLIED,
+        swap_chain_desc.AlphaMode,
+    );
+
+    const original_style = getWindowStyle(hwnd).?;
+    try std.testing.expect(setWindowDecorations(&surface, false));
+    try std.testing.expect(!surface.decorated);
+    try std.testing.expectEqual(
+        styleWithDecorations(original_style, false),
+        getWindowStyle(hwnd).?,
+    );
+
+    try std.testing.expect(setWindowDecorations(&surface, true));
+    try std.testing.expect(surface.decorated);
+    try std.testing.expectEqual(original_style, getWindowStyle(hwnd).?);
+
+    try std.testing.expect(setAlwaysOnTop(&surface, true));
+    try std.testing.expect(surface.always_on_top);
+    try std.testing.expect(setAlwaysOnTop(&surface, false));
+    try std.testing.expect(!surface.always_on_top);
+
+    try std.testing.expect(enterFullscreen(&surface));
+    try std.testing.expect(surface.fullscreen);
+    try std.testing.expectEqual(
+        styleWithDecorations(original_style, false),
+        getWindowStyle(hwnd).?,
+    );
+
+    // A decoration toggle made in fullscreen is deferred until restoration.
+    // Keep this test-only native window hidden when its placement is applied.
+    if (surface.windowed_placement) |*placement| {
+        placement.showCmd = win32.SW_HIDE;
+    }
+    try std.testing.expect(setWindowDecorations(&surface, false));
+    try std.testing.expect(leaveFullscreen(&surface));
+    try std.testing.expect(!surface.fullscreen);
+    try std.testing.expectEqual(
+        styleWithDecorations(original_style, false),
+        getWindowStyle(hwnd).?,
     );
 }
 

@@ -24,6 +24,41 @@ height: u32 = 600,
 cursor_pos: apprt.CursorPos = .{ .x = 0, .y = 0 },
 title: ?[:0]const u8 = null,
 
+/// Initial client size requested by the core. Later updates replace the
+/// default used by reset_window_size without resizing an already visible
+/// window.
+initial_client_size: ?apprt.action.InitialSize = null,
+
+/// True after the native window has been shown for the first time.
+shown: bool = false,
+
+/// Whether reset_window_size should return this window to a maximized state.
+default_maximized: bool = false,
+
+/// Whether a new window should enter native fullscreen after it is shown.
+default_fullscreen: bool = false,
+
+/// Current Win32 fullscreen state and the native state needed to restore the
+/// window exactly, including a maximized pre-fullscreen placement.
+fullscreen: bool = false,
+windowed_style: ?u32 = null,
+windowed_placement: ?win32.WINDOWPLACEMENT = null,
+
+/// Desired decoration state. Fullscreen always hides decorations, but a
+/// toggle made while fullscreen is applied when the window is restored.
+decorated: bool = true,
+
+/// Whether this window is currently in the Win32 topmost band.
+always_on_top: bool = false,
+
+/// Set only for windows hidden by the app-wide toggle_visibility action so a
+/// second invocation doesn't reveal windows the user had hidden separately.
+hidden_by_visibility_toggle: bool = false,
+
+/// Identifies which hidden window should regain focus when app-wide
+/// visibility is restored.
+focused_before_visibility_toggle: bool = false,
+
 /// Metadata from a text-producing keydown, merged into the following
 /// WM_CHAR/WM_SYSCHAR event so the core receives one complete key event.
 pending_text_key: ?PendingTextKey = null,

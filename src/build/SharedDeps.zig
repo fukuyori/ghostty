@@ -692,6 +692,9 @@ pub fn add(
                 step.root_module.linkSystemLibrary("gdi32", .{});
                 step.root_module.linkSystemLibrary("opengl32", .{});
                 step.root_module.linkSystemLibrary("imm32", .{});
+                step.root_module.linkSystemLibrary("d3d11", .{});
+                step.root_module.linkSystemLibrary("dxgi", .{});
+                step.root_module.linkSystemLibrary("dcomp", .{});
                 if (b.lazyDependency("win32", .{})) |dep| {
                     step.root_module.addImport("win32", dep.module("win32"));
                 }
