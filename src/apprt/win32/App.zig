@@ -73,7 +73,6 @@ pub fn init(
     };
 
     try self.createWindow();
-    try self.surface.init(self.hwnd.?);
 
     _ = win32.SetWindowLongPtrW(
         self.hwnd.?,
@@ -81,7 +80,9 @@ pub fn init(
         @bitCast(@intFromPtr(self)),
     );
 
+    try self.surface.init(self.hwnd.?);
     try self.initCoreSurface();
+    self.showWindow();
 }
 
 pub fn run(self: *App) !void {
@@ -130,13 +131,21 @@ pub fn performAction(
     value: apprt.Action.Value(action),
 ) !bool {
     _ = self;
-    _ = target;
-    _ = value;
 
     switch (action) {
         .quit => {
             win32.PostQuitMessage(0);
             return true;
+        },
+        .set_title => switch (target) {
+            .app => {
+                log.warn("set_title targeted the application", .{});
+                return false;
+            },
+            .surface => |surface| {
+                try surface.rt_surface.setTitle(value.title);
+                return true;
+            },
         },
         .new_window => return false,
         else => return false,
@@ -229,9 +238,12 @@ fn createWindow(self: *App) !void {
         log.err("CreateWindowExW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         return error.Win32Error;
     };
+}
 
-    _ = win32.ShowWindow(self.hwnd.?, win32.SW_SHOWNORMAL);
-    _ = win32.UpdateWindow(self.hwnd.?);
+fn showWindow(self: *App) void {
+    const hwnd = self.hwnd orelse return;
+    _ = win32.ShowWindow(hwnd, win32.SW_SHOWNORMAL);
+    _ = win32.UpdateWindow(hwnd);
 }
 
 fn getApp(hwnd: win32.HWND) ?*App {
@@ -554,6 +566,16 @@ fn wheelDelta(wparam: win32.WPARAM) i16 {
     return signedHighWord(wparam);
 }
 
+fn dpiScale(wparam: win32.WPARAM) apprt.ContentScale {
+    const default_dpi: f32 = @floatFromInt(win32.USER_DEFAULT_SCREEN_DPI);
+    const x: u16 = @truncate(wparam);
+    const y: u16 = @truncate(wparam >> 16);
+    return .{
+        .x = @as(f32, @floatFromInt(x)) / default_dpi,
+        .y = @as(f32, @floatFromInt(y)) / default_dpi,
+    };
+}
+
 fn accumulateWheelTicks(remainder: *i32, delta: i16) i32 {
     remainder.* += delta;
     const wheel_delta: i32 = @intCast(win32.WHEEL_DELTA);
@@ -699,6 +721,48 @@ fn handleMouseWheel(
     };
 }
 
+fn handleDpiChanged(
+    app: *App,
+    hwnd: win32.HWND,
+    wparam: win32.WPARAM,
+    lparam: win32.LPARAM,
+) void {
+    if (app.surface.core_surface) |core| {
+        core.contentScaleCallback(dpiScale(wparam)) catch |err| {
+            log.err("content scale callback error: {}", .{err});
+        };
+    }
+
+    if (lparam == 0) return;
+    const rect: *const win32.RECT = @ptrFromInt(@as(usize, @bitCast(lparam)));
+    if (win32.SetWindowPos(
+        hwnd,
+        null,
+        rect.left,
+        rect.top,
+        rect.right - rect.left,
+        rect.bottom - rect.top,
+        .{ .NOZORDER = 1, .NOACTIVATE = 1 },
+    ) == 0) {
+        log.warn("SetWindowPos for DPI change failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+    }
+}
+
+fn handleFocus(app: *App, focused: bool) void {
+    if (!focused) {
+        app.pending_text_key = null;
+        app.pending_high_surrogate = null;
+        releaseMouseButtons(app);
+    }
+
+    app.core_app.focusEvent(focused);
+    if (app.surface.core_surface) |core| {
+        core.focusCallback(focused) catch |err| {
+            log.err("focus callback error: {}", .{err});
+        };
+    }
+}
+
 fn wndProc(
     hwnd: win32.HWND,
     msg: u32,
@@ -727,6 +791,14 @@ fn wndProc(
                     }
                 }
             }
+            return 0;
+        },
+        win32.WM_DPICHANGED => {
+            if (getApp(hwnd)) |app| handleDpiChanged(app, hwnd, wparam, lparam);
+            return 0;
+        },
+        win32.WM_SETFOCUS, win32.WM_KILLFOCUS => {
+            if (getApp(hwnd)) |app| handleFocus(app, msg == win32.WM_SETFOCUS);
             return 0;
         },
         win32.WM_PAINT => {
@@ -905,4 +977,12 @@ test "accumulate partial Win32 horizontal wheel ticks" {
     try std.testing.expectEqual(@as(i32, 0), remainder);
     try std.testing.expectEqual(@as(i32, -2), accumulateWheelTicks(&remainder, -240));
     try std.testing.expectEqual(@as(i32, 0), remainder);
+}
+
+test "decode Win32 DPI scale" {
+    const wparam = @as(usize, 192) << 16 | 144;
+    try std.testing.expectEqual(
+        apprt.ContentScale{ .x = 1.5, .y = 2.0 },
+        dpiScale(wparam),
+    );
 }

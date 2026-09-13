@@ -21,6 +21,7 @@ core_surface: ?*CoreSurface = null,
 width: u32 = 800,
 height: u32 = 600,
 cursor_pos: apprt.CursorPos = .{ .x = 0, .y = 0 },
+title: ?[:0]const u8 = null,
 
 pub fn core(self: *Self) *CoreSurface {
     return self.core_surface.?;
@@ -32,16 +33,36 @@ pub fn rtApp(self: *Self) *App {
 
 pub fn init(self: *Self, hwnd: win32.HWND) !void {
     self.* = .{ .hwnd = hwnd };
+    self.updateClientSize();
     try self.initOpenGL();
 }
 
 pub fn deinit(self: *Self) void {
     if (self.core_surface) |surface| surface.deinit();
+    if (self.title) |title| {
+        self.rtApp().alloc.free(title);
+        self.title = null;
+    }
     if (self.hglrc) |hglrc| {
         _ = win32.wglMakeCurrent(null, null);
         _ = win32.wglDeleteContext(hglrc);
     }
     if (self.hdc) |hdc| _ = win32.ReleaseDC(self.hwnd, hdc);
+}
+
+fn updateClientSize(self: *Self) void {
+    var rect: win32.RECT = std.mem.zeroes(win32.RECT);
+    if (win32.GetClientRect(self.hwnd, &rect) == 0) {
+        log.warn("GetClientRect failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return;
+    }
+
+    const width = rect.right - rect.left;
+    const height = rect.bottom - rect.top;
+    if (width > 0 and height > 0) {
+        self.width = @intCast(width);
+        self.height = @intCast(height);
+    }
 }
 
 fn initOpenGL(self: *Self) !void {
@@ -110,8 +131,13 @@ pub fn releaseMainThreadContext(_: *Self) void {
     releaseContext();
 }
 
-pub fn getContentScale(_: *const Self) !apprt.ContentScale {
-    return .{ .x = 1.0, .y = 1.0 };
+pub fn getContentScale(self: *const Self) !apprt.ContentScale {
+    const dpi = win32.GetDpiForWindow(self.hwnd);
+    if (dpi == 0) {
+        log.warn("GetDpiForWindow failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return .{ .x = 1.0, .y = 1.0 };
+    }
+    return contentScaleForDpi(dpi, dpi);
 }
 
 pub fn getSize(self: *const Self) !apprt.SurfaceSize {
@@ -122,8 +148,24 @@ pub fn getCursorPos(self: *const Self) !apprt.CursorPos {
     return self.cursor_pos;
 }
 
-pub fn getTitle(_: *Self) ?[:0]const u8 {
-    return null;
+pub fn getTitle(self: *Self) ?[:0]const u8 {
+    return self.title;
+}
+
+pub fn setTitle(self: *Self, value: [:0]const u8) !void {
+    const alloc = self.rtApp().alloc;
+    const title = try alloc.dupeZ(u8, value);
+    errdefer alloc.free(title);
+
+    const wide = try std.unicode.utf8ToUtf16LeAllocZ(alloc, value);
+    defer alloc.free(wide);
+    if (win32.SetWindowTextW(self.hwnd, wide) == 0) {
+        log.err("SetWindowTextW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return error.Win32Error;
+    }
+
+    if (self.title) |old| alloc.free(old);
+    self.title = title;
 }
 
 pub fn close(_: *Self, _: bool) void {}
@@ -415,6 +457,14 @@ pub fn defaultTermioEnv(_: *Self) !std.process.Environ.Map {
 
 pub fn redrawInspector(_: *Self) void {}
 
+fn contentScaleForDpi(x: u32, y: u32) apprt.ContentScale {
+    const default_dpi: f32 = @floatFromInt(win32.USER_DEFAULT_SCREEN_DPI);
+    return .{
+        .x = @as(f32, @floatFromInt(x)) / default_dpi,
+        .y = @as(f32, @floatFromInt(y)) / default_dpi,
+    };
+}
+
 test "Win32 clipboard normalizes line endings when reading" {
     const value = try normalizeClipboardRead(std.testing.allocator, "a\r\nb\rc\nd");
     defer std.testing.allocator.free(value);
@@ -433,4 +483,15 @@ test "Win32 clipboard selects the first text representation" {
         .{ .mime = "UTF8_STRING", .data = "text" },
     };
     try std.testing.expectEqualStrings("text", clipboardTextContent(&contents).?);
+}
+
+test "Win32 content scale follows monitor DPI" {
+    try std.testing.expectEqual(
+        apprt.ContentScale{ .x = 1.0, .y = 1.0 },
+        contentScaleForDpi(96, 96),
+    );
+    try std.testing.expectEqual(
+        apprt.ContentScale{ .x = 1.5, .y = 2.0 },
+        contentScaleForDpi(144, 192),
+    );
 }
