@@ -38,7 +38,13 @@ pub fn init(self: *Self, hwnd: win32.HWND) !void {
 }
 
 pub fn deinit(self: *Self) void {
-    if (self.core_surface) |surface| surface.deinit();
+    if (self.core_surface) |surface| {
+        const app = self.rtApp();
+        app.core_app.deleteSurface(self);
+        surface.deinit();
+        app.alloc.destroy(surface);
+        self.core_surface = null;
+    }
     if (self.title) |title| {
         self.rtApp().alloc.free(title);
         self.title = null;
@@ -46,8 +52,12 @@ pub fn deinit(self: *Self) void {
     if (self.hglrc) |hglrc| {
         _ = win32.wglMakeCurrent(null, null);
         _ = win32.wglDeleteContext(hglrc);
+        self.hglrc = null;
     }
-    if (self.hdc) |hdc| _ = win32.ReleaseDC(self.hwnd, hdc);
+    if (self.hdc) |hdc| {
+        _ = win32.ReleaseDC(self.hwnd, hdc);
+        self.hdc = null;
+    }
 }
 
 fn updateClientSize(self: *Self) void {
