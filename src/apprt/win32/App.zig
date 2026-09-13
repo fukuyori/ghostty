@@ -838,9 +838,10 @@ fn wndProc(
             return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
         },
         win32.WM_PAINT => {
+            // Validate the update region here. The renderer thread owns the
+            // WGL context and presents completed frames with SwapBuffers.
             var ps: win32.PAINTSTRUCT = std.mem.zeroes(win32.PAINTSTRUCT);
             _ = win32.BeginPaint(hwnd, &ps);
-            if (getApp(hwnd)) |app| app.surface.swapBuffers();
             _ = win32.EndPaint(hwnd, &ps);
             return 0;
         },
