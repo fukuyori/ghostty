@@ -687,6 +687,14 @@ pub fn add(
         switch (self.config.app_runtime) {
             .none => {},
             .gtk => try self.addGtkNg(step),
+            .win32 => {
+                step.root_module.linkSystemLibrary("user32", .{});
+                step.root_module.linkSystemLibrary("gdi32", .{});
+                step.root_module.linkSystemLibrary("opengl32", .{});
+                if (b.lazyDependency("win32", .{})) |dep| {
+                    step.root_module.addImport("win32", dep.module("win32"));
+                }
+            },
         }
     }
 

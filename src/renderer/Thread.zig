@@ -479,6 +479,10 @@ fn drawFrame(self: *Thread, now: bool) void {
     } else {
         self.renderer.drawFrame(false) catch |err|
             log.warn("error drawing err={}", .{err});
+
+        if (comptime @hasDecl(apprt.runtime.Surface, "swapBuffers")) {
+            self.surface.swapBuffers();
+        }
     }
 }
 

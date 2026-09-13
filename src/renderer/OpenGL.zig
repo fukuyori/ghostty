@@ -169,6 +169,9 @@ pub fn surfaceInit(surface: *apprt.Surface) !void {
         apprt.gtk,
         => try prepareContext(null),
 
+        apprt.win32,
+        => try prepareContext(null),
+
         apprt.embedded => {
             // TODO(mitchellh): this does nothing today to allow libghostty
             // to compile for OpenGL targets but libghostty is strictly
@@ -190,48 +193,22 @@ pub fn surfaceInit(surface: *apprt.Surface) !void {
 /// thread for final main thread setup requirements.
 pub fn finalizeSurfaceInit(self: *const OpenGL, surface: *apprt.Surface) !void {
     _ = self;
-    _ = surface;
+    if (apprt.runtime == apprt.win32) surface.releaseMainThreadContext();
 }
 
 /// Callback called by renderer.Thread when it begins.
 pub fn threadEnter(self: *const OpenGL, surface: *apprt.Surface) !void {
     _ = self;
-    _ = surface;
-
-    switch (apprt.runtime) {
-        else => @compileError("unsupported app runtime for OpenGL"),
-
-        apprt.gtk => {
-            // GTK doesn't support threaded OpenGL operations as far as I can
-            // tell, so we use the renderer thread to setup all the state
-            // but then do the actual draws and texture syncs and all that
-            // on the main thread. As such, we don't do anything here.
-        },
-
-        apprt.embedded => {
-            // TODO(mitchellh): this does nothing today to allow libghostty
-            // to compile for OpenGL targets but libghostty is strictly
-            // broken for rendering on this platforms.
-        },
+    if (apprt.runtime == apprt.win32) {
+        surface.makeContextCurrent();
+        try prepareContext(null);
     }
 }
 
 /// Callback called by renderer.Thread when it exits.
 pub fn threadExit(self: *const OpenGL) void {
     _ = self;
-
-    switch (apprt.runtime) {
-        else => @compileError("unsupported app runtime for OpenGL"),
-
-        apprt.gtk => {
-            // We don't need to do any unloading for GTK because we may
-            // be sharing the global bindings with other windows.
-        },
-
-        apprt.embedded => {
-            // TODO: see threadEnter
-        },
-    }
+    if (apprt.runtime == apprt.win32) apprt.win32.Surface.releaseContext();
 }
 
 pub fn displayRealized(self: *const OpenGL) void {
