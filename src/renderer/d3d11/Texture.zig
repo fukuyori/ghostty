@@ -168,10 +168,35 @@ pub fn replaceRegion(
     );
 }
 
+/// Bind this texture as the active color target. Render-target textures are
+/// used by the generic renderer for post-processing passes.
+pub fn bindAsTarget(self: Self, context: *win32.ID3D11DeviceContext) Error!void {
+    const view = self.render_view orelse return error.CreateRenderTarget;
+    var views = [_]?*win32.ID3D11RenderTargetView{view};
+    context.OMSetRenderTargets(1, &views, null);
+
+    const viewport: win32.D3D11_VIEWPORT = .{
+        .TopLeftX = 0,
+        .TopLeftY = 0,
+        .Width = @floatFromInt(self.width),
+        .Height = @floatFromInt(self.height),
+        .MinDepth = 0,
+        .MaxDepth = 1,
+    };
+    context.RSSetViewports(1, @ptrCast(&viewport));
+}
+
+pub fn clear(self: Self, context: *win32.ID3D11DeviceContext, color: [4]f32) Error!void {
+    const view = self.render_view orelse return error.CreateRenderTarget;
+    context.ClearRenderTargetView(view, &color[0]);
+}
+
 fn bytesPerPixel(format: win32.DXGI_FORMAT) Error!u32 {
     return switch (format) {
         win32.DXGI_FORMAT_R8_UNORM => 1,
+        win32.DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
         win32.DXGI_FORMAT_R8G8B8A8_UNORM,
+        win32.DXGI_FORMAT_B8G8R8A8_UNORM_SRGB,
         win32.DXGI_FORMAT_B8G8R8A8_UNORM,
         => 4,
         else => error.UnsupportedFormat,

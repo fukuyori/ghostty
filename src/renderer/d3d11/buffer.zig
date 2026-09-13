@@ -24,6 +24,14 @@ const Allocation = struct {
     shader_view: ?*win32.ID3D11ShaderResourceView,
 };
 
+/// Resources needed to bind a buffer in a generic renderer step. Vertex and
+/// constant buffers only use `resource`; structured buffers additionally carry
+/// a shader-resource view.
+pub const Binding = struct {
+    resource: *win32.ID3D11Buffer,
+    shader_view: ?*win32.ID3D11ShaderResourceView = null,
+};
+
 pub fn Buffer(comptime T: type) type {
     if (@sizeOf(T) == 0) @compileError("D3D11 buffers cannot store zero-sized types");
 
@@ -31,8 +39,7 @@ pub fn Buffer(comptime T: type) type {
         const Self = @This();
 
         opts: Options,
-        buffer: *win32.ID3D11Buffer,
-        shader_view: ?*win32.ID3D11ShaderResourceView,
+        buffer: Binding,
         /// Allocated number of T elements.
         len: usize,
 
@@ -40,8 +47,10 @@ pub fn Buffer(comptime T: type) type {
             const allocation = try createAllocation(opts, T, len);
             return .{
                 .opts = opts,
-                .buffer = allocation.buffer,
-                .shader_view = allocation.shader_view,
+                .buffer = .{
+                    .resource = allocation.buffer,
+                    .shader_view = allocation.shader_view,
+                },
                 .len = len,
             };
         }
@@ -54,14 +63,14 @@ pub fn Buffer(comptime T: type) type {
         }
 
         pub fn deinit(self: *const Self) void {
-            if (self.shader_view) |view| _ = view.IUnknown.Release();
-            _ = self.buffer.IUnknown.Release();
+            if (self.buffer.shader_view) |view| _ = view.IUnknown.Release();
+            _ = self.buffer.resource.IUnknown.Release();
         }
 
         pub fn sync(self: *Self, data: []const T) Error!void {
             if (data.len == 0) return;
             try self.ensureCapacity(data.len);
-            try upload(self.opts.context, self.buffer, std.mem.sliceAsBytes(data));
+            try upload(self.opts.context, self.buffer.resource, std.mem.sliceAsBytes(data));
         }
 
         pub fn syncFromArrayLists(
@@ -80,7 +89,7 @@ pub fn Buffer(comptime T: type) type {
             var mapped: win32.D3D11_MAPPED_SUBRESOURCE = undefined;
             try check(
                 self.opts.context.Map(
-                    @ptrCast(self.buffer),
+                    @ptrCast(self.buffer.resource),
                     0,
                     win32.D3D11_MAP_WRITE_DISCARD,
                     0,
@@ -89,7 +98,7 @@ pub fn Buffer(comptime T: type) type {
                 error.MapBuffer,
                 "ID3D11DeviceContext.Map",
             );
-            defer self.opts.context.Unmap(@ptrCast(self.buffer), 0);
+            defer self.opts.context.Unmap(@ptrCast(self.buffer.resource), 0);
 
             const destination: [*]u8 = @ptrCast(mapped.pData orelse
                 return error.MapBuffer);
@@ -107,10 +116,12 @@ pub fn Buffer(comptime T: type) type {
             const new_len = std.math.mul(usize, required, 2) catch
                 return error.BufferTooLarge;
             const replacement = try createAllocation(self.opts, T, new_len);
-            if (self.shader_view) |view| _ = view.IUnknown.Release();
-            _ = self.buffer.IUnknown.Release();
-            self.buffer = replacement.buffer;
-            self.shader_view = replacement.shader_view;
+            if (self.buffer.shader_view) |view| _ = view.IUnknown.Release();
+            _ = self.buffer.resource.IUnknown.Release();
+            self.buffer = .{
+                .resource = replacement.buffer,
+                .shader_view = replacement.shader_view,
+            };
             self.len = new_len;
         }
     };

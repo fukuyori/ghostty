@@ -102,12 +102,25 @@ pub fn copyTo(
     if (self.width != destination.width or self.height != destination.height) {
         return error.TargetSizeMismatch;
     }
-    if (self.format != destination.format) return error.TargetFormatMismatch;
+    if (!compatibleFormats(self.format, destination.format)) {
+        return error.TargetFormatMismatch;
+    }
 
     context.CopyResource(
         @ptrCast(destination.texture),
         @ptrCast(self.texture),
     );
+}
+
+/// CopyResource permits typed formats from the same DXGI format family. The
+/// renderer uses an sRGB view for linear blending and copies the encoded bytes
+/// to DirectComposition's UNORM BGRA back buffer.
+fn compatibleFormats(source: win32.DXGI_FORMAT, destination: win32.DXGI_FORMAT) bool {
+    if (source == destination) return true;
+    return (source == win32.DXGI_FORMAT_B8G8R8A8_UNORM_SRGB and
+        destination == win32.DXGI_FORMAT_B8G8R8A8_UNORM) or
+        (source == win32.DXGI_FORMAT_B8G8R8A8_UNORM and
+            destination == win32.DXGI_FORMAT_B8G8R8A8_UNORM_SRGB);
 }
 
 fn fromTexture(
@@ -174,4 +187,15 @@ test "D3D11 target description clamps dimensions and enables shader input" {
     try testing.expectEqual(@as(u32, 1), desc.Height);
     try testing.expectEqual(@as(u1, 1), desc.BindFlags.RENDER_TARGET);
     try testing.expectEqual(@as(u1, 1), desc.BindFlags.SHADER_RESOURCE);
+}
+
+test "D3D11 target accepts BGRA UNORM and sRGB copies" {
+    try std.testing.expect(compatibleFormats(
+        win32.DXGI_FORMAT_B8G8R8A8_UNORM_SRGB,
+        win32.DXGI_FORMAT_B8G8R8A8_UNORM,
+    ));
+    try std.testing.expect(!compatibleFormats(
+        win32.DXGI_FORMAT_R8G8B8A8_UNORM,
+        win32.DXGI_FORMAT_B8G8R8A8_UNORM,
+    ));
 }

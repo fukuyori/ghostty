@@ -115,6 +115,8 @@ pub const PipelineCollection = struct {
 /// Pipelines used by the generic terminal renderer.
 pub const Shaders = struct {
     pipelines: PipelineCollection,
+    /// Custom post-processing shaders are not yet supported by D3D11.
+    post_pipelines: []const Pipeline = &.{},
     defunct: bool = false,
 
     pub fn init(device: *win32.ID3D11Device) Pipeline.Error!Shaders {
@@ -178,7 +180,7 @@ pub const Shaders = struct {
         } };
     }
 
-    pub fn deinit(self: *Shaders) void {
+    pub fn deinit(self: *Shaders, _: std.mem.Allocator) void {
         if (self.defunct) return;
         self.pipelines.bg_image.deinit();
         self.pipelines.image.deinit();
@@ -195,7 +197,7 @@ test "D3D11 shader data layouts remain tightly packed" {
     try std.testing.expectEqual(@as(usize, 132), @offsetOf(Uniforms, "bools"));
     try std.testing.expectEqual(@as(usize, 32), @sizeOf(CellText));
     try std.testing.expectEqual(@as(usize, 4), @sizeOf(CellBg));
-    try std.testing.expectEqual(@as(usize, 40), @sizeOf(Image));
+    try std.testing.expectEqual(@as(usize, 48), @sizeOf(Image));
     try std.testing.expectEqual(@as(usize, 8), @sizeOf(BgImage));
 }
 

@@ -1,9 +1,10 @@
 /// Win32 application runtime for Ghostty. This is a minimal native Windows
-/// application using the Win32 API with OpenGL rendering.
+/// application using the Win32 API with D3D11 or OpenGL rendering.
 const App = @This();
 
 const std = @import("std");
 const win32 = @import("win32").everything;
+const build_config = @import("../../build_config.zig");
 const Allocator = std.mem.Allocator;
 const apprt = @import("../../apprt.zig");
 const configpkg = @import("../../config.zig");
@@ -1279,7 +1280,10 @@ fn registerWindowClass() !void {
 
     const wc: win32.WNDCLASSEXW = .{
         .cbSize = @sizeOf(win32.WNDCLASSEXW),
-        .style = .{ .HREDRAW = 1, .VREDRAW = 1, .OWNDC = 1 },
+        .style = if (build_config.renderer == .opengl)
+            .{ .HREDRAW = 1, .VREDRAW = 1, .OWNDC = 1 }
+        else
+            .{ .HREDRAW = 1, .VREDRAW = 1 },
         .lpfnWndProc = wndProc,
         .cbClsExtra = 0,
         .cbWndExtra = 0,
@@ -1302,7 +1306,7 @@ fn createNativeWindow() !win32.HWND {
     const hinstance = win32.GetModuleHandleW(null);
 
     return win32.CreateWindowExW(
-        .{},
+        nativeWindowExStyle(),
         window_class_name,
         default_window_title,
         win32.WS_OVERLAPPEDWINDOW,
@@ -1318,6 +1322,24 @@ fn createNativeWindow() !win32.HWND {
         log.err("CreateWindowExW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         return error.Win32Error;
     };
+}
+
+/// DirectComposition owns the complete client-area visual tree. Disabling the
+/// legacy redirected bitmap lets the swap chain's premultiplied alpha reach
+/// the desktop compositor instead of being flattened against an HWND surface.
+fn nativeWindowExStyle() win32.WINDOW_EX_STYLE {
+    return if (build_config.renderer == .d3d11)
+        .{ .NOREDIRECTIONBITMAP = 1 }
+    else
+        .{};
+}
+
+test "Win32 D3D11 windows bypass the legacy redirect bitmap" {
+    const style = nativeWindowExStyle();
+    try std.testing.expectEqual(
+        @as(u1, @intFromBool(build_config.renderer == .d3d11)),
+        style.NOREDIRECTIONBITMAP,
+    );
 }
 
 fn showWindow(surface: *Surface) void {
@@ -2242,7 +2264,7 @@ test "restore Win32 native window state after fullscreen" {
     }, 4);
     defer structured_buffer.deinit();
     try structured_buffer.sync(&.{ 1, 2, 3, 4 });
-    try std.testing.expect(structured_buffer.shader_view != null);
+    try std.testing.expect(structured_buffer.buffer.shader_view != null);
 
     const ConstantBuffer = d3d11_buffer.Buffer(D3D11Shaders.Uniforms);
     var constant_buffer = try ConstantBuffer.init(.{
@@ -2297,7 +2319,7 @@ test "restore Win32 native window state after fullscreen" {
     }});
 
     var shaders = try D3D11Shaders.Shaders.init(presenter.device);
-    defer shaders.deinit();
+    defer shaders.deinit(std.testing.allocator);
 
     const pass = D3D11RenderPass.init(.{
         .context = presenter.context,
@@ -2305,10 +2327,10 @@ test "restore Win32 native window state after fullscreen" {
         .clear_color = .{ 0, 0, 0, 0 },
     });
     pass.setPipeline(&shaders.pipelines.cell_text);
-    pass.setVertexBuffer(cell_buffer.buffer, shaders.pipelines.cell_text.stride);
-    pass.setUniformBuffer(1, constant_buffer.buffer);
+    pass.setVertexBuffer(cell_buffer.buffer.resource, shaders.pipelines.cell_text.stride);
+    pass.setUniformBuffer(1, constant_buffer.buffer.resource);
     var vertex_resources = [_]?*win32.ID3D11ShaderResourceView{
-        structured_buffer.shader_view.?,
+        structured_buffer.buffer.shader_view.?,
     };
     pass.setVertexShaderResources(0, &vertex_resources);
     var pixel_resources = [_]?*win32.ID3D11ShaderResourceView{

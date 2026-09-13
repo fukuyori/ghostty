@@ -5,6 +5,7 @@ const Self = @This();
 
 const std = @import("std");
 const win32 = @import("win32").everything;
+const build_config = @import("../../build_config.zig");
 const apprt = @import("../../apprt.zig");
 const CoreSurface = @import("../../Surface.zig");
 const global = @import("../../global.zig");
@@ -97,7 +98,7 @@ pub fn init(self: *Self, app: *App, hwnd: win32.HWND) !void {
     self.* = .{ .hwnd = hwnd, .app = app };
     errdefer self.deinit();
     self.updateClientSize();
-    try self.initOpenGL();
+    if (comptime build_config.renderer == .opengl) try self.initOpenGL();
 }
 
 pub fn deinit(self: *Self) void {
@@ -179,6 +180,7 @@ fn initOpenGL(self: *Self) !void {
 }
 
 pub fn swapBuffers(self: *Self) void {
+    if (comptime build_config.renderer != .opengl) return;
     if (self.hdc) |hdc| {
         if (win32.SwapBuffers(hdc) == 0) {
             log.warn("SwapBuffers failed: err={d}", .{@intFromEnum(win32.GetLastError())});
@@ -189,6 +191,7 @@ pub fn swapBuffers(self: *Self) void {
 /// Keep the default framebuffer viewport synchronized with the drawable
 /// client area. The renderer thread calls this while it owns the WGL context.
 pub fn updateViewport(self: *const Self) void {
+    if (comptime build_config.renderer != .opengl) return;
     win32.glViewport(
         0,
         0,
@@ -198,6 +201,7 @@ pub fn updateViewport(self: *const Self) void {
 }
 
 pub fn makeContextCurrent(self: *Self) void {
+    if (comptime build_config.renderer != .opengl) return;
     if (self.hdc) |hdc| {
         if (self.hglrc) |hglrc| {
             if (win32.wglMakeCurrent(hdc, hglrc) == 0) {
@@ -208,6 +212,7 @@ pub fn makeContextCurrent(self: *Self) void {
 }
 
 pub fn releaseContext() void {
+    if (comptime build_config.renderer != .opengl) return;
     if (win32.wglMakeCurrent(null, null) == 0) {
         log.warn("wglMakeCurrent(null) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
     }

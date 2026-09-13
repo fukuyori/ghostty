@@ -844,14 +844,24 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             const arena_alloc = arena.allocator();
 
             // Load our custom shaders
-            const custom_shaders: []const [:0]const u8 = shadertoy.loadFromFiles(
-                arena_alloc,
-                self.config.custom_shaders,
-                GraphicsAPI.custom_shader_target,
-            ) catch |err| err: {
-                log.warn("error loading custom shaders err={}", .{err});
-                break :err &.{};
-            };
+            const supports_custom_shaders = if (@hasDecl(GraphicsAPI, "supports_custom_shaders"))
+                GraphicsAPI.supports_custom_shaders
+            else
+                true;
+            if (!supports_custom_shaders and self.config.custom_shaders.value.items.len > 0) {
+                log.warn("custom shaders are not supported by the selected renderer", .{});
+            }
+            const custom_shaders: []const [:0]const u8 = if (supports_custom_shaders)
+                shadertoy.loadFromFiles(
+                    arena_alloc,
+                    self.config.custom_shaders,
+                    GraphicsAPI.custom_shader_target,
+                ) catch |err| err: {
+                    log.warn("error loading custom shaders err={}", .{err});
+                    break :err &.{};
+                }
+            else
+                &.{};
 
             const has_custom_shaders = custom_shaders.len > 0;
 
