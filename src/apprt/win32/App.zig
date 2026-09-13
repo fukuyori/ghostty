@@ -20,6 +20,10 @@ const log = std.log.scoped(.win32);
 /// GetMessage and run the core app's tick.
 const WM_WAKEUP = win32.WM_USER + 1;
 
+/// A surface can request closure from a core callback. Route it through the
+/// window thread so confirmation and native resource teardown happen there.
+const WM_CLOSE_SURFACE = win32.WM_USER + 2;
+
 core_app: *CoreApp,
 config: *Config,
 alloc: Allocator,
@@ -107,14 +111,19 @@ pub fn run(self: *App) !void {
 
 pub fn terminate(self: *App) void {
     self.surface.deinit();
+    self.destroyWindow();
+    self.config.deinit();
+    self.alloc.destroy(self.config);
+}
+
+fn destroyWindow(self: *App) void {
     if (self.hwnd) |hwnd| {
         if (win32.DestroyWindow(hwnd) == 0) {
             log.warn("DestroyWindow failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            return;
         }
         self.hwnd = null;
     }
-    self.config.deinit();
-    self.alloc.destroy(self.config);
 }
 
 pub fn wakeup(self: *App) void {
@@ -123,6 +132,37 @@ pub fn wakeup(self: *App) void {
             log.warn("PostMessage(WM_WAKEUP) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         }
     }
+}
+
+pub fn requestSurfaceClose(self: *App, confirm: bool) void {
+    const hwnd = self.hwnd orelse return;
+    if (win32.PostMessageW(hwnd, WM_CLOSE_SURFACE, @intFromBool(confirm), 0) == 0) {
+        log.warn("PostMessage(WM_CLOSE_SURFACE) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+    }
+}
+
+fn closeSurface(self: *App, confirm: bool) void {
+    const hwnd = self.hwnd orelse return;
+    if (confirm and !confirmSurfaceClose(hwnd)) return;
+
+    // Keep the HWND and its DC alive until the renderer has stopped and the
+    // surface has released all native rendering resources.
+    self.surface.deinit();
+    self.destroyWindow();
+}
+
+fn confirmSurfaceClose(hwnd: win32.HWND) bool {
+    const caption = std.unicode.utf8ToUtf16LeStringLiteral("Close Terminal?");
+    const message = std.unicode.utf8ToUtf16LeStringLiteral(
+        "The terminal still has a running process. If you close the terminal the process will be killed.",
+    );
+    const style: win32.MESSAGEBOX_STYLE = .{
+        .YESNO = 1,
+        .ICONHAND = 1,
+        .ICONQUESTION = 1,
+        .DEFBUTTON2 = 1,
+    };
+    return win32.MessageBoxW(hwnd, message, caption, style) == win32.IDYES;
 }
 
 pub fn performAction(
@@ -136,6 +176,10 @@ pub fn performAction(
     switch (action) {
         .quit => {
             win32.PostQuitMessage(0);
+            return true;
+        },
+        .quit_timer => {
+            if (value == .start) win32.PostQuitMessage(0);
             return true;
         },
         .set_title => switch (target) {
@@ -803,7 +847,19 @@ fn wndProc(
 ) callconv(.winapi) win32.LRESULT {
     switch (msg) {
         win32.WM_CLOSE => {
-            win32.PostQuitMessage(0);
+            if (getApp(hwnd)) |app| {
+                if (app.surface.core_surface) |surface| {
+                    surface.close();
+                } else {
+                    app.requestSurfaceClose(false);
+                }
+            } else {
+                _ = win32.DestroyWindow(hwnd);
+            }
+            return 0;
+        },
+        WM_CLOSE_SURFACE => {
+            if (getApp(hwnd)) |app| app.closeSurface(wparam != 0);
             return 0;
         },
         win32.WM_SIZE => {

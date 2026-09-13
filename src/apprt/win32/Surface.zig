@@ -191,7 +191,9 @@ pub fn setTitle(self: *Self, value: [:0]const u8) !void {
     self.title = title;
 }
 
-pub fn close(_: *Self, _: bool) void {}
+pub fn close(self: *Self, confirm: bool) void {
+    self.rtApp().requestSurfaceClose(confirm);
+}
 
 pub fn supportsClipboard(_: *Self, clipboard: apprt.Clipboard) bool {
     return clipboard == .standard;
