@@ -20,6 +20,7 @@ hglrc: ?win32.HGLRC = null,
 core_surface: ?*CoreSurface = null,
 width: u32 = 800,
 height: u32 = 600,
+cursor_pos: apprt.CursorPos = .{ .x = 0, .y = 0 },
 
 pub fn core(self: *Self) *CoreSurface {
     return self.core_surface.?;
@@ -117,8 +118,8 @@ pub fn getSize(self: *const Self) !apprt.SurfaceSize {
     return .{ .width = self.width, .height = self.height };
 }
 
-pub fn getCursorPos(_: *const Self) !apprt.CursorPos {
-    return .{ .x = 0, .y = 0 };
+pub fn getCursorPos(self: *const Self) !apprt.CursorPos {
+    return self.cursor_pos;
 }
 
 pub fn getTitle(_: *Self) ?[:0]const u8 {
