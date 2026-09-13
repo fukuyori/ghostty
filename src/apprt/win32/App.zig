@@ -54,7 +54,8 @@ pub fn init(
     errdefer self.windows.deinit(self.alloc);
 
     try registerWindowClass();
-    try self.createWindow();
+    try self.createWindow(.{});
+    self.showConfigDiagnostics(.app, self.config);
 }
 
 pub fn run(self: *App) !void {
@@ -171,11 +172,469 @@ pub fn performAction(
             },
         },
         .new_window => {
-            try self.createWindow();
+            try self.createWindow(.{});
+            return true;
+        },
+        .open_url => return self.openUrl(target, value),
+        .open_config => return try self.openConfig(target, value),
+        .reload_config => {
+            try self.reloadConfig(target, value);
+            return true;
+        },
+        .config_change => {
+            switch (target) {
+                .surface => {},
+                .app => {
+                    const config = try value.config.clone(self.alloc);
+                    self.config.deinit();
+                    self.config.* = config;
+                },
+            }
             return true;
         },
         else => return false,
     }
+}
+
+fn openUrl(
+    self: *App,
+    target: apprt.Target,
+    value: apprt.action.OpenUrl,
+) bool {
+    if (value.kind != .osc8) {
+        self.shellOpen(target, value.url) catch |err| {
+            log.warn("failed to open URL: {}", .{err});
+            return false;
+        };
+        return true;
+    }
+
+    switch (classifyUntrustedUrl(value.url)) {
+        .allow => self.shellOpen(target, value.url) catch |err| {
+            log.warn("failed to open trusted OSC 8 URL: {}", .{err});
+        },
+        .confirm => if (self.confirmUntrustedUrl(target, value.url)) {
+            self.shellOpen(target, value.url) catch |err| {
+                log.warn("failed to open confirmed OSC 8 URL: {}", .{err});
+            };
+        },
+        .deny => |reason| self.showBlockedUrl(target, reason, value.url),
+    }
+
+    // OSC 8 targets must never reach the unrestricted core fallback. Even a
+    // rejected target is handled here so terminal output cannot bypass this
+    // policy by making the platform handler return false.
+    return true;
+}
+
+const UntrustedUrlDenial = enum {
+    malformed_url,
+    unsafe_characters,
+    invalid_web_url,
+    unsafe_file,
+
+    fn message(self: UntrustedUrlDenial) []const u8 {
+        return switch (self) {
+            .malformed_url => "The target is not an absolute URL with a scheme.",
+            .unsafe_characters => "The target contains invisible or line-breaking characters.",
+            .invalid_web_url => "The web target does not contain a valid host.",
+            .unsafe_file => "Opening local files from terminal output is blocked on Windows.",
+        };
+    }
+};
+
+const UntrustedUrlDecision = union(enum) {
+    allow,
+    confirm,
+    deny: UntrustedUrlDenial,
+};
+
+fn classifyUntrustedUrl(url: []const u8) UntrustedUrlDecision {
+    if (url.len == 0) return .{ .deny = .malformed_url };
+
+    const view = std.unicode.Utf8View.init(url) catch
+        return .{ .deny = .malformed_url };
+    var codepoints = view.iterator();
+    while (codepoints.nextCodepoint()) |cp| {
+        if (isUnsafeUrlCodepoint(cp)) {
+            return .{ .deny = .unsafe_characters };
+        }
+    }
+
+    // RFC 3986 considers a drive letter to be a scheme, but on Windows this
+    // spelling is a local path. Do not let it enter the custom-scheme prompt.
+    if (url.len >= 3 and
+        std.ascii.isAlphabetic(url[0]) and
+        url[1] == ':' and
+        (url[2] == '\\' or url[2] == '/'))
+    {
+        return .{ .deny = .malformed_url };
+    }
+
+    const uri = std.Uri.parse(url) catch
+        return .{ .deny = .malformed_url };
+    if (uri.scheme.len == 0) return .{ .deny = .malformed_url };
+
+    if (std.ascii.eqlIgnoreCase(uri.scheme, "http") or
+        std.ascii.eqlIgnoreCase(uri.scheme, "https"))
+    {
+        const host = uri.host orelse
+            return .{ .deny = .invalid_web_url };
+        if (host.percent_encoded.len == 0) {
+            return .{ .deny = .invalid_web_url };
+        }
+        return .allow;
+    }
+
+    if (std.ascii.eqlIgnoreCase(uri.scheme, "mailto")) {
+        if (uri.path.percent_encoded.len == 0) {
+            return .{ .deny = .malformed_url };
+        }
+        return .allow;
+    }
+
+    // ShellExecute may dispatch a local file to an executable handler. Until
+    // Win32 has canonical-path and file-type checks equivalent to macOS, keep
+    // every file URL supplied by terminal output out of the shell entirely.
+    if (std.ascii.eqlIgnoreCase(uri.scheme, "file")) {
+        return .{ .deny = .unsafe_file };
+    }
+
+    // Custom schemes may invoke any registered application, so require an
+    // explicit user decision with Cancel as the default action.
+    return .confirm;
+}
+
+fn isUnsafeUrlCodepoint(cp: u21) bool {
+    return switch (cp) {
+        0x00...0x1F,
+        0x7F...0x9F,
+        0x061C,
+        0x200B...0x200F,
+        0x2028...0x202E,
+        0x2060,
+        0x2066...0x2069,
+        0xFEFF,
+        => true,
+        else => false,
+    };
+}
+
+fn confirmUntrustedUrl(
+    self: *App,
+    target: apprt.Target,
+    url: []const u8,
+) bool {
+    const message = std.fmt.allocPrint(
+        self.alloc,
+        "This link may open another application. Only continue if you recognize and trust the destination.\r\n\r\nTarget:\r\n{s}",
+        .{url},
+    ) catch |err| {
+        log.warn("failed to format OSC 8 confirmation: {}", .{err});
+        return false;
+    };
+    defer self.alloc.free(message);
+
+    const message_wide = std.unicode.utf8ToUtf16LeAllocZ(
+        self.alloc,
+        message,
+    ) catch |err| {
+        log.warn("failed to convert OSC 8 confirmation: {}", .{err});
+        return false;
+    };
+    defer self.alloc.free(message_wide);
+
+    const caption = std.unicode.utf8ToUtf16LeStringLiteral(
+        "Open Link from Terminal Output?",
+    );
+    const style: win32.MESSAGEBOX_STYLE = .{
+        .YESNO = 1,
+        .ICONQUESTION = 1,
+        .DEFBUTTON2 = 1,
+    };
+    return win32.MessageBoxW(
+        self.actionParentWindow(target),
+        message_wide,
+        caption,
+        style,
+    ) == win32.IDYES;
+}
+
+fn showBlockedUrl(
+    self: *App,
+    target: apprt.Target,
+    reason: UntrustedUrlDenial,
+    url: []const u8,
+) void {
+    const display = formatUntrustedUrlForDisplay(self.alloc, url) catch |err| {
+        log.warn("failed to format blocked OSC 8 target: {}", .{err});
+        return;
+    };
+    defer self.alloc.free(display);
+
+    const message = std.fmt.allocPrint(
+        self.alloc,
+        "{s}\r\n\r\nTarget:\r\n{s}",
+        .{ reason.message(), display },
+    ) catch |err| {
+        log.warn("failed to format blocked OSC 8 message: {}", .{err});
+        return;
+    };
+    defer self.alloc.free(message);
+
+    const message_wide = std.unicode.utf8ToUtf16LeAllocZ(
+        self.alloc,
+        message,
+    ) catch |err| {
+        log.warn("failed to convert blocked OSC 8 message: {}", .{err});
+        return;
+    };
+    defer self.alloc.free(message_wide);
+
+    const caption = std.unicode.utf8ToUtf16LeStringLiteral(
+        "Ghostty Blocked This Link",
+    );
+    const style: win32.MESSAGEBOX_STYLE = .{ .ICONHAND = 1 };
+    _ = win32.MessageBoxW(
+        self.actionParentWindow(target),
+        message_wide,
+        caption,
+        style,
+    );
+}
+
+fn formatUntrustedUrlForDisplay(
+    alloc: Allocator,
+    url: []const u8,
+) Allocator.Error![]u8 {
+    const view = std.unicode.Utf8View.init(url) catch
+        return try alloc.dupe(u8, "<invalid UTF-8 target>");
+
+    var buffer: std.Io.Writer.Allocating = .init(alloc);
+    defer buffer.deinit();
+    var codepoints = view.iterator();
+    while (codepoints.nextCodepoint()) |cp| {
+        if (isUnsafeUrlCodepoint(cp)) {
+            buffer.writer.print("\\u{{{X}}}", .{cp}) catch
+                return error.OutOfMemory;
+        } else {
+            buffer.writer.print("{u}", .{cp}) catch
+                return error.OutOfMemory;
+        }
+    }
+    return try buffer.toOwnedSlice();
+}
+
+/// Reload the configuration and apply it to either the complete application or
+/// one surface. A hard reload finishes loading before any live state changes,
+/// so a loading failure leaves the current configuration in place.
+fn reloadConfig(
+    self: *App,
+    target: apprt.Target,
+    opts: apprt.action.ReloadConfig,
+) !void {
+    if (opts.soft) {
+        try self.updateConfig(target, self.config);
+        return;
+    }
+
+    var config = try Config.load(self.alloc);
+    defer config.deinit();
+    try self.updateConfig(target, &config);
+    self.showConfigDiagnostics(target, &config);
+}
+
+fn updateConfig(
+    self: *App,
+    target: apprt.Target,
+    config: *const Config,
+) !void {
+    switch (target) {
+        .app => try self.core_app.updateConfig(self, config),
+        .surface => |surface| try surface.updateConfig(config),
+    }
+}
+
+/// Show configuration diagnostics after startup or a reload. Diagnostics do
+/// not prevent valid configuration entries from being applied, matching the
+/// behavior of the other application runtimes.
+fn showConfigDiagnostics(
+    self: *App,
+    target: apprt.Target,
+    config: *const Config,
+) void {
+    const hwnd = switch (target) {
+        .app => if (self.windows.items.len > 0)
+            self.windows.items[0].hwnd
+        else
+            return,
+        .surface => |surface| surface.rt_surface.hwnd,
+    };
+
+    const message = formatConfigDiagnostics(self.alloc, config) catch |err| {
+        log.warn("failed to format configuration diagnostics: {}", .{err});
+        return;
+    } orelse return;
+    defer self.alloc.free(message);
+
+    const message_wide = std.unicode.utf8ToUtf16LeAllocZ(
+        self.alloc,
+        message,
+    ) catch |err| {
+        log.warn("failed to convert configuration diagnostics: {}", .{err});
+        return;
+    };
+    defer self.alloc.free(message_wide);
+
+    const caption = std.unicode.utf8ToUtf16LeStringLiteral(
+        "Ghostty Configuration Error",
+    );
+    const style: win32.MESSAGEBOX_STYLE = .{ .ICONHAND = 1 };
+    _ = win32.MessageBoxW(hwnd, message_wide, caption, style);
+}
+
+fn formatConfigDiagnostics(
+    alloc: Allocator,
+    config: *const Config,
+) Allocator.Error!?[:0]u8 {
+    const diagnostics = config._diagnostics.items();
+    if (diagnostics.len == 0) return null;
+
+    var buffer: std.Io.Writer.Allocating = .init(alloc);
+    defer buffer.deinit();
+    buffer.writer.writeAll(
+        "Ghostty found errors in the configuration:\r\n\r\n",
+    ) catch return error.OutOfMemory;
+    for (diagnostics, 0..) |*diagnostic, i| {
+        if (i > 0) buffer.writer.writeAll("\r\n") catch
+            return error.OutOfMemory;
+        diagnostic.format(&buffer.writer) catch return error.OutOfMemory;
+    }
+
+    return try buffer.toOwnedSliceSentinel(0);
+}
+
+fn openConfig(
+    self: *App,
+    target: apprt.Target,
+    mode: apprt.action.OpenConfig,
+) !bool {
+    switch (target) {
+        .app => {},
+        .surface => {
+            log.warn("open_config targeted a surface", .{});
+            return false;
+        },
+    }
+
+    const path = configpkg.edit.openPath(self.alloc) catch |err| {
+        log.warn("failed to get configuration path: {}", .{err});
+        return false;
+    };
+    defer self.alloc.free(path);
+
+    switch (mode) {
+        .os_open => {
+            self.shellOpen(target, path) catch |err| {
+                log.warn("failed to open configuration: {}", .{err});
+                return false;
+            };
+        },
+        .new_window => {
+            const command = self.configEditorCommand(path) catch |err| {
+                log.warn("failed to build configuration editor command: {}", .{err});
+                return false;
+            };
+            defer command.deinit(self.alloc);
+
+            const title = try std.fmt.allocPrintSentinel(
+                self.alloc,
+                "Editing configuration file {s}",
+                .{path},
+                0,
+            );
+            defer self.alloc.free(title);
+
+            try self.createWindow(.{
+                .command = command,
+                .title = title,
+            });
+        },
+    }
+
+    return true;
+}
+
+fn shellOpen(self: *App, target: apprt.Target, value: []const u8) !void {
+    const value_wide = try std.unicode.utf8ToUtf16LeAllocZ(self.alloc, value);
+    defer self.alloc.free(value_wide);
+
+    const result = win32.ShellExecuteW(
+        self.actionParentWindow(target),
+        std.unicode.utf8ToUtf16LeStringLiteral("open"),
+        value_wide,
+        null,
+        null,
+        @bitCast(win32.SW_SHOWNORMAL),
+    ) orelse return error.ShellExecuteFailed;
+
+    if (@intFromPtr(result) <= 32) return error.ShellExecuteFailed;
+}
+
+fn actionParentWindow(self: *App, target: apprt.Target) ?win32.HWND {
+    return switch (target) {
+        .surface => |surface| surface.rt_surface.hwnd,
+        .app => if (self.windows.items.len > 0)
+            self.windows.items[0].hwnd
+        else
+            null,
+    };
+}
+
+fn configEditorCommand(
+    self: *App,
+    path: [:0]const u8,
+) !configpkg.Command {
+    const editor = editor: {
+        if (try global.environ().containsUnempty(self.alloc, "VISUAL")) {
+            break :editor try global.environ().getAlloc(self.alloc, "VISUAL");
+        }
+        if (try global.environ().containsUnempty(self.alloc, "EDITOR")) {
+            break :editor try global.environ().getAlloc(self.alloc, "EDITOR");
+        }
+        return error.NoEditorConfigured;
+    };
+    defer self.alloc.free(editor);
+
+    return parseWindowsEditorCommand(self.alloc, editor, path);
+}
+
+fn parseWindowsEditorCommand(
+    alloc: Allocator,
+    editor: []const u8,
+    path: []const u8,
+) !configpkg.Command {
+    var iter = try std.process.Args.IteratorGeneral(.{}).init(alloc, editor);
+    defer iter.deinit();
+
+    var args: std.ArrayList([:0]const u8) = .empty;
+    errdefer {
+        for (args.items) |arg| alloc.free(arg);
+        args.deinit(alloc);
+    }
+    while (iter.next()) |arg| {
+        const copy = try alloc.dupeZ(u8, arg);
+        errdefer alloc.free(copy);
+        try args.append(alloc, copy);
+    }
+    if (args.items.len == 0) return error.InvalidEditorCommand;
+    {
+        const path_copy = try alloc.dupeZ(u8, path);
+        errdefer alloc.free(path_copy);
+        try args.append(alloc, path_copy);
+    }
+
+    return .{ .direct = try args.toOwnedSlice(alloc) };
 }
 
 pub fn performIpc(
@@ -191,7 +650,16 @@ pub fn redrawInspector(_: *App, surface: *Surface) void {
     surface.redrawInspector();
 }
 
-fn initCoreSurface(self: *App, surface: *Surface) !void {
+const WindowOptions = struct {
+    command: ?configpkg.Command = null,
+    title: ?[:0]const u8 = null,
+};
+
+fn initCoreSurface(
+    self: *App,
+    surface: *Surface,
+    opts: WindowOptions,
+) !void {
     const alloc = self.alloc;
 
     const core_surface = try alloc.create(CoreSurface);
@@ -206,6 +674,16 @@ fn initCoreSurface(self: *App, surface: *Surface) !void {
         .window,
     );
     defer config.deinit();
+
+    if (opts.command) |command| {
+        config.command = try command.clone(config.arenaAlloc());
+        if (config.@"shell-integration" != .none) {
+            config.@"shell-integration" = .detect;
+        }
+    }
+    if (opts.title) |title| {
+        config.title = try config.arenaAlloc().dupeZ(u8, title);
+    }
 
     core_surface.init(
         alloc,
@@ -222,7 +700,7 @@ fn initCoreSurface(self: *App, surface: *Surface) !void {
     log.info("core surface initialized successfully", .{});
 }
 
-fn createWindow(self: *App) !void {
+fn createWindow(self: *App, opts: WindowOptions) !void {
     const surface = try self.alloc.create(Surface);
     errdefer self.alloc.destroy(surface);
 
@@ -241,7 +719,7 @@ fn createWindow(self: *App) !void {
     try self.windows.append(self.alloc, surface);
     errdefer _ = self.removeWindow(surface);
 
-    try self.initCoreSurface(surface);
+    try self.initCoreSurface(surface, opts);
     showWindow(surface);
 }
 
@@ -1078,5 +1556,142 @@ test "decode Win32 DPI scale" {
     try std.testing.expectEqual(
         apprt.ContentScale{ .x = 1.5, .y = 2.0 },
         dpiScale(wparam),
+    );
+}
+
+test "format Win32 config diagnostics for display" {
+    const testing = std.testing;
+
+    var config = try Config.default(testing.allocator);
+    defer config.deinit();
+    try config.addDiagnosticFmt("first error", .{});
+    try config.addDiagnosticFmt("second error", .{});
+
+    const message = (try formatConfigDiagnostics(
+        testing.allocator,
+        &config,
+    )).?;
+    defer testing.allocator.free(message);
+
+    try testing.expectEqualStrings(
+        "Ghostty found errors in the configuration:\r\n\r\n" ++
+            "first error\r\nsecond error",
+        message,
+    );
+}
+
+test "omit empty Win32 config diagnostics" {
+    const testing = std.testing;
+
+    var config = try Config.default(testing.allocator);
+    defer config.deinit();
+
+    try testing.expectEqual(
+        @as(?[:0]u8, null),
+        try formatConfigDiagnostics(testing.allocator, &config),
+    );
+}
+
+test "classify safe Win32 OSC 8 URLs" {
+    try std.testing.expectEqual(
+        UntrustedUrlDecision.allow,
+        classifyUntrustedUrl("https://example.com/path"),
+    );
+    try std.testing.expectEqual(
+        UntrustedUrlDecision.allow,
+        classifyUntrustedUrl("HTTP://EXAMPLE.COM"),
+    );
+    try std.testing.expectEqual(
+        UntrustedUrlDecision.allow,
+        classifyUntrustedUrl("mailto:user@example.com"),
+    );
+    try std.testing.expectEqual(
+        UntrustedUrlDecision.confirm,
+        classifyUntrustedUrl("vscode://file/C:/project/main.zig"),
+    );
+}
+
+test "block unsafe Win32 OSC 8 URLs" {
+    const testing = std.testing;
+
+    try testing.expectEqual(
+        UntrustedUrlDecision{ .deny = .malformed_url },
+        classifyUntrustedUrl(""),
+    );
+    try testing.expectEqual(
+        UntrustedUrlDecision{ .deny = .malformed_url },
+        classifyUntrustedUrl("C:\\payload.exe"),
+    );
+    try testing.expectEqual(
+        UntrustedUrlDecision{ .deny = .malformed_url },
+        classifyUntrustedUrl("/tmp/payload"),
+    );
+    try testing.expectEqual(
+        UntrustedUrlDecision{ .deny = .invalid_web_url },
+        classifyUntrustedUrl("https:relative"),
+    );
+    try testing.expectEqual(
+        UntrustedUrlDecision{ .deny = .malformed_url },
+        classifyUntrustedUrl("mailto:"),
+    );
+    try testing.expectEqual(
+        UntrustedUrlDecision{ .deny = .unsafe_file },
+        classifyUntrustedUrl("file:///C:/payload.exe"),
+    );
+    try testing.expectEqual(
+        UntrustedUrlDecision{ .deny = .unsafe_characters },
+        classifyUntrustedUrl("https://example.com/a\nb"),
+    );
+    try testing.expectEqual(
+        UntrustedUrlDecision{ .deny = .unsafe_characters },
+        classifyUntrustedUrl("https://example.com/a\xE2\x80\xAEb"),
+    );
+}
+
+test "escape unsafe Win32 OSC 8 URL display characters" {
+    const testing = std.testing;
+    const display = try formatUntrustedUrlForDisplay(
+        testing.allocator,
+        "https://example.com/a\n\xE2\x80\xAEb",
+    );
+    defer testing.allocator.free(display);
+
+    try testing.expectEqualStrings(
+        "https://example.com/a\\u{A}\\u{202E}b",
+        display,
+    );
+}
+
+test "parse Win32 editor command with quoted executable" {
+    const testing = std.testing;
+
+    const command = try parseWindowsEditorCommand(
+        testing.allocator,
+        "\"C:\\Program Files\\Editor\\editor.exe\" --wait",
+        "C:\\Users\\test user\\config.ghostty",
+    );
+    defer command.deinit(testing.allocator);
+
+    const args = command.direct;
+    try testing.expectEqual(@as(usize, 3), args.len);
+    try testing.expectEqualStrings(
+        "C:\\Program Files\\Editor\\editor.exe",
+        args[0],
+    );
+    try testing.expectEqualStrings("--wait", args[1]);
+    try testing.expectEqualStrings(
+        "C:\\Users\\test user\\config.ghostty",
+        args[2],
+    );
+}
+
+test "reject empty Win32 editor command" {
+    try std.testing.expectError(
+        error.InvalidEditorCommand,
+        parseWindowsEditorCommand(
+            std.testing.allocator,
+            "",
+            "C:\\config.ghostty",
+        ),
     );
 }
