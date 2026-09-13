@@ -697,6 +697,8 @@ pub fn add(
                 step.root_module.linkSystemLibrary("dxgi", .{});
                 step.root_module.linkSystemLibrary("dcomp", .{});
                 step.root_module.linkSystemLibrary("dwmapi", .{});
+                step.root_module.linkSystemLibrary("coremessaging", .{});
+                step.root_module.linkSystemLibrary("runtimeobject", .{});
                 if (b.lazyDependency("win32", .{})) |dep| {
                     step.root_module.addImport("win32", dep.module("win32"));
                 }

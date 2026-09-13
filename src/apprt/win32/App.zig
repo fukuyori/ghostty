@@ -42,6 +42,7 @@ alloc: Allocator,
 running: bool = true,
 thread_id: u32,
 windows: WindowList = .empty,
+backdrop_runtime: Backdrop.Runtime = .{},
 
 pub fn init(
     self: *App,
@@ -63,6 +64,7 @@ pub fn init(
         .thread_id = win32.GetCurrentThreadId(),
     };
     errdefer self.windows.deinit(self.alloc);
+    errdefer self.backdrop_runtime.deinit();
 
     try registerWindowClass();
     try self.createWindow(.{});
@@ -100,6 +102,7 @@ pub fn terminate(self: *App) void {
         if (destroyWindow(surface)) self.alloc.destroy(surface);
     }
     self.windows.deinit(self.alloc);
+    self.backdrop_runtime.deinit();
     self.config.deinit();
     self.alloc.destroy(self.config);
 }
@@ -1338,28 +1341,42 @@ fn nativeWindowExStyle() win32.WINDOW_EX_STYLE {
 }
 
 /// Keep the native backdrop synchronized with the renderer's background
-/// opacity. DWM system backdrops are only useful with the D3D11
-/// DirectComposition path; OpenGL retains its existing transparent behavior.
+/// opacity and requested blur strength. Native backdrop composition is only
+/// used with D3D11; OpenGL retains its existing transparent behavior.
 fn updateWindowBackgroundBlur(surface: *Surface, config: *const Config) void {
-    const enabled = windowBackgroundBlurEnabled(config);
-    if (surface.background_blur == enabled) return;
+    const radius = windowBackgroundBlurRadius(config);
+    if (radius) |value| {
+        if (surface.background_blur) |*backdrop| {
+            backdrop.setRadius(value) catch |err|
+                log.warn("failed to update Win32 background blur: {}", .{err});
+            return;
+        }
 
-    Backdrop.set(
-        surface.hwnd,
-        if (enabled) .transient_window else .none,
-    ) catch |err| {
-        // Older Windows versions don't recognize the system-backdrop
-        // attribute. Keep rendering with ordinary transparency in that case.
-        log.warn("failed to apply Win32 background blur: {}", .{err});
-        return;
-    };
-    surface.background_blur = enabled;
+        surface.background_blur = Backdrop.init(
+            surface.hwnd,
+            value,
+            &surface.rtApp().backdrop_runtime,
+        ) catch |err| {
+            // Older Windows versions don't recognize the system-backdrop
+            // attribute. Keep rendering with ordinary transparency.
+            log.warn("failed to apply Win32 background blur: {}", .{err});
+            return;
+        };
+    } else if (surface.background_blur) |*backdrop| {
+        backdrop.deinit();
+        surface.background_blur = null;
+    }
 }
 
-fn windowBackgroundBlurEnabled(config: *const Config) bool {
-    return build_config.renderer == .d3d11 and
-        config.@"background-opacity" < 1 and
-        config.@"background-blur".enabled();
+fn windowBackgroundBlurRadius(config: *const Config) ?u8 {
+    if (build_config.renderer != .d3d11 or
+        config.@"background-opacity" >= 1) return null;
+
+    return switch (config.@"background-blur") {
+        .false => null,
+        .true, .@"macos-glass-regular", .@"macos-glass-clear" => 20,
+        .radius => |value| if (value > 0) value else null,
+    };
 }
 
 test "Win32 D3D11 windows bypass the legacy redirect bitmap" {
@@ -1377,19 +1394,25 @@ test "Win32 background blur requires D3D11 and transparent background" {
     config.@"background-opacity" = 0.75;
     config.@"background-blur" = .true;
     try std.testing.expectEqual(
-        build_config.renderer == .d3d11,
-        windowBackgroundBlurEnabled(&config),
+        if (build_config.renderer == .d3d11) @as(?u8, 20) else null,
+        windowBackgroundBlurRadius(&config),
     );
 
     config.@"background-opacity" = 1;
-    try std.testing.expect(!windowBackgroundBlurEnabled(&config));
+    try std.testing.expectEqual(@as(?u8, null), windowBackgroundBlurRadius(&config));
 
     config.@"background-opacity" = 0.75;
     config.@"background-blur" = .false;
-    try std.testing.expect(!windowBackgroundBlurEnabled(&config));
+    try std.testing.expectEqual(@as(?u8, null), windowBackgroundBlurRadius(&config));
 
     config.@"background-blur" = .{ .radius = 0 };
-    try std.testing.expect(!windowBackgroundBlurEnabled(&config));
+    try std.testing.expectEqual(@as(?u8, null), windowBackgroundBlurRadius(&config));
+
+    config.@"background-blur" = .{ .radius = 12 };
+    try std.testing.expectEqual(
+        if (build_config.renderer == .d3d11) @as(?u8, 12) else null,
+        windowBackgroundBlurRadius(&config),
+    );
 }
 
 fn showWindow(surface: *Surface) void {

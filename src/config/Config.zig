@@ -1057,9 +1057,12 @@ palette: Palette = .{},
 /// On X11, blur can only be enabled when using the KWin compositor
 /// as a part of KDE Plasma.
 ///
-/// On Windows, Ghostty uses the native transient-window backdrop when it is
-/// available. The exact blur intensity is ignored. On systems without this
-/// backdrop, background transparency remains enabled without blur.
+/// On Windows, Ghostty combines the native transient-window Acrylic material
+/// with a Host Backdrop composition layer. Integer values tune the perceived
+/// blur strength, with values of 32 or greater using full system Acrylic. If
+/// Host Backdrop is unavailable, Ghostty falls back to fixed Acrylic. If the
+/// system backdrop itself is unavailable, transparency remains enabled without
+/// blur.
 @"background-blur": BackgroundBlur = .false,
 
 /// The opacity level (opposite of transparency) of an unfocused split.

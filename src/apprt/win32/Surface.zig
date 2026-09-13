@@ -14,6 +14,7 @@ const terminal = @import("../../terminal/main.zig");
 
 const log = std.log.scoped(.win32_surface);
 const App = @import("App.zig");
+const Backdrop = @import("Backdrop.zig");
 
 hwnd: win32.HWND,
 app: ?*App = null,
@@ -25,9 +26,9 @@ height: u32 = 600,
 cursor_pos: apprt.CursorPos = .{ .x = 0, .y = 0 },
 title: ?[:0]const u8 = null,
 
-/// Whether DWM currently owns an active transient-window backdrop for this
-/// surface. This avoids repeating the native call on unrelated config reloads.
-background_blur: bool = false,
+/// Native backdrop state, including the optional adjustable Host Backdrop
+/// composition layer.
+background_blur: ?Backdrop = null,
 
 /// Initial client size requested by the core. Later updates replace the
 /// default used by reset_window_size without resizing an already visible
@@ -112,6 +113,10 @@ pub fn deinit(self: *Self) void {
         surface.deinit();
         app.alloc.destroy(surface);
         self.core_surface = null;
+    }
+    if (self.background_blur) |*backdrop| {
+        backdrop.deinit();
+        self.background_blur = null;
     }
     if (self.title) |title| {
         self.rtApp().alloc.free(title);
