@@ -22,6 +22,7 @@ const D3D11Texture = @import("../../renderer/d3d11/Texture.zig");
 const Backdrop = @import("Backdrop.zig");
 const DirectComposition = @import("DirectComposition.zig");
 const Surface = @import("Surface.zig");
+const Titlebar = @import("Titlebar.zig");
 
 const log = std.log.scoped(.win32);
 const WindowList = std.ArrayListUnmanaged(*Surface);
@@ -108,11 +109,16 @@ pub fn terminate(self: *App) void {
 }
 
 fn destroyWindow(surface: *Surface) bool {
+    var success = true;
     if (win32.DestroyWindow(surface.hwnd) == 0) {
-        log.warn("DestroyWindow failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        return false;
+        log.warn("DestroyWindow(surface) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        success = false;
     }
-    return true;
+    if (win32.DestroyWindow(surface.windowHwnd()) == 0) {
+        log.warn("DestroyWindow(window) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        success = false;
+    }
+    return success;
 }
 
 pub fn wakeup(self: *App) void {
@@ -122,13 +128,13 @@ pub fn wakeup(self: *App) void {
 }
 
 pub fn requestSurfaceClose(_: *App, surface: *Surface, confirm: bool) void {
-    if (win32.PostMessageW(surface.hwnd, WM_CLOSE_SURFACE, @intFromBool(confirm), 0) == 0) {
+    if (win32.PostMessageW(surface.windowHwnd(), WM_CLOSE_SURFACE, @intFromBool(confirm), 0) == 0) {
         log.warn("PostMessage(WM_CLOSE_SURFACE) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
     }
 }
 
 fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
-    if (confirm and !confirmSurfaceClose(surface.hwnd)) return;
+    if (confirm and !confirmSurfaceClose(surface.windowHwnd())) return;
 
     // Keep the HWND and its DC alive until the renderer has stopped and the
     // surface has released all native rendering resources.
@@ -213,6 +219,7 @@ pub fn performAction(
                     if (!setWindowDecorations(core.rt_surface, decorated)) {
                         log.warn("failed to apply window-decoration setting", .{});
                     }
+                    Titlebar.apply(core.rt_surface.windowHwnd(), value.config);
                     updateWindowBackgroundBlur(core.rt_surface, value.config);
                 },
                 .app => {
@@ -246,7 +253,7 @@ fn closeAllWindows(self: *App) bool {
     for (self.windows.items) |surface| {
         const core = surface.core_surface orelse continue;
         if (core.needsConfirmQuit()) {
-            confirm_hwnd = surface.hwnd;
+            confirm_hwnd = surface.windowHwnd();
             break;
         }
     }
@@ -284,18 +291,19 @@ fn presentTerminal(target: apprt.Target) bool {
 }
 
 fn presentSurface(surface: *Surface) bool {
+    const hwnd = surface.windowHwnd();
     surface.hidden_by_visibility_toggle = false;
     surface.focused_before_visibility_toggle = false;
-    if (win32.IsIconic(surface.hwnd) != 0) {
-        _ = win32.ShowWindow(surface.hwnd, win32.SW_RESTORE);
-    } else if (win32.IsWindowVisible(surface.hwnd) == 0) {
-        _ = win32.ShowWindow(surface.hwnd, win32.SW_SHOW);
+    if (win32.IsIconic(hwnd) != 0) {
+        _ = win32.ShowWindow(hwnd, win32.SW_RESTORE);
+    } else if (win32.IsWindowVisible(hwnd) == 0) {
+        _ = win32.ShowWindow(hwnd, win32.SW_SHOW);
     }
 
     // Windows can refuse foreground activation when another process owns the
     // foreground lock. The terminal was still presented, so this does not
     // make the action itself fail.
-    _ = win32.SetForegroundWindow(surface.hwnd);
+    _ = win32.SetForegroundWindow(hwnd);
     _ = win32.SetFocus(surface.hwnd);
     return true;
 }
@@ -315,7 +323,7 @@ fn toggleVisibility(self: *App) bool {
         for (self.windows.items) |surface| {
             if (!surface.hidden_by_visibility_toggle) continue;
             surface.hidden_by_visibility_toggle = false;
-            _ = win32.ShowWindow(surface.hwnd, win32.SW_SHOWNA);
+            _ = win32.ShowWindow(surface.windowHwnd(), win32.SW_SHOWNA);
             if (first == null) first = surface;
             if (surface.focused_before_visibility_toggle) focus = surface;
             surface.focused_before_visibility_toggle = false;
@@ -335,13 +343,13 @@ fn toggleVisibility(self: *App) bool {
 
     var hidden_any = false;
     for (self.windows.items) |surface| {
-        if (win32.IsWindowVisible(surface.hwnd) == 0) continue;
+        if (win32.IsWindowVisible(surface.windowHwnd()) == 0) continue;
         surface.hidden_by_visibility_toggle = true;
         surface.focused_before_visibility_toggle = if (focused) |core|
             surface.core_surface == core
         else
             false;
-        _ = win32.ShowWindow(surface.hwnd, win32.SW_HIDE);
+        _ = win32.ShowWindow(surface.windowHwnd(), win32.SW_HIDE);
         hidden_any = true;
     }
     return hidden_any;
@@ -373,8 +381,8 @@ fn gotoWindow(
             .previous => (start + self.windows.items.len - offset) % self.windows.items.len,
         };
         const candidate = self.windows.items[index];
-        if (win32.IsWindowVisible(candidate.hwnd) == 0) continue;
-        if (win32.IsIconic(candidate.hwnd) != 0) continue;
+        if (win32.IsWindowVisible(candidate.windowHwnd()) == 0) continue;
+        if (win32.IsIconic(candidate.windowHwnd()) != 0) continue;
         return presentSurface(candidate);
     }
     return false;
@@ -393,10 +401,11 @@ fn toggleMaximize(target: apprt.Target) bool {
         return false;
     };
     if (surface.fullscreen) return true;
+    const hwnd = surface.windowHwnd();
 
     _ = win32.ShowWindow(
-        surface.hwnd,
-        if (win32.IsZoomed(surface.hwnd) != 0)
+        hwnd,
+        if (win32.IsZoomed(hwnd) != 0)
             win32.SW_RESTORE
         else
             win32.SW_MAXIMIZE,
@@ -425,16 +434,17 @@ fn setFullscreen(surface: *Surface, enabled: bool) bool {
 }
 
 fn enterFullscreen(surface: *Surface) bool {
+    const hwnd = surface.windowHwnd();
     var placement: win32.WINDOWPLACEMENT = std.mem.zeroes(win32.WINDOWPLACEMENT);
     placement.length = @sizeOf(win32.WINDOWPLACEMENT);
-    if (win32.GetWindowPlacement(surface.hwnd, &placement) == 0) {
+    if (win32.GetWindowPlacement(hwnd, &placement) == 0) {
         log.warn("GetWindowPlacement failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         return false;
     }
-    const style = getWindowStyle(surface.hwnd) orelse return false;
+    const style = getWindowStyle(hwnd) orelse return false;
 
     const monitor = win32.MonitorFromWindow(
-        surface.hwnd,
+        hwnd,
         win32.MONITOR_DEFAULTTONEAREST,
     ) orelse {
         log.warn("MonitorFromWindow failed", .{});
@@ -452,11 +462,11 @@ fn enterFullscreen(surface: *Surface) bool {
     }
 
     const fullscreen_style = styleWithDecorations(style, false);
-    if (!setWindowStyle(surface.hwnd, fullscreen_style)) return false;
+    if (!setWindowStyle(hwnd, fullscreen_style)) return false;
 
     const rect = info.rcMonitor;
     if (win32.SetWindowPos(
-        surface.hwnd,
+        hwnd,
         if (surface.always_on_top) win32.HWND_TOPMOST else null,
         rect.left,
         rect.top,
@@ -465,9 +475,9 @@ fn enterFullscreen(surface: *Surface) bool {
         .{ .NOOWNERZORDER = 1, .DRAWFRAME = 1 },
     ) == 0) {
         log.warn("SetWindowPos entering fullscreen failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        _ = setWindowStyle(surface.hwnd, style);
-        _ = win32.SetWindowPlacement(surface.hwnd, &placement);
-        _ = refreshWindowFrame(surface.hwnd);
+        _ = setWindowStyle(hwnd, style);
+        _ = win32.SetWindowPlacement(hwnd, &placement);
+        _ = refreshWindowFrame(hwnd);
         return false;
     }
 
@@ -478,6 +488,7 @@ fn enterFullscreen(surface: *Surface) bool {
 }
 
 fn leaveFullscreen(surface: *Surface) bool {
+    const hwnd = surface.windowHwnd();
     const saved_style = surface.windowed_style orelse {
         log.warn("fullscreen window has no saved style", .{});
         return false;
@@ -486,19 +497,19 @@ fn leaveFullscreen(surface: *Surface) bool {
         log.warn("fullscreen window has no saved placement", .{});
         return false;
     };
-    const current_style = getWindowStyle(surface.hwnd) orelse return false;
+    const current_style = getWindowStyle(hwnd) orelse return false;
     const restored_style = styleWithDecorations(
         saved_style,
         surface.decorated,
     );
-    if (!setWindowStyle(surface.hwnd, restored_style)) return false;
+    if (!setWindowStyle(hwnd, restored_style)) return false;
 
-    if (win32.SetWindowPlacement(surface.hwnd, &placement) == 0) {
+    if (win32.SetWindowPlacement(hwnd, &placement) == 0) {
         log.warn("SetWindowPlacement leaving fullscreen failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        _ = setWindowStyle(surface.hwnd, current_style);
+        _ = setWindowStyle(hwnd, current_style);
         return false;
     }
-    if (!refreshWindowFrame(surface.hwnd)) return false;
+    if (!refreshWindowFrame(hwnd)) return false;
 
     surface.fullscreen = false;
     surface.windowed_style = null;
@@ -524,12 +535,13 @@ fn setWindowDecorations(surface: *Surface, decorated: bool) bool {
         return true;
     }
 
-    const old_style = getWindowStyle(surface.hwnd) orelse return false;
+    const hwnd = surface.windowHwnd();
+    const old_style = getWindowStyle(hwnd) orelse return false;
     const new_style = styleWithDecorations(old_style, decorated);
-    if (!setWindowStyle(surface.hwnd, new_style)) return false;
-    if (!refreshWindowFrame(surface.hwnd)) {
-        _ = setWindowStyle(surface.hwnd, old_style);
-        _ = refreshWindowFrame(surface.hwnd);
+    if (!setWindowStyle(hwnd, new_style)) return false;
+    if (!refreshWindowFrame(hwnd)) {
+        _ = setWindowStyle(hwnd, old_style);
+        _ = refreshWindowFrame(hwnd);
         return false;
     }
 
@@ -608,7 +620,7 @@ fn floatWindow(
 
 fn setAlwaysOnTop(surface: *Surface, enabled: bool) bool {
     if (win32.SetWindowPos(
-        surface.hwnd,
+        surface.windowHwnd(),
         if (enabled) win32.HWND_TOPMOST else win32.HWND_NOTOPMOST,
         0,
         0,
@@ -647,13 +659,13 @@ fn resetWindowSize(target: apprt.Target) bool {
     if (surface.fullscreen) return false;
 
     if (surface.default_maximized) {
-        _ = win32.ShowWindow(surface.hwnd, win32.SW_MAXIMIZE);
+        _ = win32.ShowWindow(surface.windowHwnd(), win32.SW_MAXIMIZE);
         return true;
     }
 
     const size = surface.initial_client_size orelse return false;
-    if (win32.IsZoomed(surface.hwnd) != 0) {
-        _ = win32.ShowWindow(surface.hwnd, win32.SW_RESTORE);
+    if (win32.IsZoomed(surface.windowHwnd()) != 0) {
+        _ = win32.ShowWindow(surface.windowHwnd(), win32.SW_RESTORE);
     }
     return resizeClientArea(surface, size);
 }
@@ -662,7 +674,7 @@ fn resizeClientArea(
     surface: *Surface,
     size: apprt.action.InitialSize,
 ) bool {
-    const hwnd = surface.hwnd;
+    const hwnd = surface.windowHwnd();
     const style_bits: u32 = @truncate(@as(
         usize,
         @bitCast(win32.GetWindowLongPtrW(hwnd, win32.GWL_STYLE)),
@@ -1015,10 +1027,10 @@ fn showConfigDiagnostics(
 ) void {
     const hwnd = switch (target) {
         .app => if (self.windows.items.len > 0)
-            self.windows.items[0].hwnd
+            self.windows.items[0].windowHwnd()
         else
             return,
-        .surface => |surface| surface.rt_surface.hwnd,
+        .surface => |surface| surface.rt_surface.windowHwnd(),
     };
 
     const message = formatConfigDiagnostics(self.alloc, config) catch |err| {
@@ -1133,9 +1145,9 @@ fn shellOpen(self: *App, target: apprt.Target, value: []const u8) !void {
 
 fn actionParentWindow(self: *App, target: apprt.Target) ?win32.HWND {
     return switch (target) {
-        .surface => |surface| surface.rt_surface.hwnd,
+        .surface => |surface| surface.rt_surface.windowHwnd(),
         .app => if (self.windows.items.len > 0)
-            self.windows.items[0].hwnd
+            self.windows.items[0].windowHwnd()
         else
             null,
     };
@@ -1242,6 +1254,7 @@ fn initCoreSurface(
     )) {
         log.warn("failed to apply initial window-decoration setting", .{});
     }
+    Titlebar.apply(surface.windowHwnd(), &config);
     core_surface.init(
         alloc,
         &config,
@@ -1262,14 +1275,22 @@ fn createWindow(self: *App, opts: WindowOptions) !void {
     const surface = try self.alloc.create(Surface);
     errdefer self.alloc.destroy(surface);
 
-    const hwnd = try createNativeWindow();
-    errdefer _ = win32.DestroyWindow(hwnd);
+    const window_hwnd = try createNativeWindow();
+    errdefer _ = win32.DestroyWindow(window_hwnd);
 
-    try surface.init(self, hwnd);
+    const surface_hwnd = try createNativeSurfaceWindow(window_hwnd);
+    errdefer _ = win32.DestroyWindow(surface_hwnd);
+
+    try surface.init(self, window_hwnd, surface_hwnd);
     errdefer surface.deinit();
 
     _ = win32.SetWindowLongPtrW(
-        hwnd,
+        window_hwnd,
+        win32.GWLP_USERDATA,
+        @bitCast(@intFromPtr(surface)),
+    );
+    _ = win32.SetWindowLongPtrW(
+        surface_hwnd,
         win32.GWLP_USERDATA,
         @bitCast(@intFromPtr(surface)),
     );
@@ -1315,7 +1336,7 @@ fn createNativeWindow() !win32.HWND {
         nativeWindowExStyle(),
         window_class_name,
         default_window_title,
-        win32.WS_OVERLAPPEDWINDOW,
+        topLevelWindowStyle(),
         win32.CW_USEDEFAULT,
         win32.CW_USEDEFAULT,
         800,
@@ -1328,6 +1349,45 @@ fn createNativeWindow() !win32.HWND {
         log.err("CreateWindowExW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         return error.Win32Error;
     };
+}
+
+fn createNativeSurfaceWindow(window_hwnd: win32.HWND) !win32.HWND {
+    const hinstance = win32.GetModuleHandleW(null);
+    var rect: win32.RECT = std.mem.zeroes(win32.RECT);
+    if (win32.GetClientRect(window_hwnd, &rect) == 0) {
+        log.err("GetClientRect for surface failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return error.Win32Error;
+    }
+
+    return win32.CreateWindowExW(
+        nativeWindowExStyle(),
+        window_class_name,
+        win32.L(""),
+        surfaceWindowStyle(),
+        0,
+        0,
+        @max(1, rect.right - rect.left),
+        @max(1, rect.bottom - rect.top),
+        window_hwnd,
+        null,
+        hinstance,
+        null,
+    ) orelse {
+        log.err("CreateWindowExW(surface) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return error.Win32Error;
+    };
+}
+
+fn topLevelWindowStyle() win32.WINDOW_STYLE {
+    const clip_children: u32 = 0x02000000;
+    return @bitCast(@as(u32, @bitCast(win32.WS_OVERLAPPEDWINDOW)) | clip_children);
+}
+
+fn surfaceWindowStyle() win32.WINDOW_STYLE {
+    const child: u32 = 0x40000000;
+    const visible: u32 = 0x10000000;
+    const clip_siblings: u32 = 0x04000000;
+    return @bitCast(child | visible | clip_siblings);
 }
 
 /// DirectComposition owns the complete client-area visual tree. Disabling the
@@ -1353,7 +1413,7 @@ fn updateWindowBackgroundBlur(surface: *Surface, config: *const Config) void {
         }
 
         surface.background_blur = Backdrop.init(
-            surface.hwnd,
+            surface.windowHwnd(),
             value,
             &surface.rtApp().backdrop_runtime,
         ) catch |err| {
@@ -1416,14 +1476,15 @@ test "Win32 background blur requires D3D11 and transparent background" {
 }
 
 fn showWindow(surface: *Surface) void {
+    const hwnd = surface.windowHwnd();
     _ = win32.ShowWindow(
-        surface.hwnd,
+        hwnd,
         if (surface.default_maximized)
             win32.SW_MAXIMIZE
         else
             win32.SW_SHOWNORMAL,
     );
-    _ = win32.UpdateWindow(surface.hwnd);
+    _ = win32.UpdateWindow(hwnd);
     surface.shown = true;
     if (surface.default_fullscreen and !setFullscreen(surface, true)) {
         log.warn("failed to enter configured fullscreen mode", .{});
@@ -2008,40 +2069,68 @@ fn wndProc(
                 const width: u32 = @intCast(lparam & 0xFFFF);
                 const height: u32 = @intCast((lparam >> 16) & 0xFFFF);
                 if (width > 0 and height > 0) {
-                    surface.width = width;
-                    surface.height = height;
-                    if (surface.core_surface) |core| {
-                        core.sizeCallback(.{
-                            .width = width,
-                            .height = height,
-                        }) catch |err| {
-                            log.err("size callback error: {}", .{err});
-                        };
+                    if (hwnd == surface.windowHwnd()) {
+                        if (win32.SetWindowPos(
+                            surface.hwnd,
+                            null,
+                            0,
+                            0,
+                            @intCast(width),
+                            @intCast(height),
+                            .{ .NOZORDER = 1, .NOACTIVATE = 1 },
+                        ) == 0) {
+                            log.warn("SetWindowPos(surface) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+                        }
+                    } else if (hwnd == surface.hwnd) {
+                        surface.width = width;
+                        surface.height = height;
+                        if (surface.core_surface) |core| {
+                            core.sizeCallback(.{
+                                .width = width,
+                                .height = height,
+                            }) catch |err| {
+                                log.err("size callback error: {}", .{err});
+                            };
+                        }
                     }
                 }
             }
             return 0;
         },
         win32.WM_DPICHANGED => {
-            if (getSurface(hwnd)) |surface| handleDpiChanged(surface, hwnd, wparam, lparam);
+            if (getSurface(hwnd)) |surface| {
+                if (hwnd == surface.windowHwnd()) {
+                    handleDpiChanged(surface, hwnd, wparam, lparam);
+                }
+            }
             return 0;
         },
         win32.WM_SETFOCUS, win32.WM_KILLFOCUS => {
-            if (getSurface(hwnd)) |surface| handleFocus(surface, msg == win32.WM_SETFOCUS);
+            if (getSurface(hwnd)) |surface| {
+                if (hwnd == surface.windowHwnd()) {
+                    if (msg == win32.WM_SETFOCUS) _ = win32.SetFocus(surface.hwnd);
+                } else if (hwnd == surface.hwnd) {
+                    handleFocus(surface, msg == win32.WM_SETFOCUS);
+                }
+            }
             return 0;
         },
         win32.WM_SHOWWINDOW => {
             if (getSurface(hwnd)) |surface| {
-                if (surface.core_surface) |core| {
-                    core.occlusionCallback(wparam != 0) catch |err| {
-                        log.err("visibility callback error: {}", .{err});
-                    };
+                if (hwnd == surface.windowHwnd()) {
+                    if (surface.core_surface) |core| {
+                        core.occlusionCallback(wparam != 0) catch |err| {
+                            log.err("visibility callback error: {}", .{err});
+                        };
+                    }
                 }
             }
             return 0;
         },
         win32.WM_IME_STARTCOMPOSITION => {
-            if (getSurface(hwnd)) |surface| handleImeStartComposition(surface, hwnd);
+            if (getSurface(hwnd)) |surface| {
+                if (hwnd == surface.hwnd) handleImeStartComposition(surface, hwnd);
+            }
             return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
         },
         win32.WM_PAINT => {
@@ -2054,15 +2143,19 @@ fn wndProc(
         },
         win32.WM_MOUSEMOVE => {
             if (getSurface(hwnd)) |surface| {
-                trackMouseLeave(surface, hwnd);
-                updateCursorPosition(surface, mousePoint(lparam), getModifiers(), false);
+                if (hwnd == surface.hwnd) {
+                    trackMouseLeave(surface, hwnd);
+                    updateCursorPosition(surface, mousePoint(lparam), getModifiers(), false);
+                }
             }
             return 0;
         },
         win32.WM_MOUSELEAVE => {
             if (getSurface(hwnd)) |surface| {
-                surface.tracking_mouse_leave = false;
-                updateCursorPosition(surface, .{ .x = -1, .y = -1 }, getModifiers(), true);
+                if (hwnd == surface.hwnd) {
+                    surface.tracking_mouse_leave = false;
+                    updateCursorPosition(surface, .{ .x = -1, .y = -1 }, getModifiers(), true);
+                }
             }
             return 0;
         },
@@ -2076,52 +2169,62 @@ fn wndProc(
         win32.WM_XBUTTONUP,
         => {
             if (getSurface(hwnd)) |surface| {
-                if (mouseButtonEvent(msg, wparam)) |event| {
-                    return handleMouseButton(surface, hwnd, event, lparam);
+                if (hwnd == surface.hwnd) {
+                    if (mouseButtonEvent(msg, wparam)) |event| {
+                        return handleMouseButton(surface, hwnd, event, lparam);
+                    }
                 }
             }
             return 0;
         },
         win32.WM_MOUSEWHEEL, win32.WM_MOUSEHWHEEL => {
-            if (getSurface(hwnd)) |surface| handleMouseWheel(surface, hwnd, msg, wparam, lparam);
+            if (getSurface(hwnd)) |surface| {
+                if (hwnd == surface.hwnd) handleMouseWheel(surface, hwnd, msg, wparam, lparam);
+            }
             return 0;
         },
         win32.WM_CAPTURECHANGED => {
-            if (getSurface(hwnd)) |surface| releaseMouseButtons(surface);
+            if (getSurface(hwnd)) |surface| {
+                if (hwnd == surface.hwnd) releaseMouseButtons(surface);
+            }
             return 0;
         },
         win32.WM_CHAR, win32.WM_SYSCHAR => {
-            if (getSurface(hwnd)) |surface| return handleTextInput(surface, wparam);
+            if (getSurface(hwnd)) |surface| {
+                if (hwnd == surface.hwnd) return handleTextInput(surface, wparam);
+            }
             return 0;
         },
         win32.WM_KEYDOWN, win32.WM_SYSKEYDOWN => {
             if (getSurface(hwnd)) |surface| {
-                if (surface.core_surface) |core| {
-                    const mods = getModifiers();
-                    const key = mapVirtualKey(wparam, lparam);
+                if (hwnd == surface.hwnd) {
+                    if (surface.core_surface) |core| {
+                        const mods = getModifiers();
+                        const key = mapVirtualKey(wparam, lparam);
 
-                    if (!shouldDispatchKeyPress(wparam, mods)) {
-                        surface.pending_text_key = .{
-                            .action = keyAction(lparam),
-                            .key = key,
-                            .mods = mods,
-                            .unshifted_codepoint = unshiftedCodepoint(wparam),
-                        };
-                        return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
-                    }
+                        if (!shouldDispatchKeyPress(wparam, mods)) {
+                            surface.pending_text_key = .{
+                                .action = keyAction(lparam),
+                                .key = key,
+                                .mods = mods,
+                                .unshifted_codepoint = unshiftedCodepoint(wparam),
+                            };
+                            return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
+                        }
 
-                    surface.pending_text_key = null;
-                    if (key != .unidentified) {
-                        const effect = core.keyCallback(.{
-                            .action = keyAction(lparam),
-                            .key = key,
-                            .mods = mods,
-                            .unshifted_codepoint = unshiftedCodepoint(wparam),
-                        }) catch |err| {
-                            log.err("key callback error: {}", .{err});
-                            return 0;
-                        };
-                        if (effect == .consumed or effect == .closed) return 0;
+                        surface.pending_text_key = null;
+                        if (key != .unidentified) {
+                            const effect = core.keyCallback(.{
+                                .action = keyAction(lparam),
+                                .key = key,
+                                .mods = mods,
+                                .unshifted_codepoint = unshiftedCodepoint(wparam),
+                            }) catch |err| {
+                                log.err("key callback error: {}", .{err});
+                                return 0;
+                            };
+                            if (effect == .consumed or effect == .closed) return 0;
+                        }
                     }
                 }
             }
@@ -2129,17 +2232,19 @@ fn wndProc(
         },
         win32.WM_KEYUP, win32.WM_SYSKEYUP => {
             if (getSurface(hwnd)) |surface| {
-                if (surface.core_surface) |core| {
-                    const key = mapVirtualKey(wparam, lparam);
-                    if (key != .unidentified) {
-                        _ = core.keyCallback(.{
-                            .action = .release,
-                            .key = key,
-                            .mods = getModifiers(),
-                            .unshifted_codepoint = unshiftedCodepoint(wparam),
-                        }) catch |err| {
-                            log.err("key release callback error: {}", .{err});
-                        };
+                if (hwnd == surface.hwnd) {
+                    if (surface.core_surface) |core| {
+                        const key = mapVirtualKey(wparam, lparam);
+                        if (key != .unidentified) {
+                            _ = core.keyCallback(.{
+                                .action = .release,
+                                .key = key,
+                                .mods = getModifiers(),
+                                .unshifted_codepoint = unshiftedCodepoint(wparam),
+                            }) catch |err| {
+                                log.err("key release callback error: {}", .{err});
+                            };
+                        }
                     }
                 }
             }
@@ -2287,7 +2392,7 @@ test "restore Win32 native window state after fullscreen" {
 
     const hwnd = try createNativeWindow();
     defer _ = win32.DestroyWindow(hwnd);
-    var surface: Surface = .{ .hwnd = hwnd };
+    var surface: Surface = .{ .hwnd = hwnd, .window_hwnd = hwnd };
 
     var presenter = try DirectComposition.init(hwnd, 800, 600);
     defer presenter.deinit();

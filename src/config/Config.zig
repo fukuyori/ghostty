@@ -2205,7 +2205,7 @@ keybind: Keybinds = .{},
 /// This only applies to terminal windows. This setting will still apply to
 /// non-terminal windows within Ghostty.
 ///
-/// This is currently only supported on macOS and Linux.
+/// This is currently supported on macOS, Linux, and Windows.
 @"window-theme": WindowTheme = .auto,
 
 /// The color space to use when interpreting terminal colors. "Terminal colors"
@@ -2345,15 +2345,15 @@ keybind: Keybinds = .{},
 @"window-show-tab-bar": WindowShowTabBar = .auto,
 
 /// Background color for the window titlebar. This only takes effect if
-/// window-theme is set to ghostty. Currently only supported in the GTK app
-/// runtime.
+/// window-theme is set to ghostty. Currently supported in the GTK app runtime
+/// and on Windows 11.
 ///
 /// Specified as either hex (`#RRGGBB` or `RRGGBB`) or a named X11 color.
 @"window-titlebar-background": ?Color = null,
 
 /// Foreground color for the window titlebar. This only takes effect if
-/// window-theme is set to ghostty. Currently only supported in the GTK app
-/// runtime.
+/// window-theme is set to ghostty. Currently supported in the GTK app runtime
+/// and on Windows 11.
 ///
 /// Specified as either hex (`#RRGGBB` or `RRGGBB`) or a named X11 color.
 @"window-titlebar-foreground": ?Color = null,

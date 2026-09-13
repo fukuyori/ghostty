@@ -16,7 +16,12 @@ const log = std.log.scoped(.win32_surface);
 const App = @import("App.zig");
 const Backdrop = @import("Backdrop.zig");
 
+/// Child window used exclusively by the terminal renderer and input path.
 hwnd: win32.HWND,
+
+/// Top-level native window that owns this surface. Keeping these handles
+/// separate allows additional child surfaces to share the same frame.
+window_hwnd: win32.HWND,
 app: ?*App = null,
 hdc: ?win32.HDC = null,
 hglrc: ?win32.HGLRC = null,
@@ -99,8 +104,17 @@ pub fn rtApp(self: *Self) *App {
     return self.app.?;
 }
 
-pub fn init(self: *Self, app: *App, hwnd: win32.HWND) !void {
-    self.* = .{ .hwnd = hwnd, .app = app };
+pub fn init(
+    self: *Self,
+    app: *App,
+    window_hwnd: win32.HWND,
+    hwnd: win32.HWND,
+) !void {
+    self.* = .{
+        .hwnd = hwnd,
+        .window_hwnd = window_hwnd,
+        .app = app,
+    };
     errdefer self.deinit();
     self.updateClientSize();
     if (comptime build_config.renderer == .opengl) try self.initOpenGL();
@@ -232,7 +246,7 @@ pub fn releaseMainThreadContext(_: *Self) void {
 }
 
 pub fn getContentScale(self: *const Self) !apprt.ContentScale {
-    const dpi = win32.GetDpiForWindow(self.hwnd);
+    const dpi = win32.GetDpiForWindow(self.window_hwnd);
     if (dpi == 0) {
         log.warn("GetDpiForWindow failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         return .{ .x = 1.0, .y = 1.0 };
@@ -259,7 +273,7 @@ pub fn setTitle(self: *Self, value: [:0]const u8) !void {
 
     const wide = try std.unicode.utf8ToUtf16LeAllocZ(alloc, value);
     defer alloc.free(wide);
-    if (win32.SetWindowTextW(self.hwnd, wide) == 0) {
+    if (win32.SetWindowTextW(self.window_hwnd, wide) == 0) {
         log.err("SetWindowTextW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         return error.Win32Error;
     }
@@ -270,6 +284,10 @@ pub fn setTitle(self: *Self, value: [:0]const u8) !void {
 
 pub fn close(self: *Self, confirm: bool) void {
     self.rtApp().requestSurfaceClose(self, confirm);
+}
+
+pub fn windowHwnd(self: *const Self) win32.HWND {
+    return self.window_hwnd;
 }
 
 pub fn supportsClipboard(_: *Self, clipboard: apprt.Clipboard) bool {
@@ -352,7 +370,7 @@ pub fn clipboardRequest(
 
 fn openClipboard(self: *Self) bool {
     for (0..5) |attempt| {
-        if (win32.OpenClipboard(self.hwnd) != 0) return true;
+        if (win32.OpenClipboard(self.window_hwnd) != 0) return true;
         if (attempt < 4) win32.Sleep(5);
     }
     return false;
@@ -476,7 +494,7 @@ fn confirmClipboardAccess(self: *Self, access: ClipboardAccess) bool {
         .ICONHAND = 1,
         .ICONQUESTION = 1,
     };
-    return win32.MessageBoxW(self.hwnd, message, caption, style) == win32.IDYES;
+    return win32.MessageBoxW(self.window_hwnd, message, caption, style) == win32.IDYES;
 }
 
 fn clipboardTextContent(contents: []const apprt.ClipboardContent) ?[]const u8 {
