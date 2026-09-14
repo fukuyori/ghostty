@@ -3,6 +3,7 @@ const Ghostty = @This();
 const std = @import("std");
 const Config = @import("Config.zig");
 const SharedDeps = @import("SharedDeps.zig");
+const WindowsVersionResource = @import("WindowsVersionResource.zig");
 
 /// The primary Ghostty executable.
 exe: *std.Build.Step.Compile,
@@ -44,9 +45,12 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
         .windows => {
             exe.subsystem = .Windows;
             exe.entry = .{ .symbol_name = "mainCRTStartup" };
-            exe.root_module.addWin32ResourceFile(.{
-                .file = b.path("dist/windows/ghostty.rc"),
-            });
+            try WindowsVersionResource.add(
+                b,
+                exe.root_module,
+                cfg.version,
+                cfg.optimize,
+            );
         },
 
         else => {},

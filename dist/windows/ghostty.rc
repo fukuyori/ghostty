@@ -1,6 +1,17 @@
 // LANG_NEUTRAL(0), SUBLANG_NEUTRAL(0)
 LANGUAGE 0, 0
 
+#include "ghostty-version.h"
+
+// winver.h constants. Keep the resource build independent of an installed
+// Windows SDK because Zig supplies its own resource compiler.
+#define GHOSTTY_VS_FFI_FILEFLAGSMASK 0x0000003fL
+#define GHOSTTY_VS_FF_DEBUG          0x00000001L
+#define GHOSTTY_VOS_NT_WINDOWS32     0x00040004L
+#define GHOSTTY_VFT_APP              0x00000001L
+#define GHOSTTY_VFT2_UNKNOWN         0x00000000L
+#define GHOSTTY_VERSION_INFO         1
+
 #define RT_MANIFEST 1
 RT_MANIFEST 24 "ghostty.manifest"
 
@@ -23,26 +34,28 @@ BEGIN
     PUSHBUTTON      "Cancel", IDCANCEL, 200, 58, 52, 14
 END
 
-VS_VERSION_INFO VERSIONINFO
-//FILEVERSION     VERSION_MAJOR,VERSION_MINOR,VERSION_PATCH,VERSION_COMMIT_HEIGHT
-//PRODUCTVERSION  VERSION_MAJOR,VERSION_MINOR,VERSION_PATCH,VERSION_COMMIT_HEIGHT
-//FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
-//FILEFLAGS               VER_DBG
-//FILEOS                  VOS_NT
-//FILETYPE                VFT_APP
-//FILESUBTYPE             VFT2_UNKNOWN
+GHOSTTY_VERSION_INFO VERSIONINFO
+FILEVERSION     GHOSTTY_VERSION_MAJOR,GHOSTTY_VERSION_MINOR,GHOSTTY_VERSION_PATCH,GHOSTTY_VERSION_BUILD
+PRODUCTVERSION  GHOSTTY_VERSION_MAJOR,GHOSTTY_VERSION_MINOR,GHOSTTY_VERSION_PATCH,GHOSTTY_VERSION_BUILD
+FILEFLAGSMASK   GHOSTTY_VS_FFI_FILEFLAGSMASK
+#if GHOSTTY_VERSION_DEBUG
+FILEFLAGS       GHOSTTY_VS_FF_DEBUG
+#else
+FILEFLAGS       0
+#endif
+FILEOS          GHOSTTY_VOS_NT_WINDOWS32
+FILETYPE        GHOSTTY_VFT_APP
+FILESUBTYPE     GHOSTTY_VFT2_UNKNOWN
 BEGIN
     BLOCK "StringFileInfo"
     BEGIN
         BLOCK "040904b0"
         BEGIN
-        //VALUE "CompanyName",        "???"
-        //VALUE "FileDescription",    "???"
-        //VALUE "FileVersion",        VERSION
-        //VALUE "LegalCopyright",     "(C) 2024 ???"
+        VALUE "FileDescription",  "Ghostty terminal emulator"
+        VALUE "FileVersion",      GHOSTTY_VERSION_STRING
         VALUE "OriginalFilename", "ghostty.exe"
-        VALUE "ProductName",        "Ghostty"
-        //VALUE "ProductVersion",     VERSION
+        VALUE "ProductName",      "Ghostty"
+        VALUE "ProductVersion",   GHOSTTY_VERSION_STRING
         END
     END
     BLOCK "VarFileInfo"

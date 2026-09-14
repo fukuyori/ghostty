@@ -65,9 +65,9 @@ Windows版を「実用レベル」と判断するには、次の条件をすべ�
 | 3 | ウィンドウ機能 | 完了 | 100% |
 | 4 | 分割ペイン | 完了 | 100% |
 | 5 | Windows GUI仕上げ | 進行中 | 約97% |
-| 6 | リリース品質 | 一部完了 | 約65% |
+| 6 | リリース品質 | 一部完了 | 約72% |
 
-全体進捗は約93%と見積もる。現在地はフェーズ5の最終確認と、並行して進める
+全体進捗は約94%と見積もる。現在地はフェーズ5の最終確認と、並行して進める
 フェーズ6の文書整備である。
 フェーズ5はタブだけでなく、タイトルバー、分割境界のマウス操作、GUI状態
 表示、外観、DPI、アクセシビリティまでを含む。
@@ -328,18 +328,24 @@ Windows版を「実用レベル」と判断するには、次の条件をすべ�
 
 ### フェーズ6: リリース品質
 
-状態: **一部完了（約65%）**
+状態: **一部完了（約72%）**
 
 実装済み:
 
 - PowerShell用Releaseビルドスクリプト `scripts/build-release.ps1`
 - Debug/Releaseの基本ビルド経路
 - Windows実用化ロードマップと検証マトリクス
+- README冒頭のWindows版機能、ビルド方法、6フェーズ概要
 - Windows版のビルド、設定パス、既定キー、既知の制限をまとめた利用者向けガイド
 - GUIサブシステムでも標準出力・標準エラーと終了コードを保存できる診断起動スクリプト
 - Release成果物のPE形式、CPU形式、GUIサブシステム、必須リソースを検証する処理
+- Release成果物のCLI版、Windowsファイル版、製品版、Debugフラグの整合検査
+- Ghostty本体、libghostty-vt、ソースtarballの版情報経路と更新条件を分けた
+  `docs/version-update-checklist.md`
+- GhosttyのSemantic VersionからWindowsの数値版、`FileVersion`、
+  `ProductVersion`、Debugフラグを生成するWindowsリソース処理
 
-直近の診断スクリプト確認:
+直近のRelease・診断確認:
 
 - 存在しないCLIアクションを実行し、終了コード1と初期化前のエラー文を
   標準エラーログから取得した。
@@ -350,6 +356,12 @@ Windows版を「実用レベル」と判断するには、次の条件をすべ�
   7ファイル、テーマ607ファイル、サイズ26341376バイトを確認した。
 - Release実行ファイルの `--version` と `+list-keybinds --default` が終了コード0で
   完了した。Authenticode署名は `NotSigned` である。
+- DebugビルドでCLI、`FileVersion`、`ProductVersion` が
+  `1.3.2-windows-+4a8fa7933`、数値版が `1.3.2.0`、`IsDebug` がTrueになることを
+  確認した。
+- `-Dversion-string=1.3.2` を指定したReleaseFastビルドで、CLIとWindowsの
+  文字列版が `1.3.2`、数値版が `1.3.2.0`、`IsDebug` がFalseになることを
+  確認した。
 
 残作業:
 
@@ -390,6 +402,8 @@ Windows版を「実用レベル」と判断するには、次の条件をすべ�
 |---|---|---|
 | 起動 | Debugビルドの起動 | 確認済み |
 | 起動 | Releaseビルドの起動 | PE・リソース・CLI起動を確認済み、GUI起動の再確認が必要 |
+| 版情報 | CLIのバージョン表示 | Releaseビルドで確認済み |
+| 版情報 | Windowsファイルプロパティ | Debug・Releaseの文字列版、数値版、Debugフラグを確認済み |
 | 起動 | 診断ログと終了コード取得 | 正常・異常CLIの双方で確認済み |
 | 設定 | LocalAppDataの設定読込 | 確認済み |
 | 設定 | 設定再読込 | 基本実装済み、網羅確認が必要 |

@@ -5,23 +5,82 @@
   <br>Ghostty
 </h1>
   <p align="center">
-    Fast, native, feature-rich terminal emulator pushing modern features.
+    Native Ghostty for Windows — a work-in-progress Windows application fork.
     <br />
-    A native GUI or embeddable library via <code>libghostty</code>.
+    Win32, D3D11, DirectComposition, native tabs, and split panes.
     <br />
-    <a href="#about">About</a>
+    <a href="#ghostty-for-windows">Windows版</a>
     ·
-    <a href="https://ghostty.org/download">Download</a>
+    <a href="docs/windows.md">利用ガイド</a>
     ·
-    <a href="https://ghostty.org/docs">Documentation</a>
+    <a href="docs/windows-roadmap.md">進捗</a>
     ·
-    <a href="CONTRIBUTING.md">Contributing</a>
-    ·
-    <a href="HACKING.md">Developing</a>
+    <a href="#upstream-ghostty">Original Ghostty</a>
   </p>
 </p>
 
-## About
+## Ghostty for Windows
+
+このリポジトリは、GhosttyをWindowsで日常利用できる状態へ仕上げるための
+開発フォークです。upstreamへのWindows対応統合を待たず、`windows` ブランチで
+ネイティブ実装と検証を進めています。
+
+Windows版の主な特徴:
+
+- Win32ネイティブのウィンドウ、タイトルバー、タブバー
+- D3D11とDirectCompositionによる描画と背景透過
+- 複数ウィンドウ、ネイティブタブ、入れ子の分割ペイン
+- キーボードとマウスによるタブ操作、並べ替え、分割境界のリサイズ
+- Windows IME、クリップボード、URL・ファイル操作
+- Per-Monitor V2 DPI、ハイコントラスト、MSAAタブ情報
+- `%LOCALAPPDATA%\ghostty\config.ghostty` の設定読込と再読込
+- インストーラーを必要としないReleaseビルドスクリプト
+- CLIとWindowsファイルプロパティへ同期するビルド版情報
+
+ビルドと起動:
+
+```powershell
+zig build
+./zig-out/bin/ghostty.exe
+```
+
+ポータブルなReleaseビルド:
+
+```powershell
+./scripts/build-release.ps1
+./zig-out/release/bin/ghostty.exe
+```
+
+Windows版は現在も開発中です。Windows 11で基本動作を確認していますが、
+Windows 10、異なるDPIのモニター間移動、スリープ復帰、長時間稼働などには
+未確認項目があります。インストーラー、署名、自動更新はまだ提供していません。
+背景透過は利用できますが、`background-blur` は品質が環境に依存するため、
+現段階では無効を推奨します。
+
+### 作業ステップ概要
+
+Windows実用化は次の6フェーズで進めています。進捗率は作業量に基づく概算です。
+
+| フェーズ | 内容 | 状態 |
+|---|---|---:|
+| 1 | 基本ランタイム: 起動、入力、IME、クリップボード、DPI | 完了 |
+| 2 | 描画基盤: D3D11、DirectComposition、背景透過 | 完了 |
+| 3 | ウィンドウ機能: 複数ウィンドウ、全画面、設定再読込 | 完了 |
+| 4 | 分割ペイン: 作成、移動、リサイズ、ズーム | 完了 |
+| 5 | Windows GUI仕上げ: タブ、マウス操作、DPI、アクセシビリティ | 約97% |
+| 6 | リリース品質: 診断、Release検証、実機試験、配布準備 | 約72% |
+
+全体では約94%です。現在はフェーズ5の実環境別GUI確認と、フェーズ6の
+リリース品質整備を並行して進めています。
+
+設定、既定キー、診断方法、既知の制限は
+[Windows版 利用ガイド](docs/windows.md)、実装済み項目と残作業は
+[Windows実用化ロードマップ](docs/windows-roadmap.md)を参照してください。
+
+## Upstream Ghostty
+
+The original project is maintained at
+[`ghostty-org/ghostty`](https://github.com/ghostty-org/ghostty).
 
 Ghostty is a terminal emulator that differentiates itself by being
 fast, feature-rich, and native. While there are many excellent terminal
@@ -45,11 +104,6 @@ See the [download page](https://ghostty.org/download) on the Ghostty website.
 ## Documentation
 
 See the [documentation](https://ghostty.org/docs) on the Ghostty website.
-
-This fork also contains an in-progress native Windows application. See the
-[Windows user guide](docs/windows.md) and
-[Windows implementation roadmap](docs/windows-roadmap.md) for its build,
-configuration, and current verification status.
 
 ## Contributing and Developing
 

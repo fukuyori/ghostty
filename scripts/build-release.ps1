@@ -5,8 +5,9 @@ Builds a portable Windows release of Ghostty.
 .DESCRIPTION
 Runs the default Zig build in ReleaseFast mode for the baseline CPU and
 installs the result into zig-out/release by default. It validates the PE
-format, Windows GUI subsystem, required resource directories, and output hash.
-This script does not create a distribution archive or installer.
+format, Windows GUI subsystem, version information, required resource
+directories, and output hash. This script does not create a distribution
+archive or installer.
 
 .PARAMETER OutputDirectory
 The install prefix for the release build. Relative paths are resolved from the
@@ -152,6 +153,35 @@ try {
 
 $file = Get-Item -LiteralPath $executable
 $hash = Get-FileHash -LiteralPath $executable -Algorithm SHA256
+$versionInfo = $file.VersionInfo
+
+if ([string]::IsNullOrWhiteSpace($versionInfo.FileVersion)) {
+    throw "The release executable does not contain FileVersion information."
+}
+if ([string]::IsNullOrWhiteSpace($versionInfo.ProductVersion)) {
+    throw "The release executable does not contain ProductVersion information."
+}
+if ($versionInfo.FileVersion -ne $versionInfo.ProductVersion) {
+    throw "FileVersion and ProductVersion do not match."
+}
+if ($versionInfo.IsDebug) {
+    throw "The release executable is marked as a debug build."
+}
+
+$versionOutput = & $executable --version 2>&1 | Out-String
+if ($LASTEXITCODE -ne 0) {
+    throw "The release executable failed to report its version."
+}
+$versionLine = @(
+    $versionOutput -split "`r?`n" | Where-Object { $_ -match '^Ghostty\s+\S+' }
+) | Select-Object -First 1
+if ([string]::IsNullOrWhiteSpace($versionLine)) {
+    throw "The release executable returned an unrecognized version string."
+}
+$cliVersion = ($versionLine -replace '^Ghostty\s+', '').Trim()
+if ($cliVersion -ne $versionInfo.FileVersion) {
+    throw "The CLI version does not match the Windows FileVersion."
+}
 
 [pscustomobject]@{
     Executable   = $file.FullName
@@ -161,6 +191,10 @@ $hash = Get-FileHash -LiteralPath $executable -Algorithm SHA256
     PEFormat     = $peFormat
     Machine      = $machine
     Subsystem    = "WindowsGui"
+    Version      = $cliVersion
+    FileVersion  = $versionInfo.FileVersion
+    ProductVersion = $versionInfo.ProductVersion
+    Debug         = $versionInfo.IsDebug
     ShellFiles   = $shellIntegrationFileCount
     ThemeFiles   = $themeFileCount
     SizeBytes    = $file.Length
