@@ -46,6 +46,11 @@ See the [download page](https://ghostty.org/download) on the Ghostty website.
 
 See the [documentation](https://ghostty.org/docs) on the Ghostty website.
 
+This fork also contains an in-progress native Windows application. See the
+[Windows user guide](docs/windows.md) and
+[Windows implementation roadmap](docs/windows-roadmap.md) for its build,
+configuration, and current verification status.
+
 ## Contributing and Developing
 
 If you have any ideas, issues, etc. regarding Ghostty, or would like to

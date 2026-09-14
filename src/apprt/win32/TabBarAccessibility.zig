@@ -79,11 +79,15 @@ fn currentWindow(self: *const Self) ?*Window {
 
 fn childIndex(self: *const Self, value: win32.VARIANT) ?usize {
     const window = self.currentWindow() orelse return null;
+    return childIndexForCount(value, window.tabCount());
+}
+
+fn childIndexForCount(value: win32.VARIANT, count: usize) ?usize {
     if (value.Anonymous.Anonymous.vt != win32.VT_I4) return null;
     const child = value.Anonymous.Anonymous.Anonymous.lVal;
     if (child <= 0) return null;
     const index: usize = @intCast(child - 1);
-    return if (index < window.tabCount()) index else null;
+    return if (index < count) index else null;
 }
 
 fn isSelf(value: win32.VARIANT) bool {
@@ -300,13 +304,24 @@ fn getAccState(
     if (isSelf(child)) return self.standard.get_accState(child, state);
     const window = self.currentWindow() orelse return win32.E_FAIL;
     const index = self.childIndex(child) orelse return win32.E_INVALIDARG;
+    return setVariantI4(
+        state,
+        @bitCast(tabState(
+            index,
+            window.activeTabIndex(),
+            tabRect(self, window, index) != null,
+        )),
+    );
+}
+
+fn tabState(index: usize, active_index: usize, visible: bool) u32 {
     var flags: u32 = win32.STATE_SYSTEM_SELECTABLE;
-    if (index == window.activeTabIndex()) flags |= win32.STATE_SYSTEM_SELECTED;
-    if (tabRect(self, window, index) == null) {
+    if (index == active_index) flags |= win32.STATE_SYSTEM_SELECTED;
+    if (!visible) {
         flags |= @intFromEnum(win32.STATE_SYSTEM_INVISIBLE);
         flags |= @intFromEnum(win32.STATE_SYSTEM_OFFSCREEN);
     }
-    return setVariantI4(state, @bitCast(flags));
+    return flags;
 }
 
 fn getAccHelp(
@@ -442,18 +457,45 @@ fn accNavigate(
     const count = window.tabCount();
     if (count == 0) return win32.S_FALSE;
 
-    const target: ?usize = if (isSelf(start)) switch (@as(u32, @bitCast(direction))) {
-        win32.NAVDIR_FIRSTCHILD => 0,
-        win32.NAVDIR_LASTCHILD => count - 1,
-        else => null,
-    } else if (self.childIndex(start)) |index| switch (@as(u32, @bitCast(direction))) {
-        win32.NAVDIR_NEXT => if (index + 1 < count) index + 1 else null,
-        win32.NAVDIR_PREVIOUS => if (index > 0) index - 1 else null,
-        else => null,
-    } else null;
+    const navigation_start: NavigationStart = if (isSelf(start))
+        .self
+    else if (self.childIndex(start)) |index|
+        .{ .child = index }
+    else {
+        _ = setVariantEmpty(destination);
+        return win32.S_FALSE;
+    };
+    const target = navigationTarget(
+        @bitCast(direction),
+        navigation_start,
+        count,
+    );
     if (target) |index| return setVariantI4(destination, @intCast(index + 1));
     _ = setVariantEmpty(destination);
     return win32.S_FALSE;
+}
+
+const NavigationStart = union(enum) {
+    self,
+    child: usize,
+};
+
+fn navigationTarget(direction: u32, start: NavigationStart, count: usize) ?usize {
+    if (count == 0) return null;
+    return switch (start) {
+        .self => switch (direction) {
+            win32.NAVDIR_FIRSTCHILD => 0,
+            win32.NAVDIR_LASTCHILD => count - 1,
+            else => null,
+        },
+        .child => |index| if (index >= count)
+            null
+        else switch (direction) {
+            win32.NAVDIR_NEXT => if (index + 1 < count) index + 1 else null,
+            win32.NAVDIR_PREVIOUS => if (index > 0) index - 1 else null,
+            else => null,
+        },
+    };
 }
 
 fn accHitTest(
@@ -543,3 +585,69 @@ const vtable: win32.IAccessible.VTable = .{
 
 const objid_client: i32 = -4;
 const childid_self: i32 = 0;
+
+fn childVariant(child: i32) win32.VARIANT {
+    var result = std.mem.zeroes(win32.VARIANT);
+    result.Anonymous.Anonymous.vt = win32.VT_I4;
+    result.Anonymous.Anonymous.Anonymous.lVal = child;
+    return result;
+}
+
+test "Win32 tab accessibility validates simple child identifiers" {
+    try std.testing.expectEqual(@as(?usize, null), childIndexForCount(childVariant(0), 3));
+    try std.testing.expectEqual(@as(?usize, 0), childIndexForCount(childVariant(1), 3));
+    try std.testing.expectEqual(@as(?usize, 2), childIndexForCount(childVariant(3), 3));
+    try std.testing.expectEqual(@as(?usize, null), childIndexForCount(childVariant(4), 3));
+
+    var wrong_type = childVariant(1);
+    wrong_type.Anonymous.Anonymous.vt = win32.VT_EMPTY;
+    try std.testing.expectEqual(@as(?usize, null), childIndexForCount(wrong_type, 3));
+}
+
+test "Win32 tab accessibility exposes selected and offscreen states" {
+    try std.testing.expectEqual(
+        @as(u32, win32.STATE_SYSTEM_SELECTABLE),
+        tabState(0, 1, true),
+    );
+    try std.testing.expectEqual(
+        @as(u32, win32.STATE_SYSTEM_SELECTABLE | win32.STATE_SYSTEM_SELECTED),
+        tabState(1, 1, true),
+    );
+    try std.testing.expectEqual(
+        @as(u32, win32.STATE_SYSTEM_SELECTABLE) |
+            @as(u32, @intFromEnum(win32.STATE_SYSTEM_INVISIBLE)) |
+            @as(u32, @intFromEnum(win32.STATE_SYSTEM_OFFSCREEN)),
+        tabState(2, 1, false),
+    );
+}
+
+test "Win32 tab accessibility navigates simple children" {
+    try std.testing.expectEqual(
+        @as(?usize, 0),
+        navigationTarget(win32.NAVDIR_FIRSTCHILD, .self, 3),
+    );
+    try std.testing.expectEqual(
+        @as(?usize, 2),
+        navigationTarget(win32.NAVDIR_LASTCHILD, .self, 3),
+    );
+    try std.testing.expectEqual(
+        @as(?usize, 2),
+        navigationTarget(win32.NAVDIR_NEXT, .{ .child = 1 }, 3),
+    );
+    try std.testing.expectEqual(
+        @as(?usize, 0),
+        navigationTarget(win32.NAVDIR_PREVIOUS, .{ .child = 1 }, 3),
+    );
+    try std.testing.expectEqual(
+        @as(?usize, null),
+        navigationTarget(win32.NAVDIR_PREVIOUS, .{ .child = 0 }, 3),
+    );
+    try std.testing.expectEqual(
+        @as(?usize, null),
+        navigationTarget(win32.NAVDIR_NEXT, .{ .child = 2 }, 3),
+    );
+    try std.testing.expectEqual(
+        @as(?usize, null),
+        navigationTarget(win32.NAVDIR_FIRSTCHILD, .self, 0),
+    );
+}

@@ -390,7 +390,7 @@ pub fn performAction(
                     if (!setWindowDecorations(state, decorated)) {
                         log.warn("failed to apply window-decoration setting", .{});
                     }
-                    Titlebar.apply(state.windowHwnd(), value.config);
+                    Titlebar.apply(state.windowHwnd(), value.config, self.high_contrast);
                     updateWindowBackgroundBlur(state, value.config);
                     if (self.windowForSurface(state)) |window| self.layoutWindow(window);
                 },
@@ -1723,7 +1723,7 @@ fn initCoreSurface(
         )) {
             log.warn("failed to apply initial window-decoration setting", .{});
         }
-        Titlebar.apply(surface.windowHwnd(), &config);
+        Titlebar.apply(surface.windowHwnd(), &config, self.high_contrast);
     }
     core_surface.init(
         alloc,
@@ -2895,6 +2895,7 @@ fn paintTabBar(self: *App, window: *Window, hdc: win32.HDC, width: i32, height: 
         height,
         windowDpi(window.hwnd),
         self.config,
+        self.high_contrast,
         items,
         window.activeTabIsZoomed(),
         window.tab_bar_first_visible,
@@ -4217,6 +4218,7 @@ fn wndProc(
                     const app = surface.rtApp();
                     if (app.windowForHwnd(hwnd)) |window| {
                         app.high_contrast = highContrastEnabled();
+                        Titlebar.apply(hwnd, app.config, app.high_contrast);
                         app.layoutWindow(window);
                         invalidateTabBar(window);
                         invalidateSplitDividers(window);

@@ -146,22 +146,17 @@ pub fn paint(
     height: i32,
     dpi: u32,
     config: *const Config,
+    high_contrast: bool,
     items: []const Item,
     zoomed: bool,
     first_visible: usize,
     hover: Hit,
 ) void {
-    const background = config.background;
-    const foreground = config.@"window-titlebar-foreground" orelse config.foreground;
-    const inactive = mix(background, foreground, 4);
-    const hovered = mix(background, foreground, 10);
-    const active = mix(background, foreground, 15);
-    const border = mix(background, foreground, 24);
-    const accent = mix(background, foreground, 55);
+    const colors = palette(config, high_contrast);
 
-    fill(hdc, .{ .left = 0, .top = 0, .right = width, .bottom = height }, colorRef(background));
+    fill(hdc, .{ .left = 0, .top = 0, .right = width, .bottom = height }, colors.background);
     _ = win32.SetBkMode(hdc, win32.TRANSPARENT);
-    _ = win32.SetTextColor(hdc, colorRef(foreground));
+    _ = win32.SetTextColor(hdc, colors.foreground);
     const dpi_font = createFontForDpi(dpi);
     defer if (dpi_font) |value| {
         _ = win32.DeleteObject(value);
@@ -181,7 +176,20 @@ pub fn paint(
             .close => |value| value == index,
             else => false,
         };
-        fill(hdc, rect, colorRef(if (item.active) active else if (tab_hovered) hovered else inactive));
+        const tab_background = if (item.active)
+            colors.active
+        else if (tab_hovered)
+            colors.hovered
+        else
+            colors.inactive;
+        const tab_foreground = if (item.active)
+            colors.active_text
+        else if (tab_hovered)
+            colors.hovered_text
+        else
+            colors.inactive_text;
+        fill(hdc, rect, tab_background);
+        _ = win32.SetTextColor(hdc, tab_foreground);
 
         const separator: win32.RECT = .{
             .left = rect.right - 1,
@@ -189,14 +197,15 @@ pub fn paint(
             .right = rect.right,
             .bottom = height - scale(7, dpi),
         };
-        fill(hdc, separator, colorRef(border));
+        fill(hdc, separator, colors.border);
 
         const close = closeRect(rect, height);
         if (switch (hover) {
             .close => |value| value == index,
             else => false,
         }) {
-            fill(hdc, close, 0x003A3AD0);
+            fill(hdc, close, colors.close_hover);
+            _ = win32.SetTextColor(hdc, colors.close_hover_text);
         }
         var label_rect: win32.RECT = .{
             .left = rect.left + scale(logical_padding, dpi),
@@ -230,14 +239,16 @@ pub fn paint(
                     .right = rect.right - scale(8, dpi),
                     .bottom = rect.bottom,
                 },
-                colorRef(accent),
+                colors.accent,
             );
         }
     }
 
     if (layout.previous) |value| {
         var previous = value;
-        fill(hdc, previous, colorRef(if (hover == .scroll_previous) hovered else inactive));
+        const hovered = hover == .scroll_previous;
+        fill(hdc, previous, if (hovered) colors.hovered else colors.inactive);
+        _ = win32.SetTextColor(hdc, if (hovered) colors.hovered_text else colors.inactive_text);
         drawUtf8(
             alloc,
             hdc,
@@ -248,7 +259,9 @@ pub fn paint(
     }
     if (layout.next) |value| {
         var next = value;
-        fill(hdc, next, colorRef(if (hover == .scroll_next) hovered else inactive));
+        const hovered = hover == .scroll_next;
+        fill(hdc, next, if (hovered) colors.hovered else colors.inactive);
+        _ = win32.SetTextColor(hdc, if (hovered) colors.hovered_text else colors.inactive_text);
         drawUtf8(
             alloc,
             hdc,
@@ -259,7 +272,9 @@ pub fn paint(
     }
 
     var plus = layout.plus;
-    fill(hdc, plus, colorRef(if (hover == .new_tab) hovered else inactive));
+    const plus_hovered = hover == .new_tab;
+    fill(hdc, plus, if (plus_hovered) colors.hovered else colors.inactive);
+    _ = win32.SetTextColor(hdc, if (plus_hovered) colors.hovered_text else colors.inactive_text);
     drawUtf8(
         alloc,
         hdc,
@@ -274,8 +289,8 @@ pub fn paint(
         badge.top += scale(5, dpi);
         badge.right -= scale(5, dpi);
         badge.bottom -= scale(5, dpi);
-        fill(hdc, badge, colorRef(active));
-        _ = win32.SetTextColor(hdc, colorRef(accent));
+        fill(hdc, badge, colors.active);
+        _ = win32.SetTextColor(hdc, colors.accent);
         drawUtf8(
             alloc,
             hdc,
@@ -283,14 +298,81 @@ pub fn paint(
             &badge,
             draw_center | draw_vcenter | draw_singleline | draw_noprefix,
         );
-        _ = win32.SetTextColor(hdc, colorRef(foreground));
+        _ = win32.SetTextColor(hdc, colors.foreground);
     }
 
     fill(
         hdc,
         .{ .left = 0, .top = height - 1, .right = width, .bottom = height },
-        colorRef(border),
+        colors.border,
     );
+}
+
+const Palette = struct {
+    background: u32,
+    foreground: u32,
+    inactive: u32,
+    inactive_text: u32,
+    hovered: u32,
+    hovered_text: u32,
+    active: u32,
+    active_text: u32,
+    border: u32,
+    accent: u32,
+    close_hover: u32,
+    close_hover_text: u32,
+};
+
+const SystemColors = struct {
+    window: u32,
+    window_text: u32,
+    highlight: u32,
+    highlight_text: u32,
+    hotlight: u32,
+};
+
+fn palette(config: *const Config, high_contrast: bool) Palette {
+    if (high_contrast) return highContrastPalette(.{
+        .window = win32.GetSysColor(win32.COLOR_WINDOW),
+        .window_text = win32.GetSysColor(win32.COLOR_WINDOWTEXT),
+        .highlight = win32.GetSysColor(win32.COLOR_HIGHLIGHT),
+        .highlight_text = win32.GetSysColor(win32.COLOR_HIGHLIGHTTEXT),
+        .hotlight = win32.GetSysColor(win32.COLOR_HOTLIGHT),
+    });
+
+    const background = config.background;
+    const foreground = config.@"window-titlebar-foreground" orelse config.foreground;
+    return .{
+        .background = colorRef(background),
+        .foreground = colorRef(foreground),
+        .inactive = colorRef(mix(background, foreground, 4)),
+        .inactive_text = colorRef(foreground),
+        .hovered = colorRef(mix(background, foreground, 10)),
+        .hovered_text = colorRef(foreground),
+        .active = colorRef(mix(background, foreground, 15)),
+        .active_text = colorRef(foreground),
+        .border = colorRef(mix(background, foreground, 24)),
+        .accent = colorRef(mix(background, foreground, 55)),
+        .close_hover = 0x003A3AD0,
+        .close_hover_text = colorRef(foreground),
+    };
+}
+
+fn highContrastPalette(system: SystemColors) Palette {
+    return .{
+        .background = system.window,
+        .foreground = system.window_text,
+        .inactive = system.window,
+        .inactive_text = system.window_text,
+        .hovered = system.highlight,
+        .hovered_text = system.highlight_text,
+        .active = system.highlight,
+        .active_text = system.highlight_text,
+        .border = system.window_text,
+        .accent = system.highlight_text,
+        .close_hover = system.hotlight,
+        .close_hover_text = system.highlight_text,
+    };
 }
 
 const BarLayout = struct {
@@ -609,4 +691,27 @@ test "Win32 tab bar drag starts only after the configured threshold" {
 test "Win32 tab bar height follows DPI" {
     try std.testing.expectEqual(@as(i32, 32), heightForDpi(96));
     try std.testing.expectEqual(@as(i32, 48), heightForDpi(144));
+}
+
+test "Win32 high contrast tab bar uses only system colors" {
+    const colors: SystemColors = .{
+        .window = 1,
+        .window_text = 2,
+        .highlight = 3,
+        .highlight_text = 4,
+        .hotlight = 5,
+    };
+    const result = highContrastPalette(colors);
+    try std.testing.expectEqual(colors.window, result.background);
+    try std.testing.expectEqual(colors.window_text, result.foreground);
+    try std.testing.expectEqual(colors.window, result.inactive);
+    try std.testing.expectEqual(colors.window_text, result.inactive_text);
+    try std.testing.expectEqual(colors.highlight, result.hovered);
+    try std.testing.expectEqual(colors.highlight_text, result.hovered_text);
+    try std.testing.expectEqual(colors.highlight, result.active);
+    try std.testing.expectEqual(colors.highlight_text, result.active_text);
+    try std.testing.expectEqual(colors.window_text, result.border);
+    try std.testing.expectEqual(colors.highlight_text, result.accent);
+    try std.testing.expectEqual(colors.hotlight, result.close_hover);
+    try std.testing.expectEqual(colors.highlight_text, result.close_hover_text);
 }

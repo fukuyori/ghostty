@@ -15,8 +15,11 @@ const Appearance = struct {
 /// Apply the configured light/dark preference and optional Ghostty colors to
 /// the native non-client area. Color attributes are supported by Windows 11;
 /// older systems retain their native colors while still attempting dark mode.
-pub fn apply(hwnd: win32.HWND, config: *const Config) void {
-    const value = appearance(config);
+pub fn apply(hwnd: win32.HWND, config: *const Config, high_contrast: bool) void {
+    const value = if (high_contrast)
+        highContrastAppearance(win32.GetSysColor(win32.COLOR_WINDOW))
+    else
+        appearance(config);
 
     var dark: win32.BOOL = if (value.dark) win32.TRUE else win32.FALSE;
     setAttribute(hwnd, dwmwa_use_immersive_dark_mode, &dark) catch |err|
@@ -56,6 +59,23 @@ fn appearance(config: *const Config) Appearance {
             config.@"window-titlebar-foreground" orelse config.foreground,
         ),
     };
+}
+
+fn highContrastAppearance(system_background: u32) Appearance {
+    return .{
+        .dark = colorRefIsDark(system_background),
+        // Reset any configured DWM colors so Windows can apply the active
+        // high-contrast caption and text colors to the non-client area.
+        .caption_color = dwm_color_default,
+        .text_color = dwm_color_default,
+    };
+}
+
+fn colorRefIsDark(color: u32) bool {
+    const red = color & 0xFF;
+    const green = (color >> 8) & 0xFF;
+    const blue = (color >> 16) & 0xFF;
+    return red * 299 + green * 587 + blue * 114 <= 127_500;
 }
 
 fn colorRef(color: Config.Color) u32 {
@@ -118,4 +138,16 @@ test "Win32 native titlebar attributes match the DWM ABI" {
     try std.testing.expectEqual(@as(u32, 35), dwmwa_caption_color);
     try std.testing.expectEqual(@as(u32, 36), dwmwa_text_color);
     try std.testing.expectEqual(@as(u32, 0xFFFFFFFF), dwm_color_default);
+}
+
+test "Win32 high contrast titlebar restores system-managed colors" {
+    const dark = highContrastAppearance(0x00000000);
+    try std.testing.expect(dark.dark);
+    try std.testing.expectEqual(dwm_color_default, dark.caption_color);
+    try std.testing.expectEqual(dwm_color_default, dark.text_color);
+
+    const light = highContrastAppearance(0x00FFFFFF);
+    try std.testing.expect(!light.dark);
+    try std.testing.expectEqual(dwm_color_default, light.caption_color);
+    try std.testing.expectEqual(dwm_color_default, light.text_color);
 }
