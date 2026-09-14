@@ -100,6 +100,7 @@ pub fn run(self: *App) !void {
 
 pub fn terminate(self: *App) void {
     while (self.windows.pop()) |window| {
+        disableWindowBackgroundBlur(window);
         for (window.surfaces.items) |surface| {
             surface.deinit();
             if (win32.DestroyWindow(surface.hwnd) == 0) {
@@ -165,6 +166,8 @@ fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
         );
     }
 
+    if (close_window) disableWindowBackgroundBlur(window);
+
     // Keep the child HWND and its DC alive until the renderer has stopped and
     // the surface has released all native rendering resources.
     surface.deinit();
@@ -203,6 +206,11 @@ fn windowForSurface(self: *App, surface: *const Surface) ?*Window {
         if (window.contains(surface)) return window;
     }
     return null;
+}
+
+pub fn surfaceIsFocused(self: *App, surface: *const Surface) bool {
+    const window = self.windowForSurface(surface) orelse return false;
+    return window.focused_surface == surface;
 }
 
 fn windowForHwnd(self: *App, hwnd: win32.HWND) ?*Window {
@@ -256,6 +264,10 @@ pub fn performAction(
             return true;
         },
         .new_split => return try self.newSplit(target, value),
+        .goto_split => return self.gotoSplit(target, value),
+        .resize_split => return self.resizeSplit(target, value),
+        .equalize_splits => return self.equalizeSplits(target),
+        .toggle_split_zoom => return self.toggleSplitZoom(target),
         .close_window => return self.closeWindow(target),
         .close_all_windows => return self.closeAllWindows(),
         .goto_window => return self.gotoWindow(target, value),
@@ -498,10 +510,6 @@ fn windowStateSurface(surface: *Surface) *Surface {
 
 fn transferWindowState(from: *Surface, to: *Surface) void {
     std.debug.assert(from.windowHwnd() == to.windowHwnd());
-    std.debug.assert(to.background_blur == null);
-
-    to.background_blur = from.background_blur;
-    from.background_blur = null;
     to.initial_client_size = from.initial_client_size;
     to.shown = from.shown;
     to.default_maximized = from.default_maximized;
@@ -1398,7 +1406,7 @@ fn initCoreSurface(
     };
 
     surface.core_surface = core_surface;
-    if (context == .window) updateWindowBackgroundBlur(surface, &config);
+    updateWindowBackgroundBlur(surface, &config);
     log.info("core surface initialized successfully", .{});
 }
 
@@ -1496,6 +1504,141 @@ fn newSplit(
     return true;
 }
 
+fn gotoSplit(
+    self: *App,
+    target: apprt.Target,
+    direction: apprt.action.GotoSplit,
+) bool {
+    const current = targetSurface(target) orelse {
+        log.warn("goto_split targeted the application", .{});
+        return false;
+    };
+    const window = self.windowForSurface(current) orelse {
+        log.warn("goto_split targeted an unowned surface", .{});
+        return false;
+    };
+
+    var client: win32.RECT = std.mem.zeroes(win32.RECT);
+    if (win32.GetClientRect(window.hwnd, &client) == 0) {
+        log.warn("GetClientRect for split focus failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return false;
+    }
+
+    const rects = self.alloc.alloc(Window.LeafRect, window.surfaces.items.len) catch |err| {
+        log.warn("failed to allocate split focus layout: {}", .{err});
+        return false;
+    };
+    defer self.alloc.free(rects);
+
+    const focus = window.focusCandidate(
+        current,
+        switch (direction) {
+            .previous => .previous,
+            .next => .next,
+            .up => .up,
+            .down => .down,
+            .left => .left,
+            .right => .right,
+        },
+        .{
+            .x = 0,
+            .y = 0,
+            .width = @max(0, client.right - client.left),
+            .height = @max(0, client.bottom - client.top),
+        },
+        1,
+        rects,
+    ) orelse return false;
+
+    window.updateZoomForNavigation(
+        focus,
+        self.config.@"split-preserve-zoom".navigation,
+    );
+    self.layoutWindow(window);
+
+    window.focused_surface = focus;
+    _ = win32.SetWindowLongPtrW(
+        window.hwnd,
+        win32.GWLP_USERDATA,
+        @bitCast(@intFromPtr(focus)),
+    );
+    _ = win32.SetFocus(focus.hwnd);
+    focus.syncTitle();
+    return true;
+}
+
+fn resizeSplit(
+    self: *App,
+    target: apprt.Target,
+    value: apprt.action.ResizeSplit,
+) bool {
+    const current = targetSurface(target) orelse {
+        log.warn("resize_split targeted the application", .{});
+        return false;
+    };
+    const window = self.windowForSurface(current) orelse {
+        log.warn("resize_split targeted an unowned surface", .{});
+        return false;
+    };
+
+    var client: win32.RECT = std.mem.zeroes(win32.RECT);
+    if (win32.GetClientRect(window.hwnd, &client) == 0) {
+        log.warn("GetClientRect for split resize failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return false;
+    }
+
+    const amount: i32 = @intCast(value.amount);
+    const changed = window.resizeSplit(
+        current,
+        switch (value.direction) {
+            .left, .right => .horizontal,
+            .up, .down => .vertical,
+        },
+        switch (value.direction) {
+            .left, .up => -amount,
+            .right, .down => amount,
+        },
+        .{
+            .x = 0,
+            .y = 0,
+            .width = @max(0, client.right - client.left),
+            .height = @max(0, client.bottom - client.top),
+        },
+        1,
+    );
+    if (!changed) return false;
+    self.layoutWindow(window);
+    return true;
+}
+
+fn equalizeSplits(self: *App, target: apprt.Target) bool {
+    const surface = targetSurface(target) orelse {
+        log.warn("equalize_splits targeted the application", .{});
+        return false;
+    };
+    const window = self.windowForSurface(surface) orelse {
+        log.warn("equalize_splits targeted an unowned surface", .{});
+        return false;
+    };
+    if (!window.equalizeSplits()) return false;
+    self.layoutWindow(window);
+    return true;
+}
+
+fn toggleSplitZoom(self: *App, target: apprt.Target) bool {
+    const surface = targetSurface(target) orelse {
+        log.warn("toggle_split_zoom targeted the application", .{});
+        return false;
+    };
+    const window = self.windowForSurface(surface) orelse {
+        log.warn("toggle_split_zoom targeted an unowned surface", .{});
+        return false;
+    };
+    if (!window.toggleSplitZoom(surface)) return false;
+    self.layoutWindow(window);
+    return true;
+}
+
 fn layoutWindow(self: *App, window: *Window) void {
     var client: win32.RECT = std.mem.zeroes(win32.RECT);
     if (win32.GetClientRect(window.hwnd, &client) == 0) {
@@ -1531,6 +1674,20 @@ fn layoutWindow(self: *App, window: *Window) void {
         ) == 0) {
             log.warn("SetWindowPos(surface layout) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         }
+    }
+
+    for (window.surfaces.items) |surface| {
+        var visible = false;
+        for (rects[0..count]) |entry| {
+            if (entry.view == surface) {
+                visible = true;
+                break;
+            }
+        }
+        _ = win32.ShowWindow(
+            surface.hwnd,
+            if (visible) win32.SW_SHOWNA else win32.SW_HIDE,
+        );
     }
 }
 
@@ -1637,27 +1794,93 @@ fn nativeWindowExStyle() win32.WINDOW_EX_STYLE {
 /// used with D3D11; OpenGL retains its existing transparent behavior.
 fn updateWindowBackgroundBlur(surface: *Surface, config: *const Config) void {
     const radius = windowBackgroundBlurRadius(config);
-    if (radius) |value| {
-        if (surface.background_blur) |*backdrop| {
-            backdrop.setRadius(value) catch |err|
-                log.warn("failed to update Win32 background blur: {}", .{err});
-            return;
-        }
+    const app = surface.rtApp();
+    const window = app.windowForSurface(surface) orelse {
+        log.warn("background blur targeted an unowned surface", .{});
+        return;
+    };
 
-        surface.background_blur = Backdrop.init(
-            surface.windowHwnd(),
-            value,
-            &surface.rtApp().backdrop_runtime,
-        ) catch |err| {
-            // Older Windows versions don't recognize the system-backdrop
-            // attribute. Keep rendering with ordinary transparency.
-            log.warn("failed to apply Win32 background blur: {}", .{err});
+    const value = radius orelse {
+        disableWindowBackgroundBlur(window);
+        return;
+    };
+
+    // A fixed DWM backdrop has no adjustable radius. It remains the fallback
+    // for this window until blur is disabled and enabled again.
+    if (window.dwm_backdrop_active) return;
+
+    if (!window.host_backdrop_active) {
+        Backdrop.setHostBackdrop(window.hwnd, true) catch |err| {
+            log.warn("failed to enable Win32 host backdrop: {}", .{err});
+            enableFallbackBackdrop(window);
             return;
         };
-    } else if (surface.background_blur) |*backdrop| {
-        backdrop.deinit();
+        window.host_backdrop_active = true;
+    }
+
+    for (window.surfaces.items) |candidate| {
+        if (candidate.background_blur) |*backdrop| {
+            backdrop.setRadius(value) catch |err| {
+                log.warn("failed to update Win32 background blur: {}", .{err});
+                fallbackFromGaussianBackdrop(window);
+                return;
+            };
+            continue;
+        }
+
+        candidate.background_blur = Backdrop.init(
+            candidate.hwnd,
+            value,
+            &app.backdrop_runtime,
+        ) catch |err| {
+            log.warn("failed to apply Win32 background blur: {}", .{err});
+            fallbackFromGaussianBackdrop(window);
+            return;
+        };
+    }
+}
+
+fn releaseSurfaceBackdrops(window: *Window) void {
+    for (window.surfaces.items) |surface| {
+        if (surface.background_blur) |*backdrop| backdrop.deinit();
         surface.background_blur = null;
     }
+}
+
+fn disableHostBackdrop(window: *Window) void {
+    if (!window.host_backdrop_active) return;
+    Backdrop.setHostBackdrop(window.hwnd, false) catch |err| {
+        log.warn("failed to disable Win32 host backdrop: {}", .{err});
+        return;
+    };
+    window.host_backdrop_active = false;
+}
+
+fn enableFallbackBackdrop(window: *Window) void {
+    if (window.dwm_backdrop_active) return;
+    Backdrop.setSystemBackdrop(window.hwnd, .transient_window) catch |err| {
+        log.warn("failed to apply fixed Win32 Acrylic fallback: {}", .{err});
+        return;
+    };
+    window.dwm_backdrop_active = true;
+    log.warn("using fixed Win32 Acrylic because Gaussian backdrop is unavailable", .{});
+}
+
+fn fallbackFromGaussianBackdrop(window: *Window) void {
+    releaseSurfaceBackdrops(window);
+    disableHostBackdrop(window);
+    enableFallbackBackdrop(window);
+}
+
+fn disableWindowBackgroundBlur(window: *Window) void {
+    releaseSurfaceBackdrops(window);
+    disableHostBackdrop(window);
+    if (!window.dwm_backdrop_active) return;
+    Backdrop.setSystemBackdrop(window.hwnd, .none) catch |err| {
+        log.warn("failed to remove fixed Win32 Acrylic fallback: {}", .{err});
+        return;
+    };
+    window.dwm_backdrop_active = false;
 }
 
 fn windowBackgroundBlurRadius(config: *const Config) ?u8 {
@@ -2364,6 +2587,7 @@ fn wndProc(
                                 @bitCast(@intFromPtr(surface)),
                             );
                         }
+                        surface.syncTitle();
                     }
                     handleFocus(surface, msg == win32.WM_SETFOCUS);
                 }
@@ -2516,6 +2740,8 @@ fn wndProc(
 test "map Win32 virtual keys" {
     try std.testing.expectEqual(input.Key.key_a, mapVirtualKey(0x41, 0));
     try std.testing.expectEqual(input.Key.arrow_left, mapVirtualKey(0x25, 0));
+    try std.testing.expectEqual(input.Key.bracket_left, mapVirtualKey(0xDB, 0));
+    try std.testing.expectEqual(input.Key.bracket_right, mapVirtualKey(0xDD, 0));
     try std.testing.expectEqual(input.Key.numpad_enter, mapVirtualKey(0x0D, 1 << 24));
     try std.testing.expectEqual(input.Key.control_right, mapVirtualKey(0x11, 1 << 24));
     try std.testing.expectEqual(input.Key.unidentified, mapVirtualKey(0xFF, 0));

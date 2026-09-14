@@ -15,11 +15,21 @@ const Tree = SplitTree(Surface);
 
 pub const Rect = Tree.Rect;
 pub const LeafRect = Tree.LeafRect;
+pub const FocusDirection = Tree.FocusDirection;
+pub const ResizeDirection = Tree.ResizeDirection;
 
 hwnd: win32.HWND,
 surfaces: std.ArrayListUnmanaged(*Surface) = .empty,
 tree: Tree,
 focused_surface: *Surface,
+
+/// The host-backdrop opt-in belongs to the top-level HWND even though each
+/// child surface owns its own bottom composition target.
+host_backdrop_active: bool = false,
+
+/// Fixed DWM Acrylic is used for the complete top-level window only when the
+/// adjustable Host Backdrop composition path is unavailable.
+dwm_backdrop_active: bool = false,
 
 pub fn init(
     alloc: std.mem.Allocator,
@@ -104,6 +114,56 @@ pub fn layout(
     output: []LeafRect,
 ) usize {
     return self.tree.layout(bounds, divider_gap, output);
+}
+
+pub fn focusCandidate(
+    self: *const Window,
+    current: *Surface,
+    direction: FocusDirection,
+    bounds: Rect,
+    divider_gap: i32,
+    output: []LeafRect,
+) ?*Surface {
+    return self.tree.focusCandidate(
+        current,
+        direction,
+        bounds,
+        divider_gap,
+        output,
+    );
+}
+
+pub fn resizeSplit(
+    self: *Window,
+    surface: *Surface,
+    direction: ResizeDirection,
+    delta: i32,
+    bounds: Rect,
+    divider_gap: i32,
+) bool {
+    return self.tree.resize(
+        surface,
+        direction,
+        delta,
+        bounds,
+        divider_gap,
+    );
+}
+
+pub fn equalizeSplits(self: *Window) bool {
+    return self.tree.equalize();
+}
+
+pub fn toggleSplitZoom(self: *Window, surface: *Surface) bool {
+    return self.tree.toggleZoom(surface);
+}
+
+pub fn updateZoomForNavigation(
+    self: *Window,
+    surface: *Surface,
+    preserve: bool,
+) void {
+    self.tree.updateZoomForNavigation(surface, preserve);
 }
 
 test "Win32 window owns and removes split surfaces" {

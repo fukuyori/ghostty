@@ -1057,12 +1057,11 @@ palette: Palette = .{},
 /// On X11, blur can only be enabled when using the KWin compositor
 /// as a part of KDE Plasma.
 ///
-/// On Windows, Ghostty combines the native transient-window Acrylic material
-/// with a Host Backdrop composition layer. Integer values tune the perceived
-/// blur strength, with values of 32 or greater using full system Acrylic. If
-/// Host Backdrop is unavailable, Ghostty falls back to fixed Acrylic. If the
-/// system backdrop itself is unavailable, transparency remains enabled without
-/// blur.
+/// On Windows, Ghostty applies a Direct2D Gaussian Blur effect to the native
+/// Host Backdrop. Integer values are used as the Gaussian standard deviation
+/// and values above 250 are clamped to 250. If Composition effects or Host
+/// Backdrop are unavailable, Ghostty falls back to fixed Acrylic. If the system
+/// backdrop is also unavailable, transparency remains enabled without blur.
 @"background-blur": BackgroundBlur = .false,
 
 /// The opacity level (opposite of transparency) of an unfocused split.
@@ -4024,6 +4023,33 @@ pub fn default(alloc_gpa: Allocator) Allocator.Error!Config {
     return result;
 }
 
+test "Windows split traversal defaults use physical bracket keys" {
+    if (builtin.target.os.tag != .windows) return error.SkipZigTest;
+
+    var config = try Config.default(std.testing.allocator);
+    defer config.deinit();
+
+    const previous = config.keybind.set.getEvent(.{
+        .key = .bracket_left,
+        .mods = .{ .ctrl = true, .super = true },
+    }).?.value_ptr.*.leaf.action;
+    try std.testing.expect(previous == .goto_split);
+    try std.testing.expectEqual(
+        inputpkg.SplitFocusDirection.previous,
+        previous.goto_split,
+    );
+
+    const next = config.keybind.set.getEvent(.{
+        .key = .bracket_right,
+        .mods = .{ .ctrl = true, .super = true },
+    }).?.value_ptr.*.leaf.action;
+    try std.testing.expect(next == .goto_split);
+    try std.testing.expectEqual(
+        inputpkg.SplitFocusDirection.next,
+        next.goto_split,
+    );
+}
+
 /// Load configuration from an iterator that yields values that look like
 /// command-line arguments, i.e. `--key=value`.
 pub fn loadIter(
@@ -6828,13 +6854,25 @@ pub const Keybinds = struct {
             );
             try self.set.putFlags(
                 alloc,
-                .{ .key = .{ .unicode = '[' }, .mods = .{ .ctrl = true, .super = true } },
+                .{
+                    .key = if (comptime builtin.target.os.tag == .windows)
+                        .{ .physical = .bracket_left }
+                    else
+                        .{ .unicode = '[' },
+                    .mods = .{ .ctrl = true, .super = true },
+                },
                 .{ .goto_split = .previous },
                 .{ .performable = true },
             );
             try self.set.putFlags(
                 alloc,
-                .{ .key = .{ .unicode = ']' }, .mods = .{ .ctrl = true, .super = true } },
+                .{
+                    .key = if (comptime builtin.target.os.tag == .windows)
+                        .{ .physical = .bracket_right }
+                    else
+                        .{ .unicode = ']' },
+                    .mods = .{ .ctrl = true, .super = true },
+                },
                 .{ .goto_split = .next },
                 .{ .performable = true },
             );

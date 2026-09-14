@@ -4,14 +4,14 @@ const Backdrop = @This();
 
 const std = @import("std");
 const win32 = @import("win32").everything;
+const GaussianBlur = @import("GaussianBlur.zig");
 
 const log = std.log.scoped(.win32_backdrop);
 
-hwnd: win32.HWND,
-dwm_active: bool = false,
 compositor: ?*win32.IInspectable = null,
 target: ?*ICompositionTarget = null,
 visual: ?*IVisual = null,
+sprite: ?*ISpriteVisual = null,
 
 /// WinRT state shared by every backdrop on the Win32 UI thread. A desktop
 /// DispatcherQueue must outlive all Windows.UI.Composition objects created on
@@ -73,6 +73,7 @@ pub const Kind = enum(i32) {
 
 pub const Error = error{
     SetSystemBackdrop,
+    SetHostBackdrop,
     InitializeWinRT,
     CreateDispatcherQueue,
     CreateRuntimeClassName,
@@ -82,62 +83,52 @@ pub const Error = error{
     CreateDesktopTarget,
     QueryCompositionTarget,
     QueryCompositor,
-    QueryCompositor3,
-    CreateHostBackdropBrush,
     QueryCompositionBrush,
+    CreateGaussianBlurBrush,
     CreateSpriteVisual,
     QuerySpriteVisual,
     SetSpriteBrush,
     QueryVisual,
-    SetVisualOpacity,
     QueryVisual2,
     SetRelativeSize,
     SetCompositionRoot,
 };
 
-/// Enable native Acrylic and, where available, add a lower Host Backdrop
-/// visual. The lower visual mixes unblurred desktop pixels over Acrylic so the
-/// configured radius can tune the perceived blur strength without affecting
-/// the terminal's upper DirectComposition visual.
-pub fn init(hwnd: win32.HWND, radius: u8, runtime: *Runtime) Error!Backdrop {
-    try setSystemBackdrop(hwnd, .transient_window);
-
-    var self: Backdrop = .{
-        .hwnd = hwnd,
-        .dwm_active = true,
-    };
-    self.initIntensityLayer(radius, runtime) catch |err| {
-        // System Acrylic is still useful on Windows versions or configurations
-        // where Host Backdrop composition isn't available.
-        log.warn("adjustable backdrop unavailable; using fixed Acrylic: {}", .{err});
-        self.releaseIntensityLayer();
-    };
+/// Create a real Gaussian blur over the desktop Host Backdrop. Fixed native
+/// Acrylic is retained only as a fallback when Composition effects are not
+/// available on the current Windows configuration.
+pub fn init(
+    hwnd: win32.HWND,
+    radius: u8,
+    runtime: *Runtime,
+) Error!Backdrop {
+    var self: Backdrop = .{};
+    try self.initGaussianLayer(hwnd, radius, runtime);
+    log.info("enabled Gaussian backdrop blur standard_deviation={d}", .{GaussianBlur.standardDeviation(radius)});
     return self;
 }
 
 pub fn deinit(self: *Backdrop) void {
-    self.releaseIntensityLayer();
-    if (self.dwm_active) {
-        setSystemBackdrop(self.hwnd, .none) catch |err|
-            log.warn("failed to remove Win32 background blur: {}", .{err});
-        self.dwm_active = false;
-    }
+    self.releaseCompositionLayer();
 }
 
-/// Update the adjustable layer after a configuration reload. If the layer was
-/// unavailable during initialization, the fixed native Acrylic remains active.
+/// Recompile the Gaussian effect when a configuration reload changes the
+/// standard deviation. Fixed Acrylic has no adjustable radius.
 pub fn setRadius(self: *Backdrop, radius: u8) Error!void {
-    const visual = self.visual orelse return;
-    try check(
-        visual.vtable.put_Opacity(visual, unblurredOpacity(radius)),
-        error.SetVisualOpacity,
-        "IVisual.put_Opacity",
-    );
+    const compositor = self.compositor orelse return;
+    const sprite = self.sprite orelse return;
+    try setGaussianBrush(compositor, sprite, radius);
+    log.info("updated Gaussian backdrop blur standard_deviation={d}", .{GaussianBlur.standardDeviation(radius)});
 }
 
-fn initIntensityLayer(self: *Backdrop, radius: u8, runtime: *Runtime) Error!void {
+fn initGaussianLayer(
+    self: *Backdrop,
+    hwnd: win32.HWND,
+    radius: u8,
+    runtime: *Runtime,
+) Error!void {
     try runtime.ensure();
-    errdefer self.releaseIntensityLayer();
+    errdefer self.releaseCompositionLayer();
 
     const class_name_w = std.unicode.utf8ToUtf16LeStringLiteral(
         "Windows.UI.Composition.Compositor",
@@ -181,7 +172,7 @@ fn initIntensityLayer(self: *Backdrop, radius: u8, runtime: *Runtime) Error!void
     try check(
         desktop_interop.vtable.CreateDesktopWindowTarget(
             desktop_interop,
-            self.hwnd,
+            hwnd,
             win32.FALSE,
             @ptrCast(&target_instance),
         ),
@@ -208,35 +199,6 @@ fn initIntensityLayer(self: *Backdrop, radius: u8, runtime: *Runtime) Error!void
     );
     defer _ = compositor.IUnknown.Release();
 
-    const compositor3 = try queryInterface(
-        ICompositor3,
-        &compositor_instance.IUnknown,
-        iid_compositor3,
-        error.QueryCompositor3,
-        "Compositor.QueryInterface(ICompositor3)",
-    );
-    defer _ = compositor3.IUnknown.Release();
-
-    var backdrop_instance: *win32.IInspectable = undefined;
-    try check(
-        compositor3.vtable.CreateHostBackdropBrush(
-            compositor3,
-            &backdrop_instance,
-        ),
-        error.CreateHostBackdropBrush,
-        "ICompositor3.CreateHostBackdropBrush",
-    );
-    defer _ = backdrop_instance.IUnknown.Release();
-
-    const brush = try queryInterface(
-        ICompositionBrush,
-        &backdrop_instance.IUnknown,
-        iid_composition_brush,
-        error.QueryCompositionBrush,
-        "CompositionBackdropBrush.QueryInterface(ICompositionBrush)",
-    );
-    defer _ = brush.IUnknown.Release();
-
     var sprite_instance: *win32.IInspectable = undefined;
     try check(
         compositor.vtable.CreateSpriteVisual(compositor, &sprite_instance),
@@ -252,12 +214,8 @@ fn initIntensityLayer(self: *Backdrop, radius: u8, runtime: *Runtime) Error!void
         error.QuerySpriteVisual,
         "SpriteVisual.QueryInterface(ISpriteVisual)",
     );
-    defer _ = sprite.IUnknown.Release();
-    try check(
-        sprite.vtable.put_Brush(sprite, brush),
-        error.SetSpriteBrush,
-        "ISpriteVisual.put_Brush",
-    );
+    errdefer _ = sprite.IUnknown.Release();
+    try setGaussianBrush(compositor_instance, sprite, radius);
 
     const visual = try queryInterface(
         IVisual,
@@ -267,12 +225,6 @@ fn initIntensityLayer(self: *Backdrop, radius: u8, runtime: *Runtime) Error!void
         "SpriteVisual.QueryInterface(IVisual)",
     );
     errdefer _ = visual.IUnknown.Release();
-    try check(
-        visual.vtable.put_Opacity(visual, unblurredOpacity(radius)),
-        error.SetVisualOpacity,
-        "IVisual.put_Opacity",
-    );
-
     const visual2 = try queryInterface(
         IVisual2,
         &sprite_instance.IUnknown,
@@ -299,11 +251,40 @@ fn initIntensityLayer(self: *Backdrop, radius: u8, runtime: *Runtime) Error!void
     self.compositor = compositor_instance;
     self.target = target;
     self.visual = visual;
+    self.sprite = sprite;
 }
 
-fn releaseIntensityLayer(self: *Backdrop) void {
+fn setGaussianBrush(
+    compositor: *win32.IInspectable,
+    sprite: *ISpriteVisual,
+    radius: u8,
+) Error!void {
+    const brush_instance = GaussianBlur.create(compositor, radius) catch
+        return error.CreateGaussianBlurBrush;
+    defer _ = brush_instance.IUnknown.Release();
+
+    const brush = try queryInterface(
+        ICompositionBrush,
+        &brush_instance.IUnknown,
+        iid_composition_brush,
+        error.QueryCompositionBrush,
+        "CompositionEffectBrush.QueryInterface(ICompositionBrush)",
+    );
+    defer _ = brush.IUnknown.Release();
+    try check(
+        sprite.vtable.put_Brush(sprite, brush),
+        error.SetSpriteBrush,
+        "ISpriteVisual.put_Brush",
+    );
+}
+
+fn releaseCompositionLayer(self: *Backdrop) void {
     if (self.target) |target| {
         _ = target.vtable.put_Root(target, null);
+    }
+    if (self.sprite) |sprite| {
+        _ = sprite.IUnknown.Release();
+        self.sprite = null;
     }
     if (self.visual) |visual| {
         _ = visual.IUnknown.Release();
@@ -319,15 +300,18 @@ fn releaseIntensityLayer(self: *Backdrop) void {
     }
 }
 
-/// Radius 32 is the full system Acrylic strength. Lower values progressively
-/// reveal the unblurred Host Backdrop, while larger values remain clamped.
-pub fn unblurredOpacity(radius: u8) f32 {
-    const max_radius: f32 = 32;
-    const value: f32 = @floatFromInt(@min(radius, 32));
-    return 1 - value / max_radius;
+pub fn setHostBackdrop(hwnd: win32.HWND, enabled: bool) Error!void {
+    var value: win32.BOOL = if (enabled) win32.TRUE else win32.FALSE;
+    const result = DwmSetWindowAttribute(
+        hwnd,
+        dwmwa_use_host_backdrop_brush,
+        &value,
+        @sizeOf(@TypeOf(value)),
+    );
+    try check(result, error.SetHostBackdrop, "DwmSetWindowAttribute(DWMWA_USE_HOSTBACKDROPBRUSH)");
 }
 
-fn setSystemBackdrop(hwnd: win32.HWND, kind: Kind) Error!void {
+pub fn setSystemBackdrop(hwnd: win32.HWND, kind: Kind) Error!void {
     var value: i32 = @intFromEnum(kind);
     const result = DwmSetWindowAttribute(
         hwnd,
@@ -399,19 +383,6 @@ const ICompositor = extern union {
     IUnknown: win32.IUnknown,
 };
 
-const ICompositor3 = extern union {
-    const VTable = extern struct {
-        base: win32.IInspectable.VTable,
-        CreateHostBackdropBrush: *const fn (
-            self: *const ICompositor3,
-            result: **win32.IInspectable,
-        ) callconv(.winapi) win32.HRESULT,
-    };
-    vtable: *const VTable,
-    IInspectable: win32.IInspectable,
-    IUnknown: win32.IUnknown,
-};
-
 const ISpriteVisual = extern union {
     const VTable = extern struct {
         base: win32.IInspectable.VTable,
@@ -427,14 +398,7 @@ const ISpriteVisual = extern union {
 };
 
 const IVisual = extern union {
-    const VTable = extern struct {
-        base: win32.IInspectable.VTable,
-        before_put_opacity: [17]*const anyopaque,
-        put_Opacity: *const fn (
-            self: *const IVisual,
-            value: f32,
-        ) callconv(.winapi) win32.HRESULT,
-    };
+    const VTable = extern struct { base: win32.IInspectable.VTable };
     vtable: *const VTable,
     IInspectable: win32.IInspectable,
     IUnknown: win32.IUnknown,
@@ -458,8 +422,6 @@ const iid_composition_target_value = win32.Guid.initString("A1BEA8BA-D726-4663-8
 const iid_composition_target = &iid_composition_target_value;
 const iid_compositor_value = win32.Guid.initString("B403CA50-7F8C-4E83-985F-CC45060036D8");
 const iid_compositor = &iid_compositor_value;
-const iid_compositor3_value = win32.Guid.initString("C9DD8EF0-6EB1-4E3C-A658-675D9C64D4AB");
-const iid_compositor3 = &iid_compositor3_value;
 const iid_composition_brush_value = win32.Guid.initString("AB0D7608-30C0-40E9-B568-B60A6BD1FB46");
 const iid_composition_brush = &iid_composition_brush_value;
 const iid_sprite_visual_value = win32.Guid.initString("08E05581-1AD1-4F97-9757-402D76E4233B");
@@ -470,6 +432,7 @@ const iid_visual2_value = win32.Guid.initString("3052B611-56C3-4C3E-8BF3-F6E1AD4
 const iid_visual2 = &iid_visual2_value;
 
 const rpc_e_changed_mode: win32.HRESULT = @bitCast(@as(u32, 0x80010106));
+const dwmwa_use_host_backdrop_brush: u32 = 17;
 const dwmwa_system_backdrop_type: u32 = 38;
 
 extern "dwmapi" fn DwmSetWindowAttribute(
@@ -482,14 +445,7 @@ extern "dwmapi" fn DwmSetWindowAttribute(
 test "Win32 backdrop values match the native ABI" {
     try std.testing.expectEqual(@as(i32, 1), @intFromEnum(Kind.none));
     try std.testing.expectEqual(@as(i32, 3), @intFromEnum(Kind.transient_window));
+    try std.testing.expectEqual(@as(u32, 17), dwmwa_use_host_backdrop_brush);
     try std.testing.expectEqual(@as(u32, 38), dwmwa_system_backdrop_type);
     try std.testing.expectEqual(@as(usize, 8), @sizeOf(Vector2));
-}
-
-test "Win32 backdrop strength maps radius to unblurred opacity" {
-    try std.testing.expectEqual(@as(f32, 1), unblurredOpacity(0));
-    try std.testing.expectEqual(@as(f32, 0.5), unblurredOpacity(16));
-    try std.testing.expectEqual(@as(f32, 0.375), unblurredOpacity(20));
-    try std.testing.expectEqual(@as(f32, 0), unblurredOpacity(32));
-    try std.testing.expectEqual(@as(f32, 0), unblurredOpacity(255));
 }

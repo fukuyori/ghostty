@@ -31,8 +31,8 @@ height: u32 = 600,
 cursor_pos: apprt.CursorPos = .{ .x = 0, .y = 0 },
 title: ?[:0]const u8 = null,
 
-/// Native backdrop state, including the optional adjustable Host Backdrop
-/// composition layer.
+/// Adjustable Host Backdrop composition layer attached below this surface's
+/// renderer target on the same child HWND.
 background_blur: ?Backdrop = null,
 
 /// Initial client size requested by the core. Later updates replace the
@@ -271,15 +271,28 @@ pub fn setTitle(self: *Self, value: [:0]const u8) !void {
     const title = try alloc.dupeZ(u8, value);
     errdefer alloc.free(title);
 
+    if (self.rtApp().surfaceIsFocused(self)) try self.applyTitle(value);
+
+    if (self.title) |old| alloc.free(old);
+    self.title = title;
+}
+
+/// Apply this surface's title to its shared top-level window. Background
+/// splits retain their titles without replacing the focused split's title.
+pub fn syncTitle(self: *Self) void {
+    self.applyTitle(self.title orelse "Ghostty") catch |err| {
+        log.warn("failed to synchronize focused surface title: {}", .{err});
+    };
+}
+
+fn applyTitle(self: *Self, value: [:0]const u8) !void {
+    const alloc = self.rtApp().alloc;
     const wide = try std.unicode.utf8ToUtf16LeAllocZ(alloc, value);
     defer alloc.free(wide);
     if (win32.SetWindowTextW(self.window_hwnd, wide) == 0) {
         log.err("SetWindowTextW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         return error.Win32Error;
     }
-
-    if (self.title) |old| alloc.free(old);
-    self.title = title;
 }
 
 pub fn close(self: *Self, confirm: bool) void {
