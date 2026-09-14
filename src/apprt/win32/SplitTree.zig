@@ -50,6 +50,12 @@ pub fn SplitTree(comptime View: type) type {
             rect: Rect,
         };
 
+        pub const Divider = struct {
+            split: *Node.Split,
+            direction: ResizeDirection,
+            rect: Rect,
+        };
+
         root: *Node,
         zoomed: ?*View = null,
 
@@ -284,6 +290,95 @@ pub fn SplitTree(comptime View: type) type {
             return true;
         }
 
+        /// Find the concrete split divider nearest a point. The hit slop is
+        /// allowed to extend into child views so a one-pixel visual divider
+        /// remains practical to acquire with the mouse.
+        pub fn dividerAt(
+            self: *Self,
+            bounds: Rect,
+            divider_gap: i32,
+            x: i32,
+            y: i32,
+            hit_slop: i32,
+        ) ?Divider {
+            if (self.zoomed != null) return null;
+            var search: DividerSearch = .{};
+            findDivider(
+                self.root,
+                normalizeRect(bounds),
+                @max(0, divider_gap),
+                x,
+                y,
+                @max(0, hit_slop),
+                &search,
+            );
+            return search.best;
+        }
+
+        /// Resize one exact divider rather than inferring a divider from a
+        /// leaf and axis. This is required for same-axis nested splits where
+        /// more than one ancestor divider may be adjacent to a view.
+        pub fn resizeDivider(
+            self: *Self,
+            divider: Divider,
+            delta: i32,
+            bounds: Rect,
+            divider_gap: i32,
+            minimum_leaf_extent: i32,
+        ) bool {
+            if (delta == 0 or self.zoomed != null) return false;
+            const gap = @max(0, divider_gap);
+            const split_bounds = findDividerBounds(
+                self.root,
+                divider.split,
+                normalizeRect(bounds),
+                gap,
+            ) orelse return false;
+            const branch = divider.split;
+            const child_bounds = splitBounds(branch.*, split_bounds, gap);
+            const available = switch (branch.direction) {
+                .horizontal => child_bounds.available_width,
+                .vertical => child_bounds.available_height,
+            };
+            if (available <= 0) return false;
+
+            const minimum = @max(1, minimum_leaf_extent);
+            const first_minimum = minimumExtent(
+                branch.children[0],
+                branch.direction,
+                gap,
+                minimum,
+            );
+            const second_minimum = minimumExtent(
+                branch.children[1],
+                branch.direction,
+                gap,
+                minimum,
+            );
+            if (@as(i64, first_minimum) + second_minimum > available) return false;
+
+            const current = switch (branch.direction) {
+                .horizontal => child_bounds.first.width,
+                .vertical => child_bounds.first.height,
+            };
+            const requested = std.math.clamp(
+                @as(i64, current) + delta,
+                @as(i64, first_minimum),
+                @as(i64, available - second_minimum),
+            );
+            const next: i32 = @intCast(requested);
+            if (next == current) return false;
+            branch.ratio = @as(f32, @floatFromInt(next)) /
+                @as(f32, @floatFromInt(available));
+            clampMinimums(
+                self.root,
+                normalizeRect(bounds),
+                gap,
+                minimum,
+            );
+            return true;
+        }
+
         /// Size every leaf equally along runs that share the same split axis.
         pub fn equalize(self: *Self) bool {
             switch (self.root.*) {
@@ -299,6 +394,260 @@ pub fn SplitTree(comptime View: type) type {
             split: *Node.Split,
             extent: i32,
         };
+
+        const DividerSearch = struct {
+            best: ?Divider = null,
+            distance: i64 = std.math.maxInt(i64),
+            span: i64 = std.math.maxInt(i64),
+        };
+
+        fn findDivider(
+            node: *Node,
+            bounds: Rect,
+            divider_gap: i32,
+            x: i32,
+            y: i32,
+            hit_slop: i32,
+            search: *DividerSearch,
+        ) void {
+            switch (node.*) {
+                .leaf => {},
+                .split => |*branch| {
+                    const child_bounds = splitBounds(branch.*, bounds, divider_gap);
+                    const rect = dividerRect(branch.*, bounds, child_bounds);
+                    const distance = dividerDistance(
+                        rect,
+                        branch.direction,
+                        x,
+                        y,
+                        hit_slop,
+                    );
+                    if (distance) |value| {
+                        const span: i64 = switch (branch.direction) {
+                            .horizontal => rect.height,
+                            .vertical => rect.width,
+                        };
+                        if (value < search.distance or
+                            (value == search.distance and span < search.span))
+                        {
+                            search.best = .{
+                                .split = branch,
+                                .direction = switch (branch.direction) {
+                                    .horizontal => .horizontal,
+                                    .vertical => .vertical,
+                                },
+                                .rect = rect,
+                            };
+                            search.distance = value;
+                            search.span = span;
+                        }
+                    }
+                    findDivider(
+                        branch.children[0],
+                        child_bounds.first,
+                        divider_gap,
+                        x,
+                        y,
+                        hit_slop,
+                        search,
+                    );
+                    findDivider(
+                        branch.children[1],
+                        child_bounds.second,
+                        divider_gap,
+                        x,
+                        y,
+                        hit_slop,
+                        search,
+                    );
+                },
+            }
+        }
+
+        fn findDividerBounds(
+            node: *Node,
+            target: *Node.Split,
+            bounds: Rect,
+            divider_gap: i32,
+        ) ?Rect {
+            return switch (node.*) {
+                .leaf => null,
+                .split => |*branch| blk: {
+                    if (branch == target) break :blk bounds;
+                    const child_bounds = splitBounds(branch.*, bounds, divider_gap);
+                    break :blk findDividerBounds(
+                        branch.children[0],
+                        target,
+                        child_bounds.first,
+                        divider_gap,
+                    ) orelse findDividerBounds(
+                        branch.children[1],
+                        target,
+                        child_bounds.second,
+                        divider_gap,
+                    );
+                },
+            };
+        }
+
+        fn minimumExtent(
+            node: *const Node,
+            direction: Direction,
+            divider_gap: i32,
+            minimum_leaf_extent: i32,
+        ) i32 {
+            return switch (node.*) {
+                .leaf => minimum_leaf_extent,
+                .split => |branch| if (branch.direction == direction)
+                    saturatingExtentAdd(
+                        minimumExtent(
+                            branch.children[0],
+                            direction,
+                            divider_gap,
+                            minimum_leaf_extent,
+                        ),
+                        minimumExtent(
+                            branch.children[1],
+                            direction,
+                            divider_gap,
+                            minimum_leaf_extent,
+                        ),
+                        divider_gap,
+                    )
+                else
+                    @max(
+                        minimumExtent(
+                            branch.children[0],
+                            direction,
+                            divider_gap,
+                            minimum_leaf_extent,
+                        ),
+                        minimumExtent(
+                            branch.children[1],
+                            direction,
+                            divider_gap,
+                            minimum_leaf_extent,
+                        ),
+                    ),
+            };
+        }
+
+        fn clampMinimums(
+            node: *Node,
+            bounds: Rect,
+            divider_gap: i32,
+            minimum_leaf_extent: i32,
+        ) void {
+            switch (node.*) {
+                .leaf => {},
+                .split => |*branch| {
+                    var child_bounds = splitBounds(branch.*, bounds, divider_gap);
+                    const available = switch (branch.direction) {
+                        .horizontal => child_bounds.available_width,
+                        .vertical => child_bounds.available_height,
+                    };
+                    const first_minimum = minimumExtent(
+                        branch.children[0],
+                        branch.direction,
+                        divider_gap,
+                        minimum_leaf_extent,
+                    );
+                    const second_minimum = minimumExtent(
+                        branch.children[1],
+                        branch.direction,
+                        divider_gap,
+                        minimum_leaf_extent,
+                    );
+                    if (available > 0 and
+                        @as(i64, first_minimum) + second_minimum <= available)
+                    {
+                        const current = switch (branch.direction) {
+                            .horizontal => child_bounds.first.width,
+                            .vertical => child_bounds.first.height,
+                        };
+                        const next = std.math.clamp(
+                            current,
+                            first_minimum,
+                            available - second_minimum,
+                        );
+                        branch.ratio = @as(f32, @floatFromInt(next)) /
+                            @as(f32, @floatFromInt(available));
+                        child_bounds = splitBounds(branch.*, bounds, divider_gap);
+                    }
+                    clampMinimums(
+                        branch.children[0],
+                        child_bounds.first,
+                        divider_gap,
+                        minimum_leaf_extent,
+                    );
+                    clampMinimums(
+                        branch.children[1],
+                        child_bounds.second,
+                        divider_gap,
+                        minimum_leaf_extent,
+                    );
+                },
+            }
+        }
+
+        fn saturatingExtentAdd(first: i32, second: i32, gap: i32) i32 {
+            return @intCast(@min(
+                @as(i64, std.math.maxInt(i32)),
+                @as(i64, first) + second + gap,
+            ));
+        }
+
+        fn dividerRect(
+            branch: Node.Split,
+            bounds: Rect,
+            child_bounds: SplitBounds,
+        ) Rect {
+            return switch (branch.direction) {
+                .horizontal => .{
+                    .x = child_bounds.first.x + child_bounds.first.width,
+                    .y = bounds.y,
+                    .width = @max(1, child_bounds.second.x -
+                        child_bounds.first.x - child_bounds.first.width),
+                    .height = bounds.height,
+                },
+                .vertical => .{
+                    .x = bounds.x,
+                    .y = child_bounds.first.y + child_bounds.first.height,
+                    .width = bounds.width,
+                    .height = @max(1, child_bounds.second.y -
+                        child_bounds.first.y - child_bounds.first.height),
+                },
+            };
+        }
+
+        fn dividerDistance(
+            rect: Rect,
+            direction: Direction,
+            x: i32,
+            y: i32,
+            hit_slop: i32,
+        ) ?i64 {
+            const left = @as(i64, rect.x) - hit_slop;
+            const top = @as(i64, rect.y) - hit_slop;
+            const right = @as(i64, rect.x) + rect.width + hit_slop;
+            const bottom = @as(i64, rect.y) + rect.height + hit_slop;
+            if (x < left or x >= right or y < top or y >= bottom) return null;
+
+            return switch (direction) {
+                .horizontal => if (x < rect.x)
+                    @as(i64, rect.x) - x
+                else if (x >= @as(i64, rect.x) + rect.width)
+                    @as(i64, x) - (rect.x + rect.width - 1)
+                else
+                    0,
+                .vertical => if (y < rect.y)
+                    @as(i64, rect.y) - y
+                else if (y >= @as(i64, rect.y) + rect.height)
+                    @as(i64, y) - (rect.y + rect.height - 1)
+                else
+                    0,
+            };
+        }
 
         fn resizeCandidate(
             node: *Node,
@@ -717,6 +1066,68 @@ test "Win32 split resize moves the nearest matching divider" {
     try testing.expectEqual(Tree.Rect{ .x = 60, .y = 0, .width = 40, .height = 40 }, output[1].rect);
     try testing.expectEqual(Tree.Rect{ .x = 60, .y = 40, .width = 40, .height = 60 }, output[2].rect);
     try testing.expect(!tree.resize(&left, .vertical, 10, bounds, 0));
+}
+
+test "Win32 split divider hit testing identifies nested dividers" {
+    const testing = std.testing;
+    const View = struct { id: u8 };
+    const Tree = SplitTree(View);
+
+    var left: View = .{ .id = 1 };
+    var upper_right: View = .{ .id = 2 };
+    var lower_right: View = .{ .id = 3 };
+    var tree = try Tree.init(testing.allocator, &left);
+    defer tree.deinit(testing.allocator);
+    try tree.split(testing.allocator, &left, &upper_right, .horizontal, true);
+    try tree.split(testing.allocator, &upper_right, &lower_right, .vertical, true);
+
+    const bounds: Tree.Rect = .{ .x = 0, .y = 0, .width = 100, .height = 100 };
+    const horizontal = tree.dividerAt(bounds, 2, 49, 10, 3).?;
+    try testing.expectEqual(Tree.ResizeDirection.horizontal, horizontal.direction);
+    try testing.expectEqual(Tree.Rect{ .x = 49, .y = 0, .width = 2, .height = 100 }, horizontal.rect);
+
+    const vertical = tree.dividerAt(bounds, 2, 80, 49, 3).?;
+    try testing.expectEqual(Tree.ResizeDirection.vertical, vertical.direction);
+    try testing.expectEqual(Tree.Rect{ .x = 51, .y = 49, .width = 49, .height = 2 }, vertical.rect);
+    try testing.expect(tree.dividerAt(bounds, 2, 46, 10, 3) != null);
+    try testing.expect(tree.dividerAt(bounds, 2, 30, 30, 3) == null);
+
+    try testing.expect(tree.toggleZoom(&upper_right));
+    try testing.expect(tree.dividerAt(bounds, 2, 49, 10, 3) == null);
+}
+
+test "Win32 split resizes the exact divider and preserves minimum leaves" {
+    const testing = std.testing;
+    const View = struct { id: u8 };
+    const Tree = SplitTree(View);
+
+    var first: View = .{ .id = 1 };
+    var second: View = .{ .id = 2 };
+    var third: View = .{ .id = 3 };
+    var tree = try Tree.init(testing.allocator, &first);
+    defer tree.deinit(testing.allocator);
+    try tree.split(testing.allocator, &first, &second, .horizontal, true);
+    try tree.split(testing.allocator, &second, &third, .horizontal, true);
+
+    const bounds: Tree.Rect = .{ .x = 0, .y = 0, .width = 100, .height = 40 };
+    const root_divider = tree.dividerAt(bounds, 2, 49, 20, 0).?;
+    const nested_divider = tree.dividerAt(bounds, 2, 74, 20, 0).?;
+
+    try testing.expect(tree.resizeDivider(root_divider, 10, bounds, 2, 10));
+    try testing.expect(tree.resizeDivider(nested_divider, 5, bounds, 2, 10));
+
+    var output: [3]Tree.LeafRect = undefined;
+    _ = tree.layout(bounds, 2, &output);
+    try testing.expectEqual(@as(i32, 59), output[0].rect.width);
+    try testing.expectEqual(@as(i32, 23), output[1].rect.width);
+    try testing.expectEqual(@as(i32, 14), output[2].rect.width);
+
+    try testing.expect(tree.resizeDivider(root_divider, 1000, bounds, 2, 10));
+    _ = tree.layout(bounds, 2, &output);
+    try testing.expectEqual(@as(i32, 76), output[0].rect.width);
+    try testing.expectEqual(@as(i32, 10), output[1].rect.width);
+    try testing.expectEqual(@as(i32, 10), output[2].rect.width);
+    try testing.expect(!tree.resizeDivider(root_divider, 1, bounds, 2, 10));
 }
 
 test "Win32 split equalize gives same-axis leaves equal space" {

@@ -16,6 +16,13 @@ pub const Hit = union(enum) {
     new_tab,
 };
 
+pub const Drag = struct {
+    index: usize,
+    start_x: i32,
+    start_y: i32,
+    active: bool = false,
+};
+
 const logical_height: i32 = 32;
 const logical_max_tab_width: i32 = 200;
 const logical_close_width: i32 = 26;
@@ -37,13 +44,38 @@ pub fn hitTest(
     const plus = plusRect(width, height, tab_count);
     if (contains(plus, x, y)) return .new_tab;
 
+    const index = tabAt(width, height, tab_count, x, y) orelse return .none;
+    const tab = tabRect(width, height, tab_count, index);
+    if (contains(closeRect(tab, height), x, y)) return .{ .close = index };
+    return .{ .tab = index };
+}
+
+/// Return the tab under a point while treating the close button as part of
+/// the tab. Drag reordering uses this so the full tab width is a drop target.
+pub fn tabAt(
+    width: i32,
+    height: i32,
+    tab_count: usize,
+    x: i32,
+    y: i32,
+) ?usize {
+    if (x < 0 or y < 0 or x >= width or y >= height) return null;
     for (0..tab_count) |index| {
-        const tab = tabRect(width, height, tab_count, index);
-        if (!contains(tab, x, y)) continue;
-        if (contains(closeRect(tab, height), x, y)) return .{ .close = index };
-        return .{ .tab = index };
+        if (contains(tabRect(width, height, tab_count, index), x, y)) return index;
     }
-    return .none;
+    return null;
+}
+
+pub fn dragThresholdExceeded(
+    drag: Drag,
+    x: i32,
+    y: i32,
+    threshold_x: i32,
+    threshold_y: i32,
+) bool {
+    const dx = @abs(@as(i64, x) - drag.start_x);
+    const dy = @abs(@as(i64, y) - drag.start_y);
+    return dx >= @max(1, threshold_x) or dy >= @max(1, threshold_y);
 }
 
 pub fn paint(
@@ -256,6 +288,24 @@ test "Win32 tab bar hit testing distinguishes labels and buttons" {
     try std.testing.expectEqual(Hit{ .close = 0 }, hitTest(width, height, 3, 190, 10));
     try std.testing.expectEqual(Hit.new_tab, hitTest(width, height, 3, 615, 10));
     try std.testing.expectEqual(Hit.none, hitTest(width, height, 3, 700, 10));
+}
+
+test "Win32 tab bar exposes the full tab as a drag target" {
+    const width = 800;
+    const height = 32;
+
+    try std.testing.expectEqual(@as(?usize, 0), tabAt(width, height, 3, 190, 10));
+    try std.testing.expectEqual(@as(?usize, 2), tabAt(width, height, 3, 410, 10));
+    try std.testing.expectEqual(@as(?usize, null), tabAt(width, height, 3, 615, 10));
+    try std.testing.expectEqual(@as(?usize, null), tabAt(width, height, 3, 10, 40));
+}
+
+test "Win32 tab bar drag starts only after the configured threshold" {
+    const drag: Drag = .{ .index = 1, .start_x = 100, .start_y = 16 };
+
+    try std.testing.expect(!dragThresholdExceeded(drag, 103, 18, 4, 4));
+    try std.testing.expect(dragThresholdExceeded(drag, 104, 16, 4, 4));
+    try std.testing.expect(dragThresholdExceeded(drag, 100, 12, 4, 4));
 }
 
 test "Win32 tab bar height follows DPI" {

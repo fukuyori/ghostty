@@ -16,6 +16,7 @@ pub const LeafRect = Tree.LeafRect;
 pub const FocusDirection = Tree.FocusDirection;
 pub const ResizeDirection = Tree.ResizeDirection;
 pub const SplitDirection = Tree.Direction;
+pub const Divider = Tree.Divider;
 
 surfaces: std.ArrayListUnmanaged(*Surface) = .empty,
 tree: Tree,
@@ -127,6 +128,34 @@ pub fn resizeSplit(
         delta,
         bounds,
         divider_gap,
+    );
+}
+
+pub fn dividerAt(
+    self: *Tab,
+    bounds: Rect,
+    divider_gap: i32,
+    x: i32,
+    y: i32,
+    hit_slop: i32,
+) ?Divider {
+    return self.tree.dividerAt(bounds, divider_gap, x, y, hit_slop);
+}
+
+pub fn resizeDivider(
+    self: *Tab,
+    divider: Divider,
+    delta: i32,
+    bounds: Rect,
+    divider_gap: i32,
+    minimum_leaf_extent: i32,
+) bool {
+    return self.tree.resizeDivider(
+        divider,
+        delta,
+        bounds,
+        divider_gap,
+        minimum_leaf_extent,
     );
 }
 

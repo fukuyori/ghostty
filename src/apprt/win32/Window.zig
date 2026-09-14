@@ -15,6 +15,14 @@ pub const Rect = Tab.Rect;
 pub const LeafRect = Tab.LeafRect;
 pub const FocusDirection = Tab.FocusDirection;
 pub const ResizeDirection = Tab.ResizeDirection;
+pub const Divider = Tab.Divider;
+
+pub const SplitDrag = struct {
+    divider: Divider,
+    last_x: i32,
+    last_y: i32,
+    capture_hwnd: win32.HWND,
+};
 
 pub const SelectTab = union(enum) {
     previous,
@@ -28,6 +36,10 @@ hwnd: win32.HWND,
 tab_bar_hwnd: ?win32.HWND = null,
 tab_bar_hover: TabBar.Hit = .none,
 tab_bar_tracking_mouse_leave: bool = false,
+tab_bar_pressed: TabBar.Hit = .none,
+tab_bar_drag: ?TabBar.Drag = null,
+split_divider_hover: ?Divider = null,
+split_divider_drag: ?SplitDrag = null,
 tabs: std.ArrayListUnmanaged(*Tab) = .empty,
 active_tab: *Tab,
 
@@ -209,7 +221,15 @@ pub fn moveTab(self: *Window, surface: *const Surface, amount: isize) bool {
     const current = self.tabIndexForSurface(surface) orelse return false;
     const count: isize = @intCast(self.tabs.items.len);
     const destination: usize = @intCast(@mod(@as(isize, @intCast(current)) + amount, count));
-    if (destination == current) return false;
+    return self.moveTabTo(current, destination);
+}
+
+pub fn moveTabTo(self: *Window, current: usize, destination: usize) bool {
+    if (current >= self.tabs.items.len or destination >= self.tabs.items.len or
+        destination == current)
+    {
+        return false;
+    }
 
     if (destination > current) {
         for (current..destination) |index| {
@@ -309,6 +329,40 @@ pub fn resizeSplit(
     );
 }
 
+pub fn dividerAt(
+    self: *Window,
+    bounds: Rect,
+    divider_gap: i32,
+    x: i32,
+    y: i32,
+    hit_slop: i32,
+) ?Divider {
+    return self.active_tab.dividerAt(
+        bounds,
+        divider_gap,
+        x,
+        y,
+        hit_slop,
+    );
+}
+
+pub fn resizeDivider(
+    self: *Window,
+    divider: Divider,
+    delta: i32,
+    bounds: Rect,
+    divider_gap: i32,
+    minimum_leaf_extent: i32,
+) bool {
+    return self.active_tab.resizeDivider(
+        divider,
+        delta,
+        bounds,
+        divider_gap,
+        minimum_leaf_extent,
+    );
+}
+
 pub fn equalizeSplits(self: *Window) bool {
     return self.active_tab.equalizeSplits();
 }
@@ -375,8 +429,11 @@ test "Win32 window owns a tab and delegates split ownership" {
 
     try testing.expect(window.moveTab(&second, -1));
     try testing.expectEqual(@as(usize, 0), window.tabIndexForSurface(&second).?);
+    try testing.expect(window.moveTabTo(0, 2));
+    try testing.expectEqual(@as(usize, 2), window.tabIndexForSurface(&second).?);
+    try testing.expect(!window.moveTabTo(2, 2));
     try testing.expectEqual(
-        &first,
+        &second,
         try window.removeTabAt(testing.allocator, 0),
     );
     try testing.expectEqual(@as(usize, 2), window.tabCount());
