@@ -1,27 +1,35 @@
-//! Ownership and layout state for one top-level Win32 terminal window.
+//! Ownership state for one top-level Win32 terminal window.
 //!
-//! Rendering and input remain on child HWNDs owned by `Surface`. Keeping the
-//! top-level HWND, surface collection, and split tree here prevents a single
-//! split from being mistaken for a complete application window.
+//! A window owns one or more tabs. Each tab owns its terminal surfaces and
+//! split tree, while App retains native HWND and renderer lifecycle control.
 
 const Window = @This();
 
 const std = @import("std");
 const win32 = @import("win32").everything;
-const SplitTree = @import("SplitTree.zig").SplitTree;
 const Surface = @import("Surface.zig");
+const Tab = @import("Tab.zig");
+const TabBar = @import("TabBar.zig");
 
-const Tree = SplitTree(Surface);
+pub const Rect = Tab.Rect;
+pub const LeafRect = Tab.LeafRect;
+pub const FocusDirection = Tab.FocusDirection;
+pub const ResizeDirection = Tab.ResizeDirection;
 
-pub const Rect = Tree.Rect;
-pub const LeafRect = Tree.LeafRect;
-pub const FocusDirection = Tree.FocusDirection;
-pub const ResizeDirection = Tree.ResizeDirection;
+pub const SelectTab = union(enum) {
+    previous,
+    next,
+    last,
+    /// One-based tab number, matching the `goto_tab` action.
+    n: usize,
+};
 
 hwnd: win32.HWND,
-surfaces: std.ArrayListUnmanaged(*Surface) = .empty,
-tree: Tree,
-focused_surface: *Surface,
+tab_bar_hwnd: ?win32.HWND = null,
+tab_bar_hover: TabBar.Hit = .none,
+tab_bar_tracking_mouse_leave: bool = false,
+tabs: std.ArrayListUnmanaged(*Tab) = .empty,
+active_tab: *Tab,
 
 /// The host-backdrop opt-in belongs to the top-level HWND even though each
 /// child surface owns its own bottom composition target.
@@ -36,31 +44,202 @@ pub fn init(
     hwnd: win32.HWND,
     surface: *Surface,
 ) !Window {
-    var surfaces: std.ArrayListUnmanaged(*Surface) = .empty;
-    errdefer surfaces.deinit(alloc);
-    try surfaces.append(alloc, surface);
+    const tab = try alloc.create(Tab);
+    errdefer alloc.destroy(tab);
+    tab.* = try Tab.init(alloc, surface);
+    errdefer tab.deinit(alloc);
+
+    var tabs: std.ArrayListUnmanaged(*Tab) = .empty;
+    errdefer tabs.deinit(alloc);
+    try tabs.append(alloc, tab);
 
     return .{
         .hwnd = hwnd,
-        .surfaces = surfaces,
-        .tree = try Tree.init(alloc, surface),
-        .focused_surface = surface,
+        .tabs = tabs,
+        .active_tab = tab,
     };
 }
 
 /// Release ownership metadata. Native surfaces and HWNDs are destroyed by
 /// App so renderer teardown happens before the corresponding handles vanish.
 pub fn deinit(self: *Window, alloc: std.mem.Allocator) void {
-    self.tree.deinit(alloc);
-    self.surfaces.deinit(alloc);
+    for (self.tabs.items) |tab| {
+        tab.deinit(alloc);
+        alloc.destroy(tab);
+    }
+    self.tabs.deinit(alloc);
     self.* = undefined;
 }
 
 pub fn contains(self: *const Window, surface: *const Surface) bool {
-    for (self.surfaces.items) |candidate| {
-        if (candidate == surface) return true;
+    return self.tabForSurface(surface) != null;
+}
+
+pub fn tabForSurface(self: *const Window, surface: *const Surface) ?*Tab {
+    for (self.tabs.items) |tab| {
+        if (tab.contains(surface)) return tab;
     }
-    return false;
+    return null;
+}
+
+pub const SurfaceIterator = struct {
+    window: *const Window,
+    tab_index: usize = 0,
+    surface_index: usize = 0,
+
+    pub fn next(self: *SurfaceIterator) ?*Surface {
+        while (self.tab_index < self.window.tabs.items.len) {
+            const surfaces = self.window.tabs.items[self.tab_index].surfaces.items;
+            if (self.surface_index < surfaces.len) {
+                const surface = surfaces[self.surface_index];
+                self.surface_index += 1;
+                return surface;
+            }
+
+            self.tab_index += 1;
+            self.surface_index = 0;
+        }
+        return null;
+    }
+};
+
+pub fn surfaceIterator(self: *const Window) SurfaceIterator {
+    return .{ .window = self };
+}
+
+pub fn activeSurfaceCount(self: *const Window) usize {
+    return self.active_tab.surfaces.items.len;
+}
+
+pub fn surfaceCountFor(self: *const Window, surface: *const Surface) ?usize {
+    const tab = self.tabForSurface(surface) orelse return null;
+    return tab.surfaces.items.len;
+}
+
+pub fn surfacesAt(self: *const Window, index: usize) ?[]*Surface {
+    if (index >= self.tabs.items.len) return null;
+    return self.tabs.items[index].surfaces.items;
+}
+
+pub fn focusedSurfaceAt(self: *const Window, index: usize) ?*Surface {
+    if (index >= self.tabs.items.len) return null;
+    return self.tabs.items[index].focused_surface;
+}
+
+pub fn stateSurface(self: *const Window) *Surface {
+    return self.tabs.items[0].surfaces.items[0];
+}
+
+pub fn focusedSurface(self: *const Window) *Surface {
+    return self.active_tab.focused_surface;
+}
+
+pub fn setFocusedSurface(self: *Window, surface: *Surface) bool {
+    const tab = self.tabForSurface(surface) orelse return false;
+    self.active_tab = tab;
+    tab.focused_surface = surface;
+    return true;
+}
+
+pub fn totalSurfaceCount(self: *const Window) usize {
+    var count: usize = 0;
+    for (self.tabs.items) |tab| count += tab.surfaces.items.len;
+    return count;
+}
+
+pub fn tabCount(self: *const Window) usize {
+    return self.tabs.items.len;
+}
+
+pub fn tabIndexForSurface(self: *const Window, surface: *const Surface) ?usize {
+    for (self.tabs.items, 0..) |tab, index| {
+        if (tab.contains(surface)) return index;
+    }
+    return null;
+}
+
+pub fn activeTabIndex(self: *const Window) usize {
+    for (self.tabs.items, 0..) |tab, index| {
+        if (tab == self.active_tab) return index;
+    }
+    unreachable;
+}
+
+pub fn addTab(
+    self: *Window,
+    alloc: std.mem.Allocator,
+    surface: *Surface,
+    after_current: bool,
+) !void {
+    const tab = try alloc.create(Tab);
+    errdefer alloc.destroy(tab);
+    tab.* = try Tab.init(alloc, surface);
+    errdefer tab.deinit(alloc);
+
+    const index = if (after_current)
+        self.activeTabIndex() + 1
+    else
+        self.tabs.items.len;
+    try self.tabs.insert(alloc, index, tab);
+    self.active_tab = tab;
+}
+
+pub fn selectTab(self: *Window, target: SelectTab) bool {
+    if (self.tabs.items.len <= 1) return false;
+
+    const current = self.activeTabIndex();
+    const index = switch (target) {
+        .previous => if (current > 0) current - 1 else self.tabs.items.len - 1,
+        .next => if (current + 1 < self.tabs.items.len) current + 1 else 0,
+        .last => self.tabs.items.len - 1,
+        .n => |number| if (number == 0)
+            return false
+        else
+            @min(number - 1, self.tabs.items.len - 1),
+    };
+    if (index == current) return false;
+
+    self.active_tab = self.tabs.items[index];
+    return true;
+}
+
+pub fn moveTab(self: *Window, surface: *const Surface, amount: isize) bool {
+    if (self.tabs.items.len <= 1 or amount == 0) return false;
+
+    const current = self.tabIndexForSurface(surface) orelse return false;
+    const count: isize = @intCast(self.tabs.items.len);
+    const destination: usize = @intCast(@mod(@as(isize, @intCast(current)) + amount, count));
+    if (destination == current) return false;
+
+    if (destination > current) {
+        for (current..destination) |index| {
+            std.mem.swap(*Tab, &self.tabs.items[index], &self.tabs.items[index + 1]);
+        }
+    } else {
+        var index = current;
+        while (index > destination) : (index -= 1) {
+            std.mem.swap(*Tab, &self.tabs.items[index], &self.tabs.items[index - 1]);
+        }
+    }
+    return true;
+}
+
+pub fn removeTabAt(
+    self: *Window,
+    alloc: std.mem.Allocator,
+    index: usize,
+) error{ LastTab, TabNotFound }!*Surface {
+    if (index >= self.tabs.items.len) return error.TabNotFound;
+    if (self.tabs.items.len == 1) return error.LastTab;
+
+    const removed = self.tabs.items[index];
+    const was_active = removed == self.active_tab;
+    _ = self.tabs.orderedRemove(index);
+    if (was_active) self.active_tab = self.tabs.items[@min(index, self.tabs.items.len - 1)];
+
+    removed.deinit(alloc);
+    alloc.destroy(removed);
+    return self.active_tab.focused_surface;
 }
 
 pub fn addSplit(
@@ -68,43 +247,21 @@ pub fn addSplit(
     alloc: std.mem.Allocator,
     existing: *Surface,
     new_surface: *Surface,
-    direction: Tree.Direction,
+    direction: Tab.SplitDirection,
     after: bool,
 ) !void {
-    try self.surfaces.append(alloc, new_surface);
-    errdefer _ = self.surfaces.pop();
-    try self.tree.split(alloc, existing, new_surface, direction, after);
-    self.focused_surface = new_surface;
+    const tab = self.tabForSurface(existing) orelse return error.SurfaceNotFound;
+    try tab.addSplit(alloc, existing, new_surface, direction, after);
+    self.active_tab = tab;
 }
 
-/// Remove one surface and return the sibling leaf that should receive focus.
-/// The last surface is deliberately retained because removing it also closes
-/// the owning native window and is handled by App.
 pub fn removeSurface(
     self: *Window,
     alloc: std.mem.Allocator,
     surface: *Surface,
 ) error{ SurfaceNotFound, LastSurface }!*Surface {
-    if (self.surfaces.items.len == 1) {
-        if (self.surfaces.items[0] == surface) return error.LastSurface;
-        return error.SurfaceNotFound;
-    }
-
-    var index: ?usize = null;
-    for (self.surfaces.items, 0..) |candidate, i| {
-        if (candidate == surface) {
-            index = i;
-            break;
-        }
-    }
-    const remove_index = index orelse return error.SurfaceNotFound;
-    const focus = self.tree.remove(alloc, surface) catch |err| switch (err) {
-        error.ViewNotFound => return error.SurfaceNotFound,
-        error.LastView => return error.LastSurface,
-    };
-    _ = self.surfaces.orderedRemove(remove_index);
-    if (self.focused_surface == surface) self.focused_surface = focus;
-    return focus;
+    const tab = self.tabForSurface(surface) orelse return error.SurfaceNotFound;
+    return tab.removeSurface(alloc, surface);
 }
 
 pub fn layout(
@@ -113,7 +270,7 @@ pub fn layout(
     divider_gap: i32,
     output: []LeafRect,
 ) usize {
-    return self.tree.layout(bounds, divider_gap, output);
+    return self.active_tab.layout(bounds, divider_gap, output);
 }
 
 pub fn focusCandidate(
@@ -124,7 +281,8 @@ pub fn focusCandidate(
     divider_gap: i32,
     output: []LeafRect,
 ) ?*Surface {
-    return self.tree.focusCandidate(
+    const tab = self.tabForSurface(current) orelse return null;
+    return tab.focusCandidate(
         current,
         direction,
         bounds,
@@ -141,7 +299,8 @@ pub fn resizeSplit(
     bounds: Rect,
     divider_gap: i32,
 ) bool {
-    return self.tree.resize(
+    const tab = self.tabForSurface(surface) orelse return false;
+    return tab.resizeSplit(
         surface,
         direction,
         delta,
@@ -151,11 +310,12 @@ pub fn resizeSplit(
 }
 
 pub fn equalizeSplits(self: *Window) bool {
-    return self.tree.equalize();
+    return self.active_tab.equalizeSplits();
 }
 
 pub fn toggleSplitZoom(self: *Window, surface: *Surface) bool {
-    return self.tree.toggleZoom(surface);
+    const tab = self.tabForSurface(surface) orelse return false;
+    return tab.toggleSplitZoom(surface);
 }
 
 pub fn updateZoomForNavigation(
@@ -163,19 +323,23 @@ pub fn updateZoomForNavigation(
     surface: *Surface,
     preserve: bool,
 ) void {
-    self.tree.updateZoomForNavigation(surface, preserve);
+    const tab = self.tabForSurface(surface) orelse return;
+    tab.updateZoomForNavigation(surface, preserve);
 }
 
-test "Win32 window owns and removes split surfaces" {
+test "Win32 window owns a tab and delegates split ownership" {
     const testing = std.testing;
     const hwnd: win32.HWND = @ptrFromInt(1);
     var first: Surface = .{ .hwnd = hwnd, .window_hwnd = hwnd };
     var second: Surface = .{ .hwnd = hwnd, .window_hwnd = hwnd };
+    var third: Surface = .{ .hwnd = hwnd, .window_hwnd = hwnd };
 
     var window = try Window.init(testing.allocator, hwnd, &first);
     defer window.deinit(testing.allocator);
 
+    try testing.expectEqual(@as(usize, 1), window.tabs.items.len);
     try testing.expect(window.contains(&first));
+    try testing.expectEqual(&first, window.stateSurface());
     try testing.expectError(
         error.LastSurface,
         window.removeSurface(testing.allocator, &first),
@@ -188,13 +352,37 @@ test "Win32 window owns and removes split surfaces" {
         .horizontal,
         true,
     );
-    try testing.expectEqual(@as(usize, 2), window.surfaces.items.len);
-    try testing.expectEqual(&second, window.focused_surface);
+    try testing.expectEqual(@as(usize, 2), window.activeSurfaceCount());
+    try testing.expectEqual(&second, window.focusedSurface());
+    try testing.expectEqual(@as(usize, 2), window.totalSurfaceCount());
 
     try testing.expectEqual(
         &first,
         try window.removeSurface(testing.allocator, &second),
     );
-    try testing.expectEqual(@as(usize, 1), window.surfaces.items.len);
-    try testing.expectEqual(&first, window.focused_surface);
+    try testing.expectEqual(@as(usize, 1), window.activeSurfaceCount());
+    try testing.expectEqual(&first, window.focusedSurface());
+
+    try window.addTab(testing.allocator, &second, true);
+    try window.addTab(testing.allocator, &third, false);
+    try testing.expectEqual(@as(usize, 3), window.tabCount());
+    try testing.expectEqual(&third, window.focusedSurface());
+
+    try testing.expect(window.selectTab(.next));
+    try testing.expectEqual(&first, window.focusedSurface());
+    try testing.expect(window.selectTab(.{ .n = 2 }));
+    try testing.expectEqual(&second, window.focusedSurface());
+
+    try testing.expect(window.moveTab(&second, -1));
+    try testing.expectEqual(@as(usize, 0), window.tabIndexForSurface(&second).?);
+    try testing.expectEqual(
+        &first,
+        try window.removeTabAt(testing.allocator, 0),
+    );
+    try testing.expectEqual(@as(usize, 2), window.tabCount());
+
+    var surfaces = window.surfaceIterator();
+    var count: usize = 0;
+    while (surfaces.next() != null) count += 1;
+    try testing.expectEqual(@as(usize, 2), count);
 }

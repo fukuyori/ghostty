@@ -275,6 +275,7 @@ pub fn setTitle(self: *Self, value: [:0]const u8) !void {
 
     if (self.title) |old| alloc.free(old);
     self.title = title;
+    self.rtApp().tabTitleChanged(self);
 }
 
 /// Apply this surface's title to its shared top-level window. Background
