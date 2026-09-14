@@ -315,6 +315,26 @@ pub fn SplitTree(comptime View: type) type {
             return search.best;
         }
 
+        /// Collect every visible divider in layout order. A zoomed tree has
+        /// no visible dividers because only one leaf is laid out.
+        pub fn dividers(
+            self: *Self,
+            bounds: Rect,
+            divider_gap: i32,
+            output: []Divider,
+        ) usize {
+            if (self.zoomed != null) return 0;
+            var count: usize = 0;
+            collectDividers(
+                self.root,
+                normalizeRect(bounds),
+                @max(0, divider_gap),
+                output,
+                &count,
+            );
+            return count;
+        }
+
         /// Resize one exact divider rather than inferring a divider from a
         /// leaf and axis. This is required for same-axis nested splits where
         /// more than one ancestor divider may be adjacent to a view.
@@ -459,6 +479,46 @@ pub fn SplitTree(comptime View: type) type {
                         y,
                         hit_slop,
                         search,
+                    );
+                },
+            }
+        }
+
+        fn collectDividers(
+            node: *Node,
+            bounds: Rect,
+            divider_gap: i32,
+            output: []Divider,
+            count: *usize,
+        ) void {
+            switch (node.*) {
+                .leaf => {},
+                .split => |*branch| {
+                    const child_bounds = splitBounds(branch.*, bounds, divider_gap);
+                    if (count.* < output.len) {
+                        output[count.*] = .{
+                            .split = branch,
+                            .direction = switch (branch.direction) {
+                                .horizontal => .horizontal,
+                                .vertical => .vertical,
+                            },
+                            .rect = dividerRect(branch.*, bounds, child_bounds),
+                        };
+                        count.* += 1;
+                    }
+                    collectDividers(
+                        branch.children[0],
+                        child_bounds.first,
+                        divider_gap,
+                        output,
+                        count,
+                    );
+                    collectDividers(
+                        branch.children[1],
+                        child_bounds.second,
+                        divider_gap,
+                        output,
+                        count,
                     );
                 },
             }
@@ -1094,6 +1154,31 @@ test "Win32 split divider hit testing identifies nested dividers" {
 
     try testing.expect(tree.toggleZoom(&upper_right));
     try testing.expect(tree.dividerAt(bounds, 2, 49, 10, 3) == null);
+}
+
+test "Win32 split divider collection follows nested layout" {
+    const testing = std.testing;
+    const View = struct { id: u8 };
+    const Tree = SplitTree(View);
+
+    var left: View = .{ .id = 1 };
+    var upper_right: View = .{ .id = 2 };
+    var lower_right: View = .{ .id = 3 };
+    var tree = try Tree.init(testing.allocator, &left);
+    defer tree.deinit(testing.allocator);
+    try tree.split(testing.allocator, &left, &upper_right, .horizontal, true);
+    try tree.split(testing.allocator, &upper_right, &lower_right, .vertical, true);
+
+    const bounds: Tree.Rect = .{ .x = 0, .y = 0, .width = 100, .height = 100 };
+    var output: [2]Tree.Divider = undefined;
+    try testing.expectEqual(@as(usize, 2), tree.dividers(bounds, 2, &output));
+    try testing.expectEqual(Tree.ResizeDirection.horizontal, output[0].direction);
+    try testing.expectEqual(Tree.Rect{ .x = 49, .y = 0, .width = 2, .height = 100 }, output[0].rect);
+    try testing.expectEqual(Tree.ResizeDirection.vertical, output[1].direction);
+    try testing.expectEqual(Tree.Rect{ .x = 51, .y = 49, .width = 49, .height = 2 }, output[1].rect);
+
+    try testing.expect(tree.toggleZoom(&upper_right));
+    try testing.expectEqual(@as(usize, 0), tree.dividers(bounds, 2, &output));
 }
 
 test "Win32 split resizes the exact divider and preserves minimum leaves" {

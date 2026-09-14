@@ -161,6 +161,15 @@ pub fn dividerAt(
     return self.tree.dividerAt(bounds, divider_gap, x, y, hit_slop);
 }
 
+pub fn dividers(
+    self: *Tab,
+    bounds: Rect,
+    divider_gap: i32,
+    output: []Divider,
+) usize {
+    return self.tree.dividers(bounds, divider_gap, output);
+}
+
 pub fn resizeDivider(
     self: *Tab,
     divider: Divider,

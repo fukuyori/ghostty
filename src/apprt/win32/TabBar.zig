@@ -31,6 +31,7 @@ const logical_min_tab_width: i32 = 112;
 const logical_close_width: i32 = 26;
 const logical_padding: i32 = 10;
 const logical_zoom_width: i32 = 58;
+const logical_font_points: i32 = 9;
 
 pub fn heightForDpi(dpi: u32) i32 {
     return scale(logical_height, dpi);
@@ -143,7 +144,11 @@ pub fn paint(
     fill(hdc, .{ .left = 0, .top = 0, .right = width, .bottom = height }, colorRef(background));
     _ = win32.SetBkMode(hdc, win32.TRANSPARENT);
     _ = win32.SetTextColor(hdc, colorRef(foreground));
-    const font = win32.GetStockObject(win32.DEFAULT_GUI_FONT);
+    const dpi_font = createFontForDpi(dpi);
+    defer if (dpi_font) |value| {
+        _ = win32.DeleteObject(value);
+    };
+    const font = dpi_font orelse win32.GetStockObject(win32.DEFAULT_GUI_FONT);
     const previous_font = if (font) |value| win32.SelectObject(hdc, value) else null;
     defer if (previous_font) |value| {
         _ = win32.SelectObject(hdc, value);
@@ -455,6 +460,32 @@ fn scale(value: i32, dpi: u32) i32 {
     return @intCast(@divTrunc(@as(i64, value) * @as(i64, dpi) + 48, 96));
 }
 
+fn fontHeightForDpi(dpi: u32) i32 {
+    return @intCast(@max(
+        1,
+        @divTrunc(@as(i64, logical_font_points) * dpi + 36, 72),
+    ));
+}
+
+fn createFontForDpi(dpi: u32) ?win32.HFONT {
+    return win32.CreateFontW(
+        -fontHeightForDpi(dpi),
+        0,
+        0,
+        0,
+        400,
+        0,
+        0,
+        0,
+        @intFromEnum(win32.DEFAULT_CHARSET),
+        win32.OUT_DEFAULT_PRECIS,
+        .{},
+        win32.CLEARTYPE_QUALITY,
+        win32.FF_SWISS,
+        win32.L("Segoe UI"),
+    );
+}
+
 fn mix(background: Config.Color, foreground: Config.Color, percent: u16) Config.Color {
     return .{
         .r = mixChannel(background.r, foreground.r, percent),
@@ -488,6 +519,20 @@ test "Win32 tab bar hit testing distinguishes labels and buttons" {
     try std.testing.expectEqual(Hit{ .close = 0 }, hitTest(width, height, 3, false, 0, 190, 10));
     try std.testing.expectEqual(Hit.new_tab, hitTest(width, height, 3, false, 0, 615, 10));
     try std.testing.expectEqual(Hit.none, hitTest(width, height, 3, false, 0, 700, 10));
+}
+
+test "Win32 tab bar geometry and font follow DPI" {
+    try std.testing.expectEqual(@as(i32, 32), heightForDpi(96));
+    try std.testing.expectEqual(@as(i32, 40), heightForDpi(120));
+    try std.testing.expectEqual(@as(i32, 48), heightForDpi(144));
+    try std.testing.expectEqual(@as(i32, 64), heightForDpi(192));
+    try std.testing.expectEqual(@as(i32, 12), fontHeightForDpi(96));
+    try std.testing.expectEqual(@as(i32, 15), fontHeightForDpi(120));
+    try std.testing.expectEqual(@as(i32, 18), fontHeightForDpi(144));
+    try std.testing.expectEqual(@as(i32, 24), fontHeightForDpi(192));
+
+    const font = createFontForDpi(192) orelse return error.TestUnexpectedResult;
+    defer _ = win32.DeleteObject(font);
 }
 
 test "Win32 tab bar exposes the full tab as a drag target" {

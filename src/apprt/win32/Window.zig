@@ -39,8 +39,11 @@ tab_bar_tracking_mouse_leave: bool = false,
 tab_bar_pressed: TabBar.Hit = .none,
 tab_bar_drag: ?TabBar.Drag = null,
 tab_bar_first_visible: usize = 0,
+split_divider_hwnds: std.ArrayListUnmanaged(win32.HWND) = .empty,
+split_dividers: std.ArrayListUnmanaged(Divider) = .empty,
 split_divider_hover: ?Divider = null,
 split_divider_drag: ?SplitDrag = null,
+split_divider_tracking_mouse_leave: bool = false,
 tabs: std.ArrayListUnmanaged(*Tab) = .empty,
 active_tab: *Tab,
 
@@ -80,6 +83,8 @@ pub fn deinit(self: *Window, alloc: std.mem.Allocator) void {
         tab.deinit(alloc);
         alloc.destroy(tab);
     }
+    self.split_divider_hwnds.deinit(alloc);
+    self.split_dividers.deinit(alloc);
     self.tabs.deinit(alloc);
     self.* = undefined;
 }
@@ -366,6 +371,15 @@ pub fn dividerAt(
         y,
         hit_slop,
     );
+}
+
+pub fn dividers(
+    self: *Window,
+    bounds: Rect,
+    divider_gap: i32,
+    output: []Divider,
+) usize {
+    return self.active_tab.dividers(bounds, divider_gap, output);
 }
 
 pub fn resizeDivider(

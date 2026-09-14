@@ -30,13 +30,15 @@ const log = std.log.scoped(.win32);
 const WindowList = std.ArrayListUnmanaged(*Window);
 const window_class_name = win32.L("GhosttyWindow");
 const tab_bar_class_name = win32.L("GhosttyTabBar");
+const split_divider_class_name = win32.L("GhosttySplitDivider");
 const default_window_title = win32.L("Ghostty");
 const tab_title_dialog_id: usize = 102;
 const tab_title_edit_id: i32 = 1001;
 const tab_title_capacity: usize = 512;
 const dialog_ok_id: u16 = 1;
 const dialog_cancel_id: u16 = 2;
-const split_divider_gap: i32 = 1;
+const split_divider_logical_gap: i32 = 1;
+const split_divider_high_contrast_logical_gap: i32 = 2;
 const split_divider_hit_slop: i32 = 4;
 
 /// User-defined wakeup message sent via PostMessage to break out of
@@ -54,6 +56,7 @@ running: bool = true,
 thread_id: u32,
 windows: WindowList = .empty,
 backdrop_runtime: Backdrop.Runtime = .{},
+high_contrast: bool = false,
 
 pub fn init(
     self: *App,
@@ -73,6 +76,7 @@ pub fn init(
         .config = config_ptr,
         .alloc = alloc,
         .thread_id = win32.GetCurrentThreadId(),
+        .high_contrast = highContrastEnabled(),
     };
     errdefer self.windows.deinit(self.alloc);
     errdefer self.backdrop_runtime.deinit();
@@ -1969,7 +1973,7 @@ fn gotoSplit(
             .right => .right,
         },
         windowContentBounds(self, window, client),
-        split_divider_gap,
+        splitDividerGap(window),
         rects,
     ) orelse return false;
 
@@ -2022,7 +2026,7 @@ fn resizeSplit(
             .right, .down => amount,
         },
         windowContentBounds(self, window, client),
-        split_divider_gap,
+        splitDividerGap(window),
     );
     if (!changed) return false;
     self.layoutWindow(window);
@@ -2103,9 +2107,11 @@ fn layoutWindow(self: *App, window: *Window) void {
     };
     defer self.alloc.free(rects);
 
+    const content_bounds = windowContentBounds(self, window, client);
+    const divider_gap = splitDividerGap(window);
     const count = window.layout(
-        windowContentBounds(self, window, client),
-        split_divider_gap,
+        content_bounds,
+        divider_gap,
         rects,
     );
     for (rects[0..count]) |entry| {
@@ -2135,6 +2141,80 @@ fn layoutWindow(self: *App, window: *Window) void {
             surface.hwnd,
             if (visible) win32.SW_SHOWNA else win32.SW_HIDE,
         );
+    }
+
+    self.layoutSplitDividers(window, content_bounds, divider_gap);
+}
+
+fn layoutSplitDividers(
+    self: *App,
+    window: *Window,
+    bounds: Window.Rect,
+    divider_gap: i32,
+) void {
+    const capacity = window.activeSurfaceCount() -| 1;
+    const dividers = self.alloc.alloc(Window.Divider, capacity) catch |err| {
+        log.warn("failed to allocate split divider layout: {}", .{err});
+        hideSplitDividers(window, 0);
+        return;
+    };
+    defer self.alloc.free(dividers);
+
+    const count = window.dividers(bounds, divider_gap, dividers);
+    window.split_dividers.clearRetainingCapacity();
+    window.split_dividers.appendSlice(self.alloc, dividers[0..count]) catch |err| {
+        log.warn("failed to retain split divider layout: {}", .{err});
+        hideSplitDividers(window, 0);
+        return;
+    };
+
+    while (window.split_divider_hwnds.items.len < count) {
+        const hwnd = createNativeSplitDividerWindow(window.hwnd) catch break;
+        window.split_divider_hwnds.append(self.alloc, hwnd) catch |err| {
+            log.warn("failed to retain split divider window: {}", .{err});
+            _ = win32.DestroyWindow(hwnd);
+            break;
+        };
+        _ = win32.SetWindowLongPtrW(
+            hwnd,
+            win32.GWLP_USERDATA,
+            @bitCast(@intFromPtr(window)),
+        );
+    }
+
+    var origin: win32.POINT = .{ .x = 0, .y = 0 };
+    if (win32.ClientToScreen(window.hwnd, &origin) == 0) {
+        log.warn("ClientToScreen(split dividers) failed: err={d}", .{
+            @intFromEnum(win32.GetLastError()),
+        });
+        hideSplitDividers(window, 0);
+        return;
+    }
+
+    const visible_count = @min(count, window.split_divider_hwnds.items.len);
+    for (window.split_divider_hwnds.items[0..visible_count], dividers[0..visible_count]) |hwnd, divider| {
+        if (win32.SetWindowPos(
+            hwnd,
+            null,
+            origin.x + divider.rect.x,
+            origin.y + divider.rect.y,
+            @max(1, divider.rect.width),
+            @max(1, divider.rect.height),
+            .{ .NOZORDER = 1, .NOACTIVATE = 1, .SHOWWINDOW = 1 },
+        ) == 0) {
+            log.warn("SetWindowPos(split divider) failed: err={d}", .{
+                @intFromEnum(win32.GetLastError()),
+            });
+        }
+        _ = win32.InvalidateRect(hwnd, null, win32.TRUE);
+    }
+    hideSplitDividers(window, visible_count);
+}
+
+fn hideSplitDividers(window: *const Window, first: usize) void {
+    const start = @min(first, window.split_divider_hwnds.items.len);
+    for (window.split_divider_hwnds.items[start..]) |hwnd| {
+        _ = win32.ShowWindow(hwnd, win32.SW_HIDE);
     }
 }
 
@@ -2180,11 +2260,85 @@ fn windowDpi(hwnd: win32.HWND) u32 {
     return if (dpi == 0) 96 else dpi;
 }
 
+fn highContrastEnabled() bool {
+    var contrast: win32.HIGHCONTRASTW = .{
+        .cbSize = @sizeOf(win32.HIGHCONTRASTW),
+        .dwFlags = .{},
+        .lpszDefaultScheme = null,
+    };
+    if (win32.SystemParametersInfoW(
+        win32.SPI_GETHIGHCONTRAST,
+        @sizeOf(win32.HIGHCONTRASTW),
+        &contrast,
+        .{},
+    ) == 0) return false;
+    return contrast.dwFlags.HIGHCONTRASTON != 0;
+}
+
+fn splitDividerGapForDpi(dpi: u32, high_contrast: bool) i32 {
+    const logical = if (high_contrast)
+        split_divider_high_contrast_logical_gap
+    else
+        split_divider_logical_gap;
+    return @intCast(@max(
+        1,
+        @divTrunc(@as(i64, logical) * dpi + 48, 96),
+    ));
+}
+
+fn splitDividerGap(window: *const Window) i32 {
+    const app = window.focusedSurface().rtApp();
+    return splitDividerGapForDpi(
+        windowDpi(window.hwnd),
+        app.high_contrast,
+    );
+}
+
 fn invalidateTabBar(window: *const Window) void {
     const hwnd = window.tab_bar_hwnd orelse return;
     if (win32.InvalidateRect(hwnd, null, win32.TRUE) != 0) {
         _ = win32.UpdateWindow(hwnd);
     }
+}
+
+fn invalidateSplitDividers(window: *const Window) void {
+    for (window.split_divider_hwnds.items) |hwnd| {
+        if (win32.InvalidateRect(hwnd, null, win32.TRUE) != 0) {
+            _ = win32.UpdateWindow(hwnd);
+        }
+    }
+}
+
+fn splitDividerColor(config: *const Config, hovered: bool, high_contrast: bool) u32 {
+    if (high_contrast) {
+        return win32.GetSysColor(if (hovered)
+            win32.COLOR_HIGHLIGHT
+        else
+            win32.COLOR_WINDOWTEXT);
+    }
+
+    const foreground = config.@"window-titlebar-foreground" orelse config.foreground;
+    const percent: u16 = if (hovered) 65 else 30;
+    return colorRef(mixColor(config.background, foreground, percent));
+}
+
+fn mixColor(background: Config.Color, foreground: Config.Color, percent: u16) Config.Color {
+    return .{
+        .r = mixColorChannel(background.r, foreground.r, percent),
+        .g = mixColorChannel(background.g, foreground.g, percent),
+        .b = mixColorChannel(background.b, foreground.b, percent),
+    };
+}
+
+fn mixColorChannel(background: u8, foreground: u8, percent: u16) u8 {
+    return @intCast((@as(u16, background) * (100 - percent) +
+        @as(u16, foreground) * percent) / 100);
+}
+
+fn colorRef(color: Config.Color) u32 {
+    return @as(u32, color.r) |
+        (@as(u32, color.g) << 8) |
+        (@as(u32, color.b) << 16);
 }
 
 fn updateTabBarViewport(window: *Window, width: i32, height: i32) void {
@@ -2240,6 +2394,25 @@ fn registerWindowClass() !void {
     };
     if (win32.RegisterClassExW(&tab_bar_class) == 0) {
         log.err("RegisterClassExW(tab bar) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return error.Win32Error;
+    }
+
+    const split_divider_class: win32.WNDCLASSEXW = .{
+        .cbSize = @sizeOf(win32.WNDCLASSEXW),
+        .style = .{ .HREDRAW = 1, .VREDRAW = 1 },
+        .lpfnWndProc = splitDividerWndProc,
+        .cbClsExtra = 0,
+        .cbWndExtra = 0,
+        .hInstance = hinstance,
+        .hIcon = null,
+        .hCursor = win32.LoadCursorW(null, win32.IDC_ARROW),
+        .hbrBackground = null,
+        .lpszMenuName = null,
+        .lpszClassName = split_divider_class_name,
+        .hIconSm = null,
+    };
+    if (win32.RegisterClassExW(&split_divider_class) == 0) {
+        log.err("RegisterClassExW(split divider) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         return error.Win32Error;
     }
 }
@@ -2315,6 +2488,28 @@ fn createNativeTabBarWindow(window_hwnd: win32.HWND) !win32.HWND {
     };
     errdefer _ = win32.DestroyWindow(hwnd);
     return hwnd;
+}
+
+fn createNativeSplitDividerWindow(window_hwnd: win32.HWND) !win32.HWND {
+    const popup: u32 = 0x80000000;
+    const clip_siblings: u32 = 0x04000000;
+    return win32.CreateWindowExW(
+        .{ .TOOLWINDOW = 1, .NOACTIVATE = 1, .TRANSPARENT = 1 },
+        split_divider_class_name,
+        win32.L(""),
+        @bitCast(popup | clip_siblings),
+        0,
+        0,
+        1,
+        1,
+        window_hwnd,
+        null,
+        win32.GetModuleHandleW(null),
+        null,
+    ) orelse {
+        log.warn("CreateWindowExW(split divider) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return error.Win32Error;
+    };
 }
 
 fn topLevelWindowStyle() win32.WINDOW_STYLE {
@@ -2501,6 +2696,14 @@ test "Win32 automatic tab bar exposes split zoom state" {
     try std.testing.expect(tabBarVisibleForMode(.always, 1, false));
 }
 
+test "Win32 split divider thickness follows DPI and high contrast" {
+    try std.testing.expectEqual(@as(i32, 1), splitDividerGapForDpi(96, false));
+    try std.testing.expectEqual(@as(i32, 2), splitDividerGapForDpi(144, false));
+    try std.testing.expectEqual(@as(i32, 2), splitDividerGapForDpi(96, true));
+    try std.testing.expectEqual(@as(i32, 3), splitDividerGapForDpi(144, true));
+    try std.testing.expectEqual(@as(i32, 4), splitDividerGapForDpi(192, true));
+}
+
 fn showWindow(surface: *Surface) void {
     const hwnd = surface.windowHwnd();
     _ = win32.ShowWindow(
@@ -2527,6 +2730,32 @@ fn getTabBarWindow(hwnd: win32.HWND) ?*Window {
     const ptr = win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA);
     if (ptr == 0) return null;
     return @ptrFromInt(@as(usize, @bitCast(ptr)));
+}
+
+fn getSplitDividerWindow(hwnd: win32.HWND) ?*Window {
+    const ptr = win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA);
+    if (ptr == 0) return null;
+    return @ptrFromInt(@as(usize, @bitCast(ptr)));
+}
+
+fn paintSplitDivider(window: *Window, hwnd: win32.HWND, hdc: win32.HDC) void {
+    const index = for (window.split_divider_hwnds.items, 0..) |candidate, value| {
+        if (candidate == hwnd) break value;
+    } else return;
+    if (index >= window.split_dividers.items.len) return;
+
+    const divider = window.split_dividers.items[index];
+    const hovered = if (window.split_divider_hover) |value|
+        value.split == divider.split
+    else
+        false;
+    var client: win32.RECT = std.mem.zeroes(win32.RECT);
+    if (win32.GetClientRect(hwnd, &client) == 0) return;
+    const app = window.focusedSurface().rtApp();
+    const color = splitDividerColor(app.config, hovered, app.high_contrast);
+    const brush = win32.CreateSolidBrush(color) orelse return;
+    defer _ = win32.DeleteObject(brush);
+    _ = win32.FillRect(hdc, &client, brush);
 }
 
 fn paintTabBar(self: *App, window: *Window, hdc: win32.HDC, width: i32, height: i32) void {
@@ -3178,11 +3407,30 @@ fn dividerAtPoint(
     const bounds = currentWindowContentBounds(app, window) orelse return null;
     return window.dividerAt(
         bounds,
-        split_divider_gap,
+        splitDividerGap(window),
         point.x,
         point.y,
         scaledSplitHitSlop(window),
     );
+}
+
+fn setSplitDividerHover(window: *Window, value: ?Window.Divider) void {
+    if (std.meta.eql(window.split_divider_hover, value)) return;
+    window.split_divider_hover = value;
+    invalidateSplitDividers(window);
+}
+
+fn trackSplitDividerMouseLeave(window: *Window, hwnd: win32.HWND) void {
+    if (window.split_divider_tracking_mouse_leave) return;
+    var event: win32.TRACKMOUSEEVENT = .{
+        .cbSize = @sizeOf(win32.TRACKMOUSEEVENT),
+        .dwFlags = win32.TME_LEAVE,
+        .hwndTrack = hwnd,
+        .dwHoverTime = 0,
+    };
+    if (win32.TrackMouseEvent(&event) != 0) {
+        window.split_divider_tracking_mouse_leave = true;
+    }
 }
 
 fn updateSplitDividerPointer(
@@ -3212,7 +3460,7 @@ fn updateSplitDividerPointer(
                 drag.divider,
                 delta,
                 bounds,
-                split_divider_gap,
+                splitDividerGap(window),
                 splitMinimumExtent(window, drag.divider.direction),
             )) app.layoutWindow(window);
         }
@@ -3220,7 +3468,7 @@ fn updateSplitDividerPointer(
         return true;
     }
 
-    window.split_divider_hover = dividerAtPoint(surface, window, point);
+    setSplitDividerHover(window, dividerAtPoint(surface, window, point));
     if (window.split_divider_hover) |divider| {
         setSplitCursor(divider.direction);
         return true;
@@ -3242,7 +3490,7 @@ fn beginSplitDividerDrag(
     ) orelse return false;
     const divider = dividerAtPoint(surface, window, point) orelse return false;
 
-    window.split_divider_hover = divider;
+    setSplitDividerHover(window, divider);
     window.split_divider_drag = .{
         .divider = divider,
         .last_x = point.x,
@@ -3265,9 +3513,9 @@ fn endSplitDividerDrag(
 
     window.split_divider_drag = null;
     if (pointInWindowClient(surface, hwnd, mouseClientPoint(lparam))) |point| {
-        window.split_divider_hover = dividerAtPoint(surface, window, point);
+        setSplitDividerHover(window, dividerAtPoint(surface, window, point));
     } else {
-        window.split_divider_hover = null;
+        setSplitDividerHover(window, null);
     }
     if (win32.GetCapture() == hwnd and win32.ReleaseCapture() == 0) {
         log.warn("ReleaseCapture(split divider) failed: err={d}", .{
@@ -3283,7 +3531,7 @@ fn cancelSplitDividerDrag(surface: *Surface, hwnd: win32.HWND) void {
         if (drag.capture_hwnd != hwnd) return;
         window.split_divider_drag = null;
     }
-    window.split_divider_hover = null;
+    setSplitDividerHover(window, null);
 }
 
 fn clearWindowSplitPointer(window: *Window) void {
@@ -3292,7 +3540,8 @@ fn clearWindowSplitPointer(window: *Window) void {
     else
         null;
     window.split_divider_drag = null;
-    window.split_divider_hover = null;
+    setSplitDividerHover(window, null);
+    window.split_divider_tracking_mouse_leave = false;
     if (capture) |hwnd| {
         if (win32.GetCapture() == hwnd and win32.ReleaseCapture() == 0) {
             log.warn("ReleaseCapture(split reset) failed: err={d}", .{
@@ -3315,7 +3564,7 @@ fn handleSplitDividerCursor(surface: *Surface) bool {
     {
         return false;
     }
-    window.split_divider_hover = dividerAtPoint(surface, window, point);
+    setSplitDividerHover(window, dividerAtPoint(surface, window, point));
     if (window.split_divider_hover) |divider| {
         setSplitCursor(divider.direction);
         return true;
@@ -3555,6 +3804,31 @@ fn handleImeStartComposition(surface: *Surface, hwnd: win32.HWND) void {
     }
 }
 
+fn splitDividerWndProc(
+    hwnd: win32.HWND,
+    msg: u32,
+    wparam: win32.WPARAM,
+    lparam: win32.LPARAM,
+) callconv(.winapi) win32.LRESULT {
+    switch (msg) {
+        win32.WM_ERASEBKGND => return 1,
+        win32.WM_NCHITTEST => return win32.HTTRANSPARENT,
+        win32.WM_PAINT => {
+            var ps: win32.PAINTSTRUCT = std.mem.zeroes(win32.PAINTSTRUCT);
+            const hdc = win32.BeginPaint(hwnd, &ps) orelse {
+                _ = win32.EndPaint(hwnd, &ps);
+                return 0;
+            };
+            if (getSplitDividerWindow(hwnd)) |window| {
+                paintSplitDivider(window, hwnd, hdc);
+            }
+            _ = win32.EndPaint(hwnd, &ps);
+            return 0;
+        },
+        else => return win32.DefWindowProcW(hwnd, msg, wparam, lparam),
+    }
+}
+
 fn tabBarWndProc(
     hwnd: win32.HWND,
     msg: u32,
@@ -3781,8 +4055,11 @@ fn wndProc(
                     const window = app.windowForHwnd(hwnd) orelse return 0;
                     if (wparam != 0) {
                         app.layoutWindow(window);
-                    } else if (window.tab_bar_hwnd) |tab_bar| {
-                        _ = win32.ShowWindow(tab_bar, win32.SW_HIDE);
+                    } else {
+                        if (window.tab_bar_hwnd) |tab_bar| {
+                            _ = win32.ShowWindow(tab_bar, win32.SW_HIDE);
+                        }
+                        hideSplitDividers(window, 0);
                     }
                     var surfaces = window.surfaceIterator();
                     while (surfaces.next()) |candidate| {
@@ -3791,6 +4068,20 @@ fn wndProc(
                                 log.err("visibility callback error: {}", .{err});
                             };
                         }
+                    }
+                }
+            }
+            return 0;
+        },
+        win32.WM_SETTINGCHANGE, win32.WM_SYSCOLORCHANGE, win32.WM_THEMECHANGED => {
+            if (getSurface(hwnd)) |surface| {
+                if (hwnd == surface.windowHwnd()) {
+                    const app = surface.rtApp();
+                    if (app.windowForHwnd(hwnd)) |window| {
+                        app.high_contrast = highContrastEnabled();
+                        app.layoutWindow(window);
+                        invalidateTabBar(window);
+                        invalidateSplitDividers(window);
                     }
                 }
             }
@@ -3827,6 +4118,9 @@ fn wndProc(
                     if (updateSplitDividerPointer(surface, hwnd, lparam)) return 0;
                     updateCursorPosition(surface, mousePoint(lparam), getModifiers(), false);
                 } else if (hwnd == surface.windowHwnd()) {
+                    if (surface.rtApp().windowForSurface(surface)) |window| {
+                        trackSplitDividerMouseLeave(window, hwnd);
+                    }
                     _ = updateSplitDividerPointer(surface, hwnd, lparam);
                 }
             }
@@ -3838,10 +4132,17 @@ fn wndProc(
                     surface.tracking_mouse_leave = false;
                     if (surface.rtApp().windowForSurface(surface)) |window| {
                         if (window.split_divider_drag == null) {
-                            window.split_divider_hover = null;
+                            setSplitDividerHover(window, null);
                         }
                     }
                     updateCursorPosition(surface, .{ .x = -1, .y = -1 }, getModifiers(), true);
+                } else if (hwnd == surface.windowHwnd()) {
+                    if (surface.rtApp().windowForSurface(surface)) |window| {
+                        window.split_divider_tracking_mouse_leave = false;
+                        if (window.split_divider_drag == null) {
+                            setSplitDividerHover(window, null);
+                        }
+                    }
                 }
             }
             return 0;
