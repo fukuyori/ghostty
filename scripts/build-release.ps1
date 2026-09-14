@@ -4,8 +4,9 @@ Builds a portable Windows release of Ghostty.
 
 .DESCRIPTION
 Runs the default Zig build in ReleaseFast mode for the baseline CPU and
-installs the result into zig-out/release by default. This script does not
-create a distribution archive or installer.
+installs the result into zig-out/release by default. It validates the PE
+format, Windows GUI subsystem, required resource directories, and output hash.
+This script does not create a distribution archive or installer.
 
 .PARAMETER OutputDirectory
 The install prefix for the release build. Relative paths are resolved from the
@@ -86,16 +87,67 @@ if (-not (Test-Path -LiteralPath $resources -PathType Container)) {
     throw "The build completed without producing $resources."
 }
 
-$header = [byte[]]::new(2)
-$stream = [System.IO.File]::OpenRead($executable)
-try {
-    $headerLength = $stream.Read($header, 0, $header.Length)
-} finally {
-    $stream.Dispose()
+$shellIntegration = Join-Path $resources "shell-integration"
+$themes = Join-Path $resources "themes"
+foreach ($requiredDirectory in @($shellIntegration, $themes)) {
+    if (-not (Test-Path -LiteralPath $requiredDirectory -PathType Container)) {
+        throw "The release is missing required resources: $requiredDirectory"
+    }
 }
 
-if ($headerLength -ne 2 -or $header[0] -ne 0x4D -or $header[1] -ne 0x5A) {
-    throw "The generated executable does not have a valid PE header."
+$shellIntegrationFileCount = @(
+    Get-ChildItem -LiteralPath $shellIntegration -File -Recurse
+).Count
+$themeFileCount = @(
+    Get-ChildItem -LiteralPath $themes -File -Recurse
+).Count
+if ($shellIntegrationFileCount -eq 0 -or $themeFileCount -eq 0) {
+    throw "The release contains an empty required resource directory."
+}
+
+$stream = [System.IO.File]::OpenRead($executable)
+$reader = [System.IO.BinaryReader]::new($stream)
+try {
+    if ($stream.Length -lt 64 -or $reader.ReadUInt16() -ne 0x5A4D) {
+        throw "The generated executable does not have a valid DOS header."
+    }
+
+    $stream.Position = 0x3C
+    $peOffset = $reader.ReadInt32()
+    if ($peOffset -lt 0 -or $peOffset + 92 -gt $stream.Length) {
+        throw "The generated executable has an invalid PE header offset."
+    }
+
+    $stream.Position = $peOffset
+    if ($reader.ReadUInt32() -ne 0x00004550) {
+        throw "The generated executable does not have a valid PE signature."
+    }
+
+    $machineValue = $reader.ReadUInt16()
+    $machine = switch ($machineValue) {
+        0x014C { "x86" }
+        0x8664 { "x64" }
+        0xAA64 { "arm64" }
+        default { throw "Unsupported PE machine type: 0x{0:X4}" -f $machineValue }
+    }
+
+    $optionalHeaderOffset = $peOffset + 24
+    $stream.Position = $optionalHeaderOffset
+    $optionalHeaderMagic = $reader.ReadUInt16()
+    $peFormat = switch ($optionalHeaderMagic) {
+        0x010B { "PE32" }
+        0x020B { "PE32+" }
+        default { throw "Unsupported PE optional header: 0x{0:X4}" -f $optionalHeaderMagic }
+    }
+
+    $stream.Position = $optionalHeaderOffset + 68
+    $subsystemValue = $reader.ReadUInt16()
+    if ($subsystemValue -ne 2) {
+        throw "The generated executable is not a Windows GUI application (subsystem $subsystemValue)."
+    }
+} finally {
+    $reader.Dispose()
+    $stream.Dispose()
 }
 
 $file = Get-Item -LiteralPath $executable
@@ -106,6 +158,11 @@ $hash = Get-FileHash -LiteralPath $executable -Algorithm SHA256
     Resources    = $resources
     Optimization = "ReleaseFast"
     Cpu          = "baseline"
+    PEFormat     = $peFormat
+    Machine      = $machine
+    Subsystem    = "WindowsGui"
+    ShellFiles   = $shellIntegrationFileCount
+    ThemeFiles   = $themeFileCount
     SizeBytes    = $file.Length
     Sha256       = $hash.Hash
 }

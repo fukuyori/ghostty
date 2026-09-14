@@ -21,7 +21,8 @@ zig build
 ```
 
 Releaseスクリプトは実行ファイルとリソースを配置しますが、アーカイブや
-インストーラーは作成しません。
+インストーラーは作成しません。ビルド後にPE形式、CPU形式、Windows GUI
+サブシステム、シェル統合、テーマ、ファイルサイズ、SHA-256を検証して表示します。
 
 ## 設定ファイル
 
@@ -55,6 +56,34 @@ Releaseスクリプトは実行ファイルとリソースを配置しますが�
 ./zig-out/bin/ghostty.exe +show-config
 ./zig-out/bin/ghostty.exe +list-keybinds
 ```
+
+## 起動診断ログ
+
+通常のGUI起動では標準エラーが画面に表示されません。起動失敗や初期化エラーを
+調べる場合は、診断用スクリプトから起動します。
+
+```powershell
+./scripts/run-windows-diagnostics.ps1
+```
+
+既定ではログを `zig-out\logs` に保存し、起動したプロセスIDとログの絶対パスを
+表示します。Ghosttyを終了するまで待ち、終了コードも取得する場合は次のように
+実行します。
+
+```powershell
+./scripts/run-windows-diagnostics.ps1 -Wait
+```
+
+特定のCLI操作を診断する場合は `AdditionalArguments` を使用します。
+
+```powershell
+./scripts/run-windows-diagnostics.ps1 `
+    -AdditionalArguments @('+validate-config') `
+    -Wait
+```
+
+ログには設定値、パス、実行したプログラムに由来する情報が含まれる可能性が
+あります。共有する前に内容を確認してください。
 
 ## Windows GUI設定
 
