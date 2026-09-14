@@ -167,6 +167,10 @@ pub fn toggleSplitZoom(self: *Tab, surface: *Surface) bool {
     return self.tree.toggleZoom(surface);
 }
 
+pub fn isZoomed(self: *const Tab) bool {
+    return self.tree.isZoomed();
+}
+
 pub fn updateZoomForNavigation(
     self: *Tab,
     surface: *Surface,

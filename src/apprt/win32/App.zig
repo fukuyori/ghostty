@@ -1894,6 +1894,7 @@ fn layoutWindow(self: *App, window: *Window) void {
         TabBar.heightForDpi(windowDpi(window.hwnd))
     else
         0;
+    updateTabBarViewport(window, client_width, tab_height);
 
     if (window.tab_bar_hwnd) |tab_bar| {
         if (tab_height > 0) {
@@ -1963,9 +1964,21 @@ fn layoutWindow(self: *App, window: *Window) void {
 }
 
 fn tabBarVisible(self: *const App, window: *const Window) bool {
-    return switch (self.config.@"window-show-tab-bar") {
+    return tabBarVisibleForMode(
+        self.config.@"window-show-tab-bar",
+        window.tabCount(),
+        window.activeTabIsZoomed(),
+    );
+}
+
+fn tabBarVisibleForMode(
+    mode: Config.WindowShowTabBar,
+    tab_count: usize,
+    zoomed: bool,
+) bool {
+    return switch (mode) {
         .always => true,
-        .auto => window.tabCount() > 1,
+        .auto => tab_count > 1 or zoomed,
         .never => false,
     };
 }
@@ -1997,6 +2010,17 @@ fn invalidateTabBar(window: *const Window) void {
     if (win32.InvalidateRect(hwnd, null, win32.TRUE) != 0) {
         _ = win32.UpdateWindow(hwnd);
     }
+}
+
+fn updateTabBarViewport(window: *Window, width: i32, height: i32) void {
+    window.tab_bar_first_visible = TabBar.ensureVisible(
+        width,
+        height,
+        window.tabCount(),
+        window.activeTabIsZoomed(),
+        window.tab_bar_first_visible,
+        window.activeTabIndex(),
+    );
 }
 
 fn registerWindowClass() !void {
@@ -2294,6 +2318,14 @@ test "Win32 close tab mode selects the intended tab indexes" {
     try testing.expect(tabSelectedForClose(2, 1, .right));
 }
 
+test "Win32 automatic tab bar exposes split zoom state" {
+    try std.testing.expect(!tabBarVisibleForMode(.auto, 1, false));
+    try std.testing.expect(tabBarVisibleForMode(.auto, 2, false));
+    try std.testing.expect(tabBarVisibleForMode(.auto, 1, true));
+    try std.testing.expect(!tabBarVisibleForMode(.never, 2, true));
+    try std.testing.expect(tabBarVisibleForMode(.always, 1, false));
+}
+
 fn showWindow(surface: *Surface) void {
     const hwnd = surface.windowHwnd();
     _ = win32.ShowWindow(
@@ -2323,6 +2355,7 @@ fn getTabBarWindow(hwnd: win32.HWND) ?*Window {
 }
 
 fn paintTabBar(self: *App, window: *Window, hdc: win32.HDC, width: i32, height: i32) void {
+    updateTabBarViewport(window, width, height);
     const items = self.alloc.alloc(TabBar.Item, window.tabCount()) catch |err| {
         log.warn("failed to allocate tab bar labels: {}", .{err});
         return;
@@ -2345,6 +2378,8 @@ fn paintTabBar(self: *App, window: *Window, hdc: win32.HDC, width: i32, height: 
         windowDpi(window.hwnd),
         self.config,
         items,
+        window.activeTabIsZoomed(),
+        window.tab_bar_first_visible,
         window.tab_bar_hover,
     );
 }
@@ -2359,6 +2394,12 @@ fn handleTabBarClick(self: *App, window: *Window, x: i32, y: i32) void {
             const surface = window.focusedSurfaceAt(index) orelse return;
             const core = surface.core_surface orelse return;
             _ = self.closeTab(.{ .surface = core }, .this);
+        },
+        .scroll_previous => {
+            if (window.selectTab(.previous)) activateWindowTab(self, window);
+        },
+        .scroll_next => {
+            if (window.selectTab(.next)) activateWindowTab(self, window);
         },
         .new_tab => {
             const core = window.focusedSurface().core_surface orelse return;
@@ -2434,13 +2475,22 @@ fn updateTabBarDrag(window: *Window, x: i32, y: i32) void {
     const hwnd = window.tab_bar_hwnd orelse return;
     var client: win32.RECT = std.mem.zeroes(win32.RECT);
     if (win32.GetClientRect(hwnd, &client) == 0) return;
-    const destination = TabBar.tabAt(
+    const hit = TabBar.hitTest(
         client.right - client.left,
         client.bottom - client.top,
         window.tabCount(),
+        window.activeTabIsZoomed(),
+        window.tab_bar_first_visible,
         x,
         y,
-    ) orelse return;
+    );
+    const destination = switch (hit) {
+        .tab => |index| index,
+        .close => |index| index,
+        .scroll_previous => if (drag.index > 0) drag.index - 1 else return,
+        .scroll_next => if (drag.index + 1 < window.tabCount()) drag.index + 1 else return,
+        .none, .new_tab => return,
+    };
     if (destination == drag.index) return;
 
     const old_state = window.stateSurface();
@@ -2448,8 +2498,40 @@ fn updateTabBarDrag(window: *Window, x: i32, y: i32) void {
     drag.index = destination;
     const new_state = window.stateSurface();
     if (old_state != new_state) transferWindowState(old_state, new_state);
+    updateTabBarViewport(
+        window,
+        client.right - client.left,
+        client.bottom - client.top,
+    );
     window.tab_bar_hover = .{ .tab = destination };
     invalidateTabBar(window);
+}
+
+fn handleTabBarWheel(
+    self: *App,
+    hwnd: win32.HWND,
+    window: *Window,
+    msg: u32,
+    wparam: win32.WPARAM,
+) void {
+    var client: win32.RECT = std.mem.zeroes(win32.RECT);
+    if (win32.GetClientRect(hwnd, &client) == 0) return;
+    if (!TabBar.overflows(
+        client.right - client.left,
+        client.bottom - client.top,
+        window.tabCount(),
+        window.activeTabIsZoomed(),
+    )) return;
+
+    const delta = wheelDelta(wparam);
+    if (delta == 0) return;
+    const selection: Window.SelectTab = if (msg == win32.WM_MOUSEHWHEEL)
+        (if (delta > 0) .next else .previous)
+    else if (delta > 0)
+        .previous
+    else
+        .next;
+    if (window.selectTab(selection)) activateWindowTab(self, window);
 }
 
 fn cancelTabBarPointer(window: *Window) void {
@@ -2465,6 +2547,8 @@ fn tabBarHit(window: *const Window, x: i32, y: i32) TabBar.Hit {
         client.right - client.left,
         client.bottom - client.top,
         window.tabCount(),
+        window.activeTabIsZoomed(),
+        window.tab_bar_first_visible,
         x,
         y,
     );
@@ -2477,6 +2561,8 @@ fn updateTabBarHover(hwnd: win32.HWND, window: *Window, x: i32, y: i32) void {
         client.right - client.left,
         client.bottom - client.top,
         window.tabCount(),
+        window.activeTabIsZoomed(),
+        window.tab_bar_first_visible,
         x,
         y,
     );
@@ -3339,6 +3425,17 @@ fn tabBarWndProc(
                     window,
                     signedLowWord(bits),
                     signedHighWord(bits),
+                );
+            }
+            return 0;
+        },
+        win32.WM_MOUSEWHEEL, win32.WM_MOUSEHWHEEL => {
+            if (getTabBarWindow(hwnd)) |window| {
+                window.focusedSurface().rtApp().handleTabBarWheel(
+                    hwnd,
+                    window,
+                    msg,
+                    wparam,
                 );
             }
             return 0;

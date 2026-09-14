@@ -13,6 +13,8 @@ pub const Hit = union(enum) {
     none,
     tab: usize,
     close: usize,
+    scroll_previous,
+    scroll_next,
     new_tab,
 };
 
@@ -25,8 +27,10 @@ pub const Drag = struct {
 
 const logical_height: i32 = 32;
 const logical_max_tab_width: i32 = 200;
+const logical_min_tab_width: i32 = 112;
 const logical_close_width: i32 = 26;
 const logical_padding: i32 = 10;
+const logical_zoom_width: i32 = 58;
 
 pub fn heightForDpi(dpi: u32) i32 {
     return scale(logical_height, dpi);
@@ -36,16 +40,24 @@ pub fn hitTest(
     width: i32,
     height: i32,
     tab_count: usize,
+    zoomed: bool,
+    first_visible: usize,
     x: i32,
     y: i32,
 ) Hit {
     if (x < 0 or y < 0 or x >= width or y >= height) return .none;
 
-    const plus = plusRect(width, height, tab_count);
-    if (contains(plus, x, y)) return .new_tab;
+    const layout = barLayout(width, height, tab_count, zoomed, first_visible);
+    if (layout.previous) |rect| {
+        if (contains(rect, x, y)) return .scroll_previous;
+    }
+    if (layout.next) |rect| {
+        if (contains(rect, x, y)) return .scroll_next;
+    }
+    if (contains(layout.plus, x, y)) return .new_tab;
 
-    const index = tabAt(width, height, tab_count, x, y) orelse return .none;
-    const tab = tabRect(width, height, tab_count, index);
+    const index = tabAt(width, height, tab_count, zoomed, first_visible, x, y) orelse return .none;
+    const tab = layout.tabRect(index);
     if (contains(closeRect(tab, height), x, y)) return .{ .close = index };
     return .{ .tab = index };
 }
@@ -56,14 +68,44 @@ pub fn tabAt(
     width: i32,
     height: i32,
     tab_count: usize,
+    zoomed: bool,
+    first_visible: usize,
     x: i32,
     y: i32,
 ) ?usize {
     if (x < 0 or y < 0 or x >= width or y >= height) return null;
-    for (0..tab_count) |index| {
-        if (contains(tabRect(width, height, tab_count, index), x, y)) return index;
+    const layout = barLayout(width, height, tab_count, zoomed, first_visible);
+    const end = layout.first_visible + layout.visible_count;
+    for (layout.first_visible..end) |index| {
+        if (contains(layout.tabRect(index), x, y)) return index;
     }
     return null;
+}
+
+pub fn ensureVisible(
+    width: i32,
+    height: i32,
+    tab_count: usize,
+    zoomed: bool,
+    first_visible: usize,
+    active: usize,
+) usize {
+    if (tab_count == 0) return 0;
+    const layout = barLayout(width, height, tab_count, zoomed, first_visible);
+    if (active < layout.first_visible) return active;
+    if (active >= layout.first_visible + layout.visible_count) {
+        return active + 1 - layout.visible_count;
+    }
+    return layout.first_visible;
+}
+
+pub fn overflows(
+    width: i32,
+    height: i32,
+    tab_count: usize,
+    zoomed: bool,
+) bool {
+    return barLayout(width, height, tab_count, zoomed, 0).previous != null;
 }
 
 pub fn dragThresholdExceeded(
@@ -86,6 +128,8 @@ pub fn paint(
     dpi: u32,
     config: *const Config,
     items: []const Item,
+    zoomed: bool,
+    first_visible: usize,
     hover: Hit,
 ) void {
     const background = config.background;
@@ -105,8 +149,10 @@ pub fn paint(
         _ = win32.SelectObject(hdc, value);
     };
 
-    for (items, 0..) |item, index| {
-        const rect = tabRect(width, height, items.len, index);
+    const layout = barLayout(width, height, items.len, zoomed, first_visible);
+    const visible_end = layout.first_visible + layout.visible_count;
+    for (items[layout.first_visible..visible_end], layout.first_visible..) |item, index| {
+        const rect = layout.tabRect(index);
         const tab_hovered = switch (hover) {
             .tab => |value| value == index,
             .close => |value| value == index,
@@ -166,7 +212,30 @@ pub fn paint(
         }
     }
 
-    var plus = plusRect(width, height, items.len);
+    if (layout.previous) |value| {
+        var previous = value;
+        fill(hdc, previous, colorRef(if (hover == .scroll_previous) hovered else inactive));
+        drawUtf8(
+            alloc,
+            hdc,
+            "<",
+            &previous,
+            draw_center | draw_vcenter | draw_singleline | draw_noprefix,
+        );
+    }
+    if (layout.next) |value| {
+        var next = value;
+        fill(hdc, next, colorRef(if (hover == .scroll_next) hovered else inactive));
+        drawUtf8(
+            alloc,
+            hdc,
+            ">",
+            &next,
+            draw_center | draw_vcenter | draw_singleline | draw_noprefix,
+        );
+    }
+
+    var plus = layout.plus;
     fill(hdc, plus, colorRef(if (hover == .new_tab) hovered else inactive));
     drawUtf8(
         alloc,
@@ -176,6 +245,24 @@ pub fn paint(
         draw_center | draw_vcenter | draw_singleline | draw_noprefix,
     );
 
+    if (layout.status) |status| {
+        var badge = status;
+        badge.left += scale(5, dpi);
+        badge.top += scale(5, dpi);
+        badge.right -= scale(5, dpi);
+        badge.bottom -= scale(5, dpi);
+        fill(hdc, badge, colorRef(active));
+        _ = win32.SetTextColor(hdc, colorRef(accent));
+        drawUtf8(
+            alloc,
+            hdc,
+            "ZOOM",
+            &badge,
+            draw_center | draw_vcenter | draw_singleline | draw_noprefix,
+        );
+        _ = win32.SetTextColor(hdc, colorRef(foreground));
+    }
+
     fill(
         hdc,
         .{ .left = 0, .top = height - 1, .right = width, .bottom = height },
@@ -183,31 +270,144 @@ pub fn paint(
     );
 }
 
-fn tabRect(width: i32, height: i32, count: usize, index: usize) win32.RECT {
-    if (count == 0) return std.mem.zeroes(win32.RECT);
-    const count_i: i64 = @intCast(count);
-    const available: i64 = @max(0, width - height);
-    const scaled_max = @divTrunc(
-        @as(i64, logical_max_tab_width) * @as(i64, height),
-        logical_height,
+const BarLayout = struct {
+    height: i32,
+    tab_left: i32,
+    tab_right: i32,
+    first_visible: usize,
+    visible_count: usize,
+    previous: ?win32.RECT,
+    next: ?win32.RECT,
+    plus: win32.RECT,
+    status: ?win32.RECT,
+
+    fn tabRect(self: BarLayout, index: usize) win32.RECT {
+        if (self.visible_count == 0 or index < self.first_visible or
+            index >= self.first_visible + self.visible_count)
+        {
+            return std.mem.zeroes(win32.RECT);
+        }
+        const relative = index - self.first_visible;
+        const count: i64 = @intCast(self.visible_count);
+        const extent: i64 = @max(0, self.tab_right - self.tab_left);
+        return .{
+            .left = self.tab_left + @as(i32, @intCast(@divTrunc(
+                extent * @as(i64, @intCast(relative)),
+                count,
+            ))),
+            .top = 0,
+            .right = self.tab_left + @as(i32, @intCast(@divTrunc(
+                extent * @as(i64, @intCast(relative + 1)),
+                count,
+            ))),
+            .bottom = self.height,
+        };
+    }
+};
+
+fn barLayout(
+    width: i32,
+    height: i32,
+    count: usize,
+    zoomed: bool,
+    requested_first: usize,
+) BarLayout {
+    const safe_width = @max(0, width);
+    const safe_height = @max(0, height);
+    const status_width = zoomStatusWidth(safe_width, safe_height, count, zoomed);
+    const content_right = @max(0, safe_width - status_width);
+    const plus_width = @min(safe_height, content_right);
+    const no_overflow_extent = @max(0, content_right - plus_width);
+    const minimum_tab_width = @max(
+        1,
+        @divTrunc(logical_min_tab_width * safe_height, logical_height),
     );
-    const total = @min(available, scaled_max * count_i);
-    return .{
-        .left = @intCast(@divTrunc(total * @as(i64, @intCast(index)), count_i)),
+    const overflow = count > 0 and
+        @as(i64, @intCast(count)) * minimum_tab_width > no_overflow_extent;
+
+    const status: ?win32.RECT = if (status_width > 0) .{
+        .left = safe_width - status_width,
         .top = 0,
-        .right = @intCast(@divTrunc(total * @as(i64, @intCast(index + 1)), count_i)),
-        .bottom = height,
+        .right = safe_width,
+        .bottom = safe_height,
+    } else null;
+
+    if (!overflow) {
+        const scaled_max = @divTrunc(
+            @as(i64, logical_max_tab_width) * safe_height,
+            logical_height,
+        );
+        const total: i32 = @intCast(@min(
+            @as(i64, no_overflow_extent),
+            scaled_max * @as(i64, @intCast(count)),
+        ));
+        return .{
+            .height = safe_height,
+            .tab_left = 0,
+            .tab_right = total,
+            .first_visible = 0,
+            .visible_count = count,
+            .previous = null,
+            .next = null,
+            .plus = .{
+                .left = total,
+                .top = 0,
+                .right = @min(content_right, total + plus_width),
+                .bottom = safe_height,
+            },
+            .status = status,
+        };
+    }
+
+    const control_width = if (content_right > 0)
+        @min(safe_height, @max(1, @divTrunc(content_right, 4)))
+    else
+        0;
+    const plus: win32.RECT = .{
+        .left = content_right - control_width,
+        .top = 0,
+        .right = content_right,
+        .bottom = safe_height,
+    };
+    const next: win32.RECT = .{
+        .left = plus.left - control_width,
+        .top = 0,
+        .right = plus.left,
+        .bottom = safe_height,
+    };
+    const tab_left = control_width;
+    const tab_right = @max(tab_left, next.left);
+    const tab_extent = @max(0, tab_right - tab_left);
+    const capacity: usize = @min(
+        count,
+        @as(usize, @intCast(@max(1, @divTrunc(tab_extent, minimum_tab_width)))),
+    );
+    const max_first = count - capacity;
+    const first = @min(requested_first, max_first);
+    return .{
+        .height = safe_height,
+        .tab_left = tab_left,
+        .tab_right = tab_right,
+        .first_visible = first,
+        .visible_count = capacity,
+        .previous = .{
+            .left = 0,
+            .top = 0,
+            .right = control_width,
+            .bottom = safe_height,
+        },
+        .next = next,
+        .plus = plus,
+        .status = status,
     };
 }
 
-fn plusRect(width: i32, height: i32, count: usize) win32.RECT {
-    const left = if (count == 0) 0 else tabRect(width, height, count, count - 1).right;
-    return .{
-        .left = left,
-        .top = 0,
-        .right = @min(width, left + height),
-        .bottom = height,
-    };
+fn zoomStatusWidth(width: i32, height: i32, count: usize, zoomed: bool) i32 {
+    if (!zoomed) return 0;
+    const minimum_tabs = if (count == 0) 0 else height;
+    const available = @max(0, width - height - minimum_tabs);
+    const desired = @divTrunc(logical_zoom_width * height, logical_height);
+    return @min(available, desired);
 }
 
 fn closeRect(tab: win32.RECT, height: i32) win32.RECT {
@@ -284,20 +484,51 @@ test "Win32 tab bar hit testing distinguishes labels and buttons" {
     const width = 800;
     const height = 32;
 
-    try std.testing.expectEqual(Hit{ .tab = 0 }, hitTest(width, height, 3, 10, 10));
-    try std.testing.expectEqual(Hit{ .close = 0 }, hitTest(width, height, 3, 190, 10));
-    try std.testing.expectEqual(Hit.new_tab, hitTest(width, height, 3, 615, 10));
-    try std.testing.expectEqual(Hit.none, hitTest(width, height, 3, 700, 10));
+    try std.testing.expectEqual(Hit{ .tab = 0 }, hitTest(width, height, 3, false, 0, 10, 10));
+    try std.testing.expectEqual(Hit{ .close = 0 }, hitTest(width, height, 3, false, 0, 190, 10));
+    try std.testing.expectEqual(Hit.new_tab, hitTest(width, height, 3, false, 0, 615, 10));
+    try std.testing.expectEqual(Hit.none, hitTest(width, height, 3, false, 0, 700, 10));
 }
 
 test "Win32 tab bar exposes the full tab as a drag target" {
     const width = 800;
     const height = 32;
 
-    try std.testing.expectEqual(@as(?usize, 0), tabAt(width, height, 3, 190, 10));
-    try std.testing.expectEqual(@as(?usize, 2), tabAt(width, height, 3, 410, 10));
-    try std.testing.expectEqual(@as(?usize, null), tabAt(width, height, 3, 615, 10));
-    try std.testing.expectEqual(@as(?usize, null), tabAt(width, height, 3, 10, 40));
+    try std.testing.expectEqual(@as(?usize, 0), tabAt(width, height, 3, false, 0, 190, 10));
+    try std.testing.expectEqual(@as(?usize, 2), tabAt(width, height, 3, false, 0, 410, 10));
+    try std.testing.expectEqual(@as(?usize, null), tabAt(width, height, 3, false, 0, 615, 10));
+    try std.testing.expectEqual(@as(?usize, null), tabAt(width, height, 3, false, 0, 10, 40));
+}
+
+test "Win32 tab bar reserves space for the zoom status" {
+    const width = 800;
+    const height = 32;
+
+    const layout = barLayout(width, height, 3, true, 0);
+    const status = layout.status.?;
+    try std.testing.expectEqual(@as(i32, 742), status.left);
+    try std.testing.expectEqual(Hit.none, hitTest(width, height, 3, true, 0, 770, 10));
+    try std.testing.expectEqual(Hit.new_tab, hitTest(width, height, 3, true, 0, 610, 10));
+    try std.testing.expect(layout.plus.right <= status.left);
+    try std.testing.expect(barLayout(width, height, 3, false, 0).status == null);
+}
+
+test "Win32 tab bar overflow keeps the active tab reachable" {
+    const width = 800;
+    const height = 32;
+    const count = 8;
+
+    const first = ensureVisible(width, height, count, false, 0, 7);
+    try std.testing.expect(!overflows(width, height, 3, false));
+    try std.testing.expect(overflows(width, height, count, false));
+    try std.testing.expectEqual(@as(usize, 2), first);
+    const layout = barLayout(width, height, count, false, first);
+    try std.testing.expectEqual(@as(usize, 6), layout.visible_count);
+    try std.testing.expectEqual(Hit.scroll_previous, hitTest(width, height, count, false, first, 10, 10));
+    try std.testing.expectEqual(Hit.scroll_next, hitTest(width, height, count, false, first, 750, 10));
+    try std.testing.expectEqual(Hit.new_tab, hitTest(width, height, count, false, first, 780, 10));
+    try std.testing.expectEqual(@as(?usize, 2), tabAt(width, height, count, false, first, 40, 10));
+    try std.testing.expectEqual(@as(?usize, 7), tabAt(width, height, count, false, first, 700, 10));
 }
 
 test "Win32 tab bar drag starts only after the configured threshold" {

@@ -38,6 +38,7 @@ tab_bar_hover: TabBar.Hit = .none,
 tab_bar_tracking_mouse_leave: bool = false,
 tab_bar_pressed: TabBar.Hit = .none,
 tab_bar_drag: ?TabBar.Drag = null,
+tab_bar_first_visible: usize = 0,
 split_divider_hover: ?Divider = null,
 split_divider_drag: ?SplitDrag = null,
 tabs: std.ArrayListUnmanaged(*Tab) = .empty,
@@ -370,6 +371,10 @@ pub fn equalizeSplits(self: *Window) bool {
 pub fn toggleSplitZoom(self: *Window, surface: *Surface) bool {
     const tab = self.tabForSurface(surface) orelse return false;
     return tab.toggleSplitZoom(surface);
+}
+
+pub fn activeTabIsZoomed(self: *const Window) bool {
+    return self.active_tab.isZoomed();
 }
 
 pub fn updateZoomForNavigation(
