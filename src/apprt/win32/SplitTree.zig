@@ -62,21 +62,22 @@ pub fn SplitTree(comptime View: type) type {
 
         const FindResult = struct {
             slot: **Node,
+            parent_slot: ?**Node,
         };
 
         fn find(self: *Self, view: *View) ?FindResult {
-            return findIn(&self.root, view);
+            return findIn(&self.root, null, view);
         }
 
-        fn findIn(slot: **Node, view: *View) ?FindResult {
+        fn findIn(slot: **Node, parent_slot: ?**Node, view: *View) ?FindResult {
             const node = slot.*;
             return switch (node.*) {
                 .leaf => |candidate| if (candidate == view)
-                    .{ .slot = slot }
+                    .{ .slot = slot, .parent_slot = parent_slot }
                 else
                     null,
-                .split => |*branch| findIn(&branch.children[0], view) orelse
-                    findIn(&branch.children[1], view),
+                .split => |*branch| findIn(&branch.children[0], slot, view) orelse
+                    findIn(&branch.children[1], slot, view),
             };
         }
 
@@ -108,6 +109,37 @@ pub fn SplitTree(comptime View: type) type {
             } };
 
             result.slot.* = split_node;
+        }
+
+        /// Remove a view from a tree that contains at least two leaves. The
+        /// sibling branch is promoted and one of its leaves is returned as a
+        /// deterministic focus candidate.
+        pub fn remove(
+            self: *Self,
+            alloc: Allocator,
+            view: *View,
+        ) error{ ViewNotFound, LastView }!*View {
+            const result = self.find(view) orelse return error.ViewNotFound;
+            const parent_slot = result.parent_slot orelse return error.LastView;
+            const parent_node = parent_slot.*;
+            const branch = &parent_node.split;
+            const leaf_node = result.slot.*;
+            const sibling = if (branch.children[0] == leaf_node)
+                branch.children[1]
+            else
+                branch.children[0];
+
+            parent_slot.* = sibling;
+            alloc.destroy(leaf_node);
+            alloc.destroy(parent_node);
+            return firstLeaf(sibling);
+        }
+
+        fn firstLeaf(node: *Node) *View {
+            return switch (node.*) {
+                .leaf => |view| view,
+                .split => |branch| firstLeaf(branch.children[0]),
+            };
         }
 
         /// Collect leaf rectangles in visual order. The caller owns native
@@ -295,4 +327,35 @@ test "Win32 split rejects an unknown existing view" {
         error.ViewNotFound,
         tree.split(testing.allocator, &missing, &new_view, .vertical, true),
     );
+}
+
+test "Win32 split removal promotes the sibling branch" {
+    const testing = std.testing;
+    const View = struct { id: u8 };
+    const Tree = SplitTree(View);
+
+    var first: View = .{ .id = 1 };
+    var second: View = .{ .id = 2 };
+    var third: View = .{ .id = 3 };
+
+    var tree = try Tree.init(testing.allocator, &first);
+    defer tree.deinit(testing.allocator);
+    try tree.split(testing.allocator, &first, &second, .horizontal, true);
+    try tree.split(testing.allocator, &second, &third, .vertical, true);
+
+    try testing.expectEqual(&second, try tree.remove(testing.allocator, &third));
+
+    var output: [2]Tree.LeafRect = undefined;
+    const count = tree.layout(
+        .{ .x = 0, .y = 0, .width = 100, .height = 40 },
+        2,
+        &output,
+    );
+    try testing.expectEqual(@as(usize, 2), count);
+    try testing.expectEqual(&first, output[0].view);
+    try testing.expectEqual(&second, output[1].view);
+
+    try testing.expectEqual(&first, try tree.remove(testing.allocator, &second));
+    try testing.expectError(error.LastView, tree.remove(testing.allocator, &first));
+    try testing.expectError(error.ViewNotFound, tree.remove(testing.allocator, &third));
 }

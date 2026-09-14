@@ -23,9 +23,10 @@ const Backdrop = @import("Backdrop.zig");
 const DirectComposition = @import("DirectComposition.zig");
 const Surface = @import("Surface.zig");
 const Titlebar = @import("Titlebar.zig");
+const Window = @import("Window.zig");
 
 const log = std.log.scoped(.win32);
-const WindowList = std.ArrayListUnmanaged(*Surface);
+const WindowList = std.ArrayListUnmanaged(*Window);
 const window_class_name = win32.L("GhosttyWindow");
 const default_window_title = win32.L("Ghostty");
 
@@ -98,27 +99,24 @@ pub fn run(self: *App) !void {
 }
 
 pub fn terminate(self: *App) void {
-    while (self.windows.pop()) |surface| {
-        surface.deinit();
-        if (destroyWindow(surface)) self.alloc.destroy(surface);
+    while (self.windows.pop()) |window| {
+        for (window.surfaces.items) |surface| {
+            surface.deinit();
+            if (win32.DestroyWindow(surface.hwnd) == 0) {
+                log.warn("DestroyWindow(surface) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            }
+        }
+        if (win32.DestroyWindow(window.hwnd) == 0) {
+            log.warn("DestroyWindow(window) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        }
+        for (window.surfaces.items) |surface| self.alloc.destroy(surface);
+        window.deinit(self.alloc);
+        self.alloc.destroy(window);
     }
     self.windows.deinit(self.alloc);
     self.backdrop_runtime.deinit();
     self.config.deinit();
     self.alloc.destroy(self.config);
-}
-
-fn destroyWindow(surface: *Surface) bool {
-    var success = true;
-    if (win32.DestroyWindow(surface.hwnd) == 0) {
-        log.warn("DestroyWindow(surface) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        success = false;
-    }
-    if (win32.DestroyWindow(surface.windowHwnd()) == 0) {
-        log.warn("DestroyWindow(window) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        success = false;
-    }
-    return success;
 }
 
 pub fn wakeup(self: *App) void {
@@ -128,7 +126,12 @@ pub fn wakeup(self: *App) void {
 }
 
 pub fn requestSurfaceClose(_: *App, surface: *Surface, confirm: bool) void {
-    if (win32.PostMessageW(surface.windowHwnd(), WM_CLOSE_SURFACE, @intFromBool(confirm), 0) == 0) {
+    if (win32.PostMessageW(
+        surface.windowHwnd(),
+        WM_CLOSE_SURFACE,
+        @intFromBool(confirm),
+        @bitCast(@intFromPtr(surface)),
+    ) == 0) {
         log.warn("PostMessage(WM_CLOSE_SURFACE) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
     }
 }
@@ -136,20 +139,77 @@ pub fn requestSurfaceClose(_: *App, surface: *Surface, confirm: bool) void {
 fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
     if (confirm and !confirmSurfaceClose(surface.windowHwnd())) return;
 
-    // Keep the HWND and its DC alive until the renderer has stopped and the
-    // surface has released all native rendering resources.
+    const window = self.windowForSurface(surface) orelse {
+        log.warn("close requested for an unowned surface", .{});
+        return;
+    };
+    const close_window = window.surfaces.items.len == 1;
+    const was_state_surface = window.surfaces.items[0] == surface;
+    const next_focus = if (close_window)
+        null
+    else
+        window.removeSurface(self.alloc, surface) catch |err| {
+            log.warn("failed to remove surface from its window: {}", .{err});
+            return;
+        };
+
+    if (!close_window and was_state_surface) {
+        transferWindowState(surface, window.surfaces.items[0]);
+    }
+
+    if (next_focus) |focus| {
+        _ = win32.SetWindowLongPtrW(
+            window.hwnd,
+            win32.GWLP_USERDATA,
+            @bitCast(@intFromPtr(focus)),
+        );
+    }
+
+    // Keep the child HWND and its DC alive until the renderer has stopped and
+    // the surface has released all native rendering resources.
     surface.deinit();
-    if (!destroyWindow(surface)) return;
-    if (self.removeWindow(surface)) self.alloc.destroy(surface);
+    if (win32.DestroyWindow(surface.hwnd) == 0) {
+        log.warn("DestroyWindow(surface) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+    }
+
+    if (close_window) {
+        if (win32.DestroyWindow(window.hwnd) == 0) {
+            log.warn("DestroyWindow(window) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        }
+        self.alloc.destroy(surface);
+        std.debug.assert(self.removeWindow(window));
+        window.deinit(self.alloc);
+        self.alloc.destroy(window);
+        return;
+    }
+
+    const focus = next_focus.?;
+    self.alloc.destroy(surface);
+    _ = win32.SetFocus(focus.hwnd);
+    self.layoutWindow(window);
 }
 
-fn removeWindow(self: *App, surface: *Surface) bool {
+fn removeWindow(self: *App, window: *Window) bool {
     for (self.windows.items, 0..) |candidate, i| {
-        if (candidate != surface) continue;
+        if (candidate != window) continue;
         _ = self.windows.swapRemove(i);
         return true;
     }
     return false;
+}
+
+fn windowForSurface(self: *App, surface: *const Surface) ?*Window {
+    for (self.windows.items) |window| {
+        if (window.contains(surface)) return window;
+    }
+    return null;
+}
+
+fn windowForHwnd(self: *App, hwnd: win32.HWND) ?*Window {
+    for (self.windows.items) |window| {
+        if (window.hwnd == hwnd) return window;
+    }
+    return null;
 }
 
 fn confirmSurfaceClose(hwnd: win32.HWND) bool {
@@ -195,7 +255,8 @@ pub fn performAction(
             try self.createWindow(.{});
             return true;
         },
-        .close_window => return closeWindow(target),
+        .new_split => return try self.newSplit(target, value),
+        .close_window => return self.closeWindow(target),
         .close_all_windows => return self.closeAllWindows(),
         .goto_window => return self.gotoWindow(target, value),
         .present_terminal => return presentTerminal(target),
@@ -215,12 +276,13 @@ pub fn performAction(
         .config_change => {
             switch (target) {
                 .surface => |core| {
+                    const state = windowStateSurface(core.rt_surface);
                     const decorated = value.config.@"window-decoration" != .none;
-                    if (!setWindowDecorations(core.rt_surface, decorated)) {
+                    if (!setWindowDecorations(state, decorated)) {
                         log.warn("failed to apply window-decoration setting", .{});
                     }
-                    Titlebar.apply(core.rt_surface.windowHwnd(), value.config);
-                    updateWindowBackgroundBlur(core.rt_surface, value.config);
+                    Titlebar.apply(state.windowHwnd(), value.config);
+                    updateWindowBackgroundBlur(state, value.config);
                 },
                 .app => {
                     const config = try value.config.clone(self.alloc);
@@ -234,13 +296,31 @@ pub fn performAction(
     }
 }
 
-fn closeWindow(target: apprt.Target) bool {
+fn closeWindow(self: *App, target: apprt.Target) bool {
     const surface = targetSurface(target) orelse {
         log.warn("close_window targeted the application", .{});
         return false;
     };
-    const core = surface.core_surface orelse return false;
-    core.close();
+    const window = self.windowForSurface(surface) orelse {
+        log.warn("close_window targeted an unowned surface", .{});
+        return false;
+    };
+    return self.closeOwnedWindow(window);
+}
+
+fn closeOwnedWindow(self: *App, window: *Window) bool {
+    for (window.surfaces.items) |surface| {
+        const core = surface.core_surface orelse continue;
+        if (!core.needsConfirmQuit()) continue;
+        if (!confirmSurfaceClose(window.hwnd)) return true;
+        break;
+    }
+
+    // Post every close before processing any of them so the surface list is
+    // stable throughout this loop.
+    for (window.surfaces.items) |surface| {
+        self.requestSurfaceClose(surface, false);
+    }
     return true;
 }
 
@@ -250,12 +330,15 @@ fn closeAllWindows(self: *App) bool {
     // Match the native app behavior: ask once for the complete operation,
     // rather than showing one confirmation for every running terminal.
     var confirm_hwnd: ?win32.HWND = null;
-    for (self.windows.items) |surface| {
-        const core = surface.core_surface orelse continue;
-        if (core.needsConfirmQuit()) {
-            confirm_hwnd = surface.windowHwnd();
-            break;
+    for (self.windows.items) |window| {
+        for (window.surfaces.items) |surface| {
+            const core = surface.core_surface orelse continue;
+            if (core.needsConfirmQuit()) {
+                confirm_hwnd = window.hwnd;
+                break;
+            }
         }
+        if (confirm_hwnd != null) break;
     }
     if (confirm_hwnd) |hwnd| {
         if (!confirmAllWindowsClose(hwnd)) return true;
@@ -263,8 +346,10 @@ fn closeAllWindows(self: *App) bool {
 
     // Closing is posted to the message queue. The list therefore remains
     // stable throughout this loop and each close follows normal teardown.
-    for (self.windows.items) |surface| {
-        self.requestSurfaceClose(surface, false);
+    for (self.windows.items) |window| {
+        for (window.surfaces.items) |surface| {
+            self.requestSurfaceClose(surface, false);
+        }
     }
     return true;
 }
@@ -292,8 +377,9 @@ fn presentTerminal(target: apprt.Target) bool {
 
 fn presentSurface(surface: *Surface) bool {
     const hwnd = surface.windowHwnd();
-    surface.hidden_by_visibility_toggle = false;
-    surface.focused_before_visibility_toggle = false;
+    const state = windowStateSurface(surface);
+    state.hidden_by_visibility_toggle = false;
+    state.focused_before_visibility_toggle = false;
     if (win32.IsIconic(hwnd) != 0) {
         _ = win32.ShowWindow(hwnd, win32.SW_RESTORE);
     } else if (win32.IsWindowVisible(hwnd) == 0) {
@@ -310,8 +396,9 @@ fn presentSurface(surface: *Surface) bool {
 
 fn toggleVisibility(self: *App) bool {
     var restore_any = false;
-    for (self.windows.items) |surface| {
-        if (surface.hidden_by_visibility_toggle) {
+    for (self.windows.items) |window| {
+        const state = window.surfaces.items[0];
+        if (state.hidden_by_visibility_toggle) {
             restore_any = true;
             break;
         }
@@ -320,13 +407,14 @@ fn toggleVisibility(self: *App) bool {
     if (restore_any) {
         var first: ?*Surface = null;
         var focus: ?*Surface = null;
-        for (self.windows.items) |surface| {
-            if (!surface.hidden_by_visibility_toggle) continue;
-            surface.hidden_by_visibility_toggle = false;
-            _ = win32.ShowWindow(surface.windowHwnd(), win32.SW_SHOWNA);
-            if (first == null) first = surface;
-            if (surface.focused_before_visibility_toggle) focus = surface;
-            surface.focused_before_visibility_toggle = false;
+        for (self.windows.items) |window| {
+            const state = window.surfaces.items[0];
+            if (!state.hidden_by_visibility_toggle) continue;
+            state.hidden_by_visibility_toggle = false;
+            _ = win32.ShowWindow(window.hwnd, win32.SW_SHOWNA);
+            if (first == null) first = window.focused_surface;
+            if (state.focused_before_visibility_toggle) focus = window.focused_surface;
+            state.focused_before_visibility_toggle = false;
         }
         if (focus orelse first) |surface| _ = presentSurface(surface);
         return true;
@@ -334,22 +422,27 @@ fn toggleVisibility(self: *App) bool {
 
     const focused = self.core_app.focusedSurface();
     if (focused) |core| {
-        for (self.windows.items) |surface| {
-            if (surface.core_surface != core) continue;
-            if (surface.fullscreen) return true;
-            break;
+        for (self.windows.items) |window| {
+            for (window.surfaces.items) |surface| {
+                if (surface.core_surface != core) continue;
+                if (window.surfaces.items[0].fullscreen) return true;
+                break;
+            }
         }
     }
 
     var hidden_any = false;
-    for (self.windows.items) |surface| {
-        if (win32.IsWindowVisible(surface.windowHwnd()) == 0) continue;
-        surface.hidden_by_visibility_toggle = true;
-        surface.focused_before_visibility_toggle = if (focused) |core|
-            surface.core_surface == core
-        else
-            false;
-        _ = win32.ShowWindow(surface.windowHwnd(), win32.SW_HIDE);
+    for (self.windows.items) |window| {
+        const state = window.surfaces.items[0];
+        if (win32.IsWindowVisible(window.hwnd) == 0) continue;
+        state.hidden_by_visibility_toggle = true;
+        state.focused_before_visibility_toggle = if (focused) |core| focused_in_window: {
+            for (window.surfaces.items) |candidate| {
+                if (candidate.core_surface == core) break :focused_in_window true;
+            }
+            break :focused_in_window false;
+        } else false;
+        _ = win32.ShowWindow(window.hwnd, win32.SW_HIDE);
         hidden_any = true;
     }
     return hidden_any;
@@ -366,12 +459,10 @@ fn gotoWindow(
     };
     if (self.windows.items.len < 2) return false;
 
+    const current_window = self.windowForSurface(current) orelse return false;
     var start: usize = 0;
-    for (self.windows.items, 0..) |surface, i| {
-        if (surface == current) {
-            start = i;
-            break;
-        }
+    for (self.windows.items, 0..) |window, i| {
+        if (window == current_window) start = i;
     }
 
     var offset: usize = 1;
@@ -381,9 +472,9 @@ fn gotoWindow(
             .previous => (start + self.windows.items.len - offset) % self.windows.items.len,
         };
         const candidate = self.windows.items[index];
-        if (win32.IsWindowVisible(candidate.windowHwnd()) == 0) continue;
-        if (win32.IsIconic(candidate.windowHwnd()) != 0) continue;
-        return presentSurface(candidate);
+        if (win32.IsWindowVisible(candidate.hwnd) == 0) continue;
+        if (win32.IsIconic(candidate.hwnd) != 0) continue;
+        return presentSurface(candidate.focused_surface);
     }
     return false;
 }
@@ -395,11 +486,41 @@ fn targetSurface(target: apprt.Target) ?*Surface {
     };
 }
 
+/// Window-level state is kept on the first surface while Surface remains the
+/// runtime-facing apprt type. All splits in a window must resolve through the
+/// same state holder so actions don't depend on which child currently has
+/// focus.
+fn windowStateSurface(surface: *Surface) *Surface {
+    const app = surface.rtApp();
+    const window = app.windowForSurface(surface) orelse return surface;
+    return window.surfaces.items[0];
+}
+
+fn transferWindowState(from: *Surface, to: *Surface) void {
+    std.debug.assert(from.windowHwnd() == to.windowHwnd());
+    std.debug.assert(to.background_blur == null);
+
+    to.background_blur = from.background_blur;
+    from.background_blur = null;
+    to.initial_client_size = from.initial_client_size;
+    to.shown = from.shown;
+    to.default_maximized = from.default_maximized;
+    to.default_fullscreen = from.default_fullscreen;
+    to.fullscreen = from.fullscreen;
+    to.windowed_style = from.windowed_style;
+    to.windowed_placement = from.windowed_placement;
+    to.decorated = from.decorated;
+    to.always_on_top = from.always_on_top;
+    to.hidden_by_visibility_toggle = from.hidden_by_visibility_toggle;
+    to.focused_before_visibility_toggle = from.focused_before_visibility_toggle;
+}
+
 fn toggleMaximize(target: apprt.Target) bool {
-    const surface = targetSurface(target) orelse {
+    const target_surface = targetSurface(target) orelse {
         log.warn("toggle_maximize targeted the application", .{});
         return false;
     };
+    const surface = windowStateSurface(target_surface);
     if (surface.fullscreen) return true;
     const hwnd = surface.windowHwnd();
 
@@ -418,10 +539,11 @@ fn toggleFullscreen(
     mode: apprt.action.Fullscreen,
 ) bool {
     _ = mode;
-    const surface = targetSurface(target) orelse {
+    const target_surface = targetSurface(target) orelse {
         log.warn("toggle_fullscreen targeted the application", .{});
         return false;
     };
+    const surface = windowStateSurface(target_surface);
     return setFullscreen(surface, !surface.fullscreen);
 }
 
@@ -518,10 +640,11 @@ fn leaveFullscreen(surface: *Surface) bool {
 }
 
 fn toggleWindowDecorations(target: apprt.Target) bool {
-    const surface = targetSurface(target) orelse {
+    const target_surface = targetSurface(target) orelse {
         log.warn("toggle_window_decorations targeted the application", .{});
         return false;
     };
+    const surface = windowStateSurface(target_surface);
     return setWindowDecorations(surface, !surface.decorated);
 }
 
@@ -604,10 +727,11 @@ fn floatWindow(
     target: apprt.Target,
     mode: apprt.action.FloatWindow,
 ) bool {
-    const surface = targetSurface(target) orelse {
+    const target_surface = targetSurface(target) orelse {
         log.warn("float_window targeted the application", .{});
         return false;
     };
+    const surface = windowStateSurface(target_surface);
     const enabled = switch (mode) {
         .on => true,
         .off => false,
@@ -640,11 +764,14 @@ fn setInitialSize(
     target: apprt.Target,
     value: apprt.action.InitialSize,
 ) bool {
-    const surface = targetSurface(target) orelse {
+    const target_surface = targetSurface(target) orelse {
         log.warn("initial_size targeted the application", .{});
         return false;
     };
     if (value.width == 0 or value.height == 0) return false;
+
+    const surface = windowStateSurface(target_surface);
+    if (surface != target_surface) return true;
 
     surface.initial_client_size = value;
     if (!surface.shown) return resizeClientArea(surface, value);
@@ -652,10 +779,11 @@ fn setInitialSize(
 }
 
 fn resetWindowSize(target: apprt.Target) bool {
-    const surface = targetSurface(target) orelse {
+    const target_surface = targetSurface(target) orelse {
         log.warn("reset_window_size targeted the application", .{});
         return false;
     };
+    const surface = windowStateSurface(target_surface);
     if (surface.fullscreen) return false;
 
     if (surface.default_maximized) {
@@ -1027,7 +1155,7 @@ fn showConfigDiagnostics(
 ) void {
     const hwnd = switch (target) {
         .app => if (self.windows.items.len > 0)
-            self.windows.items[0].windowHwnd()
+            self.windows.items[0].hwnd
         else
             return,
         .surface => |surface| surface.rt_surface.windowHwnd(),
@@ -1147,7 +1275,7 @@ fn actionParentWindow(self: *App, target: apprt.Target) ?win32.HWND {
     return switch (target) {
         .surface => |surface| surface.rt_surface.windowHwnd(),
         .app => if (self.windows.items.len > 0)
-            self.windows.items[0].windowHwnd()
+            self.windows.items[0].hwnd
         else
             null,
     };
@@ -1221,6 +1349,7 @@ fn initCoreSurface(
     self: *App,
     surface: *Surface,
     opts: WindowOptions,
+    context: apprt.surface.NewSurfaceContext,
 ) !void {
     const alloc = self.alloc;
 
@@ -1233,7 +1362,7 @@ fn initCoreSurface(
     var config = try apprt.surface.newConfig(
         self.core_app,
         self.config,
-        .window,
+        context,
     );
     defer config.deinit();
 
@@ -1246,15 +1375,17 @@ fn initCoreSurface(
     if (opts.title) |title| {
         config.title = try config.arenaAlloc().dupeZ(u8, title);
     }
-    surface.default_maximized = config.maximize;
-    surface.default_fullscreen = config.fullscreen != .false;
-    if (!setWindowDecorations(
-        surface,
-        config.@"window-decoration" != .none,
-    )) {
-        log.warn("failed to apply initial window-decoration setting", .{});
+    if (context == .window) {
+        surface.default_maximized = config.maximize;
+        surface.default_fullscreen = config.fullscreen != .false;
+        if (!setWindowDecorations(
+            surface,
+            config.@"window-decoration" != .none,
+        )) {
+            log.warn("failed to apply initial window-decoration setting", .{});
+        }
+        Titlebar.apply(surface.windowHwnd(), &config);
     }
-    Titlebar.apply(surface.windowHwnd(), &config);
     core_surface.init(
         alloc,
         &config,
@@ -1267,13 +1398,16 @@ fn initCoreSurface(
     };
 
     surface.core_surface = core_surface;
-    updateWindowBackgroundBlur(surface, &config);
+    if (context == .window) updateWindowBackgroundBlur(surface, &config);
     log.info("core surface initialized successfully", .{});
 }
 
 fn createWindow(self: *App, opts: WindowOptions) !void {
     const surface = try self.alloc.create(Surface);
     errdefer self.alloc.destroy(surface);
+
+    const window = try self.alloc.create(Window);
+    errdefer self.alloc.destroy(window);
 
     const window_hwnd = try createNativeWindow();
     errdefer _ = win32.DestroyWindow(window_hwnd);
@@ -1283,6 +1417,9 @@ fn createWindow(self: *App, opts: WindowOptions) !void {
 
     try surface.init(self, window_hwnd, surface_hwnd);
     errdefer surface.deinit();
+
+    window.* = try Window.init(self.alloc, window_hwnd, surface);
+    errdefer window.deinit(self.alloc);
 
     _ = win32.SetWindowLongPtrW(
         window_hwnd,
@@ -1295,11 +1432,106 @@ fn createWindow(self: *App, opts: WindowOptions) !void {
         @bitCast(@intFromPtr(surface)),
     );
 
-    try self.windows.append(self.alloc, surface);
-    errdefer _ = self.removeWindow(surface);
+    try self.windows.append(self.alloc, window);
+    errdefer _ = self.removeWindow(window);
 
-    try self.initCoreSurface(surface, opts);
+    try self.initCoreSurface(surface, opts, .window);
+    self.layoutWindow(window);
     showWindow(surface);
+}
+
+fn newSplit(
+    self: *App,
+    target: apprt.Target,
+    direction: apprt.action.SplitDirection,
+) !bool {
+    const existing = targetSurface(target) orelse {
+        log.warn("new_split targeted the application", .{});
+        return false;
+    };
+    const window = self.windowForSurface(existing) orelse {
+        log.warn("new_split targeted an unowned surface", .{});
+        return false;
+    };
+
+    const surface = try self.alloc.create(Surface);
+    errdefer self.alloc.destroy(surface);
+
+    const surface_hwnd = try createNativeSurfaceWindow(window.hwnd);
+    errdefer _ = win32.DestroyWindow(surface_hwnd);
+
+    try surface.init(self, window.hwnd, surface_hwnd);
+    errdefer surface.deinit();
+    surface.shown = true;
+
+    _ = win32.SetWindowLongPtrW(
+        surface_hwnd,
+        win32.GWLP_USERDATA,
+        @bitCast(@intFromPtr(surface)),
+    );
+
+    try window.addSplit(
+        self.alloc,
+        existing,
+        surface,
+        switch (direction) {
+            .left, .right => .horizontal,
+            .up, .down => .vertical,
+        },
+        direction == .right or direction == .down,
+    );
+    errdefer {
+        _ = window.removeSurface(self.alloc, surface) catch |err| {
+            log.err("failed to roll back split ownership: {}", .{err});
+        };
+    }
+
+    try self.initCoreSurface(surface, .{}, .split);
+    self.layoutWindow(window);
+    _ = win32.SetFocus(surface.hwnd);
+    log.info("created Win32 split direction={s} surfaces={d}", .{
+        @tagName(direction),
+        window.surfaces.items.len,
+    });
+    return true;
+}
+
+fn layoutWindow(self: *App, window: *Window) void {
+    var client: win32.RECT = std.mem.zeroes(win32.RECT);
+    if (win32.GetClientRect(window.hwnd, &client) == 0) {
+        log.warn("GetClientRect for window layout failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return;
+    }
+
+    const rects = self.alloc.alloc(Window.LeafRect, window.surfaces.items.len) catch |err| {
+        log.warn("failed to allocate window layout: {}", .{err});
+        return;
+    };
+    defer self.alloc.free(rects);
+
+    const count = window.layout(
+        .{
+            .x = 0,
+            .y = 0,
+            .width = @max(0, client.right - client.left),
+            .height = @max(0, client.bottom - client.top),
+        },
+        1,
+        rects,
+    );
+    for (rects[0..count]) |entry| {
+        if (win32.SetWindowPos(
+            entry.view.hwnd,
+            null,
+            entry.rect.x,
+            entry.rect.y,
+            entry.rect.width,
+            entry.rect.height,
+            .{ .NOZORDER = 1, .NOACTIVATE = 1 },
+        ) == 0) {
+            log.warn("SetWindowPos(surface layout) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        }
+    }
 }
 
 fn registerWindowClass() !void {
@@ -2048,7 +2280,12 @@ fn wndProc(
     switch (msg) {
         win32.WM_CLOSE => {
             if (getSurface(hwnd)) |surface| {
-                if (surface.core_surface) |core| {
+                if (hwnd == surface.windowHwnd()) {
+                    const app = surface.rtApp();
+                    if (app.windowForHwnd(hwnd)) |window| {
+                        _ = app.closeOwnedWindow(window);
+                    }
+                } else if (surface.core_surface) |core| {
                     core.close();
                 } else {
                     surface.rtApp().requestSurfaceClose(surface, false);
@@ -2059,7 +2296,8 @@ fn wndProc(
             return 0;
         },
         WM_CLOSE_SURFACE => {
-            if (getSurface(hwnd)) |surface| {
+            if (lparam != 0) {
+                const surface: *Surface = @ptrFromInt(@as(usize, @bitCast(lparam)));
                 surface.rtApp().closeSurface(surface, wparam != 0);
             }
             return 0;
@@ -2070,17 +2308,8 @@ fn wndProc(
                 const height: u32 = @intCast((lparam >> 16) & 0xFFFF);
                 if (width > 0 and height > 0) {
                     if (hwnd == surface.windowHwnd()) {
-                        if (win32.SetWindowPos(
-                            surface.hwnd,
-                            null,
-                            0,
-                            0,
-                            @intCast(width),
-                            @intCast(height),
-                            .{ .NOZORDER = 1, .NOACTIVATE = 1 },
-                        ) == 0) {
-                            log.warn("SetWindowPos(surface) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-                        }
+                        const app = surface.rtApp();
+                        if (app.windowForHwnd(hwnd)) |window| app.layoutWindow(window);
                     } else if (hwnd == surface.hwnd) {
                         surface.width = width;
                         surface.height = height;
@@ -2100,6 +2329,16 @@ fn wndProc(
         win32.WM_DPICHANGED => {
             if (getSurface(hwnd)) |surface| {
                 if (hwnd == surface.windowHwnd()) {
+                    if (surface.rtApp().windowForHwnd(hwnd)) |window| {
+                        for (window.surfaces.items) |candidate| {
+                            if (candidate == surface) continue;
+                            if (candidate.core_surface) |core| {
+                                core.contentScaleCallback(dpiScale(wparam)) catch |err| {
+                                    log.err("content scale callback error: {}", .{err});
+                                };
+                            }
+                        }
+                    }
                     handleDpiChanged(surface, hwnd, wparam, lparam);
                 }
             }
@@ -2108,8 +2347,24 @@ fn wndProc(
         win32.WM_SETFOCUS, win32.WM_KILLFOCUS => {
             if (getSurface(hwnd)) |surface| {
                 if (hwnd == surface.windowHwnd()) {
-                    if (msg == win32.WM_SETFOCUS) _ = win32.SetFocus(surface.hwnd);
+                    if (msg == win32.WM_SETFOCUS) {
+                        const focus = if (surface.rtApp().windowForHwnd(hwnd)) |window|
+                            window.focused_surface
+                        else
+                            surface;
+                        _ = win32.SetFocus(focus.hwnd);
+                    }
                 } else if (hwnd == surface.hwnd) {
+                    if (msg == win32.WM_SETFOCUS) {
+                        if (surface.rtApp().windowForSurface(surface)) |window| {
+                            window.focused_surface = surface;
+                            _ = win32.SetWindowLongPtrW(
+                                window.hwnd,
+                                win32.GWLP_USERDATA,
+                                @bitCast(@intFromPtr(surface)),
+                            );
+                        }
+                    }
                     handleFocus(surface, msg == win32.WM_SETFOCUS);
                 }
             }
@@ -2118,10 +2373,14 @@ fn wndProc(
         win32.WM_SHOWWINDOW => {
             if (getSurface(hwnd)) |surface| {
                 if (hwnd == surface.windowHwnd()) {
-                    if (surface.core_surface) |core| {
-                        core.occlusionCallback(wparam != 0) catch |err| {
-                            log.err("visibility callback error: {}", .{err});
-                        };
+                    const app = surface.rtApp();
+                    const window = app.windowForHwnd(hwnd) orelse return 0;
+                    for (window.surfaces.items) |candidate| {
+                        if (candidate.core_surface) |core| {
+                            core.occlusionCallback(wparam != 0) catch |err| {
+                                log.err("visibility callback error: {}", .{err});
+                            };
+                        }
                     }
                 }
             }
