@@ -271,22 +271,19 @@ pub fn setTitle(self: *Self, value: [:0]const u8) !void {
     const title = try alloc.dupeZ(u8, value);
     errdefer alloc.free(title);
 
-    if (self.rtApp().surfaceIsFocused(self)) try self.applyTitle(value);
-
     if (self.title) |old| alloc.free(old);
     self.title = title;
     self.rtApp().tabTitleChanged(self);
+    if (self.rtApp().surfaceIsFocused(self)) self.syncTitle();
 }
 
 /// Apply this surface's title to its shared top-level window. Background
 /// splits retain their titles without replacing the focused split's title.
 pub fn syncTitle(self: *Self) void {
-    self.applyTitle(self.title orelse "Ghostty") catch |err| {
-        log.warn("failed to synchronize focused surface title: {}", .{err});
-    };
+    self.rtApp().syncWindowTitle(self);
 }
 
-fn applyTitle(self: *Self, value: [:0]const u8) !void {
+pub fn applyTitle(self: *Self, value: [:0]const u8) !void {
     const alloc = self.rtApp().alloc;
     const wide = try std.unicode.utf8ToUtf16LeAllocZ(alloc, value);
     defer alloc.free(wide);

@@ -21,6 +21,7 @@ pub const Divider = Tree.Divider;
 surfaces: std.ArrayListUnmanaged(*Surface) = .empty,
 tree: Tree,
 focused_surface: *Surface,
+title_override: ?[:0]u8 = null,
 
 pub fn init(alloc: std.mem.Allocator, surface: *Surface) !Tab {
     var surfaces: std.ArrayListUnmanaged(*Surface) = .empty;
@@ -35,9 +36,27 @@ pub fn init(alloc: std.mem.Allocator, surface: *Surface) !Tab {
 }
 
 pub fn deinit(self: *Tab, alloc: std.mem.Allocator) void {
+    if (self.title_override) |previous| alloc.free(previous);
     self.tree.deinit(alloc);
     self.surfaces.deinit(alloc);
     self.* = undefined;
+}
+
+pub fn title(self: *const Tab) [:0]const u8 {
+    return self.title_override orelse self.focused_surface.title orelse "Ghostty";
+}
+
+pub fn setTitleOverride(
+    self: *Tab,
+    alloc: std.mem.Allocator,
+    value: []const u8,
+) !void {
+    const replacement = if (value.len == 0)
+        null
+    else
+        try alloc.dupeZ(u8, value);
+    if (self.title_override) |previous| alloc.free(previous);
+    self.title_override = replacement;
 }
 
 pub fn contains(self: *const Tab, surface: *const Surface) bool {
@@ -211,4 +230,25 @@ test "Win32 tab owns and removes split surfaces" {
     );
     try testing.expectEqual(@as(usize, 1), tab.surfaces.items.len);
     try testing.expectEqual(&first, tab.focused_surface);
+}
+
+test "Win32 tab title override takes precedence and can be cleared" {
+    const testing = std.testing;
+    const win32 = @import("win32").everything;
+    const hwnd: win32.HWND = @ptrFromInt(1);
+    var surface: Surface = .{
+        .hwnd = hwnd,
+        .window_hwnd = hwnd,
+        .title = "shell title",
+    };
+
+    var tab = try Tab.init(testing.allocator, &surface);
+    defer tab.deinit(testing.allocator);
+    try testing.expectEqualStrings("shell title", tab.title());
+
+    try tab.setTitleOverride(testing.allocator, "custom tab");
+    try testing.expectEqualStrings("custom tab", tab.title());
+
+    try tab.setTitleOverride(testing.allocator, "");
+    try testing.expectEqualStrings("shell title", tab.title());
 }

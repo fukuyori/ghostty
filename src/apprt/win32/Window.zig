@@ -139,6 +139,27 @@ pub fn focusedSurfaceAt(self: *const Window, index: usize) ?*Surface {
     return self.tabs.items[index].focused_surface;
 }
 
+pub fn tabTitleAt(self: *const Window, index: usize) ?[:0]const u8 {
+    if (index >= self.tabs.items.len) return null;
+    return self.tabs.items[index].title();
+}
+
+pub fn titleForSurface(self: *const Window, surface: *const Surface) ?[:0]const u8 {
+    const tab = self.tabForSurface(surface) orelse return null;
+    return tab.title();
+}
+
+pub fn setTabTitle(
+    self: *Window,
+    alloc: std.mem.Allocator,
+    surface: *const Surface,
+    value: []const u8,
+) !bool {
+    const tab = self.tabForSurface(surface) orelse return false;
+    try tab.setTitleOverride(alloc, value);
+    return true;
+}
+
 pub fn stateSurface(self: *const Window) *Surface {
     return self.tabs.items[0].surfaces.items[0];
 }

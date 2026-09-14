@@ -31,6 +31,11 @@ const WindowList = std.ArrayListUnmanaged(*Window);
 const window_class_name = win32.L("GhosttyWindow");
 const tab_bar_class_name = win32.L("GhosttyTabBar");
 const default_window_title = win32.L("Ghostty");
+const tab_title_dialog_id: usize = 102;
+const tab_title_edit_id: i32 = 1001;
+const tab_title_capacity: usize = 512;
+const dialog_ok_id: u16 = 1;
+const dialog_cancel_id: u16 = 2;
 const split_divider_gap: i32 = 1;
 const split_divider_hit_slop: i32 = 4;
 
@@ -273,6 +278,16 @@ pub fn tabTitleChanged(self: *App, surface: *const Surface) void {
     invalidateTabBar(window);
 }
 
+pub fn syncWindowTitle(self: *App, surface: *Surface) void {
+    const value = if (self.windowForSurface(surface)) |window|
+        window.titleForSurface(surface) orelse surface.title orelse "Ghostty"
+    else
+        surface.title orelse "Ghostty";
+    surface.applyTitle(value) catch |err| {
+        log.warn("failed to synchronize focused surface title: {}", .{err});
+    };
+}
+
 fn windowForHwnd(self: *App, hwnd: win32.HWND) ?*Window {
     for (self.windows.items) |window| {
         if (window.hwnd == hwnd) return window;
@@ -319,6 +334,8 @@ pub fn performAction(
                 return true;
             },
         },
+        .set_tab_title => return try self.setTabTitle(target, value),
+        .prompt_title => return try self.promptTitle(target, value),
         .new_window => {
             try self.createWindow(.{});
             return true;
@@ -372,6 +389,164 @@ pub fn performAction(
         },
         else => return false,
     }
+}
+
+fn setTabTitle(
+    self: *App,
+    target: apprt.Target,
+    value: apprt.action.SetTitle,
+) !bool {
+    const surface = targetSurface(target) orelse {
+        log.warn("set_tab_title targeted the application", .{});
+        return false;
+    };
+    const window = self.windowForSurface(surface) orelse {
+        log.warn("set_tab_title targeted an unowned surface", .{});
+        return false;
+    };
+    if (!try window.setTabTitle(self.alloc, surface, value.title)) return false;
+    invalidateTabBar(window);
+    if (window.focusedSurface() == surface or
+        window.tabForSurface(surface) == window.active_tab)
+    {
+        window.focusedSurface().syncTitle();
+    }
+    return true;
+}
+
+fn promptTitle(
+    self: *App,
+    target: apprt.Target,
+    value: apprt.action.PromptTitle,
+) !bool {
+    if (value != .tab) {
+        log.warn("Win32 prompt_title is only implemented for tabs", .{});
+        return false;
+    }
+    const surface = targetSurface(target) orelse {
+        log.warn("prompt_tab_title targeted the application", .{});
+        return false;
+    };
+    const window = self.windowForSurface(surface) orelse {
+        log.warn("prompt_tab_title targeted an unowned surface", .{});
+        return false;
+    };
+    const index = window.tabIndexForSurface(surface) orelse return false;
+    return try self.promptTabTitle(window, index);
+}
+
+const TabTitleDialogContext = struct {
+    initial: [*:0]const u16,
+    result: [tab_title_capacity:0]u16 = [_:0]u16{0} ** tab_title_capacity,
+    result_len: usize = 0,
+    accepted: bool = false,
+};
+
+fn tabTitleDialogContext(hwnd: win32.HWND) ?*TabTitleDialogContext {
+    const ptr = win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA);
+    if (ptr == 0) return null;
+    return @ptrFromInt(@as(usize, @bitCast(ptr)));
+}
+
+fn tabTitleDialogProc(
+    hwnd: win32.HWND,
+    msg: u32,
+    wparam: win32.WPARAM,
+    lparam: win32.LPARAM,
+) callconv(.winapi) win32.LRESULT {
+    switch (msg) {
+        win32.WM_INITDIALOG => {
+            const context: *TabTitleDialogContext = @ptrFromInt(
+                @as(usize, @bitCast(lparam)),
+            );
+            _ = win32.SetWindowLongPtrW(
+                hwnd,
+                win32.GWLP_USERDATA,
+                @bitCast(@intFromPtr(context)),
+            );
+            _ = win32.SetDlgItemTextW(hwnd, tab_title_edit_id, context.initial);
+            _ = win32.SendDlgItemMessageW(
+                hwnd,
+                tab_title_edit_id,
+                win32.EM_SETLIMITTEXT,
+                tab_title_capacity - 1,
+                0,
+            );
+            _ = win32.SendDlgItemMessageW(
+                hwnd,
+                tab_title_edit_id,
+                win32.EM_SETSEL,
+                0,
+                -1,
+            );
+            return 1;
+        },
+        win32.WM_COMMAND => {
+            const command: u16 = @truncate(wparam);
+            switch (command) {
+                dialog_ok_id => {
+                    const context = tabTitleDialogContext(hwnd) orelse return 0;
+                    const len = win32.GetDlgItemTextW(
+                        hwnd,
+                        tab_title_edit_id,
+                        &context.result,
+                        tab_title_capacity,
+                    );
+                    context.result_len = @intCast(@max(0, len));
+                    context.accepted = true;
+                    _ = win32.EndDialog(hwnd, dialog_ok_id);
+                    return 1;
+                },
+                dialog_cancel_id => {
+                    _ = win32.EndDialog(hwnd, dialog_cancel_id);
+                    return 1;
+                },
+                else => {},
+            }
+        },
+        win32.WM_CLOSE => {
+            _ = win32.EndDialog(hwnd, dialog_cancel_id);
+            return 1;
+        },
+        else => {},
+    }
+    return 0;
+}
+
+fn promptTabTitle(self: *App, window: *Window, index: usize) !bool {
+    const surface = window.focusedSurfaceAt(index) orelse return false;
+    const initial = window.tabTitleAt(index) orelse "Ghostty";
+    const initial_wide = try std.unicode.utf8ToUtf16LeAllocZ(self.alloc, initial);
+    defer self.alloc.free(initial_wide);
+
+    var context: TabTitleDialogContext = .{ .initial = initial_wide.ptr };
+    const resource: [*:0]const u16 = @ptrFromInt(tab_title_dialog_id);
+    const result = win32.DialogBoxParamW(
+        win32.GetModuleHandleW(null),
+        resource,
+        window.hwnd,
+        tabTitleDialogProc,
+        @bitCast(@intFromPtr(&context)),
+    );
+    if (result == -1) {
+        log.warn("DialogBoxParamW(tab title) failed: err={d}", .{
+            @intFromEnum(win32.GetLastError()),
+        });
+        return false;
+    }
+    if (!context.accepted) return true;
+
+    const title = try std.unicode.utf16LeToUtf8Alloc(
+        self.alloc,
+        context.result[0..context.result_len],
+    );
+    defer self.alloc.free(title);
+    if (!try window.setTabTitle(self.alloc, surface, title)) return false;
+    invalidateTabBar(window);
+    if (window.active_tab == window.tabForSurface(surface).?) {
+        window.focusedSurface().syncTitle();
+    }
+    return true;
 }
 
 fn closeWindow(self: *App, target: apprt.Target) bool {
@@ -2051,7 +2226,7 @@ fn registerWindowClass() !void {
 
     const tab_bar_class: win32.WNDCLASSEXW = .{
         .cbSize = @sizeOf(win32.WNDCLASSEXW),
-        .style = .{ .HREDRAW = 1, .VREDRAW = 1 },
+        .style = .{ .HREDRAW = 1, .VREDRAW = 1, .DBLCLKS = 1 },
         .lpfnWndProc = tabBarWndProc,
         .cbClsExtra = 0,
         .cbWndExtra = 0,
@@ -2366,7 +2541,7 @@ fn paintTabBar(self: *App, window: *Window, hdc: win32.HDC, width: i32, height: 
     for (items, 0..) |*item, index| {
         const surface = window.focusedSurfaceAt(index) orelse unreachable;
         item.* = .{
-            .title = surface.title orelse "Ghostty",
+            .title = window.tabTitleAt(index) orelse surface.title orelse "Ghostty",
             .active = index == active,
         };
     }
@@ -2461,6 +2636,26 @@ fn handleTabBarButtonUp(
     // new surface before a possible drag. Buttons perform their action here.
     if (pressed == .tab) return;
     self.handleTabBarClick(window, x, y);
+}
+
+fn handleTabBarDoubleClick(
+    self: *App,
+    hwnd: win32.HWND,
+    window: *Window,
+    x: i32,
+    y: i32,
+) void {
+    cancelTabBarPointer(window);
+    if (win32.GetCapture() == hwnd) _ = win32.ReleaseCapture();
+    const index = switch (tabBarHit(window, x, y)) {
+        .tab => |value| value,
+        else => return,
+    };
+    if (window.selectTab(.{ .n = index + 1 })) activateWindowTab(self, window);
+    _ = self.promptTabTitle(window, index) catch |err| {
+        log.warn("failed to prompt for tab title: {}", .{err});
+        return;
+    };
 }
 
 fn updateTabBarDrag(window: *Window, x: i32, y: i32) void {
@@ -3404,6 +3599,18 @@ fn tabBarWndProc(
             if (getTabBarWindow(hwnd)) |window| {
                 const bits: usize = @bitCast(lparam);
                 window.focusedSurface().rtApp().handleTabBarButtonDown(
+                    hwnd,
+                    window,
+                    signedLowWord(bits),
+                    signedHighWord(bits),
+                );
+            }
+            return 0;
+        },
+        win32.WM_LBUTTONDBLCLK => {
+            if (getTabBarWindow(hwnd)) |window| {
+                const bits: usize = @bitCast(lparam);
+                window.focusedSurface().rtApp().handleTabBarDoubleClick(
                     hwnd,
                     window,
                     signedLowWord(bits),
