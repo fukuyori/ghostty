@@ -699,6 +699,8 @@ pub fn add(
                 step.root_module.linkSystemLibrary("dwmapi", .{});
                 step.root_module.linkSystemLibrary("coremessaging", .{});
                 step.root_module.linkSystemLibrary("runtimeobject", .{});
+                step.root_module.linkSystemLibrary("oleacc", .{});
+                step.root_module.linkSystemLibrary("oleaut32", .{});
                 if (b.lazyDependency("win32", .{})) |dep| {
                     step.root_module.addImport("win32", dep.module("win32"));
                 }

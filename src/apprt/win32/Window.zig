@@ -34,6 +34,7 @@ pub const SelectTab = union(enum) {
 
 hwnd: win32.HWND,
 tab_bar_hwnd: ?win32.HWND = null,
+tab_bar_accessibility: ?*anyopaque = null,
 tab_bar_hover: TabBar.Hit = .none,
 tab_bar_tracking_mouse_leave: bool = false,
 tab_bar_pressed: TabBar.Hit = .none,
@@ -79,6 +80,7 @@ pub fn init(
 /// Release ownership metadata. Native surfaces and HWNDs are destroyed by
 /// App so renderer teardown happens before the corresponding handles vanish.
 pub fn deinit(self: *Window, alloc: std.mem.Allocator) void {
+    std.debug.assert(self.tab_bar_accessibility == null);
     for (self.tabs.items) |tab| {
         tab.deinit(alloc);
         alloc.destroy(tab);

@@ -83,6 +83,24 @@ pub fn tabAt(
     return null;
 }
 
+pub fn tabRect(
+    width: i32,
+    height: i32,
+    tab_count: usize,
+    zoomed: bool,
+    first_visible: usize,
+    index: usize,
+) ?win32.RECT {
+    if (index >= tab_count) return null;
+    const layout = barLayout(width, height, tab_count, zoomed, first_visible);
+    if (index < layout.first_visible or
+        index >= layout.first_visible + layout.visible_count)
+    {
+        return null;
+    }
+    return layout.tabRect(index);
+}
+
 pub fn ensureVisible(
     width: i32,
     height: i32,
@@ -574,6 +592,10 @@ test "Win32 tab bar overflow keeps the active tab reachable" {
     try std.testing.expectEqual(Hit.new_tab, hitTest(width, height, count, false, first, 780, 10));
     try std.testing.expectEqual(@as(?usize, 2), tabAt(width, height, count, false, first, 40, 10));
     try std.testing.expectEqual(@as(?usize, 7), tabAt(width, height, count, false, first, 700, 10));
+    try std.testing.expect(tabRect(width, height, count, false, first, 1) == null);
+    const active_rect = tabRect(width, height, count, false, first, 7).?;
+    try std.testing.expect(active_rect.left >= 0);
+    try std.testing.expect(active_rect.right <= width);
 }
 
 test "Win32 tab bar drag starts only after the configured threshold" {

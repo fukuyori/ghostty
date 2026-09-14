@@ -23,6 +23,7 @@ const Backdrop = @import("Backdrop.zig");
 const DirectComposition = @import("DirectComposition.zig");
 const Surface = @import("Surface.zig");
 const TabBar = @import("TabBar.zig");
+const TabBarAccessibility = @import("TabBarAccessibility.zig");
 const Titlebar = @import("Titlebar.zig");
 const Window = @import("Window.zig");
 
@@ -40,6 +41,12 @@ const dialog_cancel_id: u16 = 2;
 const split_divider_logical_gap: i32 = 1;
 const split_divider_high_contrast_logical_gap: i32 = 2;
 const split_divider_hit_slop: i32 = 4;
+// WinEvent accessibility event and object identifiers from winuser.h.
+const event_object_reorder: u32 = 0x8004;
+const event_object_selection: u32 = 0x8006;
+const event_object_namechange: u32 = 0x800C;
+const objid_client: i32 = -4;
+const childid_self: i32 = 0;
 
 /// User-defined wakeup message sent via PostMessage to break out of
 /// GetMessage and run the core app's tick.
@@ -114,6 +121,7 @@ pub fn run(self: *App) !void {
 pub fn terminate(self: *App) void {
     while (self.windows.pop()) |window| {
         disableWindowBackgroundBlur(window);
+        deinitTabBarAccessibility(window);
         var surfaces = window.surfaceIterator();
         while (surfaces.next()) |surface| {
             surface.deinit();
@@ -191,6 +199,7 @@ fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
     }
 
     if (close_window) disableWindowBackgroundBlur(window);
+    if (close_window) deinitTabBarAccessibility(window);
 
     // Keep the child HWND and its DC alive until the renderer has stopped and
     // the surface has released all native rendering resources.
@@ -253,6 +262,7 @@ fn destroyTabAt(self: *App, window: *Window, index: usize) bool {
     self.layoutWindow(window);
     _ = win32.SetFocus(focus.hwnd);
     focus.syncTitle();
+    self.syncTabBarAccessibility(window, true, true);
     return true;
 }
 
@@ -280,6 +290,8 @@ pub fn surfaceIsFocused(self: *App, surface: *const Surface) bool {
 pub fn tabTitleChanged(self: *App, surface: *const Surface) void {
     const window = self.windowForSurface(surface) orelse return;
     invalidateTabBar(window);
+    self.syncTabBarAccessibility(window, false, false);
+    notifyTabBarChildNameChanged(window, surface);
 }
 
 pub fn syncWindowTitle(self: *App, surface: *Surface) void {
@@ -410,6 +422,8 @@ fn setTabTitle(
     };
     if (!try window.setTabTitle(self.alloc, surface, value.title)) return false;
     invalidateTabBar(window);
+    self.syncTabBarAccessibility(window, false, false);
+    notifyTabBarChildNameChanged(window, surface);
     if (window.focusedSurface() == surface or
         window.tabForSurface(surface) == window.active_tab)
     {
@@ -547,6 +561,8 @@ fn promptTabTitle(self: *App, window: *Window, index: usize) !bool {
     defer self.alloc.free(title);
     if (!try window.setTabTitle(self.alloc, surface, title)) return false;
     invalidateTabBar(window);
+    self.syncTabBarAccessibility(window, false, false);
+    notifyTabBarChildNameChanged(window, surface);
     if (window.active_tab == window.tabForSurface(surface).?) {
         window.focusedSurface().syncTitle();
     }
@@ -1752,6 +1768,12 @@ fn createWindow(self: *App, opts: WindowOptions) !void {
         win32.GWLP_USERDATA,
         @bitCast(@intFromPtr(window)),
     );
+    if (TabBarAccessibility.create(tab_bar_hwnd, window)) |accessibility| {
+        window.tab_bar_accessibility = @ptrCast(accessibility);
+    } else |err| {
+        log.warn("failed to create tab bar accessibility provider: {}", .{err});
+    }
+    errdefer deinitTabBarAccessibility(window);
 
     _ = win32.SetWindowLongPtrW(
         window_hwnd,
@@ -1768,6 +1790,7 @@ fn createWindow(self: *App, opts: WindowOptions) !void {
     errdefer _ = self.removeWindow(window);
 
     try self.initCoreSurface(surface, opts, .window);
+    self.syncTabBarAccessibility(window, false, false);
     self.layoutWindow(window);
     showWindow(surface);
 }
@@ -1810,6 +1833,7 @@ fn newTab(self: *App, target: apprt.Target) !bool {
 
     try self.initCoreSurface(surface, .{}, .tab);
     activateWindowTab(self, window);
+    notifyTabBarAccessibilityEvent(window, event_object_reorder);
     log.info("created Win32 tab tabs={d}", .{window.tabCount()});
     return true;
 }
@@ -1844,7 +1868,7 @@ fn gotoTab(
 }
 
 fn moveTab(
-    _: *App,
+    self: *App,
     target: apprt.Target,
     value: apprt.action.MoveTab,
 ) bool {
@@ -1862,6 +1886,7 @@ fn moveTab(
     const new_state = window.stateSurface();
     if (old_state != new_state) transferWindowState(old_state, new_state);
     invalidateTabBar(window);
+    self.syncTabBarAccessibility(window, false, true);
     return true;
 }
 
@@ -1876,6 +1901,7 @@ fn activateWindowTab(self: *App, window: *Window) void {
     self.layoutWindow(window);
     _ = win32.SetFocus(focus.hwnd);
     focus.syncTitle();
+    self.syncTabBarAccessibility(window, true, false);
 }
 
 fn newSplit(
@@ -2299,6 +2325,94 @@ fn invalidateTabBar(window: *const Window) void {
     if (win32.InvalidateRect(hwnd, null, win32.TRUE) != 0) {
         _ = win32.UpdateWindow(hwnd);
     }
+}
+
+fn tabBarAccessibleName(
+    alloc: Allocator,
+    tab_count: usize,
+    active_index: usize,
+    active_title: []const u8,
+) ![]u8 {
+    const tab_word = if (tab_count == 1) "tab" else "tabs";
+    return std.fmt.allocPrint(
+        alloc,
+        "Ghostty tabs. {d} {s}. Active tab {d}: {s}",
+        .{ tab_count, tab_word, active_index + 1, active_title },
+    );
+}
+
+fn syncTabBarAccessibility(
+    self: *App,
+    window: *const Window,
+    selection_changed: bool,
+    order_changed: bool,
+) void {
+    const hwnd = window.tab_bar_hwnd orelse return;
+    const active_index = window.activeTabIndex();
+    const active_surface = window.focusedSurface();
+    const active_title = window.tabTitleAt(active_index) orelse
+        active_surface.title orelse
+        "Ghostty";
+    const name = tabBarAccessibleName(
+        self.alloc,
+        window.tabCount(),
+        active_index,
+        active_title,
+    ) catch |err| {
+        log.warn("failed to allocate tab bar accessible name: {}", .{err});
+        return;
+    };
+    defer self.alloc.free(name);
+    const wide = std.unicode.utf8ToUtf16LeAllocZ(self.alloc, name) catch |err| {
+        log.warn("failed to encode tab bar accessible name: {}", .{err});
+        return;
+    };
+    defer self.alloc.free(wide);
+
+    if (win32.SetWindowTextW(hwnd, wide) == 0) {
+        log.warn("SetWindowTextW(tab bar accessible name) failed: err={d}", .{
+            @intFromEnum(win32.GetLastError()),
+        });
+        return;
+    }
+    notifyTabBarAccessibilityEvent(window, event_object_namechange);
+    if (selection_changed) {
+        notifyTabBarAccessibilityEvent(window, event_object_selection);
+    }
+    if (order_changed) {
+        notifyTabBarAccessibilityEvent(window, event_object_reorder);
+    }
+}
+
+fn notifyTabBarAccessibilityEvent(window: *const Window, event: u32) void {
+    const hwnd = window.tab_bar_hwnd orelse return;
+    const child_id: i32 = if (event == event_object_selection)
+        @intCast(window.activeTabIndex() + 1)
+    else
+        childid_self;
+    win32.NotifyWinEvent(event, hwnd, objid_client, child_id);
+}
+
+fn notifyTabBarChildNameChanged(window: *const Window, surface: *const Surface) void {
+    const hwnd = window.tab_bar_hwnd orelse return;
+    const index = window.tabIndexForSurface(surface) orelse return;
+    win32.NotifyWinEvent(
+        event_object_namechange,
+        hwnd,
+        objid_client,
+        @intCast(index + 1),
+    );
+}
+
+fn tabBarAccessibility(window: *const Window) ?*TabBarAccessibility {
+    const raw = window.tab_bar_accessibility orelse return null;
+    return @ptrCast(@alignCast(raw));
+}
+
+fn deinitTabBarAccessibility(window: *Window) void {
+    const accessibility = tabBarAccessibility(window) orelse return;
+    window.tab_bar_accessibility = null;
+    accessibility.detach();
 }
 
 fn invalidateSplitDividers(window: *const Window) void {
@@ -3836,6 +3950,26 @@ fn tabBarWndProc(
     lparam: win32.LPARAM,
 ) callconv(.winapi) win32.LRESULT {
     switch (msg) {
+        win32.WM_GETOBJECT => {
+            if (@as(i32, @truncate(lparam)) != objid_client) {
+                return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
+            }
+            const window = getTabBarWindow(hwnd) orelse {
+                return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
+            };
+            const accessibility = tabBarAccessibility(window) orelse {
+                return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
+            };
+            return accessibility.objectResult(wparam);
+        },
+        TabBarAccessibility.select_message => {
+            const window = getTabBarWindow(hwnd) orelse return 0;
+            if (wparam == 0 or wparam > window.tabCount()) return 0;
+            if (window.selectTab(.{ .n = wparam })) {
+                activateWindowTab(window.focusedSurface().rtApp(), window);
+            }
+            return 0;
+        },
         win32.WM_ERASEBKGND => return 1,
         win32.WM_PAINT => {
             var ps: win32.PAINTSTRUCT = std.mem.zeroes(win32.PAINTSTRUCT);
@@ -4033,8 +4167,12 @@ fn wndProc(
                 } else if (hwnd == surface.hwnd) {
                     if (msg == win32.WM_SETFOCUS) {
                         if (surface.rtApp().windowForSurface(surface)) |window| {
+                            const previous_tab = window.active_tab;
                             _ = window.setFocusedSurface(surface);
                             invalidateTabBar(window);
+                            if (window.active_tab != previous_tab) {
+                                surface.rtApp().syncTabBarAccessibility(window, true, false);
+                            }
                             _ = win32.SetWindowLongPtrW(
                                 window.hwnd,
                                 win32.GWLP_USERDATA,
@@ -4699,5 +4837,32 @@ test "reject empty Win32 editor command" {
             "",
             "C:\\config.ghostty",
         ),
+    );
+}
+
+test "format Win32 tab bar accessible name" {
+    const name = try tabBarAccessibleName(
+        std.testing.allocator,
+        3,
+        1,
+        "PowerShell",
+    );
+    defer std.testing.allocator.free(name);
+
+    try std.testing.expectEqualStrings(
+        "Ghostty tabs. 3 tabs. Active tab 2: PowerShell",
+        name,
+    );
+
+    const singular = try tabBarAccessibleName(
+        std.testing.allocator,
+        1,
+        0,
+        "Command Prompt",
+    );
+    defer std.testing.allocator.free(singular);
+    try std.testing.expectEqualStrings(
+        "Ghostty tabs. 1 tab. Active tab 1: Command Prompt",
+        singular,
     );
 }
