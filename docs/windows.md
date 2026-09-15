@@ -197,7 +197,9 @@ class's large and small icons, and the DWM visibility state. It further checks
 that the window returns from minimized to the previous maximized state, the
 position and size after restoring to the normal state, and the exit code after
 `WM_CLOSE`. It sends a string and Enter to a dedicated `cmd.exe` terminal and
-confirms command execution from the contents of a temporary marker. Using a
+confirms command execution from the contents of a temporary marker. It then
+sends Enter and Backspace the way Windows reports them while an IME is
+composing and confirms that neither reaches the shell. Using a
 temporary configuration inside the repository, it also confirms that a
 configuration reload switches the tab bar to shown, hidden, and shown again.
 It then creates a test right split and confirms that the tab bar and split

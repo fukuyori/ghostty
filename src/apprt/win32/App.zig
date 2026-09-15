@@ -75,6 +75,11 @@ const WM_CLOSE_SURFACE = win32.WM_USER + 2;
 const WM_TEST_RECOVER_RENDERER = win32.WM_USER + 3;
 const WM_TEST_RECOVERY_STATUS = win32.WM_USER + 4;
 
+/// VK_PROCESSKEY. Windows substitutes this virtual key in keyboard messages
+/// for every keystroke an active IME consumes, leaving the physical scan
+/// code untouched.
+const vk_processkey: win32.WPARAM = @intFromEnum(win32.VK_PROCESSKEY);
+
 core_app: *CoreApp,
 config: *Config,
 alloc: Allocator,
@@ -4788,6 +4793,21 @@ fn wndProc(
             return 0;
         },
         win32.WM_KEYDOWN, win32.WM_SYSKEYDOWN => {
+            // Keystrokes the IME consumes arrive with the virtual key
+            // replaced by VK_PROCESSKEY while the scan code still names the
+            // physical key. Because keys are resolved from the scan code,
+            // dispatching these would send the composition keys (Enter,
+            // Backspace, Tab, arrows) to the terminal on top of the IME's own
+            // handling. Hand them to the IME instead, and drop pending key
+            // metadata: the text the IME commits later belongs to the
+            // composition, not to one physical keystroke.
+            if (wparam == vk_processkey) {
+                if (getSurface(hwnd)) |surface| {
+                    if (hwnd == surface.hwnd) surface.pending_text_key = null;
+                }
+                return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
+            }
+
             if (getSurface(hwnd)) |surface| {
                 if (hwnd == surface.hwnd) {
                     if (surface.core_surface) |core| {
@@ -4823,6 +4843,11 @@ fn wndProc(
             return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
         },
         win32.WM_KEYUP, win32.WM_SYSKEYUP => {
+            // See the VK_PROCESSKEY note on WM_KEYDOWN.
+            if (wparam == vk_processkey) {
+                return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
+            }
+
             if (getSurface(hwnd)) |surface| {
                 if (hwnd == surface.hwnd) {
                     if (surface.core_surface) |core| {
@@ -4894,6 +4919,33 @@ test "map Win32 scan codes to physical keys" {
     try std.testing.expect(!(letter >= 'A' and letter <= 'Z'));
     try std.testing.expectEqual(@as(?u21, null), layoutUnshiftedCodepoint(0x25, scan.lparam(0x4B, true)));
     try std.testing.expectEqual(@as(u21, 0), unshiftedCodepoint(0x25, scan.lparam(0x4B, true)));
+}
+
+test "Win32 IME process keys are not terminal keys" {
+    const scan = struct {
+        fn lparam(code: usize) win32.LPARAM {
+            return @bitCast(code << 16);
+        }
+    };
+
+    // VK_PROCESSKEY messages keep the physical scan code, so the key mapping
+    // resolves them to real keys. That is exactly why the message handlers
+    // must reject them before mapping: otherwise every key the IME consumes
+    // would also reach the terminal.
+    try std.testing.expectEqual(
+        input.Key.enter,
+        mapKey(vk_processkey, scan.lparam(0x1C)),
+    );
+    try std.testing.expectEqual(
+        input.Key.backspace,
+        mapKey(vk_processkey, scan.lparam(0x0E)),
+    );
+
+    // The dispatch gate does not stop them either: VK_PROCESSKEY is not a
+    // text virtual key, so it takes the "send to the core" path.
+    try std.testing.expect(shouldDispatchKeyPress(vk_processkey, .{}));
+
+    try std.testing.expectEqual(@as(win32.WPARAM, 0xE5), vk_processkey);
 }
 
 test "classify Win32 text keys" {

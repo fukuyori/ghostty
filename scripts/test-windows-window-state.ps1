@@ -105,6 +105,7 @@ $testStateRoot = Join-Path $repositoryRoot "zig-out\test-state"
 $sessionDirectory = Join-Path $testStateRoot $sessionName
 $configPath = Join-Path $sessionDirectory "config.ghostty"
 $inputMarkerPath = Join-Path $sessionDirectory "terminal-input.txt"
+$imeMarkerPath = Join-Path $sessionDirectory "ime-process-key.txt"
 $gridMarkerPath = Join-Path $sessionDirectory "grid-at-start.txt"
 $gridResizedMarkerPath = Join-Path $sessionDirectory "grid-after-resize.txt"
 $gpuRecoveryMarkerPath = Join-Path $sessionDirectory "gpu-recovery.txt"
@@ -385,6 +386,12 @@ $vkF8 = 0x77
 $vkF9 = 0x78
 $vkF10 = 0x79
 $vkReturn = 0x0D
+# Windows substitutes VK_PROCESSKEY for keys an active IME consumes and keeps
+# the physical scan code, which is what makes those messages dangerous to
+# dispatch.
+$vkProcessKey = 0xE5
+$scanReturn = 0x1C
+$scanBackspace = 0x0E
 $gwlStyle = -16
 $gwlExStyle = -20
 $gclpHIcon = -14
@@ -628,6 +635,53 @@ function Send-TestText {
         )) {
             throw "Failed to send terminal text to Ghostty."
         }
+    }
+}
+
+# cmd.exe keeps a redirected file open while it writes, so a read between the
+# file's creation and the shell's write fails with a sharing violation. Treat
+# that as "not ready yet" rather than letting it fail the run.
+function Test-MarkerContent {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [string]$Expected
+    )
+
+    if (-not [System.IO.File]::Exists($Path)) {
+        return $false
+    }
+    try {
+        return [bool]([System.IO.File]::ReadAllText($Path).Trim() -eq $Expected)
+    } catch [System.IO.IOException] {
+        return $false
+    }
+}
+
+function Send-TestProcessKey {
+    param(
+        [Parameter(Mandatory = $true)]
+        [IntPtr]$Handle,
+        [Parameter(Mandatory = $true)]
+        [int]$ScanCode,
+        [Parameter(Mandatory = $true)]
+        [string]$Description
+    )
+
+    $lparam = [IntPtr]::new([int64]$ScanCode -shl 16)
+    if (-not [GhosttyWindowStateNative]::PostMessageW(
+            $Handle,
+            $wmKeyDown,
+            [UIntPtr]::new($vkProcessKey),
+            $lparam
+        ) -or -not [GhosttyWindowStateNative]::PostMessageW(
+            $Handle,
+            $wmKeyUp,
+            [UIntPtr]::new($vkProcessKey),
+            $lparam
+        )) {
+        throw "Failed to send the $Description IME process key to Ghostty."
     }
 }
 
@@ -1182,10 +1236,7 @@ try {
         -VirtualKey $vkReturn `
         -Description "terminal Enter"
     Wait-ForCondition -Description "terminal input marker creation" -Condition {
-        if (-not [System.IO.File]::Exists($inputMarkerPath)) {
-            return $false
-        }
-        [System.IO.File]::ReadAllText($inputMarkerPath).Trim() -eq $markerValue
+        Test-MarkerContent -Path $inputMarkerPath -Expected $markerValue
     }
     $terminalInput = [pscustomobject]@{
         TextDelivered = $true
@@ -1193,6 +1244,48 @@ try {
         CommandExecuted = $true
     }
     Write-Verbose "Validated terminal text input and command execution."
+
+    # Keys an IME consumes must not reach the terminal. Type a command, send
+    # Enter and Backspace the way Windows reports them during composition,
+    # then finish the command for real. The marker content tells which of the
+    # two leaked: an empty file means the Enter ran the command early, and
+    # "C" means the Backspace deleted an already typed character.
+    $imeValue = "CD"
+    Send-TestText -Handle $surfaceHandle -Text "echo $imeValue"
+    Send-TestProcessKey `
+        -Handle $surfaceHandle `
+        -ScanCode $scanReturn `
+        -Description "composition Enter"
+    Send-TestProcessKey `
+        -Handle $surfaceHandle `
+        -ScanCode $scanBackspace `
+        -Description "composition Backspace"
+    Send-TestText -Handle $surfaceHandle -Text ">`"$imeMarkerPath`""
+    Send-TestKey `
+        -Handle $surfaceHandle `
+        -VirtualKey $vkReturn `
+        -Description "terminal Enter after IME process keys"
+    try {
+        Wait-ForCondition -Description "IME process key marker creation" -Condition {
+            [System.IO.File]::Exists($imeMarkerPath)
+        }
+    } catch {
+        # A leaked Enter runs "echo CD" before the redirect is typed, so the
+        # shell never sees a command that would create the marker.
+        throw "An Enter consumed by the IME reached the terminal: it ran the command line early, so the redirect never created the marker."
+    }
+    # The redirect creates the file before the shell writes to it.
+    Start-Sleep -Milliseconds 500
+    $imeContent = [System.IO.File]::ReadAllText($imeMarkerPath).Trim()
+    if ($imeContent -ne $imeValue) {
+        throw "A key consumed by the IME reached the terminal: expected '$imeValue' but the shell produced '$imeContent' (a missing last character means Backspace leaked)."
+    }
+    $imeProcessKeys = [pscustomobject]@{
+        EnterSuppressed = $true
+        BackspaceSuppressed = $true
+        MarkerContent = $imeContent
+    }
+    Write-Verbose "Validated that IME process keys do not reach the terminal."
 
     $gpuRecovery = $null
     if ($TestGpuRecovery) {
@@ -1233,11 +1326,9 @@ try {
             Wait-ForCondition `
                 -Description "terminal input after GPU recovery $recoveryIndex" `
                 -Condition {
-                    if (-not [System.IO.File]::Exists($gpuRecoveryMarkerPath)) {
-                        return $false
-                    }
-                    [System.IO.File]::ReadAllText($gpuRecoveryMarkerPath).Trim() -eq `
-                        $recoveryValue
+                    Test-MarkerContent `
+                        -Path $gpuRecoveryMarkerPath `
+                        -Expected $recoveryValue
             }
             $completedRecoveries++
             Write-Verbose "Validated controlled GPU resource recovery $recoveryIndex."
@@ -1293,11 +1384,9 @@ try {
             -VirtualKey $vkReturn `
             -Description "terminal Enter after controlled power resume"
         Wait-ForCondition -Description "terminal input after controlled power resume" -Condition {
-            if (-not [System.IO.File]::Exists($powerResumeMarkerPath)) {
-                return $false
-            }
-            [System.IO.File]::ReadAllText($powerResumeMarkerPath).Trim() -eq `
-                $powerResumeValue
+            Test-MarkerContent `
+                -Path $powerResumeMarkerPath `
+                -Expected $powerResumeValue
         }
         $powerResume = [pscustomobject]@{
             SuspendNotification = $true
@@ -1708,6 +1797,7 @@ try {
         ShellEligibility = $shellEligibility
         MultiWindow = $multiWindow
         TerminalInput = $terminalInput
+        ImeProcessKeys = $imeProcessKeys
         InitialGrid = $initialGrid
         GpuRecovery = $gpuRecovery
         PowerResume = $powerResume
@@ -1751,6 +1841,9 @@ try {
     if ($null -eq $process -or $process.HasExited) {
         if ([System.IO.File]::Exists($inputMarkerPath)) {
             [System.IO.File]::Delete($inputMarkerPath)
+        }
+        if ([System.IO.File]::Exists($imeMarkerPath)) {
+            [System.IO.File]::Delete($imeMarkerPath)
         }
         foreach ($gridMarker in @($gridMarkerPath, $gridResizedMarkerPath)) {
             if ([System.IO.File]::Exists($gridMarker)) {
