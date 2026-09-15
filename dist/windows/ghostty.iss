@@ -96,7 +96,10 @@ Name: "addtopath"; Description: "{cm:AddToPath}"; GroupDescription: "{cm:Environ
 ; resources by climbing from its own path until share\terminfo\ghostty.terminfo
 ; is found; share\ghostty next to it then becomes the resources directory.
 Source: "{#GhosttySourceDir}\bin\ghostty.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
-Source: "{#GhosttySourceDir}\share\terminfo\ghostty.terminfo"; DestDir: "{app}\share\terminfo"; Flags: ignoreversion
+; The whole terminfo directory, so the compiled database ships alongside the
+; source. Without it, programs that read terminfo inside Ghostty fail with
+; 'xterm-ghostty': unknown terminal type.
+Source: "{#GhosttySourceDir}\share\terminfo\*"; DestDir: "{app}\share\terminfo"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#GhosttySourceDir}\share\ghostty\*"; DestDir: "{app}\share\ghostty"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]

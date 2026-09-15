@@ -22,6 +22,11 @@ release files. The default is zig-out\installer.
 Expected version string, for example 1.3.2-windows.1. When given, the
 executable's FileVersion must match or the build fails.
 
+.PARAMETER OutputBaseName
+Installer file name without the extension. The default is
+ghostty-<version>-x64-setup, with the version read from the release
+executable.
+
 .PARAMETER Sign
 Sign ghostty.exe, the installer, and the uninstaller with Authenticode.
 By default the certificate is selected by subject name from the CODESIGN_CERT
@@ -76,6 +81,7 @@ param(
     [string]$ReleaseDirectory = "",
     [string]$OutputDirectory = "",
     [string]$Version = "",
+    [string]$OutputBaseName = "",
     [switch]$Sign,
     [string]$CertificateSubject = "",
     [string]$CertificateThumbprint = "",
@@ -138,6 +144,20 @@ foreach ($required in $requiredPaths) {
     }
 }
 
+# The compiled terminfo database is only present when the release build found
+# tic. Ship whatever is there, and say so when the database is missing: without
+# it, programs reading terminfo inside Ghostty cannot resolve xterm-ghostty.
+$terminfoRoot = Join-Path $releaseRoot (Join-Path "share" "terminfo")
+$terminfoCompiled = @(
+    Get-ChildItem -LiteralPath $terminfoRoot -File -Recurse |
+        Where-Object { $_.Name -in @("ghostty", "xterm-ghostty") }
+).Count -gt 0
+if (-not $terminfoCompiled) {
+    Write-Warning ("The release tree has no compiled terminfo database, so " +
+        "the installer cannot ship one. Install tic (Git for Windows ships " +
+        "one) and rerun scripts/build-release.ps1.")
+}
+
 $versionInfo = (Get-Item -LiteralPath $releaseExecutable).VersionInfo
 if ([string]::IsNullOrWhiteSpace($versionInfo.FileVersion)) {
     throw "The release executable does not contain FileVersion information."
@@ -154,9 +174,26 @@ $numericVersion = "{0}.{1}.{2}.{3}" -f `
     $versionInfo.FileMinorPart, `
     $versionInfo.FileBuildPart, `
     $versionInfo.FilePrivatePart
-# Inno Setup rejects file names with characters outside this set.
-$safeVersion = $versionString -replace '[^0-9A-Za-z.\-]', '-'
-$outputBase = "ghostty-$safeVersion-x64-setup"
+# The file name carries the version read from the executable, minus the build
+# metadata a development build appends (1.3.2-windows-+abc1234), which would
+# otherwise change the name on every commit. Inno Setup rejects file names
+# outside this character set, and dropping the metadata leaves a trailing
+# separator to clean up.
+#   1.3.2-windows-+abc1234 -> ghostty-1.3.2-windows-x64-setup.exe
+#   1.3.2-windows.3        -> ghostty-1.3.2-windows.3-x64-setup.exe
+$isDevelopmentBuild = $versionString.Contains("+")
+if (-not [string]::IsNullOrWhiteSpace($OutputBaseName)) {
+    $outputBase = $OutputBaseName
+} else {
+    $safeVersion = $versionString.Split("+")[0]
+    $safeVersion = ($safeVersion -replace '[^0-9A-Za-z.\-]', '-') -replace '-{2,}', '-'
+    $outputBase = "ghostty-$($safeVersion.Trim('-'))-x64-setup"
+}
+if ($isDevelopmentBuild) {
+    Write-Warning ("Packaging the development build $versionString. This is " +
+        "not a distributable release; build with " +
+        "-AdditionalZigArgs '-Dversion-string=X.Y.Z-windows.N' for that.")
+}
 
 # ---------------------------------------------------------------------------
 # Locate tools.
@@ -305,11 +342,14 @@ if (Test-Path -LiteralPath $stageRoot) {
 }
 [System.IO.Directory]::CreateDirectory($outputRoot) | Out-Null
 [System.IO.Directory]::CreateDirectory((Join-Path $stageRoot "bin")) | Out-Null
-[System.IO.Directory]::CreateDirectory((Join-Path $stageRoot "share\terminfo")) | Out-Null
+[System.IO.Directory]::CreateDirectory((Join-Path $stageRoot "share")) | Out-Null
 Copy-Item -LiteralPath $releaseExecutable -Destination (Join-Path $stageRoot "bin\ghostty.exe")
+# The whole terminfo directory, so the compiled database travels with the
+# source rather than only the source file.
 Copy-Item `
-    -LiteralPath (Join-Path $releaseRoot "share\terminfo\ghostty.terminfo") `
-    -Destination (Join-Path $stageRoot "share\terminfo\ghostty.terminfo")
+    -LiteralPath $terminfoRoot `
+    -Destination (Join-Path $stageRoot "share\terminfo") `
+    -Recurse
 Copy-Item `
     -LiteralPath (Join-Path $releaseRoot "share\ghostty") `
     -Destination (Join-Path $stageRoot "share\ghostty") `
@@ -397,6 +437,8 @@ $hash = Get-FileHash -LiteralPath $installer -Algorithm SHA256
 [pscustomobject]@{
     Installer            = $installer
     Version              = $versionString
+    DevelopmentBuild     = $isDevelopmentBuild
+    TerminfoCompiled     = $terminfoCompiled
     NumericVersion       = $numericVersion
     SizeBytes            = (Get-Item -LiteralPath $installer).Length
     Sha256               = $hash.Hash
