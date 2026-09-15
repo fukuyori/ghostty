@@ -910,6 +910,9 @@ try {
         "--confirm-close-surface=false"
         "--quit-after-last-window-closed=true"
         "--title=Ghostty-window-state-test"
+        # Ignore the user's %LOCALAPPDATA% configuration so results describe
+        # the executable, not this machine's keybinds or window settings.
+        "--config-default-files=false"
         "--config-file=`"$configPath`""
         "--keybind=f5=new_split:right"
         "--keybind=f6=reload_config"

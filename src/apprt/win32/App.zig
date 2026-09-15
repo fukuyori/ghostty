@@ -294,6 +294,10 @@ fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
     }
 
     const was_state_surface = window.stateSurface() == surface;
+    // A split can close inside a background tab, for example when its shell
+    // exits. Focus and the window's focused-surface pointer must then stay
+    // with the active tab; focusing the hidden replacement would switch tabs.
+    const in_active_tab = window.tabForSurface(surface) == window.active_tab;
     const next_focus = if (close_window)
         null
     else
@@ -307,11 +311,13 @@ fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
     }
 
     if (next_focus) |focus| {
-        _ = win32.SetWindowLongPtrW(
-            window.hwnd,
-            win32.GWLP_USERDATA,
-            @bitCast(@intFromPtr(focus)),
-        );
+        if (in_active_tab) {
+            _ = win32.SetWindowLongPtrW(
+                window.hwnd,
+                win32.GWLP_USERDATA,
+                @bitCast(@intFromPtr(focus)),
+            );
+        }
     }
 
     if (close_window) disableWindowBackgroundBlur(window);
@@ -337,7 +343,13 @@ fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
 
     const focus = next_focus.?;
     self.alloc.destroy(surface);
-    _ = win32.SetFocus(focus.hwnd);
+    if (in_active_tab) {
+        _ = win32.SetFocus(focus.hwnd);
+    } else {
+        // The background tab's own focused surface was already advanced by
+        // Tab.removeSurface; only its title in the tab bar can change.
+        invalidateTabBar(window);
+    }
     self.layoutWindow(window);
 }
 
@@ -449,6 +461,11 @@ pub fn performAction(
 ) !bool {
     switch (action) {
         .quit => {
+            // Match GTK and macOS: a running process in any surface asks
+            // once before every terminal session is terminated.
+            if (self.quitConfirmationHwnd()) |hwnd| {
+                if (!confirmAllWindowsClose(hwnd)) return true;
+            }
             win32.PostQuitMessage(0);
             return true;
         },
@@ -853,19 +870,7 @@ fn closeAllWindows(self: *App) bool {
 
     // Match the native app behavior: ask once for the complete operation,
     // rather than showing one confirmation for every running terminal.
-    var confirm_hwnd: ?win32.HWND = null;
-    for (self.windows.items) |window| {
-        var surfaces = window.surfaceIterator();
-        while (surfaces.next()) |surface| {
-            const core = surface.core_surface orelse continue;
-            if (core.needsConfirmQuit()) {
-                confirm_hwnd = window.hwnd;
-                break;
-            }
-        }
-        if (confirm_hwnd != null) break;
-    }
-    if (confirm_hwnd) |hwnd| {
+    if (self.quitConfirmationHwnd()) |hwnd| {
         if (!confirmAllWindowsClose(hwnd)) return true;
     }
 
@@ -878,6 +883,19 @@ fn closeAllWindows(self: *App) bool {
         }
     }
     return true;
+}
+
+/// The window that should own a quit confirmation dialog, or null when no
+/// surface reports a running process that would be killed.
+fn quitConfirmationHwnd(self: *App) ?win32.HWND {
+    for (self.windows.items) |window| {
+        var surfaces = window.surfaceIterator();
+        while (surfaces.next()) |surface| {
+            const core = surface.core_surface orelse continue;
+            if (core.needsConfirmQuit()) return window.hwnd;
+        }
+    }
+    return null;
 }
 
 fn confirmAllWindowsClose(hwnd: win32.HWND) bool {
@@ -1953,18 +1971,28 @@ fn createWindow(self: *App, opts: WindowOptions) !void {
     window.* = try Window.init(self.alloc, window_hwnd, surface);
     errdefer window.deinit(self.alloc);
 
-    const tab_bar_hwnd = try createNativeTabBarWindow(window_hwnd);
-    errdefer _ = win32.DestroyWindow(tab_bar_hwnd);
+    // The tab bar is an auxiliary window. Every consumer tolerates a null
+    // handle, so a creation failure (USER handle exhaustion, for example)
+    // degrades to a window without a tab bar instead of no window at all.
+    const tab_bar_hwnd: ?win32.HWND = createNativeTabBarWindow(window_hwnd) catch |err| tab_bar: {
+        log.warn("tab bar unavailable for this window; continuing without it: {}", .{err});
+        break :tab_bar null;
+    };
+    errdefer if (tab_bar_hwnd) |hwnd| {
+        _ = win32.DestroyWindow(hwnd);
+    };
     window.tab_bar_hwnd = tab_bar_hwnd;
-    _ = win32.SetWindowLongPtrW(
-        tab_bar_hwnd,
-        win32.GWLP_USERDATA,
-        @bitCast(@intFromPtr(window)),
-    );
-    if (TabBarAccessibility.create(tab_bar_hwnd, window)) |accessibility| {
-        window.tab_bar_accessibility = @ptrCast(accessibility);
-    } else |err| {
-        log.warn("failed to create tab bar accessibility provider: {}", .{err});
+    if (tab_bar_hwnd) |hwnd| {
+        _ = win32.SetWindowLongPtrW(
+            hwnd,
+            win32.GWLP_USERDATA,
+            @bitCast(@intFromPtr(window)),
+        );
+        if (TabBarAccessibility.create(hwnd, window)) |accessibility| {
+            window.tab_bar_accessibility = @ptrCast(accessibility);
+        } else |err| {
+            log.warn("failed to create tab bar accessibility provider: {}", .{err});
+        }
     }
     errdefer deinitTabBarAccessibility(window);
 

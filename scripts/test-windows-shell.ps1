@@ -251,6 +251,9 @@ try {
         -Executable $executablePath `
         -AdditionalArguments @(
             "--title=Ghostty-shell-acceptance-test"
+            # Ignore the user's %LOCALAPPDATA% configuration so the run does
+            # not depend on this machine's settings.
+            "--config-default-files=false"
             "--config-file=`"$configPath`""
             "--confirm-close-surface=false"
             "--quit-after-last-window-closed=true"
