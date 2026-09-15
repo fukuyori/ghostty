@@ -174,6 +174,26 @@ if ($versionInfo.IsDebug) {
     throw "The release executable is marked as a debug build."
 }
 
+# The fourth numeric component carries the preview sequence taken from the
+# last numeric pre-release identifier (1.3.2-windows.4 -> 1.3.2.4); every
+# other version string stores 0. See docs/version-update-checklist.md.
+$numericVersion = "{0}.{1}.{2}.{3}" -f `
+    $versionInfo.FileMajorPart, `
+    $versionInfo.FileMinorPart, `
+    $versionInfo.FileBuildPart, `
+    $versionInfo.FilePrivatePart
+$expectedSequence = 0
+$preRelease = ($versionInfo.FileVersion -split '\+', 2)[0]
+if ($preRelease -match '^[0-9]+\.[0-9]+\.[0-9]+-(.+)$') {
+    $lastIdentifier = ($Matches[1] -split '\.')[-1]
+    if ($lastIdentifier -match '^[0-9]+$') {
+        $expectedSequence = [int]$lastIdentifier
+    }
+}
+if ($versionInfo.FilePrivatePart -ne $expectedSequence) {
+    throw "The numeric version $numericVersion does not carry the preview sequence $expectedSequence from FileVersion $($versionInfo.FileVersion)."
+}
+
 if (-not ("GhosttyReleaseIconNative" -as [type])) {
     Add-Type -TypeDefinition @"
 using System;
@@ -265,6 +285,7 @@ if ($cliVersion -ne $versionInfo.FileVersion) {
     Version      = $cliVersion
     FileVersion  = $versionInfo.FileVersion
     ProductVersion = $versionInfo.ProductVersion
+    NumericVersion = $numericVersion
     Debug         = $versionInfo.IsDebug
     IconGroups    = $iconGroupCount
     LargeIcon     = $true

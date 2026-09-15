@@ -38,10 +38,40 @@ git status --short
 
 - [ ] `build.zig.zon` の `.version` を更新する。
 - [ ] 開発ブランチの `.version` は、対象リリース系列を示す `X.Y.Z-dev` とする。
-- [ ] 正式版を検証するときの `-Dversion-string`、またはタグは、pre-releaseを
-  含まない `X.Y.Z`、`vX.Y.Z` とする。
-- [ ] 既存タグからビルドする場合は、タグ `vX.Y.Z` と
-  `build.zig.zon` のmajor、minor、patchが一致することを確認する。
+  upstream を取り込んだときは upstream の `.version` に合わせる。
+- [ ] upstream 同等の正式版を検証するときの `-Dversion-string`、またはタグは、
+  pre-releaseを含まない `X.Y.Z`、`vX.Y.Z` とする。
+- [ ] Windows版のプレビューを公開するときは `X.Y.Z-windows.N`、タグは
+  `vX.Y.Z-windows.N` とする（下記「Windows版プレビューの版番号」を参照）。
+- [ ] 既存タグからビルドする場合は、タグの major、minor、patch と
+  `build.zig.zon` の値が一致することを確認する。
+
+### Windows版プレビューの版番号
+
+このフォークが公開する Windows 版は、upstream の基準版に Windows 版の
+通し番号をプレリリース識別子として付ける。
+
+| 例 | 意味 |
+|---|---|
+| `1.3.2-windows.1` | upstream 1.3.2 系列を基準にした最初の Windows プレビュー |
+| `1.3.2-windows.2` | 同じ基準版の修正版 |
+| `1.3.3-windows.1` | upstream 1.3.3 系列へ取り込み後の最初のプレビュー |
+
+- 基準版 `X.Y.Z` は `build.zig.zon` の `.version` の数値部と一致させる。
+  upstream が未リリースの系列でも、開発中の版（`X.Y.Z-dev` の数値部）を使う。
+- プレリリース識別子 `windows.N` は SemVer 上で正式版 `X.Y.Z` より前に並ぶため、
+  後から upstream が `X.Y.Z` を公開しても順序が崩れない。`X.Y.Z+windows.N` の
+  ように build metadata で区別する形は、未公開の正式版を名乗ることになるので
+  使わない。
+- 通し番号 `N` は 1 から始めて基準版ごとに振り直す。数値として比較されるので
+  `windows.10` は `windows.9` より新しい。
+- 通し番号は Windows 数値版の第4要素へ反映される（第6節）。上限は 65535。
+- ビルド時は `-Dversion-string=X.Y.Z-windows.N` を渡す。省略した通常ビルドは
+  `X.Y.Z-windows-+<hash>` の開発版になり、第4要素は 0 になる。
+- PowerShell から直接 `zig build` を呼ぶときは、この引数を引用符で囲む
+  （`'-Dversion-string=1.3.2-windows.4'`）。囲まないと PowerShell が値を分割し、
+  `error: InvalidVersion` で失敗する。`build-release.ps1 -AdditionalZigArgs` へ
+  渡す場合は文字列要素なのでそのまま扱える。
 - [ ] Windows版の変更内容と既知の制限が `docs/windows.md` および
   `docs/windows-roadmap.md` と一致していることを確認する。
 
@@ -66,7 +96,8 @@ git status --short
 ### タグまたは公開操作を行う場合
 
 - [ ] コミット、タグ、push、公開の各操作が依頼で明示されていることを確認する。
-- [ ] タグ名を `vX.Y.Z` とする。
+- [ ] タグ名を、upstream 同等版は `vX.Y.Z`、Windows版プレビューは
+  `vX.Y.Z-windows.N` とする。
 - [ ] `.github/workflows/release-tag.yml` へ渡るバージョンとタグが一致することを
   確認する。
 - [ ] 公開前に署名、配布形式、対象アーキテクチャを別途確認する。
@@ -78,14 +109,15 @@ git status --short
 
 ```powershell
 ./scripts/build-release.ps1 `
-    -AdditionalZigArgs '-Dversion-string=X.Y.Z'
+    -AdditionalZigArgs '-Dversion-string=X.Y.Z-windows.N'
 
 ./zig-out/release/bin/ghostty.exe --version
 ./zig-out/release/bin/ghostty.exe +list-keybinds --default
 ```
 
 - [ ] Releaseビルドが成功する。
-- [ ] `ghostty.exe --version` が意図した `X.Y.Z` を表示する。
+- [ ] `ghostty.exe --version` が意図した `X.Y.Z-windows.N`（upstream 同等版は
+  `X.Y.Z`）を表示する。
 - [ ] `+list-keybinds --default` が終了コード0で完了する。
 - [ ] ReleaseスクリプトがPE形式、CPU、GUIサブシステム、必須リソースを
   正常と判定する。
@@ -98,11 +130,16 @@ git status --short
 `src/build/WindowsVersionResource.zig` はGhosttyのビルドバージョンからヘッダーを
 生成し、`dist/windows/ghostty.rc` がWindowsの版情報へ埋め込む。
 
-- 数値版はWindowsの4要素へ `major.minor.patch.0` として格納する。
+- 数値版はWindowsの4要素へ `major.minor.patch.N` として格納する。`N` は
+  pre-release の末尾の識別子が数字だけのときその値（`1.3.2-windows.4` なら 4）で、
+  それ以外（`-dev`、通常ビルドの `-windows-`、pre-release なし）は 0 になる。
+  インストーラーや winget は数値版で更新判定をするため、プレビューごとに
+  数値版が変わるようにしている。
 - `FileVersion` と `ProductVersion` はpre-releaseとbuild metadataを含む完全な
   Semantic Versionを保持する。
 - Debugビルドでは `VS_FF_DEBUG` を設定し、Releaseビルドでは解除する。
-- major、minor、patchのいずれかが16ビット上限を超える場合はビルドを失敗させる。
+- major、minor、patch、および第4要素の通し番号のいずれかが16ビット上限
+  （65535）を超える場合はビルドを失敗させる。
 
 バージョン更新後は、CLI表示とは別にWindows APIからも値を確認する。
 
@@ -111,12 +148,14 @@ $info = (Get-Item -LiteralPath `
     './zig-out/release/bin/ghostty.exe').VersionInfo
 $info.FileVersion
 $info.ProductVersion
+$info.FileMajorPart, $info.FileMinorPart, $info.FileBuildPart, $info.FilePrivatePart
 ```
 
 - [ ] `FileVersion` と `ProductVersion` が空ではない。
 - [ ] 両方のmajor、minor、patchが `ghostty.exe --version` と一致する。
 - [ ] Releaseビルドの `IsDebug` が `False` である。
-- [ ] 数値版の第4要素が `0` である。
+- [ ] 数値版の第4要素（`FilePrivatePart`）が、Windows版プレビューでは通し番号
+  `N`、それ以外では `0` である。
 
 ## 7. 更新後
 

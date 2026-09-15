@@ -13,6 +13,8 @@
     ·
     <a href="docs/windows.md">利用ガイド</a>
     ·
+    <a href="docs/windows-release-notes.md">リリースノート</a>
+    ·
     <a href="docs/windows-roadmap.md">進捗</a>
     ·
     <a href="#upstream-ghostty">Original Ghostty</a>
@@ -51,6 +53,15 @@ zig build
 ./zig-out/release/bin/ghostty.exe
 ```
 
+現在のプレビュー版は `1.3.2-windows.1`（タグ `v1.3.2-windows.1`）です。
+同じ版を再現する場合は版番号を明示します。内容と検証結果は
+[Windows版 リリースノート](docs/windows-release-notes.md)を参照してください。
+
+```powershell
+git checkout v1.3.2-windows.1
+./scripts/build-release.ps1 -AdditionalZigArgs '-Dversion-string=1.3.2-windows.1'
+```
+
 Release版の反復回帰試験:
 
 ```powershell
@@ -69,9 +80,10 @@ Windowsシェルの手動受け入れ試験:
 ./scripts/test-windows-shell.ps1 -CheckId power-resume
 ```
 
-Windows版は現在も開発中です。Windows 11で基本動作を確認していますが、
-Windows 10、144 DPI・192 DPI、スリープ復帰、長時間稼働などには未確認項目が
-あります。インストーラー、署名、自動更新はまだ提供していません。
+Windows版はプレビュー段階です。Windows 11で基本動作を確認していますが、
+Windows 10、144 DPI・192 DPI、日本語以外のキーボード配列、実機スリープ復帰、
+長時間稼働などには未確認項目があります。インストーラーと自動更新はまだ
+提供していません。
 背景透過は利用できますが、`background-blur` は品質が環境に依存するため、
 現段階では無効を推奨します。
 

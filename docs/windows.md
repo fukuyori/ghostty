@@ -1,8 +1,10 @@
 # Ghostty Windows版 利用ガイド
 
 この文書は、このフォークのネイティブWindows版をビルドして利用するための
-設定、操作、既知の制限をまとめたものです。Windows版は開発中であり、配布形式と
-リリース判定はまだ確定していません。
+設定、操作、既知の制限をまとめたものです。Windows版はプレビュー段階で、現在の
+版は `1.3.2-windows.1` です。公開履歴と各版の検証結果は
+[リリースノート](windows-release-notes.md)を参照してください。配布はReleaseビルド
+スクリプトによるポータブルな実行ファイルで、インストーラーはありません。
 
 ## ビルドと起動
 
@@ -18,6 +20,13 @@ zig build
 ```powershell
 ./scripts/build-release.ps1
 ./zig-out/release/bin/ghostty.exe
+```
+
+公開済みの版を再現する場合は、タグを取り出して版番号を明示します。
+
+```powershell
+git checkout v1.3.2-windows.1
+./scripts/build-release.ps1 -AdditionalZigArgs '-Dversion-string=1.3.2-windows.1'
 ```
 
 GPU復旧と電源復帰の回帰スクリプトが使うテストフックは既定では組み込まれ
@@ -37,7 +46,10 @@ Releaseスクリプトは実行ファイルとリソースを配置しますが�
 バージョンを変更するときの正本、条件付き更新箇所、Release検証手順は
 [バージョン更新チェックリスト](version-update-checklist.md)を参照してください。
 コマンドラインのバージョン表示と、Windowsファイルプロパティの
-`FileVersion`、`ProductVersion` には同じビルドバージョンが入ります。
+`FileVersion`、`ProductVersion` には同じビルドバージョンが入ります。Windows版の
+プレビューは upstream の基準版に通し番号を付けた `X.Y.Z-windows.N` の形式で、
+数値版の第4要素に `N` が入ります（例: `1.3.2-windows.4` は `1.3.2.4`）。通常の
+開発ビルドは `X.Y.Z-windows-+<hash>` で、第4要素は 0 です。
 
 ## 設定ファイル
 
@@ -375,6 +387,7 @@ APIレベルの検査と自動回帰テストは完了していますが、Narra
 ## 既知の制限
 
 - Windows 11では基本動作を確認していますが、Windows 10は未確認です。
+- 日本語配列以外のキーボード配列は実機未確認です。
 - 96 DPIと120 DPIのモニター間移動は実機で自動確認済みですが、144 DPIと
   192 DPIの実機確認は完了していません。
 - 最大化と最小化からの復元、20反復の耐久基準試験は自動確認済みです。
