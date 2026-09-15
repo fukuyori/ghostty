@@ -56,21 +56,23 @@ Portable release build:
 ./zig-out/release/bin/ghostty.exe
 ```
 
-The current preview is `1.3.2-windows.1` (tag `v1.3.2-windows.1`). Pass the
-version explicitly to reproduce it. Its contents and verification results are
-in the [Windows release notes](docs/windows-release-notes.md).
+See the [Windows release notes](docs/windows-release-notes.md) for preview
+versions, contents, and verification results. To reproduce a specific preview,
+replace `<version>` below with the version listed in the release notes
+(without the tag's `v` prefix):
 
 ```powershell
-git checkout v1.3.2-windows.1
-./scripts/build-release.ps1 -AdditionalZigArgs '-Dversion-string=1.3.2-windows.1'
+$releaseVersion = '<version>'
+git checkout "v$releaseVersion"
+./scripts/build-release.ps1 -AdditionalZigArgs "-Dversion-string=$releaseVersion"
 ```
 
-Building the Inno Setup installer (`-Sign` signs the executable, the
-installer, and the uninstaller):
+Building the Inno Setup installer uses the release executable's version
+automatically (`-Sign` signs the executable, the installer, and the uninstaller):
 
 ```powershell
-./scripts/build-installer.ps1 -Version 1.3.2-windows.1
-./scripts/build-installer.ps1 -Version 1.3.2-windows.1 -Sign   # certificate subject from $env:CODESIGN_CERT
+./scripts/build-installer.ps1
+./scripts/build-installer.ps1 -Sign   # certificate subject from $env:CODESIGN_CERT
 ```
 
 Repeated regression runs against the release build:
