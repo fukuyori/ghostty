@@ -9,13 +9,13 @@
     <br />
     Win32, D3D11, DirectComposition, native tabs, and split panes.
     <br />
-    <a href="#ghostty-for-windows">Windows版</a>
+    <a href="#ghostty-for-windows">Windows Build</a>
     ·
-    <a href="docs/windows.md">利用ガイド</a>
+    <a href="docs/windows.md">User Guide</a>
     ·
-    <a href="docs/windows-release-notes.md">リリースノート</a>
+    <a href="docs/windows-release-notes.md">Release Notes</a>
     ·
-    <a href="docs/windows-roadmap.md">進捗</a>
+    <a href="docs/windows-roadmap.md">Roadmap</a>
     ·
     <a href="#upstream-ghostty">Original Ghostty</a>
   </p>
@@ -23,97 +23,102 @@
 
 ## Ghostty for Windows
 
-このリポジトリは、GhosttyをWindowsで日常利用できる状態へ仕上げるための
-開発フォークです。upstreamへのWindows対応統合を待たず、`windows` ブランチで
-ネイティブ実装と検証を進めています。
+This repository is a development fork that brings Ghostty to Windows as a
+native application suitable for daily use. Rather than waiting for Windows
+support to land upstream, the native implementation and its verification
+are developed on the `windows` branch.
 
-Windows版の主な特徴:
+Highlights of the Windows build:
 
-- Win32ネイティブのウィンドウ、タイトルバー、タブバー
-- D3D11とDirectCompositionによる描画、背景透過、デバイスロスト・電源復帰時の自動復旧
-- 複数ウィンドウ、ネイティブタブ、入れ子の分割ペイン
-- キーボードとマウスによるタブ操作、並べ替え、分割境界のリサイズ
-- Windows IME、クリップボード、URL・ファイル操作
-- Per-Monitor V2 DPI、ハイコントラスト、MSAAタブ情報
-- `%LOCALAPPDATA%\ghostty\config.ghostty` の設定読込と再読込
-- ポータブルなReleaseビルドスクリプトと、Inno Setupによる署名対応インストーラー作成スクリプト
-- CLIとWindowsファイルプロパティへ同期するビルド版情報
+- Native Win32 windows, title bar, and tab bar
+- D3D11 and DirectComposition rendering, background opacity, and automatic
+  recovery after GPU device loss and power resume
+- Multiple windows, native tabs, and nested split panes
+- Tab management, reordering, and split-divider resizing by keyboard and mouse
+- Windows IME, clipboard, and URL and file handling
+- Per-Monitor V2 DPI, high contrast, and MSAA tab information
+- Loading and reloading `%LOCALAPPDATA%\ghostty\config.ghostty`
+- A portable release build script and an Inno Setup installer script with
+  code signing support
+- Build version information shared by the CLI and the Windows file properties
 
-ビルドと起動:
+Build and run:
 
 ```powershell
 zig build
 ./zig-out/bin/ghostty.exe
 ```
 
-ポータブルなReleaseビルド:
+Portable release build:
 
 ```powershell
 ./scripts/build-release.ps1
 ./zig-out/release/bin/ghostty.exe
 ```
 
-現在のプレビュー版は `1.3.2-windows.1`（タグ `v1.3.2-windows.1`）です。
-同じ版を再現する場合は版番号を明示します。内容と検証結果は
-[Windows版 リリースノート](docs/windows-release-notes.md)を参照してください。
+The current preview is `1.3.2-windows.1` (tag `v1.3.2-windows.1`). Pass the
+version explicitly to reproduce it. Its contents and verification results are
+in the [Windows release notes](docs/windows-release-notes.md).
 
 ```powershell
 git checkout v1.3.2-windows.1
 ./scripts/build-release.ps1 -AdditionalZigArgs '-Dversion-string=1.3.2-windows.1'
 ```
 
-Inno Setupによるインストーラーの作成（`-Sign` で実行ファイル、インストーラー、
-アンインストーラーへ電子署名）:
+Building the Inno Setup installer (`-Sign` signs the executable, the
+installer, and the uninstaller):
 
 ```powershell
 ./scripts/build-installer.ps1 -Version 1.3.2-windows.1
-./scripts/build-installer.ps1 -Version 1.3.2-windows.1 -Sign   # 証明書は $env:CODESIGN_CERT の件名
+./scripts/build-installer.ps1 -Version 1.3.2-windows.1 -Sign   # certificate subject from $env:CODESIGN_CERT
 ```
 
-Release版の反復回帰試験:
+Repeated regression runs against the release build:
 
 ```powershell
 ./scripts/test-windows-soak.ps1 -Iterations 20
-# GPU再作成と制御電源復帰を含む耐久試験
+# Include controlled GPU resource recovery and power resume
 ./scripts/test-windows-soak.ps1 -Iterations 20 -DelaySeconds 0 `
     -TestGpuRecovery -TestPowerResume
 ```
 
-Windowsシェルの手動受け入れ試験:
+Manual Windows shell acceptance checks:
 
 ```powershell
 ./scripts/test-windows-shell.ps1 -ListOnly
 ./scripts/test-windows-shell.ps1
-# 実機スリープ復帰は明示選択時だけ実行
+# Real sleep and resume only when selected explicitly
 ./scripts/test-windows-shell.ps1 -CheckId power-resume
 ```
 
-Windows版はプレビュー段階です。Windows 11で基本動作を確認していますが、
-Windows 10、144 DPI・192 DPI、日本語以外のキーボード配列、実機スリープ復帰、
-長時間稼働などには未確認項目があります。インストーラーは作成できますが
-公開済みの版には同梱しておらず、自動更新はありません。
-背景透過は利用できますが、`background-blur` は品質が環境に依存するため、
-現段階では無効を推奨します。
+The Windows build is a preview. Basic operation has been verified on
+Windows 11; Windows 10, 144 and 192 DPI, keyboard layouts other than
+Japanese, real sleep and resume, and long-running sessions have not been
+verified yet. An installer can be built but is not bundled with the published
+preview, and there is no automatic update. Background opacity works, but
+`background-blur` quality depends on the environment, so leaving it disabled
+is recommended for now.
 
-### 作業ステップ概要
+### Work Phases
 
-Windows実用化は次の6フェーズで進めています。進捗率は作業量に基づく概算です。
+Windows support is developed in six phases. The percentages are rough
+estimates of the work involved.
 
-| フェーズ | 内容 | 状態 |
+| Phase | Scope | Status |
 |---|---|---:|
-| 1 | 基本ランタイム: 起動、入力、IME、クリップボード、DPI | 完了 |
-| 2 | 描画基盤: D3D11、DirectComposition、背景透過 | 完了 |
-| 3 | ウィンドウ機能: 複数ウィンドウ、全画面、設定再読込 | 完了 |
-| 4 | 分割ペイン: 作成、移動、リサイズ、ズーム | 完了 |
-| 5 | Windows GUI仕上げ: タブ、マウス操作、DPI、アクセシビリティ | 約98% |
-| 6 | リリース品質: 診断、Release検証、実機試験、配布準備 | 約97% |
+| 1 | Core runtime: startup, input, IME, clipboard, DPI | Done |
+| 2 | Rendering: D3D11, DirectComposition, background opacity | Done |
+| 3 | Window features: multiple windows, fullscreen, config reload | Done |
+| 4 | Split panes: create, navigate, resize, zoom | Done |
+| 5 | Windows GUI polish: tabs, mouse handling, DPI, accessibility | ~98% |
+| 6 | Release quality: diagnostics, release verification, hardware tests, distribution | ~97% |
 
-全体では約98%です。現在はフェーズ5の実環境別GUI確認と、フェーズ6の
-リリース品質整備を並行して進めています。
+Overall progress is about 98%. Current work is the environment-specific GUI
+verification of phase 5 and the release-quality work of phase 6 in parallel.
 
-設定、既定キー、診断方法、既知の制限は
-[Windows版 利用ガイド](docs/windows.md)、実装済み項目と残作業は
-[Windows実用化ロードマップ](docs/windows-roadmap.md)を参照してください。
+Configuration, default keybindings, diagnostics, and known limitations are in
+the [Windows user guide](docs/windows.md); implemented items and remaining
+work are in the [Windows roadmap](docs/windows-roadmap.md).
 
 ## Upstream Ghostty
 

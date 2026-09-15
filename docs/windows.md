@@ -1,138 +1,149 @@
-# Ghostty Windows版 利用ガイド
+# Ghostty for Windows User Guide
 
-この文書は、このフォークのネイティブWindows版をビルドして利用するための
-設定、操作、既知の制限をまとめたものです。Windows版はプレビュー段階で、現在の
-版は `1.3.2-windows.1` です。公開履歴と各版の検証結果は
-[リリースノート](windows-release-notes.md)を参照してください。配布形式は
-Releaseビルドスクリプトによるポータブルな実行ファイルと、Inno Setupで作成する
-インストーラーの2種類です。
+This document summarizes the configuration, operation, and known limitations
+for building and using the native Windows build of this fork. The Windows
+build is at the preview stage; the current version is `1.3.2-windows.1`. See
+the [release notes](windows-release-notes.md) for the publication history and
+the verification results of each version. There are two distribution forms: a
+portable executable produced by the Release build script, and an installer
+created with Inno Setup.
 
-## ビルドと起動
+## Build and Launch
 
-Debugビルド:
+Debug build:
 
 ```powershell
 zig build
 ./zig-out/bin/ghostty.exe
 ```
 
-ポータブルなReleaseビルド:
+Portable Release build:
 
 ```powershell
 ./scripts/build-release.ps1
 ./zig-out/release/bin/ghostty.exe
 ```
 
-公開済みの版を再現する場合は、タグを取り出して版番号を明示します。
+To reproduce a published version, check out the tag and specify the version
+number explicitly.
 
 ```powershell
 git checkout v1.3.2-windows.1
 ./scripts/build-release.ps1 -AdditionalZigArgs '-Dversion-string=1.3.2-windows.1'
 ```
 
-## インストーラーの作成
+## Creating the Installer
 
-Release ビルドから Inno Setup 6 のインストーラーを作成できます。
-[Inno Setup 6.3 以降](https://jrsoftware.org/isinfo.php)と、署名する場合は
-Windows SDK の `signtool.exe` が必要です。スクリプトは `zig-out\release` の内容を
-`zig-out\installer\stage` へ複製してから処理するため、Release ビルド自体は
-変更されません。
+An Inno Setup 6 installer can be created from the Release build.
+[Inno Setup 6.3 or later](https://jrsoftware.org/isinfo.php) is required, and
+`signtool.exe` from the Windows SDK when signing. The script copies the
+contents of `zig-out\release` to `zig-out\installer\stage` before processing,
+so the Release build itself is not modified.
 
 ```powershell
 ./scripts/build-release.ps1 -AdditionalZigArgs '-Dversion-string=1.3.2-windows.1'
 ./scripts/build-installer.ps1 -Version 1.3.2-windows.1
 ```
 
-出力は `zig-out\installer\ghostty-<版>-x64-setup.exe` です。インストーラーの
-`ProductVersion` と数値版は実行ファイルと同じ値になり、スクリプトが一致を検査します。
-`-Version` を渡すと、実行ファイルの版が一致しない場合に失敗します。
+The output is `zig-out\installer\ghostty-<version>-x64-setup.exe`. The
+installer's `ProductVersion` and numeric version take the same values as the
+executable, and the script checks that they match. If `-Version` is passed, the
+script fails when the executable's version does not match.
 
-インストーラーは次の内容を持ちます。
+The installer has the following contents.
 
-- `bin\ghostty.exe`、`share\ghostty`（テーマ、シェル統合）、
-  `share\terminfo\ghostty.terminfo` を配置します。実行ファイルは自分の位置から
-  `share\terminfo\ghostty.terminfo` を探して資源ディレクトリを決めるため、
-  この配置は変更できません。
-- 既定はユーザー単位のインストール（管理者権限不要）で、ダイアログから
-  全ユーザー向けの `Program Files` へのインストールも選べます。
-- スタートメニューへ登録し、任意でデスクトップアイコンと環境変数 `PATH` への
-  `bin` の追加を行います。`PATH` はインストール種別に応じてユーザーまたは
-  システムの環境変数を編集し、アンインストール時に取り除きます。
-- 英語と日本語のウィザードを含みます。対象は x64 の Windows 10 1809 以降です。
-- 同じ AppId を使うため、新しい版のインストーラーは既存のインストールを
-  上書き更新します。
+- Places `bin\ghostty.exe`, `share\ghostty` (themes, shell integration), and
+  `share\terminfo\ghostty.terminfo`. The executable looks for
+  `share\terminfo\ghostty.terminfo` relative to its own location to determine
+  the resource directory, so this layout cannot be changed.
+- The default is a per-user installation (no administrator rights required);
+  installation for all users into `Program Files` can also be selected from
+  the dialog.
+- Registers a Start menu entry and optionally creates a desktop icon and adds
+  `bin` to the `PATH` environment variable. `PATH` edits the user or system
+  environment variable depending on the installation type, and the entry is
+  removed on uninstall.
+- Includes English and Japanese wizards. The target is x64 Windows 10 1809 or
+  later.
+- Because the same AppId is used, the installer for a newer version updates an
+  existing installation in place.
 
-電子署名を付ける場合は `-Sign` を指定します。実行ファイルを先に署名してから
-パッケージ化し、Inno Setup がインストーラーとアンインストーラーを同じ証明書で
-署名します。証明書は既定で環境変数 `CODESIGN_CERT` の件名（証明書ストア内の
-コード署名証明書、signtool の `/n`）から選びます。件名が重複する場合は
-`-CertificateThumbprint`、ストアにない証明書は `-PfxPath` と `-PfxPassword` で
-指定できます。PFX のパスワードはコマンドラインに載ります。
+Specify `-Sign` to attach a digital signature. The executable is signed first
+and then packaged, and Inno Setup signs the installer and uninstaller with the
+same certificate. By default the certificate is selected by the subject name
+in the `CODESIGN_CERT` environment variable (a code-signing certificate in the
+certificate store; signtool's `/n`). If subject names are duplicated, use
+`-CertificateThumbprint`; a certificate that is not in the store can be
+specified with `-PfxPath` and `-PfxPassword`. The PFX password appears on the
+command line.
 
 ```powershell
-$env:CODESIGN_CERT = "証明書の件名"
+$env:CODESIGN_CERT = "certificate subject name"
 ./scripts/build-installer.ps1 -Version 1.3.2-windows.1 -Sign
 ```
 
-署名は SHA-256 で、既定では `http://timestamp.sectigo.com` のタイムスタンプを
-付けます。別のサーバーは `-TimestampUrl`、検証専用でタイムスタンプなしにする
-場合は `-NoTimestamp` を指定します。結果には各ファイルの署名状態と署名者が
-表示されます。アンインストーラーの署名はインストール後の `unins000.exe` で
-確認できます。
+The signature is SHA-256, and by default a timestamp from
+`http://timestamp.sectigo.com` is attached. Specify `-TimestampUrl` for a
+different server, or `-NoTimestamp` to omit the timestamp for verification-only
+builds. The result shows the signature state and signer of each file. The
+uninstaller's signature can be checked on `unins000.exe` after installation.
 
-2026年9月15日に、署名なしのインストーラー作成と、一時的な自己署名証明書に
-よる `-Sign` の動作（実行ファイル、アンインストーラー、インストーラーの3つが
-SHA-256 で署名されること）を確認しました。インストール自体の動作確認は
-別途必要です。
+On September 15, 2026, creating an unsigned installer and the behavior of
+`-Sign` with a temporary self-signed certificate (the executable, the
+uninstaller, and the installer all being signed with SHA-256) were verified.
+Verification of the installation itself is still needed separately.
 
-GPU復旧と電源復帰の回帰スクリプトが使うテストフックは既定では組み込まれ
-ません。回帰試験用の実行ファイルは次のように作成します。配布用のビルドでは
-指定しないでください。
+The test hooks used by the GPU recovery and power resume regression scripts are
+not built in by default. Build an executable for regression tests as follows.
+Do not specify this for distribution builds.
 
 ```powershell
 zig build -Dwin32-test-hooks=true
 ./scripts/build-release.ps1 -TestHooks
 ```
 
-Releaseスクリプトは実行ファイルとリソースを配置しますが、アーカイブや
-インストーラーは作成しません。ビルド後にPE形式、CPU形式、Windows GUI
-サブシステム、CLIとWindowsの版情報、埋め込みアイコングループと大・小アイコン、
-シェル統合、テーマ、ファイルサイズ、SHA-256を検証して表示します。
+The Release script places the executable and resources but does not create an
+archive or installer. After building, it verifies and displays the PE format,
+CPU architecture, Windows GUI subsystem, CLI and Windows version information,
+the embedded icon group with large and small icons, shell integration, themes,
+file size, and SHA-256.
 
-バージョンを変更するときの正本、条件付き更新箇所、Release検証手順は
-[バージョン更新チェックリスト](version-update-checklist.md)を参照してください。
-コマンドラインのバージョン表示と、Windowsファイルプロパティの
-`FileVersion`、`ProductVersion` には同じビルドバージョンが入ります。Windows版の
-プレビューは upstream の基準版に通し番号を付けた `X.Y.Z-windows.N` の形式で、
-数値版の第4要素に `N` が入ります（例: `1.3.2-windows.4` は `1.3.2.4`）。通常の
-開発ビルドは `X.Y.Z-windows-+<hash>` で、第4要素は 0 です。
+For the source of truth when changing the version, the conditionally updated
+locations, and the Release verification procedure, see the
+[version update checklist](version-update-checklist.md).
+The command-line version display and the `FileVersion` and `ProductVersion` in
+the Windows file properties contain the same build version. Windows previews
+use the format `X.Y.Z-windows.N`, a sequence number appended to the upstream
+base version, and `N` goes into the fourth component of the numeric version
+(for example, `1.3.2-windows.4` is `1.3.2.4`). Regular development builds are
+`X.Y.Z-windows-+<hash>`, with the fourth component set to 0.
 
-## 設定ファイル
+## Configuration File
 
-標準の設定ファイルは次の場所です。
+The standard configuration file is located here.
 
 ```text
 %LOCALAPPDATA%\ghostty\config.ghostty
 ```
 
-`XDG_CONFIG_HOME` が設定されている場合は、こちらが優先されます。
+If `XDG_CONFIG_HOME` is set, it takes precedence.
 
 ```text
 %XDG_CONFIG_HOME%\ghostty\config.ghostty
 ```
 
-拡張子のない旧形式の `ghostty\config` も読み込みます。両方が存在する場合は
-旧形式を先に、新しい `config.ghostty` を後から読み込むため、後者の設定が優先
-されます。
+The legacy `ghostty\config` without an extension is also read. If both exist,
+the legacy file is read first and the newer `config.ghostty` afterwards, so the
+settings in the latter take precedence.
 
-設定関連の既定キー:
+Default keys related to configuration:
 
-| キー | 操作 |
+| Key | Action |
 |---|---|
-| `Ctrl+,` | 設定ファイルを開く |
-| `Ctrl+Shift+,` | 設定を再読み込みする |
+| `Ctrl+,` | Open the configuration file |
+| `Ctrl+Shift+,` | Reload the configuration |
 
-コマンドラインからも設定を確認できます。
+The configuration can also be checked from the command line.
 
 ```powershell
 ./zig-out/bin/ghostty.exe +validate-config
@@ -140,24 +151,24 @@ Releaseスクリプトは実行ファイルとリソースを配置しますが�
 ./zig-out/bin/ghostty.exe +list-keybinds
 ```
 
-## 起動診断ログ
+## Startup Diagnostic Log
 
-通常のGUI起動では標準エラーが画面に表示されません。起動失敗や初期化エラーを
-調べる場合は、診断用スクリプトから起動します。
+In a normal GUI launch, standard error is not shown on screen. To investigate
+startup failures or initialization errors, launch from the diagnostic script.
 
 ```powershell
 ./scripts/run-windows-diagnostics.ps1
 ```
 
-既定ではログを `zig-out\logs` に保存し、起動したプロセスIDとログの絶対パスを
-表示します。Ghosttyを終了するまで待ち、終了コードも取得する場合は次のように
-実行します。
+By default the log is saved to `zig-out\logs`, and the launched process ID and
+the absolute path of the log are displayed. To wait until Ghostty exits and
+also obtain the exit code, run as follows.
 
 ```powershell
 ./scripts/run-windows-diagnostics.ps1 -Wait
 ```
 
-特定のCLI操作を診断する場合は `AdditionalArguments` を使用します。
+To diagnose a specific CLI operation, use `AdditionalArguments`.
 
 ```powershell
 ./scripts/run-windows-diagnostics.ps1 `
@@ -165,57 +176,64 @@ Releaseスクリプトは実行ファイルとリソースを配置しますが�
     -Wait
 ```
 
-ログには設定値、パス、実行したプログラムに由来する情報が含まれる可能性が
-あります。共有する前に内容を確認してください。
+The log may contain configuration values, paths, and information originating
+from the programs that were run. Review its contents before sharing.
 
-## ウィンドウ状態の回帰確認
+## Window State Regression Check
 
-Release実行ファイルの文字入力とコマンド実行、設定再読込、複数ウィンドウの
-作成・移動・表示切り替え・終了、混在DPIモニター追従、分割境界、最大化、
-最小化、復元、正常終了をまとめて確認できます。
+Text input and command execution, configuration reload, creation, movement,
+visibility toggling, and closing of multiple windows, mixed-DPI monitor
+tracking, split dividers, maximize, minimize, restore, and clean exit of the
+Release executable can be checked all at once.
 
 ```powershell
 ./scripts/test-windows-window-state.ps1
 ```
 
-スクリプトは専用のGhosttyプロセスを1つ起動し、既存のGhosttyウィンドウには
-触れません。スナップに必要なウィンドウスタイル、Alt+Tabとタスクバーの対象に
-なれるトップレベル構造、ウィンドウクラスの大・小アイコン、DWMの表示状態を
-確認します。さらに、最小化から直前の最大化状態へ戻ること、通常状態へ復元した
-位置とサイズ、`WM_CLOSE` 後の終了コードを検査します。専用 `cmd.exe` 端末へ
-文字列とEnterを送り、一時マーカーの
-内容からコマンド実行を確認します。またリポジトリ内の一時設定を使い、設定再読込
-によってタブバーが表示、非表示、再表示へ切り替わることを確認します。その後
-テスト用の右分割を作成し、タブバーと分割境界が各モニター、最大化、復元へ追従
-することも確認します。最後に2つ目のトップレベルウィンドウを作成し、両
-ウィンドウへの設定再読込同期、フォーカス移動と巡回、一括非表示と復帰を確認
-します。個別終了で元ウィンドウが残ること、再作成後の一括終了でプロセスが正常
-終了することも検査します。最後に、タブバー非表示で `window-width` と
-`window-height` を指定した専用プロセスを起動し、起動直後の ConPTY 行数が
-1pxリサイズ後と一致すること（起動時のサイズが端末へ反映されていること）を
-検査します。専用プロセスは `--config-default-files=false` で
-起動するため、`%LOCALAPPDATA%` の利用者設定は読み込まれず、結果はこの
-マシンの設定に依存しません。利用者の設定ファイルは変更せず、一時設定と
-マーカーは正常終了後または自動後処理後に削除します。標準出力と標準エラーは
-`zig-out/logs` に保存されます。別の実行ファイルを確認する場合は次のように
-指定します。
+The script launches a single dedicated Ghostty process and does not touch
+existing Ghostty windows. It checks the window styles required for snapping,
+the top-level structure needed to be an Alt+Tab and taskbar target, the window
+class's large and small icons, and the DWM visibility state. It further checks
+that the window returns from minimized to the previous maximized state, the
+position and size after restoring to the normal state, and the exit code after
+`WM_CLOSE`. It sends a string and Enter to a dedicated `cmd.exe` terminal and
+confirms command execution from the contents of a temporary marker. Using a
+temporary configuration inside the repository, it also confirms that a
+configuration reload switches the tab bar to shown, hidden, and shown again.
+It then creates a test right split and confirms that the tab bar and split
+divider track each monitor, maximize, and restore. Finally, it creates a second
+top-level window and checks configuration reload synchronization to both
+windows, focus movement and cycling, and hiding and restoring all windows at
+once. It also checks that the original window remains after closing one
+individually, and that the process exits cleanly on a close-all after
+recreation. Lastly, it launches a dedicated process with the tab bar hidden and
+`window-width` and `window-height` specified, and checks that the ConPTY row
+count immediately after startup matches the count after a 1px resize (that is,
+the startup size is applied to the terminal). Because the dedicated process is
+launched with `--config-default-files=false`, the user configuration in
+`%LOCALAPPDATA%` is not loaded and the results do not depend on this machine's
+settings. The user's configuration file is not modified, and the temporary
+configuration and marker are deleted after a clean exit or by automatic
+cleanup. Standard output and standard error are saved to `zig-out/logs`. To
+check a different executable, specify it as follows.
 
 ```powershell
 ./scripts/test-windows-window-state.ps1 `
     -Executable zig-out/version-check-script/bin/ghostty.exe
 ```
 
-D3D11、DirectComposition、シェーダー、スワップチェーン、画像資源の再作成と、
-同じ端末セッションで復旧後もコマンドを実行できることは、専用テストフックで
-確認できます。このオプションは物理的なGPU障害を発生させません。テストフックは
-`-Dwin32-test-hooks=true` でビルドした実行ファイルにだけ存在し、フックのない
-実行ファイルを指定するとスクリプトは待機せずに失敗します。
+Recreation of D3D11, DirectComposition, shaders, the swap chain, and image
+resources, and that commands can still be executed in the same terminal session
+after recovery, can be verified with a dedicated test hook. This option does
+not cause a physical GPU failure. The test hooks exist only in executables
+built with `-Dwin32-test-hooks=true`; if an executable without the hooks is
+specified, the script fails without waiting.
 
 ```powershell
 ./scripts/test-windows-window-state.ps1 -TestGpuRecovery
 ```
 
-同じプロセスで連続再作成を検査する場合は回数を指定します。
+To test consecutive recreations in the same process, specify the count.
 
 ```powershell
 ./scripts/test-windows-window-state.ps1 `
@@ -223,12 +241,14 @@ D3D11、DirectComposition、シェーダー、スワップチェーン、画像�
     -GpuRecoveryIterations 20
 ```
 
-一時的な再初期化失敗への有限再試行は、最初の2回を制御失敗させて確認できます。
-再試行はレンダラースレッドのタイマーで行い、1サイクルにつき最大6回、待機時間は
-100ms、250ms、1秒、2秒、5秒です。待機中もリサイズやフォーカスの処理は止まりません。
-サイクルの全回が失敗するとアプリ側へ通知され、アプリは同じサーフェスに対して
-最大3サイクルまで再開します。それでも復旧しない場合は描画停止のまま診断ログを
-残し、次の電源復帰通知で再度サイクルを開始します。
+Finite retries after a temporary reinitialization failure can be verified by
+making the first two attempts fail under control. Retries are performed by a
+timer on the renderer thread, up to 6 per cycle, with wait times of 100ms,
+250ms, 1 second, 2 seconds, and 5 seconds. Resize and focus handling continues
+while waiting. If every attempt in a cycle fails, the app is notified and
+restarts up to 3 cycles for the same surface. If recovery still does not
+succeed, rendering stays stopped, a diagnostic log is left, and the cycle
+starts again on the next power resume notification.
 
 ```powershell
 ./scripts/test-windows-window-state.ps1 `
@@ -236,46 +256,56 @@ D3D11、DirectComposition、シェーダー、スワップチェーン、画像�
     -GpuRecoveryFailures 2
 ```
 
-2026年9月15日にRelease版の同一端末セッションで20回連続実行し、再作成の
-開始20回、完了20回、失敗0、既知のログ異常0を確認しました。その後の端末入力、
-設定再読込、分割、4モニター移動、複数ウィンドウ操作、正常終了も成功しています。
-制御失敗2回の試験では3回目に復旧し、端末セッションと全GUI回帰を維持しました。
-再試行の上限が3回だった時点の負側試験では、制御失敗3回で最終失敗1回、4回目の
-試行0となり、無限再試行しないことを確認しています。
+On September 15, 2026, 20 consecutive runs were performed in the same terminal
+session with the Release build, confirming 20 recreation starts, 20
+completions, 0 failures, and 0 known log anomalies. Subsequent terminal input,
+configuration reload, splits, movement across 4 monitors, multi-window
+operations, and clean exit also succeeded. In the test with 2 controlled
+failures, recovery occurred on the third attempt, and the terminal session and
+the full GUI regression were maintained. In the negative test performed when
+the retry limit was 3, 3 controlled failures produced 1 final failure and 0
+fourth attempts, confirming that retries are not infinite.
 
-Windowsのサスペンド・自動復帰通知を専用プロセスへ送り、電源復帰時のGPU資源
-再作成と端末セッション維持を確認する場合は次を実行します。この試験はPC自体を
-スリープさせません。
+To send Windows suspend and automatic resume notifications to the dedicated
+process and verify GPU resource recreation and terminal session preservation on
+power resume, run the following. This test does not put the PC itself to
+sleep.
 
 ```powershell
 ./scripts/test-windows-window-state.ps1 -TestPowerResume
 ```
 
-2026年9月15日にRelease版で、まず単一サーフェスを復旧し、次に分割済みの
-ウィンドウと別ウィンドウに属する全3サーフェスを同時に復旧しました。2つ目の
-トップレベルウィンドウへ届く重複復帰通知は抑止され、合計でサスペンド検出2回、
-復帰検出2回、GPU再作成の開始・完了各4回、失敗0でした。復旧後の端末入力と
-全GUI回帰も成功しました。
+On September 15, 2026 with the Release build, a single surface was recovered
+first, and then all 3 surfaces belonging to a split window and a separate
+window were recovered simultaneously. Duplicate resume notifications reaching
+the second top-level window were suppressed; in total there were 2 suspend
+detections, 2 resume detections, 4 GPU recreation starts and 4 completions,
+and 0 failures. Terminal input after recovery and the full GUI regression also
+succeeded.
 
-スナップ、Alt+Tab、タスクバーについて、このスクリプトが確認するのはWindows
-シェルの対象となるための構造です。実際のキー操作、スナップレイアウト、タスク
-バーからの操作は別途実機で確認します。
+For snapping, Alt+Tab, and the taskbar, what this script checks is the
+structure required to be a target of the Windows shell. Actual key operations,
+snap layouts, and operations from the taskbar are verified separately on real
+hardware.
 
-接続中の各モニターへ専用ウィンドウを順番に移動し、親クライアント領域と
-`GhosttyTabBar` の原点、幅、DPI、DPI別の高さ、所有関係も検査します。試験後は
-ウィンドウを初期位置へ戻します。異なるDPIのモニターが接続されていない場合、
-混在DPIの確認にはならないため、出力されたモニター別DPIを確認してください。
+It moves the dedicated window to each connected monitor in turn and also
+checks the origin, width, DPI, per-DPI height, and ownership relationship of
+the parent client area and `GhosttyTabBar`. After the test, the window is
+returned to its initial position. If monitors with different DPIs are not
+connected, this does not constitute a mixed-DPI check, so review the
+per-monitor DPI values in the output.
 
-## 反復・長時間回帰確認
+## Repeated and Long-Running Regression Checks
 
-ウィンドウ状態の回帰試験を20回繰り返す場合は次を実行します。
+To repeat the window state regression test 20 times, run the following.
 
 ```powershell
 ./scripts/test-windows-soak.ps1 -Iterations 20
 ```
 
-GPU資源の制御再作成と、PCをスリープさせない電源復帰通知試験を各反復に含める
-場合は次を実行します。
+To include controlled recreation of GPU resources and the power resume
+notification test (which does not put the PC to sleep) in each iteration, run
+the following.
 
 ```powershell
 ./scripts/test-windows-soak.ps1 `
@@ -286,96 +316,109 @@ GPU資源の制御再作成と、PCをスリープさせない電源復帰通知
     -TestPowerResume
 ```
 
-時間を基準に実行する場合は分単位で指定します。この場合、反復回数の指定は
-使用されません。開始済みの回帰試験は途中で打ち切らず、完了後に終了時刻を
-判定します。
+To run on a time basis, specify the duration in minutes. In this case the
+iteration count is not used. A regression test already in progress is not cut
+short; the end time is evaluated after it completes.
 
 ```powershell
 ./scripts/test-windows-soak.ps1 -DurationMinutes 60
 ```
 
-各回は独立したGhosttyプロセスを使用します。起動、文字入力、設定再読込、
-分割とDPI追従、複数ウィンドウ、正常終了を反復し、試験結果と個別ログのパスを
-`zig-out/logs/windows-soak-*.json` へ毎回保存します。失敗時も、それまでの結果と
-エラーをJSONへ残して終了します。この試験はプロセスの反復起動と終了を対象とし、
-1つの端末セッションを開いたままにする連続稼働試験ではありません。
+Each iteration uses an independent Ghostty process. It repeats launch, text
+input, configuration reload, splits and DPI tracking, multiple windows, and
+clean exit, and saves the test results and the paths of the individual logs to
+`zig-out/logs/windows-soak-*.json` every time. On failure, it still records
+the results so far and the error to the JSON before exiting. This test targets
+repeated process launch and exit; it is not a continuous-operation test that
+keeps a single terminal session open.
 
-2026年9月15日にRelease版で20反復の基準試験を実行し、20回すべて成功、失敗0、
-強制終了0、ログ異常0、一時ファイル残留0を確認しました。所要時間は40.054秒です。
-数時間規模の試験は別途必要です。
+On September 15, 2026, the 20-iteration baseline test was run with the Release
+build, confirming that all 20 succeeded, with 0 failures, 0 forced
+terminations, 0 log anomalies, and 0 leftover temporary files. The elapsed
+time was 40.054 seconds. Multi-hour tests are still needed separately.
 
-同日にGPU再作成と制御電源復帰を含む20反復も実行し、20個の独立プロセスが
-59.004秒ですべて成功しました。各プロセス5回、合計100回のGPU資源再作成が
-すべて完了し、復旧失敗0、不正なJSON記録0、一時ファイル残留0でした。
+On the same day, 20 iterations including GPU recreation and controlled power
+resume were also run, and all 20 independent processes succeeded in 59.004
+seconds. All 100 GPU resource recreations, 5 per process, completed, with 0
+recovery failures, 0 invalid JSON records, and 0 leftover temporary files.
 
-## キーボード配列
+## Keyboard Layouts
 
-キー割り当ての物理キーはスキャンコードから決めるため、日本語配列や欧州配列でも
-`physical:` 指定と既定の分割移動キーはキーの位置で一致します。`ctrl+;` のような
-文字指定は、現在の配列でそのキーが無修飾で入力する文字と照合します。自動化
-ツールがスキャンコードなしで投稿したキーメッセージだけ、US配列相当の仮想キー表へ
-戻します。日本語配列の実機で単体テストと回帰試験を通していますが、他の配列の
-実機確認は行っていません。
+Because the physical key for a key binding is determined from the scan code,
+`physical:` bindings and the default split navigation keys match by key
+position even on Japanese or European layouts. Character bindings such as
+`ctrl+;` are matched against the character that the key produces without
+modifiers on the current layout. Only key messages posted by automation tools
+without a scan code fall back to the US-layout-equivalent virtual key table.
+Unit tests and regression tests pass on real hardware with a Japanese layout,
+but other layouts have not been verified on real hardware.
 
-## Windowsシェルの手動受け入れ確認
+## Manual Acceptance Check for the Windows Shell
 
-自動回帰試験は、スナップ、Alt+Tab、タスクバーの対象となるためのウィンドウ
-構造を検査します。Windowsシェル上の見た目と実操作は、次の手動試験で記録します。
-項目だけを確認する場合はGhosttyを起動しません。
+The automated regression test checks the window structure required to be a
+target of snapping, Alt+Tab, and the taskbar. Appearance and actual operation
+on the Windows shell are recorded with the following manual test. When only
+reviewing the items, Ghostty is not launched.
 
 ```powershell
 ./scripts/test-windows-shell.ps1 -ListOnly
 ```
 
-受け入れ試験を開始する場合は次を実行します。
+To start the acceptance test, run the following.
 
 ```powershell
 ./scripts/test-windows-shell.ps1
 ```
 
-特定項目だけを再確認する場合は、項目IDを指定できます。
+To recheck only a specific item, the item ID can be specified.
 
 ```powershell
 ./scripts/test-windows-shell.ps1 -CheckId alt-tab
 ```
 
-スクリプトは利用者設定に触れず、`--config-default-files=false` で起動した
-専用のGhosttyプロセスと一時設定を使用します。
-次の6項目について `p`（合格）、`f`（不合格）、`s`（スキップ）、`q`（中止）を
-入力します。
+The script does not touch the user configuration; it uses a dedicated Ghostty
+process launched with `--config-default-files=false` and a temporary
+configuration.
+For each of the following 6 items, enter `p` (pass), `f` (fail), `s` (skip),
+or `q` (abort).
 
-1. Alt+Tabでの表示とフォーカス
-2. タスクバーボタンによる最小化・復元・フォーカス
-3. `Win+Left` と `Win+Right` によるスナップ
-4. `Win+Z` または最大化ボタンからのスナップレイアウト
-5. 2ウィンドウのAlt+Tabとタスクバーの個別選択
-6. タスクバープレビューからの個別終了と全終了
+1. Display and focus via Alt+Tab
+2. Minimize, restore, and focus via the taskbar button
+3. Snapping with `Win+Left` and `Win+Right`
+4. Snap layouts from `Win+Z` or the maximize button
+5. Alt+Tab and individual taskbar selection with 2 windows
+6. Closing individually and closing all from the taskbar preview
 
-実機スリープ復帰は通常の6項目には含まれません。ほかの作業を保存してから、
-次のように明示的に選択します。
+Sleep resume on real hardware is not included in the regular 6 items. Save
+your other work first, then select it explicitly as follows.
 
 ```powershell
 ./scripts/test-windows-shell.ps1 -CheckId power-resume
 ```
 
-復帰後に同じ端末の内容と入力、描画状態を目視確認します。最終JSONには手動回答に
-加えて、診断ログから取得したサスペンド通知数、復帰通知数、予定されたレンダラー
-復旧数、完了数、失敗数を保存します。手動で合格を選んでも、ログ上の自動検証が
-不合格の場合は全体合格になりません。
+After resuming, visually confirm the same terminal contents, input, and
+rendering state. In addition to the manual answers, the final JSON stores the
+number of suspend notifications, resume notifications, scheduled renderer
+recoveries, completions, and failures obtained from the diagnostic log. Even if
+pass is selected manually, the overall result is not a pass if the automatic
+verification against the log fails.
 
-回答ごとに `zig-out/logs/windows-shell-*.json` を更新します。中止や失敗でも、
-回答済み項目、実行環境、実行ファイルの版とSHA-256、診断ログ、エラーを保存します。
-試験終了時は専用プロセスと一時設定を後処理します。
+`zig-out/logs/windows-shell-*.json` is updated after each answer. Even on
+abort or failure, the answered items, execution environment, executable
+version and SHA-256, diagnostic log, and errors are saved. At the end of the
+test, the dedicated process and temporary configuration are cleaned up.
 
-2026年9月15日のWindows 11実操作では、タスクバー操作、左右スナップ、スナップ
-レイアウト、2ウィンドウの選択、タスクバーからの個別・全終了が合格しました。
-最初の試験ではAlt+Tabのアイコンが固有のものではありませんでしたが、大・小の
-Ghosttyアイコンをウィンドウクラスへ設定した修正版で再試験し、合格しました。
-修正版ではクラスアイコンを検査する自動回帰も20反復し、すべて成功しています。
+In actual operation on Windows 11 on September 15, 2026, taskbar operations,
+left and right snapping, snap layouts, selection between 2 windows, and closing
+individually and closing all from the taskbar passed. In the first test the
+Alt+Tab icon was not the distinct one, but the test was repeated with a fixed
+build that sets the large and small Ghostty icons on the window class, and it
+passed. With the fixed build, the automated regression that checks the class
+icons was also run for 20 iterations, all successful.
 
-## Windows GUI設定
+## Windows GUI Settings
 
-設定例:
+Example configuration:
 
 ```text
 window-show-tab-bar = auto
@@ -387,78 +430,87 @@ background-opacity = 0.90
 background-blur = false
 ```
 
-主な設定:
+Main settings:
 
-- `window-show-tab-bar`: `auto`、`always`、`never`。`auto` は複数タブまたは
-  分割ズーム中に表示します。
-- `window-new-tab-position`: `current` は現在のタブの直後、`end` は末尾へ
-  新規タブを追加します。
-- `window-theme`: `auto`、`system`、`dark`、`light`、`ghostty`。
-  `ghostty` の場合はタイトルバーへ設定色を反映します。
-- `background-opacity`: D3D11版では背景透過へ反映します。
-- `background-blur`: Windowsでは表示品質が環境依存です。現段階では
-  `false` を推奨します。
+- `window-show-tab-bar`: `auto`, `always`, `never`. `auto` shows the tab bar
+  when there are multiple tabs or a split is zoomed.
+- `window-new-tab-position`: `current` adds a new tab immediately after the
+  current tab; `end` adds it at the end.
+- `window-theme`: `auto`, `system`, `dark`, `light`, `ghostty`.
+  With `ghostty`, the configured colors are applied to the title bar.
+- `background-opacity`: Applied to background transparency in the D3D11 build.
+- `background-blur`: On Windows, the display quality depends on the
+  environment. `false` is recommended at this stage.
 
-Windowsのハイコントラストが有効な場合は、タブバーと分割境界へシステム色を
-使用し、タイトルバーの任意色を解除してWindows管理の配色へ戻します。
+When Windows high contrast is enabled, system colors are used for the tab bar
+and split dividers, and any custom title bar colors are cleared to return to
+the Windows-managed color scheme.
 
-## 既定のタブ操作
+## Default Tab Operations
 
-| キーまたは操作 | 動作 |
+| Key or Action | Behavior |
 |---|---|
-| `Ctrl+Shift+T` | 新しいタブ |
-| `Ctrl+Shift+W` | 現在のタブを閉じる |
-| `Ctrl+Tab` / `Ctrl+Shift+Tab` | 次／前のタブ |
-| `Ctrl+PageDown` / `Ctrl+PageUp` | 次／前のタブ |
-| `Alt+1`〜`Alt+8` | 指定番号のタブ |
-| `Alt+9` | 最後のタブ |
-| `Ctrl+Shift+PageDown` / `Ctrl+Shift+PageUp` | タブを右／左へ移動 |
-| タブをクリック | タブを選択 |
-| タブをドラッグ | タブを並べ替え |
-| タブをダブルクリック | 任意のタブ名を設定。空欄で端末タイトルへ戻す |
-| タブの `×` | タブを閉じる |
-| タブバーの `+` | 新しいタブ |
-| タブバー上のホイール | 次／前のタブ |
+| `Ctrl+Shift+T` | New tab |
+| `Ctrl+Shift+W` | Close the current tab |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab |
+| `Ctrl+PageDown` / `Ctrl+PageUp` | Next / previous tab |
+| `Alt+1` to `Alt+8` | Tab with the given number |
+| `Alt+9` | Last tab |
+| `Ctrl+Shift+PageDown` / `Ctrl+Shift+PageUp` | Move the tab right / left |
+| Click a tab | Select the tab |
+| Drag a tab | Reorder tabs |
+| Double-click a tab | Set a custom tab name; leave blank to revert to the terminal title |
+| `×` on a tab | Close the tab |
+| `+` on the tab bar | New tab |
+| Mouse wheel over the tab bar | Next / previous tab |
 
-## 既定の分割操作
+## Default Split Operations
 
-| キーまたは操作 | 動作 |
+| Key or Action | Behavior |
 |---|---|
-| `Ctrl+Shift+O` | 右に分割 |
-| `Ctrl+Shift+E` | 下に分割 |
-| `Ctrl+Alt+矢印` | 指定方向のペインへ移動 |
-| `Ctrl+Win+[` / `Ctrl+Win+]` | 前／次のペインへ移動 |
-| `Ctrl+Win+Shift+矢印` | ペインを指定方向へリサイズ |
-| `Ctrl+Shift+Enter` | 現在のペインのズーム切り替え |
-| 分割境界をドラッグ | ペインをリサイズ |
+| `Ctrl+Shift+O` | Split right |
+| `Ctrl+Shift+E` | Split down |
+| `Ctrl+Alt+Arrow` | Move to the pane in the given direction |
+| `Ctrl+Win+[` / `Ctrl+Win+]` | Move to the previous / next pane |
+| `Ctrl+Win+Shift+Arrow` | Resize the pane in the given direction |
+| `Ctrl+Shift+Enter` | Toggle zoom of the current pane |
+| Drag a split divider | Resize panes |
 
-そのほか、`Ctrl+Shift+N` は新しいウィンドウ、`Ctrl+Enter` は全画面切り替え、
-`Alt+F4` はウィンドウを閉じ、`Ctrl+Shift+Q` はGhosttyを終了します。
+In addition, `Ctrl+Shift+N` opens a new window, `Ctrl+Enter` toggles
+fullscreen, `Alt+F4` closes the window, and `Ctrl+Shift+Q` quits Ghostty.
 
-## アクセシビリティ
+## Accessibility
 
-カスタム描画のタブバーは、MSAAのページタブ一覧として公開されます。各タブの
-名前、位置、選択状態、前後移動、ヒットテスト、既定操作を取得できます。
+The custom-drawn tab bar is exposed as an MSAA page tab list. Each tab's name,
+position, selection state, previous/next navigation, hit testing, and default
+action can be obtained.
 
-APIレベルの検査と自動回帰テストは完了していますが、NarratorおよびNVDAでの
-音声読み上げはまだ受け入れ確認中です。
+API-level inspection and automated regression tests are complete, but speech
+output with Narrator and NVDA is still under acceptance verification.
 
-## 既知の制限
+## Known Limitations
 
-- Windows 11では基本動作を確認していますが、Windows 10は未確認です。
-- 日本語配列以外のキーボード配列は実機未確認です。
-- 96 DPIと120 DPIのモニター間移動は実機で自動確認済みですが、144 DPIと
-  192 DPIの実機確認は完了していません。
-- 最大化と最小化からの復元、20反復の耐久基準試験は自動確認済みです。
-  GPU資源の制御再作成と端末セッション維持は自動確認済みですが、実際のGPU
-  デバイスロストまたはドライバー障害からの復旧と、PCを実際にスリープさせた
-  復帰試験、数時間規模の連続試験は未確認です。Windowsのサスペンド・復帰通知を
-  使った制御復帰試験は確認済みです。D3D11の提示HRESULTとデバイス削除理由は
-  診断ログへ記録されます。
-- `background-blur` はWindowsやGPUの構成によって効果と品質が変わります。
-- インストーラーは作成できますが、公開済みの版には同梱していません。自動更新は
-  ありません。
-- macOS版のSwiftUI設定画面やLinux版のGTK統合と同等のGUIはありません。
+- Basic operation has been verified on Windows 11, but Windows 10 is not
+  verified.
+- Keyboard layouts other than the Japanese layout are not verified on real
+  hardware.
+- Moving between 96 DPI and 120 DPI monitors has been automatically verified
+  on real hardware, but verification on real hardware at 144 DPI and 192 DPI
+  is not complete.
+- Restoring from maximized and minimized, and the 20-iteration soak baseline
+  test, are automatically verified. Controlled recreation of GPU resources and
+  terminal session preservation are automatically verified, but recovery from
+  an actual GPU device loss or driver failure, a resume test that actually
+  puts the PC to sleep, and multi-hour continuous tests are not verified. The
+  controlled resume test using Windows suspend and resume notifications is
+  verified. D3D11 present HRESULTs and device removal reasons are recorded in
+  the diagnostic log.
+- The effect and quality of `background-blur` vary with the Windows and GPU
+  configuration.
+- An installer can be created, but it is not bundled with the published
+  versions. There is no automatic update.
+- There is no GUI equivalent to the macOS SwiftUI settings window or the Linux
+  GTK integration.
 
-実装状況と検証項目の詳細は
-[Windows実用化ロードマップ](windows-roadmap.md)を参照してください。
+For details on the implementation status and verification items, see the
+[Windows production-readiness roadmap](windows-roadmap.md).

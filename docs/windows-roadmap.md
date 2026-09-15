@@ -1,112 +1,128 @@
-# Ghostty Windows 実用化ロードマップ
+# Ghostty Windows Production-Readiness Roadmap
 
-- 最終更新: 2026-09-15
-- 対象ブランチ: `windows`
-- 基準コミット: `132a5d078` (`docs: add Windows implementation roadmap`)
-- 工程区分の基準: 2026-09-14時点の会話で合意した6フェーズ
+- Last updated: 2026-09-15
+- Target branch: `windows`
+- Baseline commit: `132a5d078` (`docs: add Windows implementation roadmap`)
+- Phase breakdown basis: the six phases agreed in the conversation as of 2026-09-14
 
-## 1. 目的
+## 1. Purpose
 
-Ghostty の Windows ネイティブ版を、日常利用できる安定性と操作性まで
-仕上げる。macOS/Linux 版との完全な実装一致は求めず、Windows の API と
-デスクトップ環境に適した方法で、主要機能とユーザー体験を近づける。
+Bring the native Windows build of Ghostty up to the stability and usability
+needed for daily use. Full implementation parity with the macOS/Linux builds
+is not required; instead, bring the main features and user experience close
+to them using approaches suited to the Windows API and desktop environment.
 
-このブランチでは、mattn 版が upstream に統合されるのを待たずに実装を
-進める。将来 upstream または mattn 版と機能が重複しても、実用化を優先し、
-取り込み時に差分を整理する。
+On this branch, implementation proceeds without waiting for the mattn build
+to be merged upstream. Even if features later overlap with upstream or the
+mattn build, production readiness takes priority, and differences will be
+reconciled at merge time.
 
-## 2. リポジトリ運用
+## 2. Repository Operation
 
-| リモート | 用途 | push |
+| Remote | Purpose | push |
 |---|---|---|
-| `origin` (`fukuyori/ghostty`) | Windows版の開発・公開先 | 有効 |
-| `upstream` (`ghostty-org/ghostty`) | 公式版からの継続的な取り込み元 | 無効 |
-| `mattn` (`mattn/ghostty`) | 先行Windows実装の参照元 | 無効 |
+| `origin` (`fukuyori/ghostty`) | Development and publishing of the Windows build | Enabled |
+| `upstream` (`ghostty-org/ghostty`) | Source for continuous merges from the official build | Disabled |
+| `mattn` (`mattn/ghostty`) | Reference for the earlier Windows implementation | Disabled |
 
-- 開発の既定ブランチは `windows` とする。
-- upstream の更新は `upstream` から明示的に取り込む。
-- mattn 版は履歴と実装の参照先として保持する。
-- upstream/mattn への誤 push を防ぐ設定を維持する。
-- コミット、タグ、push、パッケージ作成は、依頼で明示された場合だけ行う。
+- The default development branch is `windows`.
+- Upstream updates are merged explicitly from `upstream`.
+- The mattn build is kept as a reference for history and implementation.
+- Keep the settings that prevent accidental pushes to upstream/mattn.
+- Commits, tags, pushes, and package creation are done only when explicitly
+  requested.
 
-## 3. 完了の定義
+## 3. Definition of Done
 
-Windows版を「実用レベル」と判断するには、次の条件をすべて満たす必要が
-ある。
+For the Windows build to be judged "production ready", all of the following
+conditions must be met.
 
-1. 通常終了、ウィンドウを閉じる操作、複数ウィンドウ終了でクラッシュや
-   プロセス残留がない。
-2. `%LOCALAPPDATA%\ghostty\config.ghostty` を読み込み、設定再読込が機能する。
-3. キーボード、IME、マウス、選択、クリップボード、URL操作が実用できる。
-4. D3D11/DirectComposition 描画が安定し、透過設定が反映される。
-5. 複数ウィンドウ、ペイン分割、タブの主要操作がGUIとキー操作の両方で
-   機能する。
-6. DPI変更、複数モニター、最大化、最小化、復元でレイアウトが崩れない。
-7. Release ビルドを再現可能なスクリプトで生成できる。
-8. Windows 10/11 の実機試験項目を満たし、既知の制限を文書化する。
+1. No crashes or leftover processes on normal exit, on closing a window, or
+   on closing multiple windows.
+2. `%LOCALAPPDATA%\ghostty\config.ghostty` is loaded and config reload works.
+3. Keyboard, IME, mouse, selection, clipboard, and URL handling are usable.
+4. D3D11/DirectComposition rendering is stable and transparency settings are
+   applied.
+5. The main operations for multiple windows, split panes, and tabs work both
+   via the GUI and via key bindings.
+6. Layout does not break on DPI changes, multiple monitors, maximize,
+   minimize, or restore.
+7. Release builds can be produced with a reproducible script.
+8. The real-hardware test items for Windows 10/11 are satisfied and known
+   limitations are documented.
 
-## 4. 状態の表記
+## 4. Status Notation
 
-- `完了`: 完了条件を満たし、ビルドと該当テストを通過している。
-- `一部完了`: 成果物はあるが、リリース判定に必要な検証が残る。
-- `進行中`: 基本実装はあるが、未実装項目または実機確認が残る。
-- `未着手`: 設計または実装を開始していない。
-- `保留`: 技術的制約または品質上の判断により、現在は有効化しない。
+- `Done`: the completion criteria are met and the build and relevant tests
+  pass.
+- `Partially done`: deliverables exist, but verification required for the
+  release decision remains.
+- `In progress`: the basic implementation exists, but unimplemented items or
+  real-hardware verification remain.
+- `Not started`: design or implementation has not begun.
+- `On hold`: not currently enabled due to technical constraints or quality
+  judgment.
 
-進捗率は作業量の概算であり、テスト合格率ではない。完了条件を変更した
-場合は、この文書の率と残作業も同時に更新する。
+Progress percentages are rough estimates of work volume, not test pass
+rates. When completion criteria change, update the percentages and remaining
+work in this document at the same time.
 
-## 5. 全体進捗
+## 5. Overall Progress
 
-| フェーズ | 内容 | 状態 | 概算 |
+| Phase | Content | Status | Estimate |
 |---|---|---|---:|
-| 1 | 基本ランタイム | 完了 | 100% |
-| 2 | 描画基盤 | 完了 | 100% |
-| 3 | ウィンドウ機能 | 完了 | 100% |
-| 4 | 分割ペイン | 完了 | 100% |
-| 5 | Windows GUI仕上げ | 進行中 | 約98% |
-| 6 | リリース品質 | 一部完了 | 約97% |
+| 1 | Basic runtime | Done | 100% |
+| 2 | Rendering foundation | Done | 100% |
+| 3 | Window features | Done | 100% |
+| 4 | Split panes | Done | 100% |
+| 5 | Windows GUI polish | In progress | approx. 98% |
+| 6 | Release quality | Partially done | approx. 97% |
 
-全体進捗は約98%と見積もる。2026-09-15 に最初のプレビュー版
-`1.3.2-windows.1`（タグ `v1.3.2-windows.1`）を Release 検証を通して確定した。
-残りはフェーズ5の実環境別GUI確認と、フェーズ6の実機試験、配布形式の判断である。
-公開履歴は `docs/windows-release-notes.md` に記録する。
-フェーズ5はタブだけでなく、タイトルバー、分割境界のマウス操作、GUI状態
-表示、外観、DPI、アクセシビリティまでを含む。
+Overall progress is estimated at approximately 98%. On 2026-09-15 the first
+preview build `1.3.2-windows.1` (tag `v1.3.2-windows.1`) was finalized after
+passing Release verification. What remains is the per-environment GUI
+verification in Phase 5, and the real-hardware tests and distribution format
+decision in Phase 6. Release history is recorded in
+`docs/windows-release-notes.md`.
+Phase 5 covers not only tabs but also the title bar, mouse operation of split
+dividers, GUI state display, appearance, DPI, and accessibility.
 
-基準時点の `5ec0d2b05` では全体約70%、フェーズ5約25%だった。その後、
-タブ所有基盤、タブ操作、タブバー、クリック操作、ドラッグ並べ替え、分割境界の
-マウスリサイズ、分割ズーム状態表示、多数タブのオーバーフロー操作を
-実装し、さらに既存アクションとGUIからの任意タブ名変更を追加したため、
-フェーズ5を約85%へ更新した。その後、分割境界の専用描画、DPI追従、
-ハイコントラスト対応を追加したため、約88%へ更新した。
-さらにタブバーのDPI別フォントと4モニターでの再配置確認を完了し、約90%へ
-更新した。既定のタブ用キー割り当てを実行バイナリで確認し、タブバーの
-アクセシブル名と状態変更通知を追加したため、約93%へ更新した。さらに
-個別タブをMSAA子要素として公開し、選択と既定操作を確認したため、約96%へ
-更新した。さらにタブバーとタイトルバーへハイコントラスト専用処理を追加した
-ため、約97%へ更新した。さらに96 DPIと120 DPIが混在する4モニター間で、
-タブバーと分割境界のDPI・矩形追従をRelease実行ファイルで確認したため、
-約98%へ更新した。
+At the baseline `5ec0d2b05`, overall progress was about 70% and Phase 5 about
+25%. Since then, the tab ownership foundation, tab operations, the tab bar,
+click handling, drag reordering, mouse resizing of split dividers, split zoom
+state display, and overflow handling for many tabs were implemented, and
+custom tab renaming via existing actions and the GUI was added, so Phase 5
+was updated to about 85%. Dedicated split divider rendering, DPI tracking,
+and high contrast support were then added, raising it to about 88%.
+Per-DPI tab bar fonts and repositioning verification across four monitors
+were completed, raising it to about 90%. The default tab key bindings were
+verified in the executable binary, and accessible names and state change
+notifications for the tab bar were added, raising it to about 93%. Individual
+tabs were then exposed as MSAA child elements, and selection and the default
+action were verified, raising it to about 96%. Dedicated high contrast
+handling was then added to the tab bar and title bar, raising it to about
+97%. Finally, DPI and rectangle tracking of the tab bar and split dividers
+across four monitors mixing 96 DPI and 120 DPI was verified with the Release
+executable, raising it to about 98%.
 
-## 6. フェーズ別工程
+## 6. Phase-by-Phase Plan
 
-### フェーズ1: 基本ランタイム
+### Phase 1: Basic Runtime
 
-状態: **完了**
+Status: **Done**
 
-実装済み:
+Implemented:
 
-- Win32 ネイティブアプリケーションランタイム
-- キーボード入力と文字入力
-- クリップボード
-- マウス入力
-- DPI、タイトル、フォーカス処理
-- IME変換ウィンドウのカーソル位置追従
-- レンダラースレッドでの安全な描画更新
-- ウィンドウ終了とプロセス終了処理
+- Win32 native application runtime
+- Keyboard input and character input
+- Clipboard
+- Mouse input
+- DPI, title, and focus handling
+- IME composition window following the cursor position
+- Safe rendering updates on the renderer thread
+- Window close and process exit handling
 
-主な根拠コミット:
+Key commits:
 
 - `667a1ed03` `win32: add minimal native application runtime`
 - `b003769f3` `win32: add keyboard input handling`
@@ -116,581 +132,743 @@ Windows版を「実用レベル」と判断するには、次の条件をすべ�
 - `d8bbd2aa0` `win32: position IME window at cursor`
 - `fb451d5ea` `win32: keep buffer swaps on renderer thread`
 
-完了条件:
+Completion criteria:
 
-- 基本的な端末操作を行っても入力欠落、ハング、クラッシュがない。
-- 日本語IMEの変換候補が入力位置付近に表示される。
-- コピー、貼り付け、マウス選択が機能する。
+- No dropped input, hangs, or crashes during basic terminal operation.
+- Japanese IME conversion candidates appear near the input position.
+- Copy, paste, and mouse selection work.
 
-### フェーズ2: 描画基盤
+### Phase 2: Rendering Foundation
 
-状態: **完了**
+Status: **Done**
 
-実装済み:
+Implemented:
 
-- OpenGL互換ビルドとビューポート同期
-- DirectComposition の描画基盤
-- D3D11 用ターミナルシェーダー
-- D3D11 レンダラー
-- `background-opacity` による背景透過
-- Windows backdrop と Gaussian blur の試験実装
-- 設定変更時の透過・backdrop更新
+- OpenGL-compatible build and viewport synchronization
+- DirectComposition rendering foundation
+- Terminal shaders for D3D11
+- D3D11 renderer
+- Background transparency via `background-opacity`
+- Experimental implementation of Windows backdrop and Gaussian blur
+- Transparency and backdrop updates on config changes
 
-フェーズ完了後の既知の品質課題:
+Known quality issues after phase completion:
 
-- 背景透過は実用可能。
-- ぼかし処理は実装経路があるが、環境によって中途半端なぼかしになるため
-  品質基準を満たしていない。現時点の推奨状態はぼかし無効である。
-- `background-blur` の値とWindows側の見た目を安定して対応させることは
-  未完了であり、フェーズ6の品質課題として追跡する。
+- Background transparency is usable.
+- Blur has an implementation path, but on some environments it produces an
+  incomplete blur and does not meet the quality bar. The currently
+  recommended state is blur disabled.
+- Reliably mapping the `background-blur` value to the appearance on Windows
+  is incomplete and is tracked as a Phase 6 quality issue.
 
-完了条件:
+Completion criteria:
 
-- D3D11/DirectCompositionで端末を描画できる。
-- `background-opacity` が画面へ反映される。
-- OpenGL互換構成がビルド可能である。
+- The terminal can be rendered with D3D11/DirectComposition.
+- `background-opacity` is reflected on screen.
+- The OpenGL-compatible configuration can be built.
 
-### フェーズ3: ウィンドウ機能
+### Phase 3: Window Features
 
-状態: **完了**
+Status: **Done**
 
-実装済み:
+Implemented:
 
-- 複数ウィンドウ
-- サーフェスとウィンドウの終了ライフサイクル
-- 設定ファイルの読み込みと再読み込み
-- 設定ファイルを開く操作
-- URLを既定アプリケーションで開く操作
-- 最大化、フルスクリーン、装飾切り替え、初期サイズ、サイズリセット
-- ウィンドウタイトルとフォーカスの同期
+- Multiple windows
+- Surface and window close lifecycle
+- Loading and reloading the config file
+- Opening the config file
+- Opening URLs in the default application
+- Maximize, fullscreen, decoration toggle, initial size, size reset
+- Window title and focus synchronization
 
-フェーズ完了後の品質課題:
+Quality issues after phase completion:
 
-- Windowsの既定シェル検出と `cmd.exe` フォールバック表示を整理する。
-- 複数ウィンドウの作成、個別終了、一括終了、ウィンドウ間のフォーカス移動、
-  一括非表示と復帰は自動回帰確認済み。
-- `window-show-tab-bar` の設定再読込が複数ウィンドウへ同期することは自動回帰
-  確認済み。その他のGUI・サーフェス設定は項目別に確認する。
+- Clean up Windows default shell detection and the `cmd.exe` fallback
+  display.
+- Creating multiple windows, closing them individually and all at once,
+  moving focus between windows, and hiding and restoring all at once are
+  verified by automated regression.
+- Synchronization of a `window-show-tab-bar` config reload across multiple
+  windows is verified by automated regression. Other GUI and surface settings
+  are verified item by item.
 
-完了条件:
+Completion criteria:
 
-- `%LOCALAPPDATA%\ghostty\config.ghostty` の変更が再起動または再読込で
-  正しく反映される。
-- 複数ウィンドウを個別・一括で安全に閉じられる。
-- 最大化、全画面、装飾、タイトル、フォーカスを操作できる。
+- Changes to `%LOCALAPPDATA%\ghostty\config.ghostty` are correctly applied
+  on restart or reload.
+- Multiple windows can be closed safely, individually and all at once.
+- Maximize, fullscreen, decorations, title, and focus can be operated.
 
-### フェーズ4: ペイン分割
+### Phase 4: Split Panes
 
-状態: **完了**
+Status: **Done**
 
-実装済み:
+Implemented:
 
-- 水平・垂直分割
-- 分割先へのフォーカス移動
-- キー操作による分割サイズ変更
-- 分割サイズの均等化
-- 分割ズーム
-- 分割サーフェスの終了とフォーカス移譲
-- タブ単位で独立した分割ツリー
+- Horizontal and vertical splits
+- Moving focus to a split target
+- Resizing splits via key bindings
+- Equalizing split sizes
+- Split zoom
+- Closing a split surface and transferring focus
+- Independent split tree per tab
 
-フェーズ完了後のGUI課題:
+GUI issues after phase completion:
 
-- 境界線のマウスドラッグとホバー表示は、当初の区分どおりフェーズ5で扱う。
-- 複雑な分割ツリーとタブ切り替えを組み合わせた試験はフェーズ6で扱う。
+- Mouse dragging and hover display of dividers are handled in Phase 5, as
+  originally categorized.
+- Tests combining complex split trees with tab switching are handled in
+  Phase 6.
 
-完了条件:
+Completion criteria:
 
-- 2〜6ペインの入れ子構成で作成、移動、変更、終了が破綻しない。
-- ズーム解除後に元の分割比率とフォーカスが復元される。
-- ペイン操作が別タブの分割状態へ影響しない。
+- Create, move, resize, and close do not break in nested configurations of
+  2 to 6 panes.
+- The original split ratio and focus are restored after unzooming.
+- Pane operations do not affect the split state of other tabs.
 
-### フェーズ5: Windows GUI仕上げ
+### Phase 5: Windows GUI Polish
 
-状態: **進行中（約98%）**
+Status: **In progress (approx. 98%)**
 
-フェーズ内訳:
+Phase breakdown:
 
-| 項目 | 進捗 | 状態 |
+| Item | Progress | Status |
 |---|---:|---|
-| ネイティブタイトルバー | 90% | ネイティブDPI追従、ダークモード、色、タブ名との同期、ハイコントラストを実装済み |
-| タブ管理基盤 | 100% | 所有構造とライフサイクルを実装済み |
-| タブバー表示 | 100% | 基本描画、状態表示、多数タブのオーバーフローに対応済み |
-| タブ操作 | 100% | 選択、終了、追加、名前変更、キー・ホイール移動、ドラッグを実装済み |
-| 分割境界GUI | 95% | 専用描画、ホバー、DPI・ハイコントラスト、ドラッグ、最小サイズ制約を実装済み |
-| GUI状態表示 | 80% | フォーカス、任意タブ名、タイトル、分割ズーム状態に対応済み |
-| 見た目・操作性調整 | 90% | 境界表示、タブバーDPI、システム色、個別タブのMSAA公開を実装済み |
+| Native title bar | 90% | Native DPI tracking, dark mode, colors, sync with tab name, and high contrast implemented |
+| Tab management foundation | 100% | Ownership structure and lifecycle implemented |
+| Tab bar display | 100% | Basic rendering, state display, and overflow for many tabs supported |
+| Tab operations | 100% | Select, close, add, rename, key/wheel navigation, and drag implemented |
+| Split divider GUI | 95% | Dedicated rendering, hover, DPI and high contrast, drag, and minimum size constraints implemented |
+| GUI state display | 80% | Focus, custom tab name, title, and split zoom state supported |
+| Appearance and usability tuning | 90% | Divider display, tab bar DPI, system colors, and MSAA exposure of individual tabs implemented |
 
-実装済み:
+Implemented:
 
-- `Window -> Tab -> Surface/SplitTree` の所有構造
-- 新規タブ、タブ終了、前後・番号・末尾へのタブ移動
-- タブ順序変更アクション
-- タブごとの分割ツリーとフォーカス保持
-- アクティブタブだけを表示するレイアウト
-- タブタイトルの更新
-- タブ名、閉じるボタン、新規タブボタンを持つネイティブタブバー
-- DirectCompositionと共存する、非アクティブ化された所有ウィンドウ方式
-- `window-show-tab-bar` の `auto`、`always`、`never`
-- タブバーのDPI、親ウィンドウ移動、サイズ、表示状態への追従
-- 実行バイナリでのタブ追加、選択、終了操作
-- Windowsのドラッグしきい値とマウスキャプチャを使ったタブ並べ替え
-- ドラッグ中のアクティブタブ、フォーカス、分割状態の保持
-- 入れ子構成で対象を特定できる分割境界ヒットテスト
-- DPIに追従する境界ヒット領域と水平・垂直リサイズカーソル
-- マウスキャプチャを使った分割境界のドラッグリサイズ
-- セル寸法と余白に基づく最小ペインサイズ制約
-- アクティブタブの分割ズーム状態を示すタブバー右端の `ZOOM` 表示
-- `window-show-tab-bar=auto` でもズーム中は状態表示のためタブバーを表示
-- 実用下限幅を保つ多数タブ用の表示範囲と左右移動ボタン
-- 選択中タブを常に表示範囲へ入れる自動追従
-- タブバー上のマウスホイールによる前後移動
-- オーバーフロー移動ボタン上まで継続できるタブドラッグ並べ替え
-- `set_tab_title` と `prompt_tab_title` の既存アクションによる任意タブ名変更
-- タブのダブルクリックで開くネイティブ編集ダイアログ
-- 任意タブ名をタブの生存期間中は保持し、空欄で端末タイトルへ戻す優先順位
-- アクティブタブの任意名とトップレベルウィンドウタイトルの同期
-- DirectCompositionの上へ重ねる、マウスを遮らない分割境界専用ウィンドウ
-- テーマ色を混合した通常・ホバー境界色と、DPIに応じた物理ピクセル幅
-- Windowsハイコントラスト時のシステム色と2論理px幅
-- ハイコントラスト時にWindowsのウィンドウ色、文字色、選択色を使うタブバー
-- ハイコントラスト開始時にDWMの任意タイトルバー色を解除し、システム管理へ戻す処理
-- システム色・テーマ変更時のハイコントラスト状態再取得とタイトルバー再適用
-- システム色・テーマ設定変更時の境界再配置と再描画
-- タブバーの高さ、余白、ボタン、装飾、Segoe UIフォントのDPI追従
-- Per-Monitor V2の親ウィンドウDPIを使ったタブバー再配置と再描画
-- タブバーのアクセシブル名としてタブ数、選択位置、選択中タイトルを公開
-- タブ名、選択、並べ替え変更時のWin32アクセシビリティイベント通知
-- タブ一覧と個別タブをMSAAのページタブ一覧・ページタブ要素として公開
-- 個別タブの名前、説明、選択状態、画面位置、ヒットテスト、既定操作を公開
-- MSAAの選択・既定操作によるタブ切り替えを通常のタブ操作経路へ接続
+- `Window -> Tab -> Surface/SplitTree` ownership structure
+- New tab, close tab, and moving to the previous/next/numbered/last tab
+- Tab reorder action
+- Per-tab split tree with focus retention
+- Layout that shows only the active tab
+- Tab title updates
+- Native tab bar with tab names, close buttons, and a new tab button
+- Deactivated owned-window approach that coexists with DirectComposition
+- `auto`, `always`, and `never` for `window-show-tab-bar`
+- Tab bar tracking of DPI, parent window movement, size, and visibility
+- Adding, selecting, and closing tabs in the executable binary
+- Tab reordering using the Windows drag threshold and mouse capture
+- Retention of the active tab, focus, and split state during a drag
+- Split divider hit testing that identifies the target in nested layouts
+- DPI-tracking divider hit areas and horizontal/vertical resize cursors
+- Drag resizing of split dividers using mouse capture
+- Minimum pane size constraints based on cell dimensions and padding
+- `ZOOM` indicator at the right end of the tab bar showing the active tab's
+  split zoom state
+- Even with `window-show-tab-bar=auto`, the tab bar is shown while zoomed
+  to display the state
+- Visible range and left/right scroll buttons for many tabs that keep a
+  practical minimum width
+- Automatic tracking that always keeps the selected tab within the visible
+  range
+- Previous/next navigation via the mouse wheel over the tab bar
+- Tab drag reordering that can continue over the overflow scroll buttons
+- Custom tab renaming via the existing `set_tab_title` and
+  `prompt_tab_title` actions
+- Native edit dialog opened by double-clicking a tab
+- Priority rule that keeps a custom tab name for the tab's lifetime and
+  reverts to the terminal title when left blank
+- Synchronization of the active tab's custom name with the top-level window
+  title
+- Dedicated split divider window layered over DirectComposition that does not
+  block the mouse
+- Normal and hover divider colors blended from theme colors, with physical
+  pixel width according to DPI
+- System colors and a 2 logical px width under Windows high contrast
+- Tab bar that uses the Windows window, text, and selection colors under
+  high contrast
+- Handling that removes the custom DWM title bar color when high contrast
+  starts and returns it to system management
+- Re-reading the high contrast state and reapplying the title bar on system
+  color and theme changes
+- Divider repositioning and redraw on system color and theme setting changes
+- DPI tracking of tab bar height, padding, buttons, decorations, and the
+  Segoe UI font
+- Tab bar repositioning and redraw using the Per-Monitor V2 parent window
+  DPI
+- Exposure of the tab count, selected position, and selected title as the
+  tab bar's accessible name
+- Win32 accessibility event notifications on tab name, selection, and
+  reorder changes
+- Exposure of the tab list and individual tabs as MSAA page tab list and
+  page tab elements
+- Exposure of each tab's name, description, selection state, screen
+  position, hit testing, and default action
+- Connection of MSAA select and default action to the normal tab operation
+  path for tab switching
 
-直近の実動作確認:
+Recent verification:
 
-- 2026-09-14: 新規タブ、先頭タブ選択、先頭タブ終了を順に実行した。
-- ネイティブサーフェス数が `1 -> 2 -> 1` と変化することを確認した。
-- タブ選択後に表示サーフェスが選択先へ切り替わることを確認した。
-- 2026-09-14: 3タブ構成で先頭タブを末尾へドラッグし、並べ替え後も
-  アクティブ状態を維持することを確認した。
-- 並べ替え後の先頭タブを選択し、移動前の第2タブが表示されることを確認した。
-- 2026-09-14: 実行バイナリで右分割を作成し、境界を80pxドラッグした結果、
-  左ペイン幅が `601 -> 681px` に変化することを確認した。
-- 2026-09-14: 1タブ構成で分割ズームを有効にし、タブバー右端へ `ZOOM` が
-  表示され、タブ名、閉じるボタン、追加ボタンと重ならないことを確認した。
-- 2026-09-14: 14タブ構成でオーバーフロー表示を発生させ、左右移動ボタン、
-  選択中タブ、追加ボタンが重ならないことを確認した。
-- 左移動ボタンとマウスホイールで、アクティブサーフェスがそれぞれ次の対象へ
-  切り替わることを確認した。
-- 2026-09-14: タブをダブルクリックして任意名 `Windows tab` を設定し、タブの
-  有効名とトップレベルウィンドウタイトルが同期することを確認した。
-- 編集欄を空にして確定し、任意名が解除されて端末タイトル `Ghostty` に戻ることを
-  確認した。
-- 2026-09-14: 96 DPIの実行バイナリで1pxの分割境界が生成され、通常色
-  `0x4C4C4C` からホバー色 `0xA5A5A5` へ変化することを確認した。
-- 同じ境界を60pxドラッグし、境界ウィンドウとペイン境界が60px移動することを
-  確認した。
-- 2026-09-15: 96 DPIと120 DPIが混在する4台のモニター間をRelease実行
-  ウィンドウで移動し、タブバー高さが32pxと40pxへ切り替わること、親と
-  タブバー・分割境界のDPIが一致すること、分割境界がコンテンツ領域へ追従する
-  ことを自動回帰スクリプトで確認した。
-- 120、144、192 DPIでは、タブバー高さが40、48、64px、フォント高さが
-  15、18、24pxになることを単体テストで確認した。
-- 2026-09-14: 実行バイナリの既定キー割り当て一覧で、タブの追加、終了、
-  前後移動、並べ替え用ショートカットが登録されていることを確認した。
-- 一時的なF5〜F9割り当てから各アクションを実行し、タブ数、選択位置、
-  並べ替え位置がアクセシブル名へ順に反映されることを確認した。
-- MSAAの `OBJID_CLIENT` から、`Ghostty tabs. 1 tab. Active tab 1: ...` 形式の
-  名前を取得できることを実行バイナリで確認した。
-- 2026-09-14: 2タブ構成をMSAA子要素数2、一覧ロール60、タブロール37として
-  取得し、個別名、`選択可能`・`選択中` 状態、選択値2を確認した。
-- 第1タブのMSAA既定操作を実行し、選択値が `2 -> 1` へ変わることを確認した。
-- IAccessibleのvtable経路とIDispatch経路の双方で個別タブ情報を取得した。
-- 子IDの範囲、選択・画面外状態、先頭・末尾・前後移動を実装と共通の
-  純粋関数で検証するMSAA回帰テストを追加した。
-- ハイコントラスト用タブバーパレットが構成色を使わずシステム色だけを使うこと、
-  タイトルバーがDWM既定色へ戻ることを単体テストで確認した。
+- 2026-09-14: Executed new tab, select first tab, and close first tab in
+  sequence.
+- Verified the native surface count changes `1 -> 2 -> 1`.
+- Verified the displayed surface switches to the selected target after tab
+  selection.
+- 2026-09-14: In a 3-tab layout, dragged the first tab to the end and
+  verified it remains active after reordering.
+- Selected the first tab after reordering and verified the former second tab
+  is displayed.
+- 2026-09-14: Created a right split in the executable binary and dragged the
+  divider 80px; verified the left pane width changes `601 -> 681px`.
+- 2026-09-14: Enabled split zoom in a 1-tab layout and verified `ZOOM` appears
+  at the right end of the tab bar without overlapping the tab name, close
+  button, or add button.
+- 2026-09-14: Triggered overflow display with a 14-tab layout and verified
+  the left/right scroll buttons, the selected tab, and the add button do not
+  overlap.
+- Verified the active surface switches to the next target with the left
+  scroll button and with the mouse wheel, respectively.
+- 2026-09-14: Double-clicked a tab to set the custom name `Windows tab` and
+  verified the tab's effective name and the top-level window title are
+  synchronized.
+- Confirmed with an empty edit field and verified the custom name is cleared
+  and the terminal title reverts to `Ghostty`.
+- 2026-09-14: Verified with the 96 DPI executable binary that a 1px split
+  divider is created and changes from the normal color `0x4C4C4C` to the
+  hover color `0xA5A5A5`.
+- Dragged the same divider 60px and verified the divider window and the pane
+  boundary move 60px.
+- 2026-09-15: Moved the Release executable window across four monitors
+  mixing 96 DPI and 120 DPI and verified with the automated regression
+  script that the tab bar height switches between 32px and 40px, that the
+  DPI of the parent matches that of the tab bar and split dividers, and that
+  the split dividers track the content area.
+- Verified by unit test that at 120, 144, and 192 DPI the tab bar height is
+  40, 48, and 64px and the font height is 15, 18, and 24px.
+- 2026-09-14: Verified in the executable binary's default key binding list
+  that shortcuts for adding, closing, navigating, and reordering tabs are
+  registered.
+- Executed each action from temporary F5 to F9 bindings and verified the tab
+  count, selected position, and reordered position are reflected in the
+  accessible name in order.
+- Verified in the executable binary that a name of the form
+  `Ghostty tabs. 1 tab. Active tab 1: ...` can be obtained from MSAA
+  `OBJID_CLIENT`.
+- 2026-09-14: Retrieved a 2-tab layout as MSAA child count 2, list role 60,
+  and tab role 37, and verified the individual names, the `selectable` and
+  `selected` states, and selection value 2.
+- Executed the MSAA default action on the first tab and verified the
+  selection value changes `2 -> 1`.
+- Retrieved individual tab information through both the IAccessible vtable
+  path and the IDispatch path.
+- Added MSAA regression tests that verify child ID ranges, selected and
+  offscreen states, and first/last/previous/next navigation using pure
+  functions shared with the implementation.
+- Verified by unit test that the high contrast tab bar palette uses only
+  system colors and no configured colors, and that the title bar reverts to
+  the DWM default color.
 
-主な根拠コミット:
+Key commits:
 
 - `59f3ff822` `win32: prepare native split windowing`
 - `571e4d2c4` `win32: enable native terminal splits`
 - `5ec0d2b05` `win32: complete split controls and backdrop effects`
 - `7f698b54b` `win32: add native tab management and tab bar`
 
-残作業（実施順）:
+Remaining work (in order):
 
-1. 必要に応じて右クリックメニューを追加する。
-2. ハイコントラストを実際に有効化した環境で境界、タブバー、タイトルバーを確認する。
-3. 144 DPIと192 DPIの実機環境でタイトルバー、タブバー、分割境界を確認する。
-4. NarratorまたはNVDAで個別タブ名、選択状態、状態変更通知を実機確認する。
-5. PCを実際にスリープさせた復帰時のGUI追従を確認する。Windowsシェルの
-   実操作6項目と、電源通知による制御復帰は確認済み。
+1. Add a right-click menu if needed.
+2. Verify the dividers, tab bar, and title bar in an environment with high
+   contrast actually enabled.
+3. Verify the title bar, tab bar, and split dividers on real hardware at
+   144 DPI and 192 DPI.
+4. Verify individual tab names, selection state, and state change
+   notifications with Narrator or NVDA on real hardware.
+5. Verify GUI tracking on resume after actually putting the PC to sleep. The
+   six Windows shell manual operations and controlled power resume via power
+   notifications are verified.
 
-完了条件:
+Completion criteria:
 
-- キー操作とGUI操作の双方でタブの作成、選択、移動、終了ができる。
-- タブ内のペイン構成がタブ切り替え後も保持される。
-- 多数のタブでも閉じるボタンとアクティブタブへ到達できる。
-- 分割境界をマウスで判別し、ドラッグしてサイズ変更できる。
-- 分割ズームなどの主要なGUI状態を画面上で判別できる。
-- ウィンドウ移動や状態変更でタブバーが残留、消失、位置ずれしない。
-- タブバーの失敗によってGhostty本体が起動不能にならない。
+- Tabs can be created, selected, moved, and closed via both key bindings and
+  GUI operations.
+- The pane layout within a tab is retained after switching tabs.
+- The close button and the active tab remain reachable with many tabs.
+- Split dividers can be identified with the mouse and dragged to resize.
+- Main GUI states such as split zoom can be identified on screen.
+- The tab bar does not linger, disappear, or shift position on window
+  movement or state changes.
+- A tab bar failure does not make Ghostty itself unable to start.
 
-### フェーズ6: リリース品質
+### Phase 6: Release Quality
 
-状態: **一部完了（約98%、プレビュー版 `1.3.2-windows.1` を公開）**
+Status: **Partially done (approx. 98%, preview build `1.3.2-windows.1` published)**
 
-実装済み:
+Implemented:
 
-- PowerShell用Releaseビルドスクリプト `scripts/build-release.ps1`
-- Debug/Releaseの基本ビルド経路
-- Windows実用化ロードマップと検証マトリクス
-- README冒頭のWindows版機能、ビルド方法、6フェーズ概要
-- Windows版のビルド、設定パス、既定キー、既知の制限をまとめた利用者向けガイド
-- GUIサブシステムでも標準出力・標準エラーと終了コードを保存できる診断起動スクリプト
-- 専用プロセスと一時設定で文字入力・コマンド実行、設定再読込、複数
-  ウィンドウの作成・移動・一括非表示・復帰・個別終了・一括終了、複数
-  ウィンドウへの設定再読込同期、Windowsシェル適格性、混在DPIモニター移動、
-  タブバーと分割境界の追従、最大化、最小化、復元、正常終了を検査する
-  ウィンドウ状態回帰スクリプト
-- ウィンドウ状態回帰を反復数または時間で継続実行し、任意でGPU連続再作成と
-  制御電源復帰を各回へ加え、結果とログパスをJSONへ逐次保存する耐久試験スクリプト
-- Alt+Tab、タスクバー、スナップ、複数ウィンドウのWindowsシェル実操作と、
-  明示選択時だけ実機スリープ復帰を案内し、合否・環境・ログをJSONへ逐次保存する
-  手動受け入れ試験スクリプト。スリープ復帰は診断ログの電源通知とレンダラー
-  復旧数も自動照合する
-- 実行ファイルに埋め込んだ複数解像度のGhosttyアイコンをシステムの大・小寸法で
-  読み込み、トップレベルウィンドウクラスへ設定する処理。リソースが無い場合は
-  警告を残してWindows既定アイコンで起動を継続する
-- Release成果物のPE形式、CPU形式、GUIサブシステム、埋め込みアイコン、
-  必須リソースを検証する処理
-- Release成果物のCLI版、Windowsファイル版、製品版、Debugフラグの整合検査
-- D3D11の提示失敗時にDXGIデバイス削除・ハング・リセット・ドライバー内部エラーを
-  判別し、提示HRESULTと `GetDeviceRemovedReason` の結果を診断ログへ記録する処理
-- デバイスロスト検出後にD3D11デバイス、DirectComposition、シェーダー、
-  スワップチェーン、画像資源をレンダラースレッドで再作成し、既存の端末
-  セッションを維持したまま描画を再開する処理
-- Windowsのサスペンドを記録し、最初の復帰通知で全ウィンドウ・全タブ・全ペインの
-  D3D11レンダラーを一度だけ再作成する電源復帰処理
-- 物理的なGPU障害を発生させずに上記の資源再作成を起動し、復旧完了と同じ端末
-  セッションでのコマンド実行を1回または指定回数連続で検査する制御回帰試験
-- GPU資源の再初期化が失敗した場合にレンダラースレッドのタイマーで100ms、
-  250ms、1秒、2秒、5秒の待機を挟んで1サイクル最大6回まで再試行し、全回失敗を
-  アプリへ通知して最大3サイクルまで再開する有限再試行処理。最終失敗後は描画
-  停止状態を維持して診断ログを残し、電源復帰で再開する
-- `Present` 以外のフレーム準備（バッファ書き込み、テクスチャ転送、ターゲット
-  生成）が失敗した場合もデバイス削除理由を照会し、デバイスロストなら復旧を
-  開始する検出処理
-- コアからの wakeup をメッセージ専用ウィンドウへ投稿し、モーダルループ中も
-  コアのメールボックス処理が止まらないようにする経路
-- 同一サーフェスへの重複クローズ要求を抑止し、投稿済みポインタを生存確認して
-  から参照するクローズ処理
-- タブバーの生成に失敗してもウィンドウ生成を継続し、タブバーなしで動作する
-  フォールバック
-- 背景タブ内の分割を閉じてもアクティブタブとフォーカスを維持する処理
-- `quit` アクションで実行中プロセスがある場合に、`close_all_windows` と同じ
-  確認ダイアログを1回表示する処理
-- 回帰・受け入れスクリプトを `--config-default-files=false` で起動し、利用者
-  設定から分離する処理
-- スキャンコードとコアのキーコード表から物理キーを決め、`ToUnicodeEx` で
-  現在の配列の無修飾文字を取得する、配列に依存しないキー入力処理。スキャン
-  コードのないメッセージだけ仮想キー表へ戻す
-- テストフック（`GHOSTTY_TEST_DEVICE_RECOVERY`、`WM_USER+3/+4`、制御失敗注入）
-  を `-Dwin32-test-hooks=true` のビルドに限定し、回帰スクリプトが起動直後に
-  フックの有無を照会する処理
-- コンパイル済みHLSLバイトコードのプロセス内キャッシュ。デバイス復旧時の
-  再コンパイルをなくす
-- `Present` 前の冗長な `Flush` の削除
-- `src/build/WindowsVersionResource.zig` の単体テストを `zig build test` へ組み込み
-- Windows版プレビューの版番号規則 `X.Y.Z-windows.N` と、通し番号 `N` を
-  Windows数値版の第4要素へ反映する処理。Releaseスクリプトは数値版と文字列版の
-  整合を検査する
-- Inno Setup用スクリプト `dist/windows/ghostty.iss` と作成スクリプト
-  `scripts/build-installer.ps1`。Releaseツリーを複製して版を検査し、ユーザー
-  単位・全ユーザーの選択、スタートメニュー、任意のデスクトップアイコンと
-  `PATH` 追加、英語・日本語ウィザードを提供する。`-Sign` で実行ファイル、
-  インストーラー、アンインストーラーへSHA-256のAuthenticode署名とタイムスタンプを付ける
-- Ghostty本体、libghostty-vt、ソースtarballの版情報経路と更新条件を分けた
-  `docs/version-update-checklist.md`
-- GhosttyのSemantic VersionからWindowsの数値版、`FileVersion`、
-  `ProductVersion`、Debugフラグを生成するWindowsリソース処理
+- Release build script for PowerShell `scripts/build-release.ps1`
+- Basic Debug/Release build paths
+- Windows production-readiness roadmap and verification matrix
+- Windows build features, build instructions, and six-phase overview at the
+  top of the README
+- User guide summarizing the Windows build's build steps, config path,
+  default keys, and known limitations
+- Diagnostic launch script that saves standard output, standard error, and
+  the exit code even under the GUI subsystem
+- Window state regression script that, in a dedicated process with a
+  temporary config, checks character input and command execution, config
+  reload, creation/movement/hide-all/restore/individual close/close-all of
+  multiple windows, config reload synchronization across multiple windows,
+  Windows shell eligibility, mixed DPI monitor movement, tab bar and split
+  divider tracking, maximize, minimize, restore, and clean exit
+- Soak test script that runs the window state regression repeatedly by
+  iteration count or duration, optionally adds consecutive GPU recreation
+  and controlled power resume to each iteration, and incrementally saves
+  results and log paths to JSON
+- Manual acceptance test script that guides the user through Alt+Tab,
+  taskbar, snap, and multi-window Windows shell manual operations, and
+  through real-hardware sleep resume only when explicitly selected, and
+  incrementally saves pass/fail, environment, and logs to JSON. Sleep resume
+  also automatically cross-checks the power notifications and renderer
+  recovery counts in the diagnostic log
+- Handling that loads the multi-resolution Ghostty icon embedded in the
+  executable at the system large and small sizes and sets it on the
+  top-level window class. If the resource is missing, a warning is logged
+  and startup continues with the Windows default icon
+- Verification of the Release artifact's PE format, CPU architecture, GUI
+  subsystem, embedded icon, and required resources
+- Consistency check of the Release artifact's CLI version, Windows file
+  version, product version, and Debug flag
+- Handling that, on a D3D11 present failure, distinguishes DXGI device
+  removed, hung, reset, and driver internal error, and records the present
+  HRESULT and the result of `GetDeviceRemovedReason` in the diagnostic log
+- Handling that, after device lost detection, recreates the D3D11 device,
+  DirectComposition, shaders, swap chain, and image resources on the
+  renderer thread and resumes rendering while keeping the existing terminal
+  session
+- Power resume handling that records a Windows suspend and, on the first
+  resume notification, recreates the D3D11 renderers of all windows, all
+  tabs, and all panes exactly once
+- Controlled regression test that triggers the above resource recreation
+  without causing a physical GPU failure and checks recovery completion and
+  command execution in the same terminal session, once or a specified
+  number of consecutive times
+- Finite retry handling that, when GPU resource reinitialization fails,
+  retries up to 6 times per cycle with renderer thread timer waits of 100ms,
+  250ms, 1 second, 2 seconds, and 5 seconds, notifies the app when all
+  attempts fail, and restarts for up to 3 cycles. After the final failure it
+  stays in a rendering-stopped state, leaves a diagnostic log, and resumes
+  on power resume
+- Detection handling that, when frame preparation other than `Present`
+  (buffer writes, texture uploads, target creation) fails, also queries the
+  device removed reason and starts recovery if the device is lost
+- Path that posts core wakeups to a message-only window so core mailbox
+  processing does not stall during modal loops
+- Close handling that suppresses duplicate close requests for the same
+  surface and checks that a posted pointer is still alive before
+  dereferencing it
+- Fallback that continues window creation and runs without a tab bar even
+  if tab bar creation fails
+- Handling that keeps the active tab and focus when a split in a background
+  tab is closed
+- Handling that shows the same confirmation dialog as `close_all_windows`
+  once for the `quit` action when there are running processes
+- Handling that launches the regression and acceptance scripts with
+  `--config-default-files=false` to isolate them from the user's config
+- Layout-independent key input handling that determines the physical key
+  from the scan code and the core's key code table and obtains the
+  unmodified character of the current layout with `ToUnicodeEx`. Only
+  messages without a scan code fall back to the virtual key table
+- Handling that restricts test hooks (`GHOSTTY_TEST_DEVICE_RECOVERY`,
+  `WM_USER+3/+4`, controlled failure injection) to builds with
+  `-Dwin32-test-hooks=true`, with regression scripts querying hook
+  availability right after startup
+- In-process cache of compiled HLSL bytecode. Eliminates recompilation on
+  device recovery
+- Removal of the redundant `Flush` before `Present`
+- Inclusion of the `src/build/WindowsVersionResource.zig` unit tests in
+  `zig build test`
+- Version numbering rule `X.Y.Z-windows.N` for Windows previews, with the
+  sequence number `N` reflected in the fourth element of the Windows numeric
+  version. The Release script checks consistency between the numeric and
+  string versions
+- Inno Setup script `dist/windows/ghostty.iss` and creation script
+  `scripts/build-installer.ps1`. Copies the Release tree, checks the
+  version, and offers per-user or all-users installation, a Start menu
+  entry, an optional desktop icon and `PATH` addition, and English and
+  Japanese wizards. `-Sign` applies SHA-256 Authenticode signatures and
+  timestamps to the executable, installer, and uninstaller
+- `docs/version-update-checklist.md`, which separates the version
+  information paths and update conditions for Ghostty itself, libghostty-vt,
+  and the source tarball
+- Windows resource handling that generates the Windows numeric version,
+  `FileVersion`, `ProductVersion`, and Debug flag from Ghostty's Semantic
+  Version
 
-直近のRelease・診断確認:
+Recent verification:
 
-- 存在しないCLIアクションを実行し、終了コード1と初期化前のエラー文を
-  標準エラーログから取得した。
-- `+list-keybinds --default` を実行し、終了コード0、CLI出力、`GHOSTTY_LOG` による
-  起動情報を、それぞれ標準出力・標準エラーログから取得した。
-- 2026-09-14: ReleaseFast・baseline CPUの109ビルドステップがすべて成功した。
-- Release実行ファイルを `PE32+`、`x64`、`WindowsGui` として検証し、シェル統合
-  7ファイル、テーマ607ファイル、サイズ26341376バイトを確認した。
-- Release実行ファイルの `--version` と `+list-keybinds --default` が終了コード0で
-  完了した。Authenticode署名は `NotSigned` である。
-- DebugビルドでCLI、`FileVersion`、`ProductVersion` が
-  `1.3.2-windows-+4a8fa7933`、数値版が `1.3.2.0`、`IsDebug` がTrueになることを
-  確認した。
-- `-Dversion-string=1.3.2` を指定したReleaseFastビルドで、CLIとWindowsの
-  文字列版が `1.3.2`、数値版が `1.3.2.0`、`IsDebug` がFalseになることを
-  確認した。
-- 2026-09-15: 専用のReleaseプロセスで通常状態 `1220x955`、最大化
-  `2528x1456`、最小化、直前の最大化状態への復帰、通常状態 `1220x955` への
-  復元を順に確認した。`WM_CLOSE` 後の終了コードは0で、強制終了は不要だった。
-- 同じ専用プロセスで、トップレベルスタイル `0x16CF0000`、拡張スタイル
-  `0x00200100`、所有ウィンドウなし、root一致、DWM非クロークを確認した。
-  スナップ、Alt+Tab、タスクバーの構造適格性はいずれもTrueだった。
-- 2026-09-15: 4台のモニターへ専用Releaseウィンドウを自動移動した。3台の
-  96 DPI画面ではタブバー高さ32px、1台の120 DPI画面では40pxになり、親と
-  タブバー・分割境界のDPI一致、所有関係、幅と原点、コンテンツ領域への追従を
-  確認した。試験後は初期矩形へ復元した。
-- 分割ペインを含む終了試験で検出したPTY読取停止の競合を修正し、Debug版の
-  反復3回とReleaseFast版で終了コード0、強制終了なしを確認した。
-- 2026-09-15: リポジトリ内に作成した一時設定をRelease実行ファイルへ読み込ませ、
-  `window-show-tab-bar` を `always -> never -> always` と変更して各回に設定再読込を
-  実行した。タブバーの非表示と再表示を確認し、その後の混在DPI・分割・終了試験
-  まで反復3回成功した。一時設定は各試験後に削除した。
-- 2026-09-15: Release実行ファイルの専用 `cmd.exe` 端末へ文字列とEnterを送り、
-  リポジトリ内の一時マーカーが期待内容で生成されることを確認した。端末入力から
-  ConPTY、シェルのコマンド実行までを通し、一時マーカーは試験後に削除した。
-- 2026-09-15: 同一Releaseプロセスに2つ目のトップレベルウィンドウを作成し、
-  シェル適格性を確認した。2つ目だけを `WM_CLOSE` で閉じた後も元ウィンドウと
-  プロセスが存続し、再作成後の `close_all_windows` で全ウィンドウとプロセスが
-  終了コード0で終了することを確認した。
-- 2026-09-15: `goto_window:next` で元ウィンドウから2つ目へ移動し、次の操作で
-  元へ巡回することを確認した。`toggle_visibility` で両ウィンドウが一括非表示に
-  なり、もう一度実行すると両方が復帰することも確認した。
-- 2026-09-15: 2つのウィンドウを開いた状態で `window-show-tab-bar` を
-  `always -> never -> always` と再読込し、両方のタブバーが同期して非表示・
-  再表示されることと、復帰後の所有関係・位置・DPIを確認した。
-- 2026-09-15: 耐久試験スクリプトの固定回数モードを2反復、時間指定モードを
-  1反復実行し、全3回で設定同期、ウィンドウ移動、表示切り替え、正常終了が
-  成功した。各回の結果とログパスをJSONから再読込できることも確認した。
-  存在しない実行ファイルを指定した隔離試験では、失敗回数、エラー内容、未完了
-  状態がJSONへ保存されることを確認した。
-- 2026-09-15: Release実行ファイルの反復耐久基準試験を待機なしで20回実行し、
-  20個の独立プロセスがすべて終了コード0で完了した。設定同期、ウィンドウ移動、
-  表示切り替え、正常終了の全記録が成功し、40個の個別ログに既知の異常語はなく、
-  一時ファイルの残留もなかった。所要時間は40.054秒だった。
-- 2026-09-15: Windowsシェル手動受け入れ試験の一覧表示と対話記録経路を検査した。
-  6項目をすべてスキップした制御フロー試験で、完了・不合格の区別、JSON記録、
-  診断ログ、通常終了、一時設定削除を確認した。最初の項目で中止した場合も、
-  未完了状態と理由の保存、プロセス終了、一時設定削除を確認した。これらはシェル
-  実操作の合格確認ではない。
-- 2026-09-15: Windows 11の実操作で、タスクバーからの最小化・復元・フォーカス、
-  左右スナップ、スナップレイアウト、2ウィンドウのAlt+Tab・タスクバー選択、
-  タスクバープレビューからの個別・全終了が合格した。Alt+Tabにはウィンドウが
-  表示され選択できたが、Ghostty固有のアイコンではなかったため、全体結果は
-  5項目合格・1項目不合格とした。強制終了、ログ異常、一時ファイル残留はなかった。
-- 2026-09-15: トップレベルウィンドウクラスの大・小アイコンが未設定だった問題を
-  修正した。ReleaseFastビルド110項目、クラスアイコンを含む全ウィンドウ回帰、
-  Alt+Tab単独の目視再試験が成功した。手動受け入れ試験は項目指定にも対応した。
-  3反復の初回実行では既存のウィンドウ巡回待機が1回タイムアウトしたが、直後の
-  単独実行と再度の3反復はすべて成功したため、後続の反復検証対象とした。
-- 2026-09-15: アイコン修正版Releaseでさらに20反復を実行し、20個の独立
-  プロセスが37.661秒ですべて成功した。ウィンドウ巡回タイムアウトは再発せず、
-  全機能記録、40個のログ、終了処理、一時ファイル削除にも問題がなかった。
-- 2026-09-15: Releaseビルドスクリプトへ埋め込みアイコン検証を追加した。
-  ReleaseFastの110ビルドステップが成功し、アイコングループ1件と抽出可能な
-  大・小アイコンを成果物から確認した。
-- 2026-09-15: D3D11の `Present` エラー診断を拡張し、DXGIデバイスロスト系の
-  HRESULTとデバイス削除理由を区別して記録できるようにした。エラー分類の
-  単体テストを完了した。
-- 2026-09-15: D3D11とDirectComposition、およびレンダラーが所有するGPU資源の
-  自動再作成を実装した。専用Releaseプロセスの同一端末セッションで制御復旧を
-  20回連続実行し、開始20回、完了20回、失敗0、既知のログ異常0を確認した。
-  各回の復旧後コマンド実行と、その後の全ウィンドウ回帰、終了コード0、強制終了
-  なしも確認した。テストフックを無効にした通常回帰も成功した。実際のGPU
-  デバイスロストまたはドライバー障害からの復旧確認は未完了である。
-- 2026-09-15: `WM_POWERBROADCAST` のサスペンドと復帰通知を処理し、復帰時に
-  全D3D11レンダラーを再作成する経路を実装した。専用Releaseプロセスへ制御通知を
-  送り、単一サーフェスの復旧後、分割済みウィンドウと別ウィンドウの全3サーフェスを
-  同時に復旧した。重複復帰通知による再実行は抑止され、合計でサスペンド検出2回、
-  復帰検出2回、GPU再作成の開始・完了各4回、失敗0、端末セッション維持、
-  全ウィンドウ回帰、正常終了を確認した。OpenGL互換のReleaseFastビルドと通常
-  GUI回帰も成功した。PCを実際にスリープさせた試験は未完了である。
-- 2026-09-15: 手動受け入れ試験へ明示選択式の `power-resume` を追加した。
-  通常の6項目には含めず、実行後は診断ログからサスペンド・復帰通知、予定復旧数、
-  完了数、失敗数を自動照合してJSONへ保存する。項目一覧と既定6項目が変わらない
-  ことは確認済みだが、実機スリープによる合否記録は未実施である。
-- 2026-09-15: 耐久試験からGPU再作成回数と制御電源復帰を有効化できるようにした。
-  Release版で20個の独立プロセスを実行し、20回すべて成功、失敗プロセス0、
-  不正なJSON記録0、一時ファイル残留0だった。各プロセス5回、合計100回のGPU
-  資源再作成がすべて完了し、復旧失敗は0、所要時間は59.004秒だった。
-- 2026-09-15: アイコンリソースを持たない単体テスト実行ファイルでウィンドウ
-  クラス登録が失敗していた問題を修正した。アイコン読み込みは致命的エラーでは
-  なく警告とし、既定アイコンで継続する。フォールバックの単体テストを追加した。
-- 2026-09-15: アイコン修正後の現行ツリーで、Win32単体テスト138件、Debug
-  ビルド、diff checkを通し、Debug実行ファイルで制御失敗1回付きGPU再作成2回、
-  単一・全3サーフェスの制御電源復帰、4モニター移動、複数ウィンドウ、正常終了
-  までの回帰を1回実行した。終了コード0、強制終了なし、一時ファイル残留なし。
-- 2026-09-15: 起動直後に端末グリッドとConPTYが既定の800×600相当のまま残る
-  不具合を修正した。`window-width`/`window-height` を設定した場合、コア初期化中の
-  `initial_size` によるリサイズが子ウィンドウの `WM_SIZE` を発生させるが、その
-  時点では `core_surface` が未設定で `sizeCallback` が呼ばれず、初期化完了後の
-  再レイアウトは同じ矩形のため通知が出なかった。コア設定直後にサイズを1回同期
-  する修正を入れ、Release 1.3.2-windows.1 で行数 26 → リサイズ後 45 だった再現
-  手順が修正版で一致することを確認した。回帰スクリプトへ、タブバー非表示で
-  `window-width`/`window-height` を指定した専用プロセスを起動し、起動直後の
-  `mode con` 行数が設定値45と一致し、1pxリサイズ後も変わらないことを検査する
-  フェーズを追加した。修正版Debugビルドで3回連続成功、修正前のRelease
-  1.3.2-windows.1では「26行」で失敗することを確認した。不具合はタブバー表示中は
-  再配置で隠れるため、検査はタブバー非表示で行う。なお起動直後の約100ms以内は
-  ConPTYが仮サイズで生成された直後で、IOスレッドの合成タイマー後に設定サイズへ
-  変更される。あわせて、タグ `vX.Y.Z-<pre>` を取り出した状態で
-  `-Dversion-string` なしの `zig build` が失敗する問題を修正し、タグから版を
-  決めるようにした（タグ付きチェックアウトの `--version` が `1.3.2-windows.1`
-  になることを確認）。
-- 2026-09-15: Inno Setupによるインストーラー作成スクリプトを追加した。署名なしで
-  `ghostty-1.3.2-windows.1-x64-setup.exe`（約17MB、`ProductVersion` と数値版が
-  実行ファイルと一致）を作成し、一時的な自己署名証明書とタイムスタンプなしの
-  `-Sign` で実行ファイル、アンインストーラー、インストーラーの3つにSHA-256署名が
-  付くことを確認した。検証後に証明書と出力を削除した。インストーラーの実行
-  （インストール、`PATH` 追加、アンインストール）は未確認である。
-- 2026-09-15: プレビュー版 `1.3.2-windows.1` を確定した。配布用（フックなし）と
-  回帰用（`-TestHooks`）の2本を `-Dversion-string=1.3.2-windows.1` でReleaseFast
-  ビルドし、数値版 `1.3.2.1`、`IsDebug` False、CLI版とファイルプロパティの
-  一致を確認した。回帰用ビルドで制御失敗2回のGPU再作成と3サーフェスの電源
-  復帰を含む全ウィンドウ回帰、20反復の耐久試験（20回成功、失敗0、51秒）を
-  実行し、配布用ビルドで通常回帰、`--version`、`+list-keybinds --default` の
-  終了コード0を確認した。リリースノート `docs/windows-release-notes.md` を
-  追加し、README と利用ガイドへ版番号と再現手順を記載した。
-- 2026-09-15: Windows版プレビューの版番号規則を `X.Y.Z-windows.N` に定め、
-  通し番号を数値版の第4要素へ反映した。`docs/version-update-checklist.md` へ
-  規則、タグ名、検証手順を追記した。版リソースの単体テストと、
-  `-Dversion-string=1.3.2-windows.4` を指定したDebugビルドとReleaseスクリプト
-  （ReleaseFast、数値版と文字列版の整合検査を追加）の双方でファイルプロパティ
-  `1.3.2.4`、`IsDebug` の正しい値を確認した。PowerShellから直接渡す場合は引数の
-  引用が必要である。
-- 2026-09-15: コードレビューの中9と低の項目を修正した。スキャンコードによる
-  配列非依存のキー識別と `ToUnicodeEx` による無修飾文字、テストフックの
-  `-Dwin32-test-hooks` への限定とスクリプトの事前照会、HLSLバイトコードの
-  キャッシュ、`Present` 前の `Flush` 削除、版リソース生成の単体テスト組み込み。
-  Win32・D3D11・build helpersの各テスト、フックなし・ありのDebugビルド、
-  diff checkを通し、フックありDebug実行ファイルで制御失敗2回・電源復帰・
-  4モニター・複数ウィンドウ・正常終了までの回帰を実行した。フックなし実行
-  ファイルではスクリプトが待機せずに明確なエラーで停止することを確認した。
-  他配列の実機確認は未実施。App.zigの分割とバックバッファ直接描画は保留とした
-  （下記「保留項目」を参照）。
-- 2026-09-15: コードレビューの中重要度4件を修正した。タブバー生成失敗の
-  非致命化、背景タブ内の分割終了時のフォーカス維持、`quit` の確認ダイアログ、
-  回帰・受け入れスクリプトの利用者設定分離。Win32単体テスト、Debugビルド、
-  diff checkを通し、利用者設定を読み込まないDebug実行ファイルで制御失敗2回・
-  電源復帰・4モニター・複数ウィンドウ・正常終了までの回帰を実行した。
-- 2026-09-15: コードレビューの高重要度5件を修正した。クローズ要求の二重投稿と
-  解放済みポインタ参照の防止、wakeup のメッセージ専用ウィンドウ化、GPU復旧の
-  タイマー再試行化と失敗通知・サイクル上限、`Present` 以外で起きたデバイス
-  ロストの検出、ズーム中ペインの兄弟終了時のズーム解除。Win32単体テスト、
-  Debugビルド、diff checkを通し、Debug実行ファイルで制御失敗2回（3回目で復旧）
-  と制御失敗7回（1サイクル6回失敗後に第2サイクル2回目で復旧、約21秒）の
-  回帰を電源復帰・4モニター・複数ウィンドウ・正常終了まで実行した。3サイクル
-  すべてが失敗した場合の停止経路は単体では未検証である。
-- 2026-09-15: GPU再作成へ最大3回の有限再試行を追加した。制御失敗2回では
-  100ms、250ms待機後の3回目に復旧し、端末セッションと全GUI回帰が成功した。
-  制御失敗3回では再試行待機2回、最終失敗1回、4回目の試行0、一時ファイル
-  残留0を確認した。D3D11とOpenGL互換のReleaseFastビルドも成功した。
+- Executed a nonexistent CLI action and obtained exit code 1 and the
+  pre-initialization error message from the standard error log.
+- Executed `+list-keybinds --default` and obtained exit code 0, the CLI
+  output, and the `GHOSTTY_LOG` startup information from the standard output
+  and standard error logs, respectively.
+- 2026-09-14: All 109 build steps of the ReleaseFast, baseline CPU build
+  succeeded.
+- Verified the Release executable as `PE32+`, `x64`, and `WindowsGui`, and
+  confirmed 7 shell integration files, 607 theme files, and a size of
+  26341376 bytes.
+- The Release executable's `--version` and `+list-keybinds --default`
+  completed with exit code 0. The Authenticode signature is `NotSigned`.
+- Verified that in the Debug build the CLI, `FileVersion`, and
+  `ProductVersion` are `1.3.2-windows-+4a8fa7933`, the numeric version is
+  `1.3.2.0`, and `IsDebug` is True.
+- Verified that in a ReleaseFast build with `-Dversion-string=1.3.2`, the
+  CLI and Windows string versions are `1.3.2`, the numeric version is
+  `1.3.2.0`, and `IsDebug` is False.
+- 2026-09-15: In a dedicated Release process, verified in sequence the
+  normal state `1220x955`, maximized `2528x1456`, minimized, return to the
+  previous maximized state, and restore to the normal state `1220x955`. The
+  exit code after `WM_CLOSE` was 0 and no forced termination was needed.
+- In the same dedicated process, verified top-level style `0x16CF0000`,
+  extended style `0x00200100`, no owner window, root match, and DWM not
+  cloaked. Structural eligibility for snap, Alt+Tab, and the taskbar was
+  True in every case.
+- 2026-09-15: Automatically moved a dedicated Release window across four
+  monitors. The tab bar height was 32px on the three 96 DPI screens and
+  40px on the one 120 DPI screen; verified the DPI match between the parent
+  and the tab bar and split dividers, the ownership relation, width and
+  origin, and tracking of the content area. The initial rectangle was
+  restored after the test.
+- Fixed a PTY read stop race detected in the exit test with split panes and
+  verified exit code 0 with no forced termination across 3 iterations of
+  the Debug build and in the ReleaseFast build.
+- 2026-09-15: Had the Release executable load a temporary config created
+  inside the repository, changed `window-show-tab-bar` through
+  `always -> never -> always`, and ran a config reload each time. Verified
+  the tab bar hides and reappears, and the subsequent mixed DPI, split, and
+  exit tests succeeded across 3 iterations. The temporary config was
+  deleted after each test.
+- 2026-09-15: Sent a string and Enter to the Release executable's dedicated
+  `cmd.exe` terminal and verified that a temporary marker inside the
+  repository is created with the expected content. This exercised the path
+  from terminal input through ConPTY to command execution in the shell; the
+  temporary marker was deleted after the test.
+- 2026-09-15: Created a second top-level window in the same Release process
+  and verified shell eligibility. After closing only the second window with
+  `WM_CLOSE`, the original window and the process survived, and after
+  recreating it, `close_all_windows` terminated all windows and the process
+  with exit code 0.
+- 2026-09-15: Verified that `goto_window:next` moves from the original
+  window to the second and the next operation cycles back to the original.
+  Also verified that `toggle_visibility` hides both windows at once and
+  running it again restores both.
+- 2026-09-15: With two windows open, reloaded `window-show-tab-bar` through
+  `always -> never -> always` and verified both tab bars hide and reappear
+  in sync, and verified the ownership relation, position, and DPI after
+  restoration.
+- 2026-09-15: Ran the soak test script in fixed-count mode for 2 iterations
+  and in duration mode for 1 iteration; config synchronization, window
+  movement, visibility toggling, and clean exit succeeded in all 3 runs.
+  Also verified that each iteration's results and log paths can be reloaded
+  from the JSON. In an isolated test specifying a nonexistent executable,
+  verified the failure count, error details, and incomplete state are saved
+  to JSON.
+- 2026-09-15: Ran the iterative soak baseline test of the Release executable
+  20 times without waits, and all 20 independent processes completed with
+  exit code 0. All records for config synchronization, window movement,
+  visibility toggling, and clean exit succeeded, the 40 individual logs
+  contained no known anomaly terms, and there were no leftover temporary
+  files. Elapsed time was 40.054 seconds.
+- 2026-09-15: Checked the list display and interactive recording path of the
+  Windows shell manual acceptance test. In a control flow test with all 6
+  items skipped, verified the distinction between completed and failed,
+  JSON recording, the diagnostic log, normal exit, and temporary config
+  deletion. When aborting at the first item, also verified the incomplete
+  state and reason are saved, the process exits, and the temporary config is
+  deleted. These are not pass confirmations of the shell manual operations.
+- 2026-09-15: In manual operation on Windows 11, minimize/restore/focus from
+  the taskbar, left/right snap, snap layouts, Alt+Tab and taskbar selection
+  with 2 windows, and individual/all close from the taskbar preview passed.
+  In Alt+Tab the window was shown and selectable, but the icon was not the
+  Ghostty-specific one, so the overall result was recorded as 5 items passed
+  and 1 item failed. There was no forced termination, log anomaly, or
+  leftover temporary file.
+- 2026-09-15: Fixed the issue where the large and small icons of the
+  top-level window class were not set. The 110-item ReleaseFast build, the
+  full window regression including the class icons, and a standalone visual
+  retest of Alt+Tab succeeded. The manual acceptance test now also supports
+  specifying items. In the first 3-iteration run, the existing window cycle
+  wait timed out once, but the subsequent standalone run and a second
+  3-iteration run all succeeded, so it was included in subsequent iterative
+  verification.
+- 2026-09-15: Ran a further 20 iterations on the icon-fixed Release, and all
+  20 independent processes succeeded in 37.661 seconds. The window cycle
+  timeout did not recur, and there were no problems with the records of all
+  features, the 40 logs, exit handling, or temporary file deletion.
+- 2026-09-15: Added embedded icon verification to the Release build script.
+  The 110 ReleaseFast build steps succeeded, and 1 icon group and
+  extractable large and small icons were confirmed in the artifact.
+- 2026-09-15: Extended the D3D11 `Present` error diagnostics so that DXGI
+  device lost HRESULTs and the device removed reason are distinguished and
+  recorded. Completed unit tests for the error classification.
+- 2026-09-15: Implemented automatic recreation of D3D11, DirectComposition,
+  and renderer-owned GPU resources. Ran controlled recovery 20 consecutive
+  times in the same terminal session of a dedicated Release process and
+  verified 20 starts, 20 completions, 0 failures, and 0 known log anomalies.
+  Also verified command execution after each recovery, the subsequent full
+  window regression, exit code 0, and no forced termination. The normal
+  regression with test hooks disabled also succeeded. Recovery from an actual
+  GPU device lost or driver failure has not yet been verified.
+- 2026-09-15: Implemented a path that handles `WM_POWERBROADCAST` suspend and
+  resume notifications and recreates all D3D11 renderers on resume. Sent
+  controlled notifications to a dedicated Release process; after recovering
+  a single surface, all 3 surfaces of a split window and a separate window
+  were recovered simultaneously. Re-execution due to duplicate resume
+  notifications was suppressed; in total, verified 2 suspend detections, 2
+  resume detections, 4 GPU recreation starts and 4 completions, 0 failures,
+  terminal session retention, the full window regression, and clean exit.
+  The OpenGL-compatible ReleaseFast build and the normal GUI regression also
+  succeeded. A test that actually puts the PC to sleep has not yet been
+  done.
+- 2026-09-15: Added an explicitly selectable `power-resume` to the manual
+  acceptance test. It is not included in the normal 6 items; after
+  execution, the suspend/resume notifications, planned recovery count,
+  completion count, and failure count are automatically cross-checked from
+  the diagnostic log and saved to JSON. It is verified that the item list and
+  the default 6 items are unchanged, but a pass/fail record from real
+  hardware sleep has not been made.
+- 2026-09-15: Made it possible to enable a GPU recreation count and
+  controlled power resume from the soak test. Ran 20 independent processes
+  on the Release build: all 20 succeeded, 0 failed processes, 0 invalid JSON
+  records, 0 leftover temporary files. All 100 GPU resource recreations (5
+  per process) completed, with 0 recovery failures, in 59.004 seconds.
+- 2026-09-15: Fixed the issue where window class registration failed in the
+  unit test executable, which has no icon resource. Icon loading is now a
+  warning rather than a fatal error and continues with the default icon.
+  Added a unit test for the fallback.
+- 2026-09-15: On the current tree after the icon fix, passed the 138 Win32
+  unit tests, the Debug build, and diff check, and ran the regression once
+  with the Debug executable through 2 GPU recreations with 1 controlled
+  failure, controlled power resume for a single surface and all 3 surfaces,
+  4-monitor movement, multiple windows, and clean exit. Exit code 0, no
+  forced termination, no leftover temporary files.
+- 2026-09-15: Fixed a bug where the terminal grid and ConPTY remained at the
+  default 800x600 equivalent right after startup. When `window-width` and
+  `window-height` are set, the resize via `initial_size` during core
+  initialization generates a `WM_SIZE` for the child window, but at that
+  point `core_surface` is not yet set so `sizeCallback` is not called, and
+  the relayout after initialization completes produces no notification
+  because the rectangle is the same. Added a fix that synchronizes the size
+  once right after the core is set, and verified that the reproduction steps
+  that gave 26 rows before resize and 45 after on Release 1.3.2-windows.1
+  now match in the fixed build. Added a phase to the regression script that
+  launches a dedicated process with the tab bar hidden and `window-width`
+  and `window-height` specified, and checks that the `mode con` row count
+  right after startup matches the configured value 45 and does not change
+  after a 1px resize. Verified 3 consecutive successes with the fixed Debug
+  build and a failure with "26 rows" on the unfixed Release 1.3.2-windows.1.
+  Because the bug is hidden by repositioning while the tab bar is shown, the
+  check is performed with the tab bar hidden. Note that within roughly the
+  first 100ms after startup, ConPTY has just been created at a provisional
+  size and is changed to the configured size after the IO thread's coalescing
+  timer. Additionally, fixed the issue where `zig build` without
+  `-Dversion-string` failed on a checkout of tag `vX.Y.Z-<pre>`, so that the
+  version is determined from the tag (verified that `--version` on a tagged
+  checkout is `1.3.2-windows.1`).
+- 2026-09-15: Added the installer creation script using Inno Setup. Created
+  `ghostty-1.3.2-windows.1-x64-setup.exe` unsigned (about 17MB,
+  `ProductVersion` and numeric version matching the executable), and
+  verified with `-Sign` using a temporary self-signed certificate and no
+  timestamp that SHA-256 signatures are applied to all three of the
+  executable, uninstaller, and installer. The certificate and output were
+  deleted after verification. Running the installer (installation, `PATH`
+  addition, uninstallation) is not verified.
+- 2026-09-15: Finalized the preview build `1.3.2-windows.1`. Built two
+  ReleaseFast binaries with `-Dversion-string=1.3.2-windows.1`, one for
+  distribution (no hooks) and one for regression (`-TestHooks`), and verified
+  numeric version `1.3.2.1`, `IsDebug` False, and a match between the CLI
+  version and the file properties. With the regression build, ran the full
+  window regression including GPU recreation with 2 controlled failures and
+  power resume of 3 surfaces, and the 20-iteration soak test (20 successes,
+  0 failures, 51 seconds); with the distribution build, verified the normal
+  regression and exit code 0 for `--version` and
+  `+list-keybinds --default`. Added the release notes
+  `docs/windows-release-notes.md` and recorded the version number and
+  reproduction steps in the README and the user guide.
+- 2026-09-15: Set the version numbering rule for Windows previews to
+  `X.Y.Z-windows.N`, with the sequence number reflected in the fourth
+  element of the numeric version. Added the rule, tag name, and verification
+  procedure to `docs/version-update-checklist.md`. Verified file properties
+  `1.3.2.4` and the correct `IsDebug` value both in the version resource
+  unit tests and in a Debug build and the Release script (ReleaseFast, with
+  a consistency check between the numeric and string versions added) with
+  `-Dversion-string=1.3.2-windows.4`. When passing directly from PowerShell,
+  the argument must be quoted.
+- 2026-09-15: Fixed medium-severity item 9 and the low-severity code review items.
+  Layout-independent key identification via scan codes and the unmodified
+  character via `ToUnicodeEx`, restriction of test hooks to
+  `-Dwin32-test-hooks` with pre-checks in the scripts, HLSL bytecode
+  caching, removal of the `Flush` before `Present`, and inclusion of the
+  version resource generation unit tests. Passed the Win32, D3D11, and build
+  helpers tests, Debug builds with and without hooks, and diff check, and
+  ran the regression with the hook-enabled Debug executable through 2
+  controlled failures, power resume, 4 monitors, multiple windows, and clean
+  exit. Verified that with the hook-less executable the script stops with a
+  clear error instead of waiting. Real-hardware verification with other
+  keyboard layouts has not been done. Splitting App.zig and direct back
+  buffer rendering were deferred (see "Deferred items" below).
+- 2026-09-15: Fixed the 4 medium severity code review items. Non-fatal tab
+  bar creation failure, focus retention when closing a split in a background
+  tab, the confirmation dialog for `quit`, and isolation of the regression
+  and acceptance scripts from the user's config. Passed the Win32 unit tests,
+  Debug build, and diff check, and ran the regression with a Debug executable
+  that does not load the user's config through 2 controlled failures, power
+  resume, 4 monitors, multiple windows, and clean exit.
+- 2026-09-15: Fixed the 5 high severity code review items. Prevention of
+  double-posted close requests and freed pointer dereferences, moving
+  wakeups to a message-only window, timer-based retries for GPU recovery
+  with failure notification and a cycle limit, detection of device lost
+  occurring outside `Present`, and unzooming when a sibling of a zoomed pane
+  is closed. Passed the Win32 unit tests, Debug build, and diff check, and
+  ran regressions with the Debug executable for 2 controlled failures
+  (recovered on the 3rd attempt) and 7 controlled failures (recovered on the
+  2nd attempt of the 2nd cycle after 6 failures in the 1st cycle, about 21
+  seconds), through power resume, 4 monitors, multiple windows, and clean
+  exit. The stop path when all 3 cycles fail has not been verified in
+  isolation.
+- 2026-09-15: Added finite retries, up to 3 times, to GPU recreation. With 2
+  controlled failures, recovery occurred on the 3rd attempt after 100ms and
+  250ms waits, and the terminal session and the full GUI regression
+  succeeded. With 3 controlled failures, verified 2 retry waits, 1 final
+  failure, 0 fourth attempts, and 0 leftover temporary files. The D3D11 and
+  OpenGL-compatible ReleaseFast builds also succeeded.
 
-残作業:
+Remaining work:
 
-- 診断起動ログを実際の初期化失敗や描画復旧調査で継続利用し、必要な項目を補う。
-- 144 DPI・192 DPIと、PCを実際にスリープさせた復帰を試験する。DPI計算の
-  単体テストと電源通知による制御復帰、長時間稼働用の反復・時間指定スクリプト、
-  20反復の基準結果は確認済みであり、数時間規模の実行結果を取得する。
-- 実際のGPUデバイスロストまたはドライバー障害を安全に発生させる試験方法を確立し、
-  実障害からの自動復旧を確認する。検出、診断、GPU資源の自動再作成、制御回帰は
-  実装・確認済み。
-- 可変ぼかしを品質保証するか、Windows版の制限として確定する。
-- 利用者向けガイドを、残る実機試験とリリース判断の結果に合わせて更新する。
-- 配布形式はポータブル実行ファイルとInno Setupインストーラーの2種類とし、
-  署名はインストーラー作成スクリプトの `-Sign` で行う。インストーラーの
-  インストール・アンインストール・更新の実機確認と、公開版への同梱時期を決める。
+- Continue using the diagnostic launch log for actual initialization failure
+  and rendering recovery investigations and add items as needed.
+- Test 144 DPI and 192 DPI, and resume after actually putting the PC to
+  sleep. The DPI calculation unit tests, controlled power resume via power
+  notifications, the iteration and duration scripts for long runs, and the
+  20-iteration baseline results are verified; obtain results from runs of
+  several hours.
+- Establish a test method that safely causes an actual GPU device lost or
+  driver failure and verify automatic recovery from a real failure.
+  Detection, diagnostics, automatic GPU resource recreation, and the
+  controlled regression are implemented and verified.
+- Either quality-assure variable blur or finalize it as a limitation of the
+  Windows build.
+- Update the user guide according to the results of the remaining
+  real-hardware tests and the release decision.
+- The distribution formats are a portable executable and an Inno Setup
+  installer, with signing done via the installer creation script's `-Sign`.
+  Decide on real-hardware verification of installer install, uninstall, and
+  update, and when to bundle it with the public release.
 
-保留項目（2026-09-15のコードレビューで指摘、利用者判断で保留）:
+Deferred items (raised in the 2026-09-15 code review, deferred by user
+decision):
 
-- `src/apprt/win32/App.zig` の責務分割。約5000行に入力、タブバー操作、分割
-  境界、URL方針、ウィンドウ状態が同居しており、GTK版の `class/*.zig` のような
-  分割が望ましい。動作を変えないリファクタリングだが差分が大きく、全回帰
-  スクリプトの再実行が前提になる。機能追加（右クリックメニュー、設定GUIなど）を
-  まとまって行う前に着手する。
-- カスタムシェーダー非対応時のバックバッファ直接描画。現在は毎フレーム
-  オフスクリーンターゲットから全画面 `CopyResource` しており、線形ブレンド時は
-  sRGBビューで描いてUNORMバックバッファへ写す構成がMetal版と一致している。
-  直接描画に変えるとこの経路の再設計が必要で色の見え方が変わる恐れがある。
-  フレーム時間またはGPU使用率の計測で問題が出た場合に着手する。
+- Splitting the responsibilities of `src/apprt/win32/App.zig`. About 5000
+  lines hold input, tab bar operations, split dividers, URL policy, and
+  window state together, and a split like the GTK build's `class/*.zig` is
+  desirable. It is a behavior-preserving refactoring, but the diff is large
+  and re-running all regression scripts is a prerequisite. Start it before
+  doing a batch of feature additions (right-click menu, settings GUI, etc.).
+- Direct back buffer rendering when custom shaders are not in use. Currently
+  every frame does a full-screen `CopyResource` from an offscreen target,
+  and with linear blending the setup of drawing to an sRGB view and copying
+  to a UNORM back buffer matches the Metal build. Switching to direct
+  rendering would require redesigning this path and could change how colors
+  appear. Start it if frame time or GPU usage measurements show a problem.
 
-完了条件:
+Completion criteria:
 
-- 下記の試験表を満たす。
-- Releaseビルドがクリーンな環境で起動する。
-- 既知の制限と設定方法が利用者向け文書から確認できる。
-- パッケージ作成を行う場合は、明示的な依頼後に成果物を検証する。
+- The test table below is satisfied.
+- The Release build starts in a clean environment.
+- Known limitations and configuration methods can be found in the user
+  documentation.
+- When creating packages, verify the artifacts after an explicit request.
 
-## 7. 次に実施する作業
+## 7. Next Steps
 
-タブ名の仕様、編集操作、既定キー割り当て、個別タブのMSAA公開、Windows
-シェルの実操作6項目、GPU資源の自動再作成と有限再試行、電源通知による制御
-復帰まで完了した。自動化できる回帰試験は出揃っており、残りは実環境と実機
-操作に依存する確認と、リリース形態の判断である。
+The tab name specification, edit operations, default key bindings, MSAA
+exposure of individual tabs, the six Windows shell manual operations,
+automatic GPU resource recreation with finite retries, and controlled power
+resume via power notifications are complete. The automatable regression
+tests are all in place; what remains is verification that depends on real
+environments and real-hardware operation, and the release format decision.
 
-1. NarratorまたはNVDAで個別タブ名、選択状態、状態変更通知を確認する。
-   自動回帰テストとMSAA API検査は完了しており、音声読み上げの受け入れ確認を残す。
-2. ハイコントラスト環境で分割境界、タブバー、タイトルバーを確認する。
-3. 96 DPIと120 DPIが混在する4モニターでタブバーと分割境界の自動回帰確認は
-   完了した。144 DPI・192 DPIの実機環境で同じ確認を行う。
-4. `scripts/test-windows-shell.ps1 -CheckId power-resume` でPCを実際に
-   スリープさせ、復帰後の描画・入力と診断ログの自動照合を記録する。
-5. `scripts/test-windows-soak.ps1 -DurationMinutes` で数時間規模の耐久結果を
-   取得する。20反復の基準結果は確認済み。
-6. 可変ぼかしの扱い、配布形式、署名、インストーラーの要否を決定し、利用者向け
-   ガイドへ反映する。
+1. Verify individual tab names, selection state, and state change
+   notifications with Narrator or NVDA. The automated regression tests and
+   MSAA API checks are complete; screen reader acceptance verification
+   remains.
+2. Verify the split dividers, tab bar, and title bar in a high contrast
+   environment.
+3. Automated regression verification of the tab bar and split dividers on
+   four monitors mixing 96 DPI and 120 DPI is complete. Perform the same
+   verification on real hardware at 144 DPI and 192 DPI.
+4. Actually put the PC to sleep with
+   `scripts/test-windows-shell.ps1 -CheckId power-resume` and record
+   rendering and input after resume together with the automatic diagnostic
+   log cross-check.
+5. Obtain soak results on the scale of several hours with
+   `scripts/test-windows-soak.ps1 -DurationMinutes`. The 20-iteration
+   baseline results are verified.
+6. Decide on the handling of variable blur, the distribution format, signing,
+   and whether an installer is needed, and reflect the decisions in the user
+   guide.
 
-1〜5は実機環境と操作時間を要するため、利用者の環境で実施する。6は方針決定
-であり、決定後に文書とスクリプトを更新する。
+Items 1 to 5 require a real-hardware environment and operator time, so they
+are performed in the user's environment. Item 6 is a policy decision; the
+documents and scripts are updated once it is made.
 
-## 8. 検証マトリクス
+## 8. Verification Matrix
 
-`未確認` は、コードが存在していても実機確認が完了していないことを示す。
+`Not verified` means that real-hardware verification is not complete even if
+the code exists.
 
-| 分類 | 試験項目 | 現在 |
+| Category | Test item | Current |
 |---|---|---|
-| 起動 | Debugビルドの起動 | 確認済み |
-| 起動 | Releaseビルドの起動 | PE・リソース・CLIと専用GUIプロセスを確認済み |
-| リリース | `1.3.2-windows.1` | 配布用・回帰用Releaseビルドで回帰、耐久20反復、CLIを確認済み。署名は配布時 |
-| 配布 | Inno Setupインストーラー | 作成と署名経路を確認済み、インストール動作は未確認 |
-| 版情報 | CLIのバージョン表示 | Releaseビルドで確認済み |
-| 版情報 | Windowsファイルプロパティ | Debug・Releaseの文字列版、数値版、Debugフラグを確認済み |
-| 起動 | 診断ログと終了コード取得 | 正常・異常CLIの双方で確認済み |
-| 設定 | LocalAppDataの設定読込 | 確認済み |
-| 設定 | 設定再読込 | 一時設定によるタブバーの非表示・再表示と複数ウィンドウへの同期をRelease版で自動確認済み |
-| 入力 | キーボード・IME | 文字入力とEnterをRelease版で自動確認済み、IMEは基本確認済み |
-| 入力 | マウス・クリップボード | 基本実装済み、回帰確認が必要 |
-| 描画 | D3D11表示 | 確認済み |
-| 描画 | GPU資源の再作成 | 制御再作成100回連続と有限再試行をRelease版で自動確認済み、実障害未確認 |
-| 描画 | 背景透過 | 確認済み |
-| 描画 | 可変ぼかし | 保留 |
-| ウィンドウ | 複数ウィンドウ | 作成、移動、巡回、一括非表示・復帰、個別終了、一括終了をRelease版で自動確認済み |
-| ペイン | 作成・移動・変更・終了 | 基本確認済み |
-| ペイン | 境界のマウスドラッグ | 実行バイナリで確認済み |
-| ペイン | 境界の通常・ホバー描画 | 96 DPIの実行バイナリで確認済み |
-| GUI | ハイコントラスト描画 | 境界・タブバー・タイトルバーに実装済み、実環境確認が必要 |
-| GUI状態 | 分割ズーム状態表示 | 実行バイナリで確認済み |
-| タブ | キー操作 | 既定割り当て確認済み、実操作の回帰確認が必要 |
-| タブ | アクセシビリティ | 個別タブをMSAA検査・回帰テスト済み、スクリーンリーダー未確認 |
-| タブ | タブバー描画 | 確認済み |
-| タブ | タブバーの全クリック操作 | 確認済み |
-| タブ | ドラッグ並べ替え | 確認済み |
-| タブ | 14タブのオーバーフロー操作 | 確認済み |
-| タブ | 任意名の設定と空欄による解除 | 実行バイナリで確認済み |
-| DPI | 96 DPI | 3モニターで親・タブバー・分割境界のDPIと矩形を自動確認済み |
-| DPI | 120 DPI | 実機でタブバー40pxと分割境界の追従を自動確認済み |
-| DPI | 144・192 DPI | 寸法・フォント生成テスト済み、実機未確認 |
-| DPI | 異なるDPI間のモニター移動 | 96 DPIと120 DPIの4モニター間で自動確認済み |
-| ウィンドウ | 最大化・最小化・復元 | 専用Releaseプロセスで自動回帰確認済み |
-| Windowsシェル | スナップ・Alt+Tab・タスクバー適格性 | 修正版Releaseで実操作6項目すべて確認済み |
-| 復帰 | スリープ | 電源通知による全レンダラー復旧をRelease版で自動確認済み、実機スリープ未確認 |
-| OS | Windows 11 | 開発環境で基本確認済み |
-| OS | Windows 10 | 未確認 |
+| Startup | Debug build startup | Verified |
+| Startup | Release build startup | PE, resources, CLI, and a dedicated GUI process verified |
+| Release | `1.3.2-windows.1` | Regression, 20-iteration soak, and CLI verified with the distribution and regression Release builds. Signing at distribution time |
+| Distribution | Inno Setup installer | Creation and signing path verified, installation behavior not verified |
+| Version info | CLI version display | Verified with the Release build |
+| Version info | Windows file properties | String version, numeric version, and Debug flag verified for Debug and Release |
+| Startup | Diagnostic log and exit code capture | Verified for both normal and failing CLI |
+| Config | Config loading from LocalAppData | Verified |
+| Config | Config reload | Tab bar hide/reshow via a temporary config and synchronization across multiple windows automatically verified with the Release build |
+| Input | Keyboard and IME | Character input and Enter automatically verified with the Release build, IME basically verified |
+| Input | Mouse and clipboard | Basic implementation done, regression verification needed |
+| Rendering | D3D11 display | Verified |
+| Rendering | GPU resource recreation | 100 consecutive controlled recreations and finite retries automatically verified with the Release build, real failure not verified |
+| Rendering | Background transparency | Verified |
+| Rendering | Variable blur | On hold |
+| Window | Multiple windows | Create, move, cycle, hide-all/restore, individual close, and close-all automatically verified with the Release build |
+| Pane | Create, move, resize, close | Basically verified |
+| Pane | Mouse drag of dividers | Verified in the executable binary |
+| Pane | Normal and hover rendering of dividers | Verified in the 96 DPI executable binary |
+| GUI | High contrast rendering | Implemented for dividers, tab bar, and title bar, real environment verification needed |
+| GUI state | Split zoom state display | Verified in the executable binary |
+| Tab | Key operations | Default bindings verified, regression verification of actual operation needed |
+| Tab | Accessibility | Individual tabs checked via MSAA and regression tested, screen reader not verified |
+| Tab | Tab bar rendering | Verified |
+| Tab | All tab bar click operations | Verified |
+| Tab | Drag reordering | Verified |
+| Tab | Overflow operations with 14 tabs | Verified |
+| Tab | Setting a custom name and clearing it by leaving it blank | Verified in the executable binary |
+| DPI | 96 DPI | DPI and rectangles of parent, tab bar, and split dividers automatically verified on 3 monitors |
+| DPI | 120 DPI | 40px tab bar and split divider tracking automatically verified on real hardware |
+| DPI | 144 and 192 DPI | Dimension and font generation tested, not verified on real hardware |
+| DPI | Monitor movement between different DPIs | Automatically verified across 4 monitors at 96 DPI and 120 DPI |
+| Window | Maximize, minimize, restore | Automatically regression verified in a dedicated Release process |
+| Windows shell | Snap, Alt+Tab, taskbar eligibility | All 6 manual operation items verified with the fixed Release |
+| Resume | Sleep | Recovery of all renderers via power notifications automatically verified with the Release build, real hardware sleep not verified |
+| OS | Windows 11 | Basically verified in the development environment |
+| OS | Windows 10 | Not verified |
 
-## 9. 各変更で行う検証
+## 9. Verification for Each Change
 
-変更範囲に応じて、最低限次を実行する。
+Depending on the scope of the change, run at least the following.
 
 ```powershell
 zig fmt src/apprt/win32
@@ -699,42 +877,50 @@ zig build
 git diff --check
 ```
 
-- GUI変更は、ビルド成功だけで完了としない。実際の表示または取得画像を確認する。
-- 入力変更は、キー・マウス・IMEの実機操作を確認する。
-- ウィンドウライフサイクル変更は、プロセス残留と終了コードを確認する。
-- Release成果物の作成は、スクリプト検証または明示的な依頼がある場合に限る。
+- GUI changes are not considered done on a successful build alone. Check the
+  actual display or captured images.
+- Input changes are verified by real-hardware key, mouse, and IME operation.
+- Window lifecycle changes are verified for leftover processes and exit
+  codes.
+- Release artifacts are created only for script verification or on explicit
+  request.
 
-## 10. 既知のリスク
+## 10. Known Risks
 
-### upstreamとの差分拡大
+### Growing divergence from upstream
 
-Windows実装を先行するため、upstream取り込み時に競合する可能性がある。
-機能単位のコミットを維持し、取り込み前後でWin32テストを実行する。
+Because the Windows implementation moves ahead, conflicts are possible when
+merging upstream. Keep commits per feature and run the Win32 tests before
+and after merging.
 
-### mattn版との二重実装
+### Duplicate implementation with the mattn build
 
-将来upstreamへ入る実装と重複する可能性がある。現段階では待機せず、参照可能な
-状態を維持し、統合時にAPI境界とライセンスを確認する。
+The implementation may overlap with one that later lands upstream. At this
+stage, do not wait; keep the reference available and check API boundaries
+and licensing at integration time.
 
-### DirectCompositionとWin32 GUIの混在
+### Mixing DirectComposition with Win32 GUI
 
-通常のGDI子ウィンドウは `WS_EX_NOREDIRECTIONBITMAP` と組み合わせた場合に
-描画されないことがある。タブバーでは所有ウィンドウ方式を採用しているため、
-Zオーダー、DPI、モニター移動、表示状態を重点的に試験する。
+Ordinary GDI child windows may not render when combined with
+`WS_EX_NOREDIRECTIONBITMAP`. Because the tab bar uses the owned-window
+approach, focus testing on Z-order, DPI, monitor movement, and visibility.
 
-### Windows backdrop APIの環境差
+### Environment differences in the Windows backdrop API
 
-DWM/Windows.UI.Compositionの対応状況により、ぼかしの有無と品質が変化する。
-失敗時に起動や透過まで失わないフォールバックを維持する。
+The presence and quality of blur vary with DWM/Windows.UI.Composition
+support. Keep a fallback that does not lose startup or transparency on
+failure.
 
-## 11. 工程表の更新規則
+## 11. Rules for Updating the Plan
 
-各ステップの完了時に、同じ変更または直後の文書変更として次を更新する。
+When each step is completed, update the following in the same change or in
+an immediately following documentation change.
 
-1. フェーズの状態と概算率
-2. 実装済み項目と残作業
-3. 検証マトリクス
-4. 根拠となるコミット
-5. 新しく判明した制限とリスク
+1. Phase status and estimated percentage
+2. Implemented items and remaining work
+3. Verification matrix
+4. Supporting commits
+5. Newly discovered limitations and risks
 
-工程を追加・削除する場合は、完了条件と全体進捗も同時に見直す。
+When adding or removing steps, also review the completion criteria and
+overall progress at the same time.
