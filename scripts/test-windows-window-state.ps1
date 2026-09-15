@@ -72,6 +72,7 @@ $inputMarkerPath = Join-Path $sessionDirectory "terminal-input.txt"
 if (-not ("GhosttyWindowStateNative" -as [type])) {
     Add-Type -TypeDefinition @"
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -93,6 +94,20 @@ public static class GhosttyWindowStateNative
         public int Y;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GUITHREADINFO
+    {
+        public int cbSize;
+        public uint flags;
+        public IntPtr hwndActive;
+        public IntPtr hwndFocus;
+        public IntPtr hwndCapture;
+        public IntPtr hwndMenuOwner;
+        public IntPtr hwndMoveSize;
+        public IntPtr hwndCaret;
+        public RECT rcCaret;
+    }
+
     private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
     [DllImport("user32.dll")]
@@ -102,6 +117,10 @@ public static class GhosttyWindowStateNative
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -158,6 +177,13 @@ public static class GhosttyWindowStateNative
         out uint processId
     );
 
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetGUIThreadInfo(
+        uint threadId,
+        ref GUITHREADINFO info
+    );
+
     public static IntPtr FindWindow(uint processId, string expectedClassName)
     {
         IntPtr result = IntPtr.Zero;
@@ -182,6 +208,49 @@ public static class GhosttyWindowStateNative
             return false;
         }, IntPtr.Zero);
         return result;
+    }
+
+    public static IntPtr[] FindWindows(uint processId, string expectedClassName)
+    {
+        List<IntPtr> results = new List<IntPtr>();
+        EnumWindows(delegate (IntPtr hWnd, IntPtr lParam)
+        {
+            uint candidateProcessId;
+            GetWindowThreadProcessId(hWnd, out candidateProcessId);
+            if (candidateProcessId != processId)
+                return true;
+
+            StringBuilder className = new StringBuilder(256);
+            if (GetClassNameW(hWnd, className, className.Capacity) == 0)
+                return true;
+            if (!String.Equals(
+                className.ToString(),
+                expectedClassName,
+                StringComparison.Ordinal
+            ))
+                return true;
+
+            results.Add(hWnd);
+            return true;
+        }, IntPtr.Zero);
+        return results.ToArray();
+    }
+
+    public static IntPtr GetFocusedRootWindow(IntPtr hWnd)
+    {
+        uint processId;
+        uint threadId = GetWindowThreadProcessId(hWnd, out processId);
+        GUITHREADINFO info = new GUITHREADINFO();
+        info.cbSize = Marshal.SizeOf(typeof(GUITHREADINFO));
+        if (threadId == 0 || !GetGUIThreadInfo(threadId, ref info))
+            return IntPtr.Zero;
+
+        IntPtr focused = info.hwndFocus != IntPtr.Zero
+            ? info.hwndFocus
+            : info.hwndActive;
+        return focused == IntPtr.Zero
+            ? IntPtr.Zero
+            : GetAncestor(focused, 2);
     }
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
@@ -244,6 +313,10 @@ $wmKeyUp = 0x0101
 $wmChar = 0x0102
 $vkF5 = 0x74
 $vkF6 = 0x75
+$vkF7 = 0x76
+$vkF8 = 0x77
+$vkF9 = 0x78
+$vkF10 = 0x79
 $vkReturn = 0x0D
 $gwlStyle = -16
 $gwlExStyle = -20
@@ -371,6 +444,20 @@ function Wait-ForMainWindow {
     throw "Timed out waiting for the Ghostty top-level window."
 }
 
+function Get-ProcessTopLevelWindows {
+    param(
+        [Parameter(Mandatory)]
+        [uint32]$ProcessId
+    )
+
+    @(
+        [GhosttyWindowStateNative]::FindWindows(
+            $ProcessId,
+            "GhosttyWindow"
+        )
+    )
+}
+
 function Get-WindowRectangle {
     param(
         [Parameter(Mandatory)]
@@ -409,6 +496,35 @@ function Wait-ForProcessWindow {
     }
 
     throw "Timed out waiting for the $ClassName window."
+}
+
+function Wait-ForOwnedProcessWindow {
+    param(
+        [Parameter(Mandatory)]
+        [uint32]$ProcessId,
+        [Parameter(Mandatory)]
+        [string]$ClassName,
+        [Parameter(Mandatory)]
+        [IntPtr]$OwnerHandle
+    )
+
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($stopwatch.ElapsedMilliseconds -lt $timeoutMilliseconds) {
+        $handle = @(
+            [GhosttyWindowStateNative]::FindWindows($ProcessId, $ClassName) |
+                Where-Object {
+                    [GhosttyWindowStateNative]::GetWindow($_, $gwOwner) -eq `
+                        $OwnerHandle
+                }
+        ) | Select-Object -First 1
+        if ($handle -and
+            [GhosttyWindowStateNative]::IsWindowVisible($handle)) {
+            return [IntPtr]$handle
+        }
+        Start-Sleep -Milliseconds 50
+    }
+
+    throw "Timed out waiting for the $ClassName window owned by $OwnerHandle."
 }
 
 function Get-TabBarLayout {
@@ -701,6 +817,10 @@ try {
         "--config-file=`"$configPath`""
         "--keybind=f5=new_split:right"
         "--keybind=f6=reload_config"
+        "--keybind=f7=new_window"
+        "--keybind=f8=close_all_windows"
+        "--keybind=f9=goto_window:next"
+        "--keybind=f10=toggle_visibility"
     )
     $previousGhosttyLog = [System.Environment]::GetEnvironmentVariable(
         "GHOSTTY_LOG",
@@ -936,20 +1056,155 @@ try {
         -DividerHandle $dividerHandle
     Write-Verbose "Validated the final restored layout."
 
+    Send-TestKey `
+        -Handle $surfaceHandle `
+        -VirtualKey $vkF7 `
+        -Description "new window"
+    Wait-ForCondition -Description "a second top-level window" -Condition {
+        @(Get-ProcessTopLevelWindows -ProcessId $process.Id).Count -eq 2
+    }
+    $secondWindowHandle = @(
+        Get-ProcessTopLevelWindows -ProcessId $process.Id |
+            Where-Object { $_ -ne $windowHandle }
+    )[0]
+    $secondShellEligibility = Test-ShellEligibility -Handle $secondWindowHandle
+    $secondSurfaceHandle = [GhosttyWindowStateNative]::GetWindow(
+        $secondWindowHandle,
+        $gwChild
+    )
+    if ($secondSurfaceHandle -eq [IntPtr]::Zero) {
+        throw "The second Ghostty surface child window was not found."
+    }
+    $secondTabBarHandle = Wait-ForOwnedProcessWindow `
+        -ProcessId $process.Id `
+        -ClassName "GhosttyTabBar" `
+        -OwnerHandle $secondWindowHandle
+    $null = Wait-ForTabBarLayout `
+        -ParentHandle $secondWindowHandle `
+        -TabBarHandle $secondTabBarHandle
+
+    Set-TestConfig `
+        -Path $configPath `
+        -TabBarMode "never"
+    Send-TestKey `
+        -Handle $surfaceHandle `
+        -VirtualKey $vkF6 `
+        -Description "multi-window config reload"
+    Wait-ForCondition -Description "both tab bars to hide after config reload" -Condition {
+        -not [GhosttyWindowStateNative]::IsWindowVisible($tabBarHandle) -and
+            -not [GhosttyWindowStateNative]::IsWindowVisible($secondTabBarHandle)
+    }
+
+    Set-TestConfig `
+        -Path $configPath `
+        -TabBarMode "always"
+    Send-TestKey `
+        -Handle $surfaceHandle `
+        -VirtualKey $vkF6 `
+        -Description "multi-window config reload"
+    Wait-ForCondition -Description "both tab bars to return after config reload" -Condition {
+        [GhosttyWindowStateNative]::IsWindowVisible($tabBarHandle) -and
+            [GhosttyWindowStateNative]::IsWindowVisible($secondTabBarHandle)
+    }
+    $null = Wait-ForTabBarLayout `
+        -ParentHandle $windowHandle `
+        -TabBarHandle $tabBarHandle
+    $null = Wait-ForTabBarLayout `
+        -ParentHandle $secondWindowHandle `
+        -TabBarHandle $secondTabBarHandle
+    Write-Verbose "Validated config reload across both windows."
+
+    Send-TestKey `
+        -Handle $surfaceHandle `
+        -VirtualKey $vkF9 `
+        -Description "next window"
+    Wait-ForCondition -Description "focus navigation to the second window" -Condition {
+        [GhosttyWindowStateNative]::GetFocusedRootWindow($windowHandle) -eq `
+            $secondWindowHandle
+    }
+    Send-TestKey `
+        -Handle $secondSurfaceHandle `
+        -VirtualKey $vkF9 `
+        -Description "wrapped next window"
+    Wait-ForCondition -Description "wrapped focus navigation to the original window" -Condition {
+        [GhosttyWindowStateNative]::GetFocusedRootWindow($windowHandle) -eq `
+            $windowHandle
+    }
+
+    Send-TestKey `
+        -Handle $surfaceHandle `
+        -VirtualKey $vkF10 `
+        -Description "hide all windows"
+    Wait-ForCondition -Description "both windows to hide" -Condition {
+        -not [GhosttyWindowStateNative]::IsWindowVisible($windowHandle) -and
+            -not [GhosttyWindowStateNative]::IsWindowVisible($secondWindowHandle)
+    }
+    Send-TestKey `
+        -Handle $surfaceHandle `
+        -VirtualKey $vkF10 `
+        -Description "restore all windows"
+    Wait-ForCondition -Description "both windows to return" -Condition {
+        [GhosttyWindowStateNative]::IsWindowVisible($windowHandle) -and
+            [GhosttyWindowStateNative]::IsWindowVisible($secondWindowHandle)
+    }
+    Write-Verbose "Validated window navigation and visibility toggle."
+
     if (-not [GhosttyWindowStateNative]::PostMessageW(
-        $windowHandle,
+        $secondWindowHandle,
         $wmClose,
         [UIntPtr]::Zero,
         [IntPtr]::Zero
     )) {
-        throw "Failed to post WM_CLOSE to the Ghostty window."
+        throw "Failed to close the second Ghostty window."
     }
+    Wait-ForCondition -Description "the individual second-window close" -Condition {
+        -not [GhosttyWindowStateNative]::IsWindow($secondWindowHandle)
+    }
+    $process.Refresh()
+    if ($process.HasExited -or
+        -not [GhosttyWindowStateNative]::IsWindow($windowHandle)) {
+        throw "Closing the second window also closed the original window or process."
+    }
+
+    Send-TestKey `
+        -Handle $surfaceHandle `
+        -VirtualKey $vkF7 `
+        -Description "new window"
+    Wait-ForCondition -Description "the recreated second top-level window" -Condition {
+        @(Get-ProcessTopLevelWindows -ProcessId $process.Id).Count -eq 2
+    }
+    $recreatedWindowHandle = @(
+        Get-ProcessTopLevelWindows -ProcessId $process.Id |
+            Where-Object { $_ -ne $windowHandle }
+    )[0]
+    $multiWindow = [pscustomobject]@{
+        Created = $true
+        SecondWindowHandle = $secondWindowHandle
+        SecondShellEligibility = $secondShellEligibility
+        Navigation = $true
+        HiddenTogether = $true
+        RestoredTogether = $true
+        ConfigReloadHidden = $true
+        ConfigReloadRestored = $true
+        IndividualClose = $true
+        OriginalSurvived = $true
+        Recreated = $true
+        RecreatedWindowHandle = $recreatedWindowHandle
+        CloseAll = $false
+    }
+    Write-Verbose "Validated new-window creation and individual close."
+
+    Send-TestKey `
+        -Handle $surfaceHandle `
+        -VirtualKey $vkF8 `
+        -Description "close all windows"
     if (-not $process.WaitForExit($timeoutMilliseconds)) {
-        throw "Ghostty did not exit after WM_CLOSE."
+        throw "Ghostty did not exit after close_all_windows."
     }
     if ($process.ExitCode -ne 0) {
         throw "Ghostty exited with code $($process.ExitCode)."
     }
+    $multiWindow.CloseAll = $true
 
     $completed = $true
     [pscustomobject]@{
@@ -959,6 +1214,7 @@ try {
         TabBarHandle = $tabBarHandle
         DividerHandle = $dividerHandle
         ShellEligibility = $shellEligibility
+        MultiWindow = $multiWindow
         TerminalInput = $terminalInput
         ConfigReload = $configReload
         InitialTabBar = $initialTabBar

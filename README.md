@@ -51,6 +51,19 @@ zig build
 ./zig-out/release/bin/ghostty.exe
 ```
 
+Release版の反復回帰試験:
+
+```powershell
+./scripts/test-windows-soak.ps1 -Iterations 20
+```
+
+Windowsシェルの手動受け入れ試験:
+
+```powershell
+./scripts/test-windows-shell.ps1 -ListOnly
+./scripts/test-windows-shell.ps1
+```
+
 Windows版は現在も開発中です。Windows 11で基本動作を確認していますが、
 Windows 10、144 DPI・192 DPI、スリープ復帰、長時間稼働などには未確認項目が
 あります。インストーラー、署名、自動更新はまだ提供していません。
@@ -68,9 +81,9 @@ Windows実用化は次の6フェーズで進めています。進捗率は作業
 | 3 | ウィンドウ機能: 複数ウィンドウ、全画面、設定再読込 | 完了 |
 | 4 | 分割ペイン: 作成、移動、リサイズ、ズーム | 完了 |
 | 5 | Windows GUI仕上げ: タブ、マウス操作、DPI、アクセシビリティ | 約98% |
-| 6 | リリース品質: 診断、Release検証、実機試験、配布準備 | 約86% |
+| 6 | リリース品質: 診断、Release検証、実機試験、配布準備 | 約93% |
 
-全体では約96%です。現在はフェーズ5の実環境別GUI確認と、フェーズ6の
+全体では約97%です。現在はフェーズ5の実環境別GUI確認と、フェーズ6の
 リリース品質整備を並行して進めています。
 
 設定、既定キー、診断方法、既知の制限は
