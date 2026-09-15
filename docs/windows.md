@@ -151,6 +151,66 @@ The configuration can also be checked from the command line.
 ./zig-out/bin/ghostty.exe +list-keybinds
 ```
 
+## Terminal Type and terminfo
+
+Ghostty sets `TERM=xterm-ghostty` and points `TERMINFO` at
+`<install>\share\terminfo`. Native Windows console programs such as
+`cmd.exe` and PowerShell ignore both, so they are unaffected. Programs that
+read a terminfo database do use them, and report
+
+```
+'xterm-ghostty': unknown terminal type.
+```
+
+when the database does not contain the entry.
+
+The Release build compiles the database into `share\terminfo` whenever `tic`
+is available on the build machine. Git for Windows ships one in
+`C:\Program Files\Git\usr\bin`, and the build also looks in the usual MSYS2
+and Cygwin locations. Without `tic` the build installs only the terminfo
+source, `share\terminfo\ghostty.terminfo`, and prints a warning.
+
+### MSYS2, Git Bash, and Cygwin
+
+The ncurses build used by these environments does not accept a Windows-style
+path in `TERMINFO`, so it cannot read the shipped database directly. Compile
+the entry into your home directory once; ncurses searches `~/.terminfo`
+regardless of what `TERMINFO` contains.
+
+```bash
+tic -x -o ~/.terminfo "$LOCALAPPDATA/Programs/Ghostty/share/terminfo/ghostty.terminfo"
+```
+
+For a portable build, replace the path with the `share\terminfo` directory of
+that build. Confirm the result with `tput longname`, which prints `Ghostty`,
+and `tput colors`, which prints `256`. The line `tic` prints about the
+description field is a note from newer `tic` versions, not an error.
+
+### WSL
+
+A Linux distribution under WSL has its own terminfo database and cannot read
+the Windows one, so run the same command inside the distribution. The source
+file is reachable through `/mnt`.
+
+```bash
+tic -x -o ~/.terminfo "/mnt/c/Users/$USER/AppData/Local/Programs/Ghostty/share/terminfo/ghostty.terminfo"
+```
+
+### Remote hosts over SSH
+
+Two shell integration features cover this; set them with
+`shell-integration-features` in the configuration file.
+
+- `ssh-terminfo` installs Ghostty's terminfo entry on the remote host with
+  `tic` on the first connection and caches the result. The remote host needs
+  `tic`.
+- `ssh-env` sends `TERM=xterm-256color` instead, which every host understands
+  at the cost of Ghostty-specific capabilities.
+
+```
+shell-integration-features = ssh-terminfo,ssh-env
+```
+
 ## Startup Diagnostic Log
 
 In a normal GUI launch, standard error is not shown on screen. To investigate
@@ -507,6 +567,11 @@ output with Narrator and NVDA is still under acceptance verification.
   controlled resume test using Windows suspend and resume notifications is
   verified. D3D11 present HRESULTs and device removal reasons are recorded in
   the diagnostic log.
+- The terminfo database is compiled only when `tic` is available on the build
+  machine, and the ncurses build used by MSYS2, Git Bash, and Cygwin cannot
+  read it through the Windows-style `TERMINFO` path Ghostty sets. Those
+  environments, WSL, and remote hosts need the one-time step described in
+  "Terminal Type and terminfo".
 - The effect and quality of `background-blur` vary with the Windows and GPU
   configuration.
 - An installer can be created, but it is not bundled with the published

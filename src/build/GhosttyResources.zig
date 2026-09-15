@@ -53,8 +53,46 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
             try steps.append(b.allocator, &source_install.step);
         }
 
-        // Windows doesn't have the binaries below.
-        if (os_tag == .windows) break :terminfo;
+        // Windows has neither infotocap nor the POSIX tools the steps below
+        // shell out to, but the terminal still sets TERM=xterm-ghostty. With
+        // only the source file installed, every terminfo consumer running
+        // inside Ghostty (MSYS2, Git Bash, Cygwin) fails with "unknown
+        // terminal type", so compile the database whenever tic can be found.
+        // Git for Windows ships one in its usr\bin.
+        if (os_tag == .windows) {
+            const tic = b.findProgram(&.{"tic"}, &.{
+                "C:\\Program Files\\Git\\usr\\bin",
+                "C:\\Program Files (x86)\\Git\\usr\\bin",
+                "C:\\msys64\\usr\\bin",
+                "C:\\cygwin64\\bin",
+            }) catch {
+                std.log.warn(
+                    "tic was not found, so only the terminfo source is " ++
+                        "installed. POSIX tools running inside Ghostty will " ++
+                        "not resolve xterm-ghostty; see the terminfo section " ++
+                        "of docs/windows.md.",
+                    .{},
+                );
+                break :terminfo;
+            };
+
+            const run_step = RunStep.create(b, "tic");
+            run_step.addArg(tic);
+            run_step.addArgs(&.{ "-x", "-o" });
+            const path = run_step.addOutputDirectoryArg(terminfo_share_dir);
+            run_step.addFileArg(source);
+
+            // tic writes a note about the description field to stderr.
+            _ = run_step.captureStdErr(.{});
+
+            const install_step = b.addInstallDirectory(.{
+                .source_dir = path,
+                .install_dir = .{ .custom = "share" },
+                .install_subdir = terminfo_share_dir,
+            });
+            try steps.append(b.allocator, &install_step.step);
+            break :terminfo;
+        }
 
         // Convert to termcap source format if thats helpful to people and
         // install it. The resulting value here is the termcap source in case

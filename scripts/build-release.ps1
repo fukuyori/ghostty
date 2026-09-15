@@ -112,6 +112,25 @@ if ($shellIntegrationFileCount -eq 0 -or $themeFileCount -eq 0) {
     throw "The release contains an empty required resource directory."
 }
 
+# The terminfo source is always installed; the compiled database only when the
+# build machine had tic. Without it, programs that read terminfo inside
+# Ghostty report 'xterm-ghostty': unknown terminal type.
+$terminfoRoot = Join-Path $releaseRoot (Join-Path "share" "terminfo")
+$terminfoSource = Join-Path $terminfoRoot "ghostty.terminfo"
+if (-not (Test-Path -LiteralPath $terminfoSource -PathType Leaf)) {
+    throw "The release is missing the terminfo source: $terminfoSource"
+}
+$terminfoEntries = @(
+    Get-ChildItem -LiteralPath $terminfoRoot -File -Recurse |
+        Where-Object { $_.Name -in @("ghostty", "xterm-ghostty") }
+)
+$terminfoCompiled = $terminfoEntries.Count -gt 0
+if (-not $terminfoCompiled) {
+    Write-Warning ("The release contains no compiled terminfo database. " +
+        "Install tic (Git for Windows ships one) and rebuild, or programs " +
+        "that read terminfo will not resolve xterm-ghostty.")
+}
+
 $stream = [System.IO.File]::OpenRead($executable)
 $reader = [System.IO.BinaryReader]::new($stream)
 try {
@@ -291,6 +310,7 @@ if ($cliVersion -ne $versionInfo.FileVersion) {
     LargeIcon     = $true
     SmallIcon     = $true
     ShellFiles   = $shellIntegrationFileCount
+    TerminfoCompiled = $terminfoCompiled
     ThemeFiles   = $themeFileCount
     SizeBytes    = $file.Length
     Sha256       = $hash.Hash

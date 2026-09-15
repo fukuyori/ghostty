@@ -476,6 +476,9 @@ Implemented:
   once for the `quit` action when there are running processes
 - Handling that launches the regression and acceptance scripts with
   `--config-default-files=false` to isolate them from the user's config
+- Compilation of the terminfo database on Windows with `tic` when it is
+  available, installed next to the terminfo source so that programs reading
+  terminfo can resolve `xterm-ghostty`
 - Layout-independent key input handling that determines the physical key
   from the scan code and the core's key code table and obtains the
   unmodified character of the current layout with `ToUnicodeEx`. Only
@@ -655,6 +658,25 @@ Recent verification:
   failure, controlled power resume for a single surface and all 3 surfaces,
   4-monitor movement, multiple windows, and clean exit. Exit code 0, no
   forced termination, no leftover temporary files.
+- 2026-09-15: Fixed `'xterm-ghostty': unknown terminal type.` reported by
+  programs that read a terminfo database. Ghostty sets `TERM=xterm-ghostty`
+  and points `TERMINFO` at the install tree, but the build skipped compiling
+  the database on Windows (`if (os_tag == .windows) break :terminfo;` in
+  `src/build/GhosttyResources.zig`), so only the source file was installed.
+  Native Windows console programs ignore terminfo and were unaffected, which
+  is why this went unnoticed. The build now compiles the database with `tic`
+  when it can be found, searching the Git for Windows, MSYS2, and Cygwin
+  locations in addition to `PATH`, and warns when it cannot. Verified that a
+  clean build installs `67/ghostty` and `78/xterm-ghostty` next to the source,
+  and that the compiled entry resolves. Separately, the ncurses build used by
+  MSYS2 and Git Bash does not accept the Windows-style path Ghostty puts in
+  `TERMINFO`; it does fall through to `~/.terminfo`, so a one-time
+  `tic -x -o ~/.terminfo` there resolves the entry with `TERM` untouched,
+  which was verified with a scratch home directory (`tput longname` reported
+  `Ghostty` and `tput colors` reported 256). That step, and the equivalents
+  for WSL and SSH, are documented in `docs/windows.md`. The Release build
+  script now reports whether the compiled database is present and warns when
+  it is missing.
 - 2026-09-15: Finalized the preview build `1.3.2-windows.2` as a bug-fix
   release for `1.3.2-windows.1`. Built two ReleaseFast, baseline CPU binaries
   with `-Dversion-string=1.3.2-windows.2`, one for distribution and one with
