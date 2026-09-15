@@ -1007,6 +1007,20 @@ try {
         throw "Ghostty surface child window was not found."
     }
 
+    if ($TestGpuRecovery -or $TestPowerResume) {
+        # Executables built without -Dwin32-test-hooks=true ignore the
+        # recovery messages; fail now instead of timing out later.
+        $probe = [GhosttyWindowStateNative]::SendMessageW(
+            $surfaceHandle,
+            $wmTestRecoveryStatus,
+            [UIntPtr]::new(1),
+            [IntPtr]::Zero
+        ).ToInt64()
+        if ($probe -ne 1) {
+            throw "The executable was built without -Dwin32-test-hooks=true; GPU recovery and power-resume checks need a build with the regression hooks (zig build -Dwin32-test-hooks=true or build-release.ps1 -TestHooks)."
+        }
+    }
+
     $markerValue = "ghostty-terminal-input"
     $markerCommand = "echo $markerValue>`"$inputMarkerPath`""
     Send-TestText -Handle $surfaceHandle -Text $markerCommand

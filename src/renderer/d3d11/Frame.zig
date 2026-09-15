@@ -34,7 +34,8 @@ pub fn renderPass(self: *const Self, attachments: []const RenderPass.Options.Att
 /// D3D11 uses one CPU frame slot, so completion is synchronous from the
 /// generic renderer's perspective even when Present itself is not blocking.
 pub fn complete(self: *const Self, sync: bool) void {
-    self.context.Flush();
+    // Present submits the deferred command stream itself; an explicit
+    // Flush before it only adds a second submission per frame.
     self.renderer.api.present(
         self.target,
         sync or self.renderer.config.vsync,

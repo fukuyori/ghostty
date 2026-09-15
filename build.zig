@@ -406,6 +406,20 @@ pub fn build(b: *std.Build) !void {
         config.addPatchElf(test_exe, &test_run.step);
         test_step.dependOn(&test_run.step);
 
+        // Build helpers are only imported by build.zig, so their tests
+        // need their own root or they never compile.
+        const build_helpers_test = b.addTest(.{
+            .name = "ghostty-build-helpers-test",
+            .filters = test_filters,
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("src/build/WindowsVersionResource.zig"),
+                .target = config.baselineTarget(b.graph.io),
+                .optimize = .Debug,
+            }),
+        });
+        const build_helpers_run = b.addRunArtifact(build_helpers_test);
+        test_step.dependOn(&build_helpers_run.step);
+
         // Normal tests always test our libghostty modules
         //test_step.dependOn(test_lib_vt_step);
 

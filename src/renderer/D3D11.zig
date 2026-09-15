@@ -8,6 +8,7 @@ const apprt = @import("../apprt.zig");
 const configpkg = @import("../config.zig");
 const font = @import("../font/main.zig");
 const rendererpkg = @import("../renderer.zig");
+const build_config = @import("../build_config.zig");
 const DirectComposition = @import("../apprt/win32/DirectComposition.zig");
 const log = std.log.scoped(.d3d11);
 
@@ -61,13 +62,15 @@ pub fn deinit(self: *D3D11) void {
 /// Recreate every API-owned object after DXGI reports a device loss. Generic
 /// renderer resources are rebuilt separately after this succeeds.
 pub fn recover(self: *D3D11) !void {
-    if (self.surface.gpu_recovery_failures_remaining > 0) {
-        self.surface.gpu_recovery_failures_remaining -= 1;
-        log.warn(
-            "injecting controlled GPU recovery failure remaining={d}",
-            .{self.surface.gpu_recovery_failures_remaining},
-        );
-        return error.ControlledDeviceRecoveryFailure;
+    if (comptime build_config.win32_test_hooks) {
+        if (self.surface.gpu_recovery_failures_remaining > 0) {
+            self.surface.gpu_recovery_failures_remaining -= 1;
+            log.warn(
+                "injecting controlled GPU recovery failure remaining={d}",
+                .{self.surface.gpu_recovery_failures_remaining},
+            );
+            return error.ControlledDeviceRecoveryFailure;
+        }
     }
 
     const size = try self.surface.getSize();

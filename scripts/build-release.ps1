@@ -13,6 +13,11 @@ create a distribution archive or installer.
 The install prefix for the release build. Relative paths are resolved from the
 repository root.
 
+.PARAMETER TestHooks
+Compile the Windows regression hooks (-Dwin32-test-hooks=true) so the
+GPU recovery and power-resume regression scripts can drive the release
+executable. Leave this off for distributed builds.
+
 .PARAMETER AdditionalZigArgs
 Additional arguments passed to `zig build`.
 
@@ -25,6 +30,7 @@ Additional arguments passed to `zig build`.
 [CmdletBinding()]
 param(
     [string]$OutputDirectory = "",
+    [switch]$TestHooks,
     [string[]]$AdditionalZigArgs = @()
 )
 
@@ -63,7 +69,7 @@ $buildArguments = @(
     "-Demit-docs=false"
     "--summary"
     "all"
-) + $AdditionalZigArgs
+) + $(if ($TestHooks) { @("-Dwin32-test-hooks=true") } else { @() }) + $AdditionalZigArgs
 
 Write-Host "Building Ghostty release with Zig $zigVersion"
 Write-Host "Output: $releaseRoot"

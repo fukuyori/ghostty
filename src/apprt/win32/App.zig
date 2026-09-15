@@ -106,8 +106,13 @@ pub fn init(
     errdefer config_ptr.deinit();
     var environ = try global.environMap();
     defer environ.deinit();
-    const test_device_recovery = if (environ.get("GHOSTTY_TEST_DEVICE_RECOVERY")) |value|
-        std.mem.eql(u8, value, "1")
+    // The regression hooks exist only in builds made with
+    // -Dwin32-test-hooks=true; release builds ignore the environment.
+    const test_device_recovery = if (comptime build_config.win32_test_hooks)
+        if (environ.get("GHOSTTY_TEST_DEVICE_RECOVERY")) |value|
+            std.mem.eql(u8, value, "1")
+        else
+            false
     else
         false;
     const test_device_recovery_failures = if (test_device_recovery)
@@ -3451,6 +3456,43 @@ fn isExtendedKey(lparam: win32.LPARAM) bool {
     return (bits & (@as(usize, 1) << 24)) != 0;
 }
 
+/// Hardware scan code carried in bits 16-23 of a keyboard message.
+fn scanCode(lparam: win32.LPARAM) u32 {
+    const bits: usize = @bitCast(lparam);
+    return @intCast((bits >> 16) & 0xFF);
+}
+
+/// Scan code with the extended-key prefix folded in the way the Chromium
+/// keycode table behind `input.keycodes` expects (0xE000 marks extended
+/// keys). Zero means the message carried no scan code.
+fn nativeKeycode(lparam: win32.LPARAM) u32 {
+    const scan = scanCode(lparam);
+    if (scan == 0) return 0;
+    return if (isExtendedKey(lparam)) 0xE000 | scan else scan;
+}
+
+/// Physical key from the scan code. Scan codes identify key positions, so
+/// the key at the US `[` position is `bracket_left` on every layout, which
+/// is what `physical:` bindings and the default split bindings expect.
+fn keyFromScanCode(lparam: win32.LPARAM) input.Key {
+    const native = nativeKeycode(lparam);
+    if (native == 0) return .unidentified;
+    for (input.keycodes.entries) |entry| {
+        if (entry.native == native) return entry.key;
+    }
+    return .unidentified;
+}
+
+/// Resolve the physical key for a keyboard message. The scan code is
+/// authoritative; messages synthesized without one (PostMessage from
+/// automation, for example) fall back to the virtual-key table, which is
+/// only exact for the US layout.
+fn mapKey(wparam: win32.WPARAM, lparam: win32.LPARAM) input.Key {
+    const key = keyFromScanCode(lparam);
+    if (key != .unidentified) return key;
+    return mapVirtualKey(wparam, lparam);
+}
+
 fn mapVirtualKey(vk: win32.WPARAM, lparam: win32.LPARAM) input.Key {
     return switch (vk) {
         0x41 => .key_a,
@@ -3582,7 +3624,10 @@ fn isTextVirtualKey(vk: win32.WPARAM) bool {
         0x41...0x5A,
         0x20,
         0xBA...0xC0,
-        0xDB...0xDE,
+        // VK_OEM_4..VK_OEM_8 and VK_OEM_102: the last two only exist on
+        // non-US layouts (for example the key left of Z on ISO keyboards).
+        0xDB...0xDF,
+        0xE2,
         => true,
         else => false,
     };
@@ -3600,7 +3645,46 @@ fn shouldDispatchKeyPress(vk: win32.WPARAM, mods: input.Mods) bool {
     return false;
 }
 
-fn unshiftedCodepoint(vk: win32.WPARAM) u21 {
+/// Codepoint the key produces with no modifier held in the active keyboard
+/// layout. Bindings written as `ctrl+;` must match the key that types `;`
+/// on the user's layout, not the US position of VK_OEM_1.
+fn unshiftedCodepoint(vk: win32.WPARAM, lparam: win32.LPARAM) u21 {
+    if (layoutUnshiftedCodepoint(vk, lparam)) |codepoint| return codepoint;
+    return unshiftedCodepointUS(vk);
+}
+
+/// Translate the key through the active layout with an empty modifier
+/// state. Returns null for dead keys and keys without a text translation,
+/// leaving the caller to decide on a fallback.
+fn layoutUnshiftedCodepoint(vk: win32.WPARAM, lparam: win32.LPARAM) ?u21 {
+    var key_state = [_]u8{0} ** 256;
+    var buffer: [4:0]u16 = .{ 0, 0, 0, 0 };
+    const layout = win32.GetKeyboardLayout(0);
+    // Flag 0x4 (Windows 10 1607+) keeps the thread's dead-key state intact
+    // so this lookup never swallows a pending accent.
+    const written = win32.ToUnicodeEx(
+        @intCast(vk),
+        scanCode(lparam),
+        &key_state,
+        &buffer,
+        buffer.len,
+        0x4,
+        layout,
+    );
+    if (written <= 0) return null;
+
+    var pending: ?u16 = null;
+    const codepoint = decodeUtf16CodeUnit(&pending, buffer[0]) orelse first: {
+        if (written < 2) return null;
+        break :first decodeUtf16CodeUnit(&pending, buffer[1]) orelse return null;
+    };
+    if (codepoint < 0x20 or codepoint == 0x7F) return null;
+    return codepoint;
+}
+
+/// US layout fallback for the unshifted codepoint when the active layout
+/// has no translation for the key.
+fn unshiftedCodepointUS(vk: win32.WPARAM) u21 {
     return switch (vk) {
         0x41...0x5A => @intCast(vk + ('a' - 'A')),
         0x30...0x39 => @intCast(vk),
@@ -4411,6 +4495,9 @@ fn wndProc(
             return 0;
         },
         WM_TEST_RECOVER_RENDERER => {
+            if (comptime !build_config.win32_test_hooks) {
+                return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
+            }
             if (getSurface(hwnd)) |surface| {
                 const app = surface.rtApp();
                 if (app.test_device_recovery) {
@@ -4424,8 +4511,15 @@ fn wndProc(
             return 0;
         },
         WM_TEST_RECOVERY_STATUS => {
+            if (comptime !build_config.win32_test_hooks) {
+                return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
+            }
             if (getSurface(hwnd)) |surface| {
                 if (surface.rtApp().test_device_recovery) {
+                    // wparam 1 probes whether the hooks are compiled in and
+                    // enabled, so scripts can fail early with a clear message
+                    // instead of timing out against a release executable.
+                    if (wparam == 1) return 1;
                     return @intCast(surface.gpu_recovery_count.load(.seq_cst));
                 }
             }
@@ -4684,14 +4778,14 @@ fn wndProc(
                 if (hwnd == surface.hwnd) {
                     if (surface.core_surface) |core| {
                         const mods = getModifiers();
-                        const key = mapVirtualKey(wparam, lparam);
+                        const key = mapKey(wparam, lparam);
 
                         if (!shouldDispatchKeyPress(wparam, mods)) {
                             surface.pending_text_key = .{
                                 .action = keyAction(lparam),
                                 .key = key,
                                 .mods = mods,
-                                .unshifted_codepoint = unshiftedCodepoint(wparam),
+                                .unshifted_codepoint = unshiftedCodepoint(wparam, lparam),
                             };
                             return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
                         }
@@ -4702,7 +4796,7 @@ fn wndProc(
                                 .action = keyAction(lparam),
                                 .key = key,
                                 .mods = mods,
-                                .unshifted_codepoint = unshiftedCodepoint(wparam),
+                                .unshifted_codepoint = unshiftedCodepoint(wparam, lparam),
                             }) catch |err| {
                                 log.err("key callback error: {}", .{err});
                                 return 0;
@@ -4718,13 +4812,13 @@ fn wndProc(
             if (getSurface(hwnd)) |surface| {
                 if (hwnd == surface.hwnd) {
                     if (surface.core_surface) |core| {
-                        const key = mapVirtualKey(wparam, lparam);
+                        const key = mapKey(wparam, lparam);
                         if (key != .unidentified) {
                             _ = core.keyCallback(.{
                                 .action = .release,
                                 .key = key,
                                 .mods = getModifiers(),
-                                .unshifted_codepoint = unshiftedCodepoint(wparam),
+                                .unshifted_codepoint = unshiftedCodepoint(wparam, lparam),
                             }) catch |err| {
                                 log.err("key release callback error: {}", .{err});
                             };
@@ -4748,6 +4842,46 @@ test "map Win32 virtual keys" {
     try std.testing.expectEqual(input.Key.unidentified, mapVirtualKey(0xFF, 0));
 }
 
+test "map Win32 scan codes to physical keys" {
+    const scan = struct {
+        fn lparam(code: usize, extended: bool) win32.LPARAM {
+            var bits: usize = code << 16;
+            if (extended) bits |= @as(usize, 1) << 24;
+            return @bitCast(bits);
+        }
+    };
+
+    // Layout independent positions from the Chromium table.
+    try std.testing.expectEqual(input.Key.key_a, keyFromScanCode(scan.lparam(0x1E, false)));
+    try std.testing.expectEqual(input.Key.bracket_left, keyFromScanCode(scan.lparam(0x1A, false)));
+    try std.testing.expectEqual(input.Key.semicolon, keyFromScanCode(scan.lparam(0x27, false)));
+    try std.testing.expectEqual(input.Key.control_left, keyFromScanCode(scan.lparam(0x1D, false)));
+    try std.testing.expectEqual(input.Key.control_right, keyFromScanCode(scan.lparam(0x1D, true)));
+    try std.testing.expectEqual(input.Key.numpad_enter, keyFromScanCode(scan.lparam(0x1C, true)));
+    try std.testing.expectEqual(input.Key.backquote, keyFromScanCode(scan.lparam(0x29, false)));
+    try std.testing.expectEqual(input.Key.unidentified, keyFromScanCode(0));
+
+    // The scan code wins over a virtual key that disagrees with it: on a
+    // German layout VK_OEM_1 sits on the physical `;` position, but here the
+    // scan code says the key is at the US `[` position.
+    try std.testing.expectEqual(input.Key.bracket_left, mapKey(0xBA, scan.lparam(0x1A, false)));
+
+    // Messages without a scan code keep the virtual-key fallback.
+    try std.testing.expectEqual(input.Key.f5, mapKey(0x74, 0));
+    try std.testing.expectEqual(@as(u32, 0), nativeKeycode(0));
+    try std.testing.expectEqual(@as(u32, 0xE01D), nativeKeycode(scan.lparam(0x1D, true)));
+
+    // The active layout translates the letter key without modifiers to a
+    // lowercase letter (never the uppercase form MapVirtualKey would give),
+    // and non-text keys have no translation.
+    const letter = layoutUnshiftedCodepoint(0x41, scan.lparam(0x1E, false)) orelse
+        return error.TestUnexpectedResult;
+    try std.testing.expect(letter >= 0x20);
+    try std.testing.expect(!(letter >= 'A' and letter <= 'Z'));
+    try std.testing.expectEqual(@as(?u21, null), layoutUnshiftedCodepoint(0x25, scan.lparam(0x4B, true)));
+    try std.testing.expectEqual(@as(u21, 0), unshiftedCodepoint(0x25, scan.lparam(0x4B, true)));
+}
+
 test "classify Win32 text keys" {
     try std.testing.expect(isTextVirtualKey(0x41));
     try std.testing.expect(isTextVirtualKey(0xDE));
@@ -4755,7 +4889,7 @@ test "classify Win32 text keys" {
 
     try std.testing.expectEqual(input.Action.press, keyAction(0));
     try std.testing.expectEqual(input.Action.repeat, keyAction(1 << 30));
-    try std.testing.expectEqual(@as(u21, 'a'), unshiftedCodepoint(0x41));
+    try std.testing.expectEqual(@as(u21, 'a'), unshiftedCodepointUS(0x41));
 
     var altgr: input.Mods = .{ .ctrl = true, .alt = true };
     altgr.sides.alt = .right;
