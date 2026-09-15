@@ -14,6 +14,7 @@ const CoreSurface = @import("../../Surface.zig");
 const global = @import("../../global.zig");
 const input = @import("../../input.zig");
 const math = @import("../../math.zig");
+const rendererpkg = @import("../../renderer.zig");
 const d3d11_buffer = @import("../../renderer/d3d11/buffer.zig");
 const D3D11RenderPass = @import("../../renderer/d3d11/RenderPass.zig");
 const D3D11Sampler = @import("../../renderer/d3d11/Sampler.zig");
@@ -33,6 +34,7 @@ const window_class_name = win32.L("GhosttyWindow");
 const tab_bar_class_name = win32.L("GhosttyTabBar");
 const split_divider_class_name = win32.L("GhosttySplitDivider");
 const default_window_title = win32.L("Ghostty");
+const icon_resource_id: usize = 1;
 const tab_title_dialog_id: usize = 102;
 const tab_title_edit_id: i32 = 1001;
 const tab_title_capacity: usize = 512;
@@ -56,6 +58,11 @@ const WM_WAKEUP = win32.WM_USER + 1;
 /// window thread so confirmation and native resource teardown happen there.
 const WM_CLOSE_SURFACE = win32.WM_USER + 2;
 
+/// Test-only request used by the Windows regression script. It is ignored
+/// unless the process explicitly enables GHOSTTY_TEST_DEVICE_RECOVERY.
+const WM_TEST_RECOVER_RENDERER = win32.WM_USER + 3;
+const WM_TEST_RECOVERY_STATUS = win32.WM_USER + 4;
+
 core_app: *CoreApp,
 config: *Config,
 alloc: Allocator,
@@ -64,6 +71,7 @@ thread_id: u32,
 windows: WindowList = .empty,
 backdrop_runtime: Backdrop.Runtime = .{},
 high_contrast: bool = false,
+test_device_recovery: bool = false,
 
 pub fn init(
     self: *App,
@@ -77,6 +85,8 @@ pub fn init(
     errdefer alloc.destroy(config_ptr);
     config_ptr.* = try Config.load(alloc);
     errdefer config_ptr.deinit();
+    var environ = try global.environMap();
+    defer environ.deinit();
 
     self.* = .{
         .core_app = core_app,
@@ -84,6 +94,10 @@ pub fn init(
         .alloc = alloc,
         .thread_id = win32.GetCurrentThreadId(),
         .high_contrast = highContrastEnabled(),
+        .test_device_recovery = if (environ.get("GHOSTTY_TEST_DEVICE_RECOVERY")) |value|
+            std.mem.eql(u8, value, "1")
+        else
+            false,
     };
     errdefer self.windows.deinit(self.alloc);
     errdefer self.backdrop_runtime.deinit();
@@ -382,6 +396,7 @@ pub fn performAction(
             try self.reloadConfig(target, value);
             return true;
         },
+        .renderer_health => return try recoverRenderer(target, value),
         .config_change => {
             switch (target) {
                 .surface => |core| {
@@ -405,6 +420,22 @@ pub fn performAction(
         },
         else => return false,
     }
+}
+
+fn recoverRenderer(target: apprt.Target, health: rendererpkg.Health) !bool {
+    const surface = targetSurface(target) orelse {
+        log.warn("renderer_health targeted the application", .{});
+        return false;
+    };
+    if (health == .healthy) {
+        log.info("D3D11 renderer recovered", .{});
+        return true;
+    }
+
+    log.warn("D3D11 renderer is unhealthy; scheduling device recovery", .{});
+    const core = surface.core_surface orelse return false;
+    try core.recoverRenderer();
+    return true;
 }
 
 fn setTabTitle(
@@ -2467,7 +2498,11 @@ fn updateTabBarViewport(window: *Window, width: i32, height: i32) void {
 }
 
 fn registerWindowClass() !void {
-    const hinstance = win32.GetModuleHandleW(null);
+    const hinstance = win32.GetModuleHandleW(null) orelse {
+        log.err("GetModuleHandleW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return error.Win32Error;
+    };
+    const icons = try loadWindowIcons(hinstance);
 
     const wc: win32.WNDCLASSEXW = .{
         .cbSize = @sizeOf(win32.WNDCLASSEXW),
@@ -2479,12 +2514,12 @@ fn registerWindowClass() !void {
         .cbClsExtra = 0,
         .cbWndExtra = 0,
         .hInstance = hinstance,
-        .hIcon = null,
+        .hIcon = icons.large,
         .hCursor = win32.LoadCursorW(null, win32.IDC_ARROW),
         .hbrBackground = null,
         .lpszMenuName = null,
         .lpszClassName = window_class_name,
-        .hIconSm = null,
+        .hIconSm = icons.small,
     };
 
     if (win32.RegisterClassExW(&wc) == 0) {
@@ -2529,6 +2564,54 @@ fn registerWindowClass() !void {
         log.err("RegisterClassExW(split divider) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         return error.Win32Error;
     }
+}
+
+const WindowIcons = struct {
+    large: win32.HICON,
+    small: win32.HICON,
+};
+
+fn loadWindowIcons(hinstance: win32.HINSTANCE) !WindowIcons {
+    const large_width = @max(1, win32.GetSystemMetrics(win32.SM_CXICON));
+    const large_height = @max(1, win32.GetSystemMetrics(win32.SM_CYICON));
+    const small_width = @max(1, win32.GetSystemMetrics(win32.SM_CXSMICON));
+    const small_height = @max(1, win32.GetSystemMetrics(win32.SM_CYSMICON));
+
+    return .{
+        .large = try loadWindowIcon(
+            hinstance,
+            large_width,
+            large_height,
+        ),
+        .small = try loadWindowIcon(
+            hinstance,
+            small_width,
+            small_height,
+        ),
+    };
+}
+
+fn loadWindowIcon(
+    hinstance: win32.HINSTANCE,
+    width: i32,
+    height: i32,
+) !win32.HICON {
+    const handle = win32.LoadImageW(
+        hinstance,
+        @ptrFromInt(icon_resource_id),
+        .ICON,
+        width,
+        height,
+        .{ .SHARED = 1 },
+    ) orelse {
+        log.err("LoadImageW(icon {d}x{d}) failed: err={d}", .{
+            width,
+            height,
+            @intFromEnum(win32.GetLastError()),
+        });
+        return error.Win32Error;
+    };
+    return @ptrCast(handle);
 }
 
 fn createNativeWindow() !win32.HWND {
@@ -4100,6 +4183,27 @@ fn wndProc(
             if (lparam != 0) {
                 const surface: *Surface = @ptrFromInt(@as(usize, @bitCast(lparam)));
                 surface.rtApp().closeSurface(surface, wparam != 0);
+            }
+            return 0;
+        },
+        WM_TEST_RECOVER_RENDERER => {
+            if (getSurface(hwnd)) |surface| {
+                const app = surface.rtApp();
+                if (app.test_device_recovery) {
+                    if (surface.core_surface) |core| {
+                        core.recoverRenderer() catch |err| {
+                            log.err("failed to schedule test renderer recovery: {}", .{err});
+                        };
+                    }
+                }
+            }
+            return 0;
+        },
+        WM_TEST_RECOVERY_STATUS => {
+            if (getSurface(hwnd)) |surface| {
+                if (surface.rtApp().test_device_recovery) {
+                    return @intCast(surface.gpu_recovery_count.load(.seq_cst));
+                }
             }
             return 0;
         },

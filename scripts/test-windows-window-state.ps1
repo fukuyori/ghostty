@@ -3,10 +3,11 @@
 Checks native window and shell behavior of Ghostty on Windows.
 
 .DESCRIPTION
-Starts a dedicated Ghostty process, validates its shell-visible styles,
-creates a split, checks tab-bar and divider layout across every monitor, then
-performs a maximize, minimize, restore, and graceful close sequence using
-Win32 APIs. Existing Ghostty processes and windows are not modified.
+Starts a dedicated Ghostty process, validates its shell-visible styles and
+large and small class icons, creates a split, checks tab-bar and divider layout
+across every monitor, then performs a maximize, minimize, restore, and graceful
+close sequence using Win32 APIs. Existing Ghostty processes and windows are
+not modified.
 
 .PARAMETER Executable
 Ghostty executable to test. Relative paths are resolved from the repository
@@ -20,18 +21,35 @@ Leave the dedicated test process open when a check fails. By default, the
 script first requests a graceful close and then terminates only the process it
 started if that close does not finish within the timeout.
 
+.PARAMETER TestGpuRecovery
+Enable the private test hook, recreate the D3D11 device and all renderer GPU
+resources, then verify that the existing terminal session can still execute a
+command. This tests controlled recovery without forcing a physical GPU fault.
+
+.PARAMETER GpuRecoveryIterations
+Number of consecutive GPU resource rebuilds to perform in the same terminal
+session when TestGpuRecovery is enabled. The default is 1.
+
 .EXAMPLE
 ./scripts/test-windows-window-state.ps1
 
 .EXAMPLE
 ./scripts/test-windows-window-state.ps1 `
     -Executable zig-out/version-check-script/bin/ghostty.exe
+
+.EXAMPLE
+./scripts/test-windows-window-state.ps1 `
+    -TestGpuRecovery `
+    -GpuRecoveryIterations 20
 #>
 [CmdletBinding()]
 param(
     [string]$Executable = "",
     [ValidateRange(1, 60)]
     [int]$TimeoutSeconds = 10,
+    [switch]$TestGpuRecovery,
+    [ValidateRange(1, 100)]
+    [int]$GpuRecoveryIterations = 1,
     [switch]$KeepOpenOnFailure
 )
 
@@ -40,6 +58,9 @@ $ErrorActionPreference = "Stop"
 
 if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
     throw "This script tests the native Windows Ghostty executable."
+}
+if (-not $TestGpuRecovery -and $PSBoundParameters.ContainsKey("GpuRecoveryIterations")) {
+    throw "GpuRecoveryIterations requires TestGpuRecovery."
 }
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -68,6 +89,7 @@ $testStateRoot = Join-Path $repositoryRoot "zig-out\test-state"
 $sessionDirectory = Join-Path $testStateRoot $sessionName
 $configPath = Join-Path $sessionDirectory "config.ghostty"
 $inputMarkerPath = Join-Path $sessionDirectory "terminal-input.txt"
+$gpuRecoveryMarkerPath = Join-Path $sessionDirectory "gpu-recovery.txt"
 
 if (-not ("GhosttyWindowStateNative" -as [type])) {
     Add-Type -TypeDefinition @"
@@ -259,11 +281,24 @@ public static class GhosttyWindowStateNative
     [DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
     private static extern int GetWindowLong32(IntPtr hWnd, int index);
 
+    [DllImport("user32.dll", EntryPoint = "GetClassLongPtrW")]
+    private static extern IntPtr GetClassLongPtr64(IntPtr hWnd, int index);
+
+    [DllImport("user32.dll", EntryPoint = "GetClassLongW")]
+    private static extern uint GetClassLong32(IntPtr hWnd, int index);
+
     public static long GetWindowLongValue(IntPtr hWnd, int index)
     {
         return IntPtr.Size == 8
             ? GetWindowLongPtr64(hWnd, index).ToInt64()
             : GetWindowLong32(hWnd, index);
+    }
+
+    public static IntPtr GetClassLongPtrValue(IntPtr hWnd, int index)
+    {
+        return IntPtr.Size == 8
+            ? GetClassLongPtr64(hWnd, index)
+            : new IntPtr(unchecked((long)GetClassLong32(hWnd, index)));
     }
 
     [DllImport("user32.dll")]
@@ -283,6 +318,14 @@ public static class GhosttyWindowStateNative
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool PostMessageW(
+        IntPtr hWnd,
+        uint message,
+        UIntPtr wParam,
+        IntPtr lParam
+    );
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern IntPtr SendMessageW(
         IntPtr hWnd,
         uint message,
         UIntPtr wParam,
@@ -311,6 +354,8 @@ $wmClose = 0x0010
 $wmKeyDown = 0x0100
 $wmKeyUp = 0x0101
 $wmChar = 0x0102
+$wmTestRecoverRenderer = 0x0403
+$wmTestRecoveryStatus = 0x0404
 $vkF5 = 0x74
 $vkF6 = 0x75
 $vkF7 = 0x76
@@ -320,6 +365,8 @@ $vkF10 = 0x79
 $vkReturn = 0x0D
 $gwlStyle = -16
 $gwlExStyle = -20
+$gclpHIcon = -14
+$gclpHIconSm = -34
 $gwOwner = 4
 $gwChild = 5
 $gaRoot = 2
@@ -775,11 +822,24 @@ function Test-ShellEligibility {
     }
 
     $visible = [GhosttyWindowStateNative]::IsWindowVisible($Handle)
+    $largeIcon = [GhosttyWindowStateNative]::GetClassLongPtrValue(
+        $Handle,
+        $gclpHIcon
+    )
+    $smallIcon = [GhosttyWindowStateNative]::GetClassLongPtrValue(
+        $Handle,
+        $gclpHIconSm
+    )
+    if ($largeIcon -eq [IntPtr]::Zero -or $smallIcon -eq [IntPtr]::Zero) {
+        throw "Top-level window class does not provide both large and small icons."
+    }
     [pscustomobject]@{
         Style = "0x$($style.ToString('X8'))"
         ExtendedStyle = "0x$($extendedStyle.ToString('X8'))"
         Owner = $owner
         Root = $root
+        LargeIcon = $largeIcon.ToInt64()
+        SmallIcon = $smallIcon.ToInt64()
         DwmCloaked = if ($dwmResult -eq 0) { [bool]$cloaked } else { $null }
         SnapEligible = [bool](
             ($style -band $wsThickFrame) -and
@@ -826,12 +886,23 @@ try {
         "GHOSTTY_LOG",
         [System.EnvironmentVariableTarget]::Process
     )
+    $previousRecoveryTest = [System.Environment]::GetEnvironmentVariable(
+        "GHOSTTY_TEST_DEVICE_RECOVERY",
+        [System.EnvironmentVariableTarget]::Process
+    )
     try {
         [System.Environment]::SetEnvironmentVariable(
             "GHOSTTY_LOG",
             "stderr=true",
             [System.EnvironmentVariableTarget]::Process
         )
+        if ($TestGpuRecovery) {
+            [System.Environment]::SetEnvironmentVariable(
+                "GHOSTTY_TEST_DEVICE_RECOVERY",
+                "1",
+                [System.EnvironmentVariableTarget]::Process
+            )
+        }
         $process = Start-Process `
             -FilePath $executablePath `
             -ArgumentList $arguments `
@@ -842,6 +913,11 @@ try {
         [System.Environment]::SetEnvironmentVariable(
             "GHOSTTY_LOG",
             $previousGhosttyLog,
+            [System.EnvironmentVariableTarget]::Process
+        )
+        [System.Environment]::SetEnvironmentVariable(
+            "GHOSTTY_TEST_DEVICE_RECOVERY",
+            $previousRecoveryTest,
             [System.EnvironmentVariableTarget]::Process
         )
     }
@@ -897,6 +973,63 @@ try {
         CommandExecuted = $true
     }
     Write-Verbose "Validated terminal text input and command execution."
+
+    $gpuRecovery = $null
+    if ($TestGpuRecovery) {
+        $completedRecoveries = 0
+        for ($recoveryIndex = 1; $recoveryIndex -le $GpuRecoveryIterations; $recoveryIndex++) {
+            $initialRecoveryCount = [GhosttyWindowStateNative]::SendMessageW(
+                $surfaceHandle,
+                $wmTestRecoveryStatus,
+                [UIntPtr]::Zero,
+                [IntPtr]::Zero
+            ).ToInt64()
+            if (-not [GhosttyWindowStateNative]::PostMessageW(
+                $surfaceHandle,
+                $wmTestRecoverRenderer,
+                [UIntPtr]::Zero,
+                [IntPtr]::Zero
+            )) {
+                throw "Failed to request controlled GPU recovery $recoveryIndex."
+            }
+            Wait-ForCondition `
+                -Description "controlled GPU resource recovery $recoveryIndex" `
+                -Condition {
+                    [GhosttyWindowStateNative]::SendMessageW(
+                        $surfaceHandle,
+                        $wmTestRecoveryStatus,
+                        [UIntPtr]::Zero,
+                        [IntPtr]::Zero
+                    ).ToInt64() -gt $initialRecoveryCount
+                }
+
+            $recoveryValue = "ghostty-gpu-recovery-$recoveryIndex"
+            $recoveryCommand = "echo $recoveryValue>`"$gpuRecoveryMarkerPath`""
+            Send-TestText -Handle $surfaceHandle -Text $recoveryCommand
+            Send-TestKey `
+                -Handle $surfaceHandle `
+                -VirtualKey $vkReturn `
+                -Description "terminal Enter after GPU recovery $recoveryIndex"
+            Wait-ForCondition `
+                -Description "terminal input after GPU recovery $recoveryIndex" `
+                -Condition {
+                    if (-not [System.IO.File]::Exists($gpuRecoveryMarkerPath)) {
+                        return $false
+                    }
+                    [System.IO.File]::ReadAllText($gpuRecoveryMarkerPath).Trim() -eq `
+                        $recoveryValue
+            }
+            $completedRecoveries++
+            Write-Verbose "Validated controlled GPU resource recovery $recoveryIndex."
+        }
+        $gpuRecovery = [pscustomobject]@{
+            Requested = $true
+            IterationsRequested = $GpuRecoveryIterations
+            IterationsCompleted = $completedRecoveries
+            ResourcesRecreated = $true
+            TerminalSessionPreserved = $true
+        }
+    }
 
     Set-TestConfig `
         -Path $configPath `
@@ -1216,6 +1349,7 @@ try {
         ShellEligibility = $shellEligibility
         MultiWindow = $multiWindow
         TerminalInput = $terminalInput
+        GpuRecovery = $gpuRecovery
         ConfigReload = $configReload
         InitialTabBar = $initialTabBar
         InitialDivider = $initialDivider
@@ -1256,6 +1390,9 @@ try {
     if ($null -eq $process -or $process.HasExited) {
         if ([System.IO.File]::Exists($inputMarkerPath)) {
             [System.IO.File]::Delete($inputMarkerPath)
+        }
+        if ([System.IO.File]::Exists($gpuRecoveryMarkerPath)) {
+            [System.IO.File]::Delete($gpuRecoveryMarkerPath)
         }
         if ([System.IO.File]::Exists($configPath)) {
             [System.IO.File]::Delete($configPath)

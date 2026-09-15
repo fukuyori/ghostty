@@ -181,6 +181,10 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
         /// The images that we may render.
         images: ImageState = .empty,
 
+        /// Force the next frame update to rebuild image state from the
+        /// terminal after the graphics device has been recreated.
+        force_image_rebuild: bool = false,
+
         /// Background image, if we have one.
         bg_image: ?imagepkg.Image = null,
         /// Set whenever the background image changes, signalling
@@ -838,7 +842,18 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             self.shaders.deinit(self.alloc);
         }
 
+        const LoadedShaders = struct {
+            shaders: Shaders,
+            has_custom_shaders: bool,
+        };
+
         fn initShaders(self: *Self) !void {
+            const loaded = try self.loadShaders();
+            self.shaders = loaded.shaders;
+            self.has_custom_shaders = loaded.has_custom_shaders;
+        }
+
+        fn loadShaders(self: *Self) !LoadedShaders {
             var arena = ArenaAllocator.init(self.alloc);
             defer arena.deinit();
             const arena_alloc = arena.allocator();
@@ -871,8 +886,10 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             );
             errdefer shaders.deinit(self.alloc);
 
-            self.shaders = shaders;
-            self.has_custom_shaders = has_custom_shaders;
+            return .{
+                .shaders = shaders,
+                .has_custom_shaders = has_custom_shaders,
+            };
         }
 
         /// This is called early right after surface creation.
@@ -1160,6 +1177,66 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             }
         }
 
+        /// Recreate a lost graphics device and all resources owned by it.
+        /// APIs without an explicit recovery implementation reject the call.
+        /// This runs on the renderer thread after all completed frames have
+        /// returned their swap-chain semaphore permits.
+        pub fn recoverGpuResources(self: *Self) !void {
+            if (comptime !@hasDecl(GraphicsAPI, "recover")) {
+                return error.DeviceRecoveryUnsupported;
+            }
+
+            self.draw_mutex.lockUncancelable(global.io());
+            defer self.draw_mutex.unlock(global.io());
+            log.warn("recreating renderer GPU resources", .{});
+
+            // A controlled recovery can begin while the renderer is healthy.
+            // Store this without notifying the apprt so it does not enqueue a
+            // duplicate recovery request. A failed rebuild remains gated from
+            // drawing; a successful rebuild publishes the healthy transition.
+            self.health.store(.unhealthy, .seq_cst);
+
+            // Recreate the API first. Old generic resources retain their COM
+            // references until their replacements have been constructed.
+            try self.api.recover();
+
+            var loaded = try self.loadShaders();
+            errdefer loaded.shaders.deinit(self.alloc);
+            var swap_chain = try SwapChain.init(
+                self.api,
+                loaded.has_custom_shaders,
+            );
+            errdefer swap_chain.deinit();
+
+            if (self.swap_chain) |*old| old.deinit();
+            self.swap_chain = null;
+            self.deinitShaders();
+            self.images.deinit(self.alloc);
+            self.images = .empty;
+            if (self.bg_image) |image| image.deinit(self.alloc);
+            self.bg_image = null;
+
+            self.shaders = loaded.shaders;
+            self.has_custom_shaders = loaded.has_custom_shaders;
+            self.swap_chain = swap_chain;
+
+            // Rebuild CPU-derived render state so every texture and buffer is
+            // uploaded to the new device on the next render callback.
+            self.terminal_state.deinit(self.alloc);
+            self.terminal_state = .empty;
+            self.terminal_state_frame_count = 0;
+            self.force_image_rebuild = true;
+            self.cells_rebuilt = true;
+            self.prepBackgroundImage() catch |err| {
+                log.warn("error reloading background image after device recovery err={}", .{err});
+            };
+            self.setHealth(.healthy);
+            if (comptime @hasDecl(GraphicsAPI, "recoveryCompleted")) {
+                self.api.recoveryCompleted();
+            }
+            log.info("renderer GPU resources recovered", .{});
+        }
+
         /// Create or update the display link and match it to the current
         /// surface state.
         ///
@@ -1420,7 +1497,9 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                 // If we have any virtual references, we must also rebuild our
                 // kitty state on every frame because any cell change can move
                 // an image.
-                if (self.images.kittyRequiresUpdate(state.terminal)) {
+                if (self.force_image_rebuild or
+                    self.images.kittyRequiresUpdate(state.terminal))
+                {
                     // We need to grab the draw mutex since this updates
                     // our image state that drawFrame uses.
                     self.draw_mutex.lockUncancelable(global.io());
@@ -1433,6 +1512,7 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                             .height = self.grid_metrics.cell_height,
                         },
                     );
+                    self.force_image_rebuild = false;
                 }
 
                 // Get our OSC8 links we're hovering if we have a mouse.
@@ -1677,6 +1757,12 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             // only the case while unrealized (GTK); displayRealized
             // rebuilds the swap chain.
             if (!self.display_realized) return false;
+
+            // A device-recoverable API must not submit resources belonging to
+            // the old device while the app thread is scheduling recovery.
+            if (comptime @hasDecl(GraphicsAPI, "recover")) {
+                if (self.health.load(.seq_cst) == .unhealthy) return false;
+            }
 
             // Get our swap chain, rebuilding it if it was released
             // while we were hidden. Rebuilding is deferred to draw
@@ -1959,23 +2045,26 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             self: *Self,
             health: Health,
         ) void {
-            // If our health value hasn't changed, then we do nothing. We don't
-            // do a cmpxchg here because strict atomicity isn't important.
-            if (self.health.load(.seq_cst) != health) {
-                self.health.store(health, .seq_cst);
-
-                // Our health value changed, so we notify the surface so that it
-                // can do something about it.
-                _ = self.surface_mailbox.push(.{
-                    .renderer_health = health,
-                }, .{ .forever = {} });
-            }
+            self.setHealth(health);
 
             // Always release our semaphore. The swap chain is
             // guaranteed to exist here: it is only torn down after
             // waiting for all in-flight frames to complete, and this
             // callback is what signals that completion.
             self.swap_chain.?.releaseFrame();
+        }
+
+        fn setHealth(self: *Self, health: Health) void {
+            // If our health value hasn't changed, then we do nothing. We don't
+            // do a cmpxchg here because strict atomicity isn't important.
+            if (self.health.load(.seq_cst) == health) return;
+            self.health.store(health, .seq_cst);
+
+            // Our health value changed, so we notify the surface so that it
+            // can schedule recovery or update its visible state.
+            _ = self.surface_mailbox.push(.{
+                .renderer_health = health,
+            }, .{ .forever = {} });
         }
 
         /// Call this any time the background image path changes.

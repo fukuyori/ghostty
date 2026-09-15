@@ -26,7 +26,7 @@ pub fn begin(renderer: *Renderer, target: *Target, context: *win32.ID3D11DeviceC
 pub fn renderPass(self: *const Self, attachments: []const RenderPass.Options.Attachment) RenderPass {
     return RenderPass.begin(
         self.context,
-        self.renderer.api.default_sampler.sampler,
+        self.renderer.api.default_sampler.?.sampler,
         .{ .attachments = attachments },
     );
 }

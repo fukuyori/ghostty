@@ -22,6 +22,9 @@ default is a timestamped file under zig-out/logs.
 .PARAMETER TimeoutSeconds
 Maximum time to wait for startup, shutdown, or cleanup. The default is 10.
 
+.PARAMETER CheckId
+Run only the selected checklist items. By default, all items are included.
+
 .PARAMETER ListOnly
 Print the acceptance checklist without starting Ghostty or prompting.
 
@@ -33,7 +36,8 @@ Print the acceptance checklist without starting Ghostty or prompting.
 
 .EXAMPLE
 ./scripts/test-windows-shell.ps1 `
-    -Executable zig-out/window-state-release/bin/ghostty.exe
+    -Executable zig-out/window-state-release/bin/ghostty.exe `
+    -CheckId alt-tab
 #>
 [CmdletBinding()]
 param(
@@ -41,6 +45,15 @@ param(
     [string]$ResultsPath = "",
     [ValidateRange(1, 60)]
     [int]$TimeoutSeconds = 10,
+    [ValidateSet(
+        "alt-tab",
+        "taskbar-activation",
+        "keyboard-snap",
+        "snap-layout",
+        "multi-window-shell",
+        "taskbar-close"
+    )]
+    [string[]]$CheckId = @(),
     [switch]$ListOnly
 )
 
@@ -83,9 +96,16 @@ $checks = @(
         PassCriteria = "The first close affects only its window and the final close removes Ghostty from Alt+Tab and the taskbar."
     }
 )
+$selectedChecks = @(
+    if ($CheckId.Count -eq 0) {
+        $checks
+    } else {
+        $checks | Where-Object Id -in $CheckId
+    }
+)
 
 if ($ListOnly) {
-    $checks
+    $selectedChecks
     return
 }
 
@@ -167,8 +187,8 @@ function Write-ShellAcceptanceResult {
         Completed = $Complete
         OverallPassed = [bool](
             $Complete -and
-            $records.Count -eq $checks.Count -and
-            $passed -eq $checks.Count
+            $records.Count -eq $selectedChecks.Count -and
+            $passed -eq $selectedChecks.Count
         )
         Executable = $executablePath
         ExecutableVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo(
@@ -190,6 +210,7 @@ function Write-ShellAcceptanceResult {
         Skipped = $skipped
         ForcedCleanup = $forcedCleanup
         Error = $runError
+        SelectedChecks = @($selectedChecks.Id)
         Results = $records
     }
     $json = $document | ConvertTo-Json -Depth 6
@@ -230,7 +251,7 @@ try {
     Write-Host "Test window process: $($process.Id)"
     Write-Host "Answer p=pass, f=fail, s=skip, or q=cancel."
 
-    foreach ($check in $checks) {
+    foreach ($check in $selectedChecks) {
         Write-Host ""
         Write-Host "[$($check.Id)] $($check.Action)"
         Write-Host "Pass: $($check.PassCriteria)"
@@ -262,7 +283,8 @@ try {
         Write-ShellAcceptanceResult -Complete $false
     }
 
-    if ($records[-1].Status -eq "pass") {
+    if ($records[-1].Id -eq "taskbar-close" -and
+        $records[-1].Status -eq "pass") {
         if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
             throw "Ghostty remained running after the taskbar-close check passed."
         }
@@ -306,7 +328,7 @@ $skipped = @($records | Where-Object Status -eq "skip").Count
 [pscustomobject]@{
     ResultsPath = $resultsFile
     Completed = $completed
-    OverallPassed = [bool]($passed -eq $checks.Count)
+    OverallPassed = [bool]($passed -eq $selectedChecks.Count)
     Passed = $passed
     Failed = $failed
     Skipped = $skipped

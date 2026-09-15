@@ -5,9 +5,9 @@ Builds a portable Windows release of Ghostty.
 .DESCRIPTION
 Runs the default Zig build in ReleaseFast mode for the baseline CPU and
 installs the result into zig-out/release by default. It validates the PE
-format, Windows GUI subsystem, version information, required resource
-directories, and output hash. This script does not create a distribution
-archive or installer.
+format, Windows GUI subsystem, version information, embedded large and small
+icons, required resource directories, and output hash. This script does not
+create a distribution archive or installer.
 
 .PARAMETER OutputDirectory
 The install prefix for the release build. Relative paths are resolved from the
@@ -168,6 +168,71 @@ if ($versionInfo.IsDebug) {
     throw "The release executable is marked as a debug build."
 }
 
+if (-not ("GhosttyReleaseIconNative" -as [type])) {
+    Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class GhosttyReleaseIconNative
+{
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, EntryPoint = "ExtractIconExW")]
+    public static extern uint ExtractIconExW(
+        string file,
+        int iconIndex,
+        out IntPtr largeIcon,
+        out IntPtr smallIcon,
+        uint iconCount
+    );
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, EntryPoint = "ExtractIconExW")]
+    public static extern uint CountIconGroups(
+        string file,
+        int iconIndex,
+        IntPtr largeIcons,
+        IntPtr smallIcons,
+        uint iconCount
+    );
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool DestroyIcon(IntPtr icon);
+}
+"@
+}
+
+$iconGroupCount = [GhosttyReleaseIconNative]::CountIconGroups(
+    $executable,
+    -1,
+    [IntPtr]::Zero,
+    [IntPtr]::Zero,
+    0
+)
+if ($iconGroupCount -eq 0) {
+    throw "The release executable does not contain an icon group."
+}
+$largeIcon = [IntPtr]::Zero
+$smallIcon = [IntPtr]::Zero
+try {
+    $extractedIconCount = [GhosttyReleaseIconNative]::ExtractIconExW(
+        $executable,
+        0,
+        [ref]$largeIcon,
+        [ref]$smallIcon,
+        1
+    )
+    if ($extractedIconCount -eq 0 -or
+        $largeIcon -eq [IntPtr]::Zero -or
+        $smallIcon -eq [IntPtr]::Zero) {
+        throw "The release executable does not provide extractable large and small icons."
+    }
+} finally {
+    foreach ($icon in @($largeIcon, $smallIcon)) {
+        if ($icon -ne [IntPtr]::Zero) {
+            $null = [GhosttyReleaseIconNative]::DestroyIcon($icon)
+        }
+    }
+}
+
 $versionOutput = & $executable --version 2>&1 | Out-String
 if ($LASTEXITCODE -ne 0) {
     throw "The release executable failed to report its version."
@@ -195,6 +260,9 @@ if ($cliVersion -ne $versionInfo.FileVersion) {
     FileVersion  = $versionInfo.FileVersion
     ProductVersion = $versionInfo.ProductVersion
     Debug         = $versionInfo.IsDebug
+    IconGroups    = $iconGroupCount
+    LargeIcon     = $true
+    SmallIcon     = $true
     ShellFiles   = $shellIntegrationFileCount
     ThemeFiles   = $themeFileCount
     SizeBytes    = $file.Length

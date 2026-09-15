@@ -26,6 +26,9 @@ app: ?*App = null,
 hdc: ?win32.HDC = null,
 hglrc: ?win32.HGLRC = null,
 core_surface: ?*CoreSurface = null,
+/// Successful renderer GPU resource rebuilds. This is observed only by the
+/// opt-in Windows recovery regression hook.
+gpu_recovery_count: std.atomic.Value(u32) = .init(0),
 width: u32 = 800,
 height: u32 = 600,
 cursor_pos: apprt.CursorPos = .{ .x = 0, .y = 0 },

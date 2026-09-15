@@ -36,6 +36,7 @@ pub const Error = error{
     SetCompositionRoot,
     CommitComposition,
     Present,
+    DeviceLost,
     ResizeSwapChain,
     GetSwapChainDescription,
 };
@@ -227,11 +228,19 @@ pub fn presentTarget(
 
 /// Submit the current back buffer to DirectComposition.
 pub fn present(self: *Self, sync_interval: u32) Error!void {
-    try check(
-        self.swap_chain.IDXGISwapChain.Present(sync_interval, 0),
-        error.Present,
-        "IDXGISwapChain.Present",
-    );
+    const result = self.swap_chain.IDXGISwapChain.Present(sync_interval, 0);
+    if (win32.SUCCEEDED(result)) return;
+
+    const removed_reason = self.device.GetDeviceRemovedReason();
+    if (isDeviceLostHresult(result) or isDeviceLostHresult(removed_reason)) {
+        log.err(
+            "IDXGISwapChain.Present detected device loss: hresult=0x{x} removed_reason=0x{x}",
+            .{ hresultCode(result), hresultCode(removed_reason) },
+        );
+        return error.DeviceLost;
+    }
+
+    try check(result, error.Present, "IDXGISwapChain.Present");
 }
 
 /// Resize the swap chain and rebuild its render-target view. DXGI requires all
@@ -300,6 +309,25 @@ fn check(result: win32.HRESULT, err: Error, operation: []const u8) Error!void {
     return err;
 }
 
+fn hresultCode(result: win32.HRESULT) u32 {
+    return @bitCast(result);
+}
+
+fn isDeviceLostHresult(result: win32.HRESULT) bool {
+    return switch (hresultCode(result)) {
+        // DXGI_ERROR_DEVICE_REMOVED
+        0x887A0005,
+        // DXGI_ERROR_DEVICE_HUNG
+        0x887A0006,
+        // DXGI_ERROR_DEVICE_RESET
+        0x887A0007,
+        // DXGI_ERROR_DRIVER_INTERNAL_ERROR
+        0x887A0020,
+        => true,
+        else => false,
+    };
+}
+
 test "DirectComposition swap chain description clamps empty dimensions" {
     const testing = @import("std").testing;
     const desc = swapChainDescription(0, 0);
@@ -310,4 +338,19 @@ test "DirectComposition swap chain description clamps empty dimensions" {
     try testing.expectEqual(win32.DXGI_ALPHA_MODE_PREMULTIPLIED, desc.AlphaMode);
     try testing.expectEqual(win32.DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL, desc.SwapEffect);
     try testing.expectEqual(@as(u32, 2), desc.BufferCount);
+}
+
+test "DirectComposition recognizes DXGI device loss HRESULTs" {
+    const testing = @import("std").testing;
+
+    for ([_]u32{
+        0x887A0005,
+        0x887A0006,
+        0x887A0007,
+        0x887A0020,
+    }) |code| {
+        try testing.expect(isDeviceLostHresult(@bitCast(code)));
+    }
+    try testing.expect(!isDeviceLostHresult(0));
+    try testing.expect(!isDeviceLostHresult(@bitCast(@as(u32, 0x887A0001))));
 }

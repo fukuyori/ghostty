@@ -309,6 +309,12 @@ fn drainMailbox(self: *Thread) !void {
         switch (message) {
             .crash => @panic("crash request, crashing intentionally"),
 
+            .recover_gpu => {
+                self.renderer.recoverGpuResources() catch |err| {
+                    log.err("failed to recover renderer GPU resources err={}", .{err});
+                };
+            },
+
             .visible => |v| visible: {
                 // If our state didn't change we do nothing.
                 if (self.flags.visible == v) break :visible;

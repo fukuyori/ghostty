@@ -12,6 +12,10 @@ pub const Message = union(enum) {
     /// See the "crash" binding action.
     crash,
 
+    /// Recreate a graphics device and every resource owned by it after the
+    /// renderer reports an unhealthy frame.
+    recover_gpu,
+
     /// A change in state in the window focus that this renderer is
     /// rendering within. This is only sent when a change is detected so
     /// the renderer is expected to handle all of these.

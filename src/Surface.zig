@@ -1715,6 +1715,17 @@ fn updateRendererHealth(self: *Surface, health: rendererpkg.Health) void {
     };
 }
 
+/// Ask the renderer thread to recreate a lost graphics device and its GPU
+/// resources. The request is asynchronous so the app thread remains responsive.
+pub fn recoverRenderer(self: *Surface) !void {
+    _ = self.renderer_thread.mailbox.push(
+        global.io(),
+        .recover_gpu,
+        .{ .forever = {} },
+    );
+    try self.renderer_thread.wakeup.notify();
+}
+
 /// Called when the scrollbar state changes.
 fn updateScrollbar(self: *Surface, scrollbar: terminal.Scrollbar) void {
     _ = self.rt_app.performAction(

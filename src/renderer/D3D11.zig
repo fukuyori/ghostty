@@ -28,8 +28,8 @@ pub const custom_shader_y_is_down = true;
 pub const swap_chain_count = 1;
 
 surface: *apprt.Surface,
-presenter: DirectComposition,
-default_sampler: Sampler,
+presenter: ?DirectComposition,
+default_sampler: ?Sampler,
 blending: configpkg.Config.AlphaBlending,
 last_target: ?Target = null,
 
@@ -52,9 +52,41 @@ pub fn init(_: Allocator, opts: rendererpkg.Options) !D3D11 {
 }
 
 pub fn deinit(self: *D3D11) void {
-    self.default_sampler.deinit();
-    self.presenter.deinit();
+    if (self.default_sampler) |*sampler| sampler.deinit();
+    if (self.presenter) |*presenter| presenter.deinit();
     self.* = undefined;
+}
+
+/// Recreate every API-owned object after DXGI reports a device loss. Generic
+/// renderer resources are rebuilt separately after this succeeds.
+pub fn recover(self: *D3D11) !void {
+    const size = try self.surface.getSize();
+
+    if (self.default_sampler) |*sampler| {
+        sampler.deinit();
+        self.default_sampler = null;
+    }
+    if (self.presenter) |*presenter| {
+        presenter.deinit();
+        self.presenter = null;
+    }
+    self.last_target = null;
+
+    var presenter = try DirectComposition.init(
+        self.surface.hwnd,
+        @intCast(size.width),
+        @intCast(size.height),
+    );
+    errdefer presenter.deinit();
+    const default_sampler = try Sampler.init(.{ .device = presenter.device });
+
+    self.presenter = presenter;
+    self.default_sampler = default_sampler;
+}
+
+/// Notify the opt-in Windows regression hook after every successful rebuild.
+pub fn recoveryCompleted(self: *D3D11) void {
+    _ = self.surface.gpu_recovery_count.fetchAdd(1, .seq_cst);
 }
 
 pub fn surfaceInit(_: *apprt.Surface) !void {}
@@ -65,7 +97,8 @@ pub fn drawFrameStart(_: *D3D11) void {}
 pub fn drawFrameEnd(_: *D3D11) void {}
 
 pub fn initShaders(self: *const D3D11, _: Allocator, _: []const [:0]const u8) !shaders.Shaders {
-    return try shaders.Shaders.init(self.presenter.device);
+    const presenter = self.presenter orelse return error.DeviceUnavailable;
+    return try shaders.Shaders.init(presenter.device);
 }
 
 pub fn surfaceSize(self: *const D3D11) !struct { width: u32, height: u32 } {
@@ -74,8 +107,9 @@ pub fn surfaceSize(self: *const D3D11) !struct { width: u32, height: u32 } {
 }
 
 pub fn initTarget(self: *const D3D11, width: usize, height: usize) !Target {
+    const presenter = self.presenter orelse return error.DeviceUnavailable;
     return try Target.init(
-        self.presenter.device,
+        presenter.device,
         @intCast(width),
         @intCast(height),
         if (self.blending.isLinear())
@@ -86,12 +120,13 @@ pub fn initTarget(self: *const D3D11, width: usize, height: usize) !Target {
 }
 
 pub fn present(self: *D3D11, target: *const Target, sync: bool) !void {
-    const back_buffer = self.presenter.back_buffer orelse
+    const presenter = if (self.presenter) |*value| value else return error.DeviceUnavailable;
+    const back_buffer = presenter.back_buffer orelse
         return error.RenderTargetUnavailable;
     if (back_buffer.width != target.width or back_buffer.height != target.height) {
-        try self.presenter.resize(target.width, target.height);
+        try presenter.resize(target.width, target.height);
     }
-    try self.presenter.presentTarget(target, if (sync) 1 else 0);
+    try presenter.presentTarget(target, if (sync) 1 else 0);
     self.last_target = target.*;
 }
 
@@ -104,9 +139,10 @@ pub fn gpuResourcesReleased(self: *D3D11) void {
 }
 
 pub inline fn uniformBufferOptions(self: D3D11) bufferpkg.Options {
+    const presenter = self.presenter.?;
     return .{
-        .device = self.presenter.device,
-        .context = self.presenter.context,
+        .device = presenter.device,
+        .context = presenter.context,
         .bind_flags = .{ .CONSTANT_BUFFER = 1 },
     };
 }
@@ -116,18 +152,20 @@ pub inline fn fgBufferOptions(self: D3D11) bufferpkg.Options {
 }
 
 pub inline fn bgBufferOptions(self: D3D11) bufferpkg.Options {
+    const presenter = self.presenter.?;
     return .{
-        .device = self.presenter.device,
-        .context = self.presenter.context,
+        .device = presenter.device,
+        .context = presenter.context,
         .bind_flags = .{ .SHADER_RESOURCE = 1 },
         .structured = true,
     };
 }
 
 pub inline fn instanceBufferOptions(self: D3D11) bufferpkg.Options {
+    const presenter = self.presenter.?;
     return .{
-        .device = self.presenter.device,
-        .context = self.presenter.context,
+        .device = presenter.device,
+        .context = presenter.context,
         .bind_flags = .{ .VERTEX_BUFFER = 1 },
     };
 }
@@ -136,16 +174,17 @@ pub const imageBufferOptions = instanceBufferOptions;
 pub const bgImageBufferOptions = instanceBufferOptions;
 
 pub inline fn textureOptions(self: D3D11) Texture.Options {
+    const presenter = self.presenter.?;
     return .{
-        .device = self.presenter.device,
-        .context = self.presenter.context,
+        .device = presenter.device,
+        .context = presenter.context,
         .format = win32.DXGI_FORMAT_B8G8R8A8_UNORM,
         .render_target = true,
     };
 }
 
 pub inline fn samplerOptions(self: D3D11) Sampler.Options {
-    return .{ .device = self.presenter.device };
+    return .{ .device = self.presenter.?.device };
 }
 
 pub const ImageTextureFormat = enum { gray, rgba, bgra };
@@ -155,9 +194,10 @@ pub inline fn imageTextureOptions(
     format: ImageTextureFormat,
     srgb: bool,
 ) Texture.Options {
+    const presenter = self.presenter.?;
     return .{
-        .device = self.presenter.device,
-        .context = self.presenter.context,
+        .device = presenter.device,
+        .context = presenter.context,
         .format = switch (format) {
             .gray => win32.DXGI_FORMAT_R8_UNORM,
             .rgba => if (srgb)
@@ -173,14 +213,15 @@ pub inline fn imageTextureOptions(
 }
 
 pub fn initAtlasTexture(self: *const D3D11, atlas: *const font.Atlas) Texture.Error!Texture {
+    const presenter = self.presenter.?;
     const format = switch (atlas.format) {
         .grayscale => win32.DXGI_FORMAT_R8_UNORM,
         .bgra => win32.DXGI_FORMAT_B8G8R8A8_UNORM_SRGB,
         else => @panic("unsupported atlas format for D3D11 texture"),
     };
     return try Texture.init(.{
-        .device = self.presenter.device,
-        .context = self.presenter.context,
+        .device = presenter.device,
+        .context = presenter.context,
         .format = format,
     }, atlas.size, atlas.size, null);
 }
@@ -190,7 +231,8 @@ pub inline fn beginFrame(
     renderer: *@import("generic.zig").Renderer(D3D11),
     target: *Target,
 ) !Frame {
-    return Frame.begin(renderer, target, self.presenter.context);
+    const presenter = self.presenter orelse return error.DeviceUnavailable;
+    return Frame.begin(renderer, target, presenter.context);
 }
 
 test "D3D11 exposes generic renderer resource types" {
