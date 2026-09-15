@@ -36,7 +36,7 @@ Windows版の主な特徴:
 - Windows IME、クリップボード、URL・ファイル操作
 - Per-Monitor V2 DPI、ハイコントラスト、MSAAタブ情報
 - `%LOCALAPPDATA%\ghostty\config.ghostty` の設定読込と再読込
-- インストーラーを必要としないReleaseビルドスクリプト
+- ポータブルなReleaseビルドスクリプトと、Inno Setupによる署名対応インストーラー作成スクリプト
 - CLIとWindowsファイルプロパティへ同期するビルド版情報
 
 ビルドと起動:
@@ -62,6 +62,14 @@ git checkout v1.3.2-windows.1
 ./scripts/build-release.ps1 -AdditionalZigArgs '-Dversion-string=1.3.2-windows.1'
 ```
 
+Inno Setupによるインストーラーの作成（`-Sign` で実行ファイル、インストーラー、
+アンインストーラーへ電子署名）:
+
+```powershell
+./scripts/build-installer.ps1 -Version 1.3.2-windows.1
+./scripts/build-installer.ps1 -Version 1.3.2-windows.1 -Sign   # 証明書は $env:CODESIGN_CERT の件名
+```
+
 Release版の反復回帰試験:
 
 ```powershell
@@ -82,8 +90,8 @@ Windowsシェルの手動受け入れ試験:
 
 Windows版はプレビュー段階です。Windows 11で基本動作を確認していますが、
 Windows 10、144 DPI・192 DPI、日本語以外のキーボード配列、実機スリープ復帰、
-長時間稼働などには未確認項目があります。インストーラーと自動更新はまだ
-提供していません。
+長時間稼働などには未確認項目があります。インストーラーは作成できますが
+公開済みの版には同梱しておらず、自動更新はありません。
 背景透過は利用できますが、`background-blur` は品質が環境に依存するため、
 現段階では無効を推奨します。
 

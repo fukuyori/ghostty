@@ -3,8 +3,9 @@
 この文書は、このフォークのネイティブWindows版をビルドして利用するための
 設定、操作、既知の制限をまとめたものです。Windows版はプレビュー段階で、現在の
 版は `1.3.2-windows.1` です。公開履歴と各版の検証結果は
-[リリースノート](windows-release-notes.md)を参照してください。配布はReleaseビルド
-スクリプトによるポータブルな実行ファイルで、インストーラーはありません。
+[リリースノート](windows-release-notes.md)を参照してください。配布形式は
+Releaseビルドスクリプトによるポータブルな実行ファイルと、Inno Setupで作成する
+インストーラーの2種類です。
 
 ## ビルドと起動
 
@@ -28,6 +29,61 @@ zig build
 git checkout v1.3.2-windows.1
 ./scripts/build-release.ps1 -AdditionalZigArgs '-Dversion-string=1.3.2-windows.1'
 ```
+
+## インストーラーの作成
+
+Release ビルドから Inno Setup 6 のインストーラーを作成できます。
+[Inno Setup 6.3 以降](https://jrsoftware.org/isinfo.php)と、署名する場合は
+Windows SDK の `signtool.exe` が必要です。スクリプトは `zig-out\release` の内容を
+`zig-out\installer\stage` へ複製してから処理するため、Release ビルド自体は
+変更されません。
+
+```powershell
+./scripts/build-release.ps1 -AdditionalZigArgs '-Dversion-string=1.3.2-windows.1'
+./scripts/build-installer.ps1 -Version 1.3.2-windows.1
+```
+
+出力は `zig-out\installer\ghostty-<版>-x64-setup.exe` です。インストーラーの
+`ProductVersion` と数値版は実行ファイルと同じ値になり、スクリプトが一致を検査します。
+`-Version` を渡すと、実行ファイルの版が一致しない場合に失敗します。
+
+インストーラーは次の内容を持ちます。
+
+- `bin\ghostty.exe`、`share\ghostty`（テーマ、シェル統合）、
+  `share\terminfo\ghostty.terminfo` を配置します。実行ファイルは自分の位置から
+  `share\terminfo\ghostty.terminfo` を探して資源ディレクトリを決めるため、
+  この配置は変更できません。
+- 既定はユーザー単位のインストール（管理者権限不要）で、ダイアログから
+  全ユーザー向けの `Program Files` へのインストールも選べます。
+- スタートメニューへ登録し、任意でデスクトップアイコンと環境変数 `PATH` への
+  `bin` の追加を行います。`PATH` はインストール種別に応じてユーザーまたは
+  システムの環境変数を編集し、アンインストール時に取り除きます。
+- 英語と日本語のウィザードを含みます。対象は x64 の Windows 10 1809 以降です。
+- 同じ AppId を使うため、新しい版のインストーラーは既存のインストールを
+  上書き更新します。
+
+電子署名を付ける場合は `-Sign` を指定します。実行ファイルを先に署名してから
+パッケージ化し、Inno Setup がインストーラーとアンインストーラーを同じ証明書で
+署名します。証明書は既定で環境変数 `CODESIGN_CERT` の件名（証明書ストア内の
+コード署名証明書、signtool の `/n`）から選びます。件名が重複する場合は
+`-CertificateThumbprint`、ストアにない証明書は `-PfxPath` と `-PfxPassword` で
+指定できます。PFX のパスワードはコマンドラインに載ります。
+
+```powershell
+$env:CODESIGN_CERT = "証明書の件名"
+./scripts/build-installer.ps1 -Version 1.3.2-windows.1 -Sign
+```
+
+署名は SHA-256 で、既定では `http://timestamp.sectigo.com` のタイムスタンプを
+付けます。別のサーバーは `-TimestampUrl`、検証専用でタイムスタンプなしにする
+場合は `-NoTimestamp` を指定します。結果には各ファイルの署名状態と署名者が
+表示されます。アンインストーラーの署名はインストール後の `unins000.exe` で
+確認できます。
+
+2026年9月15日に、署名なしのインストーラー作成と、一時的な自己署名証明書に
+よる `-Sign` の動作（実行ファイル、アンインストーラー、インストーラーの3つが
+SHA-256 で署名されること）を確認しました。インストール自体の動作確認は
+別途必要です。
 
 GPU復旧と電源復帰の回帰スクリプトが使うテストフックは既定では組み込まれ
 ません。回帰試験用の実行ファイルは次のように作成します。配布用のビルドでは
@@ -134,7 +190,10 @@ Release実行ファイルの文字入力とコマンド実行、設定再読込�
 することも確認します。最後に2つ目のトップレベルウィンドウを作成し、両
 ウィンドウへの設定再読込同期、フォーカス移動と巡回、一括非表示と復帰を確認
 します。個別終了で元ウィンドウが残ること、再作成後の一括終了でプロセスが正常
-終了することも検査します。専用プロセスは `--config-default-files=false` で
+終了することも検査します。最後に、タブバー非表示で `window-width` と
+`window-height` を指定した専用プロセスを起動し、起動直後の ConPTY 行数が
+1pxリサイズ後と一致すること（起動時のサイズが端末へ反映されていること）を
+検査します。専用プロセスは `--config-default-files=false` で
 起動するため、`%LOCALAPPDATA%` の利用者設定は読み込まれず、結果はこの
 マシンの設定に依存しません。利用者の設定ファイルは変更せず、一時設定と
 マーカーは正常終了後または自動後処理後に削除します。標準出力と標準エラーは
@@ -397,7 +456,8 @@ APIレベルの検査と自動回帰テストは完了していますが、Narra
   使った制御復帰試験は確認済みです。D3D11の提示HRESULTとデバイス削除理由は
   診断ログへ記録されます。
 - `background-blur` はWindowsやGPUの構成によって効果と品質が変わります。
-- Windows版のインストーラー、署名、自動更新はまだ提供していません。
+- インストーラーは作成できますが、公開済みの版には同梱していません。自動更新は
+  ありません。
 - macOS版のSwiftUI設定画面やLinux版のGTK統合と同等のGUIはありません。
 
 実装状況と検証項目の詳細は

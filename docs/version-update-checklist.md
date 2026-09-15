@@ -67,7 +67,10 @@ git status --short
   `windows.10` は `windows.9` より新しい。
 - 通し番号は Windows 数値版の第4要素へ反映される（第6節）。上限は 65535。
 - ビルド時は `-Dversion-string=X.Y.Z-windows.N` を渡す。省略した通常ビルドは
-  `X.Y.Z-windows-+<hash>` の開発版になり、第4要素は 0 になる。
+  `X.Y.Z-windows-+<hash>` の開発版になり、第4要素は 0 になる。タグ
+  `vX.Y.Z-windows.N` を取り出したコミットでは、`-Dversion-string` を省略しても
+  タグから同じ版が決まる（数値部が `build.zig.zon` と一致しない場合はビルドを
+  失敗させる）。
 - PowerShell から直接 `zig build` を呼ぶときは、この引数を引用符で囲む
   （`'-Dversion-string=1.3.2-windows.4'`）。囲まないと PowerShell が値を分割し、
   `error: InvalidVersion` で失敗する。`build-release.ps1 -AdditionalZigArgs` へ
@@ -92,6 +95,18 @@ git status --short
 - [ ] パッケージ作成が依頼で明示されていることを確認する。
 - [ ] `zig build dist` が生成したtarball内の `VERSION` を確認する。
 - [ ] 作業ツリーへ `VERSION` をコピーまたはコミットしない。
+
+### インストーラーを作成する場合
+
+- [ ] パッケージ作成が依頼で明示されていることを確認する。
+- [ ] `scripts/build-installer.ps1 -Version X.Y.Z-windows.N` を実行し、
+  インストーラーの `ProductVersion` と数値版が実行ファイルと一致することを
+  確認する（スクリプトが検査する）。
+- [ ] 署名する場合は環境変数 `CODESIGN_CERT` に証明書の件名を設定して `-Sign` を
+  付け、結果の `ExecutableSignature`、`InstallerSignature` が `Valid` である
+  ことを確認する。
+- [ ] 出力ファイル名が `ghostty-X.Y.Z-windows.N-x64-setup.exe` であることを
+  確認する。
 
 ### タグまたは公開操作を行う場合
 

@@ -105,6 +105,8 @@ $testStateRoot = Join-Path $repositoryRoot "zig-out\test-state"
 $sessionDirectory = Join-Path $testStateRoot $sessionName
 $configPath = Join-Path $sessionDirectory "config.ghostty"
 $inputMarkerPath = Join-Path $sessionDirectory "terminal-input.txt"
+$gridMarkerPath = Join-Path $sessionDirectory "grid-at-start.txt"
+$gridResizedMarkerPath = Join-Path $sessionDirectory "grid-after-resize.txt"
 $gpuRecoveryMarkerPath = Join-Path $sessionDirectory "gpu-recovery.txt"
 $powerResumeMarkerPath = Join-Path $sessionDirectory "power-resume.txt"
 
@@ -448,6 +450,11 @@ function Set-TestConfig {
     $lines = @(
         "window-show-tab-bar = $TabBarMode"
         "command = direct:cmd.exe /D /Q"
+        # An explicit initial size makes the core request initial_size while
+        # it is still initializing, which is the path that once left the
+        # terminal grid at the placeholder size until the first resize.
+        "window-width = 120"
+        "window-height = 45"
     )
     $content = ($lines -join [System.Environment]::NewLine) + `
         [System.Environment]::NewLine
@@ -456,6 +463,152 @@ function Set-TestConfig {
         $content,
         [System.Text.UTF8Encoding]::new($false)
     )
+}
+
+function Get-TerminalRows {
+    param(
+        [Parameter(Mandatory)]
+        [IntPtr]$Handle,
+        [Parameter(Mandatory)]
+        [string]$MarkerPath,
+        [Parameter(Mandatory)]
+        [string]$Description
+    )
+
+    if ([System.IO.File]::Exists($MarkerPath)) {
+        [System.IO.File]::Delete($MarkerPath)
+    }
+    Send-TestText -Handle $Handle -Text "mode con > `"$MarkerPath`""
+    Send-TestKey -Handle $Handle -VirtualKey $vkReturn -Description "$Description Enter"
+    Wait-ForCondition -Description $Description -Condition {
+        if (-not [System.IO.File]::Exists($MarkerPath)) {
+            return $false
+        }
+        # cmd.exe still holds the redirected file open while it writes.
+        try {
+            $current = [System.IO.File]::ReadAllText($MarkerPath)
+        } catch [System.IO.IOException] {
+            return $false
+        }
+        return [bool]($current -match '(?m):\s*\d+\s*$')
+    }
+    # `mode con` reports the console size as "label: number" lines; the first
+    # one is the row count in every locale, which avoids depending on the
+    # OEM code page of the label text.
+    $text = [System.IO.File]::ReadAllText($MarkerPath)
+    $match = [regex]::Match($text, '(?m):\s*(\d+)\s*$')
+    if (-not $match.Success) {
+        throw "Unable to read the terminal row count for $Description."
+    }
+    return [int]$match.Groups[1].Value
+}
+
+function Test-InitialGrid {
+    $gridConfigPath = Join-Path $sessionDirectory "grid-config.ghostty"
+    $lines = @(
+        "window-show-tab-bar = never"
+        "command = direct:cmd.exe /D /Q"
+        "window-width = 120"
+        "window-height = 45"
+    )
+    [System.IO.File]::WriteAllText(
+        $gridConfigPath,
+        (($lines -join [System.Environment]::NewLine) + [System.Environment]::NewLine),
+        [System.Text.UTF8Encoding]::new($false)
+    )
+
+    $gridProcess = $null
+    try {
+        $gridProcess = Start-Process `
+            -FilePath $executablePath `
+            -ArgumentList @(
+                "--config-default-files=false"
+                "--config-file=`"$gridConfigPath`""
+                "--maximize=false"
+                "--fullscreen=false"
+                "--confirm-close-surface=false"
+                "--quit-after-last-window-closed=true"
+                "--title=Ghostty-window-state-grid-test"
+            ) `
+            -PassThru
+        $gridWindow = Wait-ForMainWindow -Process $gridProcess
+        $gridSurface = [GhosttyWindowStateNative]::GetWindow($gridWindow, $gwChild)
+        if ($gridSurface -eq [IntPtr]::Zero) {
+            throw "Ghostty surface child window was not found for the grid test."
+        }
+
+        # The ConPTY is created with the placeholder grid and resized once
+        # the core has synced the initial size; the IO thread applies that on
+        # a coalescing timer. Let startup settle so the first measurement
+        # reflects the steady state rather than that brief window.
+        Start-Sleep -Milliseconds 1500
+
+        # Row counts before and after a 1px resize must match: the startup
+        # grid has to reflect window-width/window-height already.
+        $rowsAtStart = Get-TerminalRows `
+            -Handle $gridSurface `
+            -MarkerPath $gridMarkerPath `
+            -Description "terminal rows at start"
+        $startRectangle = Get-WindowRectangle -Handle $gridWindow
+        if (-not [GhosttyWindowStateNative]::SetWindowPos(
+            $gridWindow,
+            [IntPtr]::Zero,
+            $startRectangle.X,
+            $startRectangle.Y,
+            $startRectangle.Width + 1,
+            $startRectangle.Height + 1,
+            $swpNoZOrder -bor $swpNoActivate
+        )) {
+            throw "SetWindowPos failed while nudging the grid test window."
+        }
+        # The IO thread coalesces resizes on a timer before ConPTY is resized.
+        Start-Sleep -Milliseconds 500
+        $rowsAfterResize = Get-TerminalRows `
+            -Handle $gridSurface `
+            -MarkerPath $gridResizedMarkerPath `
+            -Description "terminal rows after resize"
+        # window-height=45 sizes the window to exactly 45 rows, so the very
+        # first measurement must already report 45; a smaller value means the
+        # startup size never reached the terminal. (This needs a work area
+        # tall enough for 45 rows, roughly 1100px at 96 DPI.)
+        if ($rowsAtStart -ne 45) {
+            throw "The terminal reported $rowsAtStart rows right after start but window-height=45 was configured; the initial window size was not applied to the terminal (after a resize it reports $rowsAfterResize)."
+        }
+        if ($rowsAtStart -ne $rowsAfterResize) {
+            throw "The terminal grid at start ($rowsAtStart rows) does not match the grid after a 1px resize ($rowsAfterResize rows)."
+        }
+
+        if (-not [GhosttyWindowStateNative]::PostMessageW(
+            $gridWindow,
+            $wmClose,
+            [UIntPtr]::Zero,
+            [IntPtr]::Zero
+        )) {
+            throw "Failed to close the grid test window."
+        }
+        if (-not $gridProcess.WaitForExit($timeoutMilliseconds)) {
+            throw "The grid test process did not exit after WM_CLOSE."
+        }
+        if ($gridProcess.ExitCode -ne 0) {
+            throw "The grid test process exited with code $($gridProcess.ExitCode)."
+        }
+        Write-Verbose "Validated the initial terminal grid ($rowsAtStart rows)."
+        return [pscustomobject]@{
+            RowsAtStart = $rowsAtStart
+            RowsAfterResize = $rowsAfterResize
+            Consistent = $true
+            ExitCode = $gridProcess.ExitCode
+        }
+    } finally {
+        if ($null -ne $gridProcess -and -not $gridProcess.HasExited) {
+            $gridProcess.Kill()
+        }
+        foreach ($path in @($gridConfigPath, $gridMarkerPath, $gridResizedMarkerPath)) {
+            if ([System.IO.File]::Exists($path)) {
+                [System.IO.File]::Delete($path)
+            }
+        }
+    }
 }
 
 function Send-TestText {
@@ -1267,6 +1420,14 @@ try {
     )) {
         throw "SetWindowPos failed while restoring the initial placement."
     }
+
+    # Initial grid phase. The bug this guards against (the core keeping its
+    # placeholder size when initial_size resizes the window during startup)
+    # only shows with the tab bar hidden, because a visible tab bar moves
+    # the surface after initialization and thereby resyncs the grid. Use a
+    # dedicated process with window-show-tab-bar=never so the first
+    # `mode con` reflects the untouched startup state.
+    $initialGrid = Test-InitialGrid
     $null = Wait-ForTabBarLayout `
         -ParentHandle $windowHandle `
         -TabBarHandle $tabBarHandle
@@ -1547,6 +1708,7 @@ try {
         ShellEligibility = $shellEligibility
         MultiWindow = $multiWindow
         TerminalInput = $terminalInput
+        InitialGrid = $initialGrid
         GpuRecovery = $gpuRecovery
         PowerResume = $powerResume
         ConfigReload = $configReload
@@ -1589,6 +1751,11 @@ try {
     if ($null -eq $process -or $process.HasExited) {
         if ([System.IO.File]::Exists($inputMarkerPath)) {
             [System.IO.File]::Delete($inputMarkerPath)
+        }
+        foreach ($gridMarker in @($gridMarkerPath, $gridResizedMarkerPath)) {
+            if ([System.IO.File]::Exists($gridMarker)) {
+                [System.IO.File]::Delete($gridMarker)
+            }
         }
         if ([System.IO.File]::Exists($gpuRecoveryMarkerPath)) {
             [System.IO.File]::Delete($gpuRecoveryMarkerPath)

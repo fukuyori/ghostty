@@ -324,15 +324,33 @@ pub fn init(b: *std.Build, appVersion: []const u8, libVersion: []const u8) !Conf
                     app_version.patch,
                 });
 
-                if (!std.mem.eql(u8, tag, expected)) {
-                    @panic("tagged releases must be in vX.Y.Z format matching build.zig");
-                }
-
-                break :version .{
+                if (std.mem.eql(u8, tag, expected)) break :version .{
                     .major = app_version.major,
                     .minor = app_version.minor,
                     .patch = app_version.patch,
                 };
+
+                // This fork tags previews as vX.Y.Z-<pre-release>, for
+                // example v1.3.2-windows.1. The numeric part must still
+                // match build.zig.zon; the pre-release becomes part of the
+                // version so a tagged checkout builds the published version
+                // without -Dversion-string.
+                if (tag.len > expected.len + 1 and
+                    std.mem.startsWith(u8, tag, expected) and
+                    tag[expected.len] == '-')
+                {
+                    const parsed = std.SemanticVersion.parse(tag[1..]) catch {
+                        @panic("tagged releases must be vX.Y.Z or vX.Y.Z-<pre-release> matching build.zig.zon");
+                    };
+                    if (parsed.pre != null and parsed.build == null) break :version .{
+                        .major = app_version.major,
+                        .minor = app_version.minor,
+                        .patch = app_version.patch,
+                        .pre = tag[expected.len + 1 ..],
+                    };
+                }
+
+                @panic("tagged releases must be vX.Y.Z or vX.Y.Z-<pre-release> matching build.zig.zon");
             }
         }
 

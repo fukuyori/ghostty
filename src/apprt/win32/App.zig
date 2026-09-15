@@ -1953,6 +1953,20 @@ fn initCoreSurface(
     };
 
     surface.core_surface = core_surface;
+
+    // The initial_size action can resize the native windows while the core
+    // surface is still initializing. The child's WM_SIZE arrives before
+    // core_surface is set, so nothing forwards it, and the core would keep
+    // the placeholder size it was created with: the terminal grid and the
+    // ConPTY then cover only part of the window until the next manual
+    // resize. Sync once here; the core ignores an unchanged size.
+    core_surface.sizeCallback(.{
+        .width = surface.width,
+        .height = surface.height,
+    }) catch |err| {
+        log.warn("failed to sync the initial surface size: {}", .{err});
+    };
+
     updateWindowBackgroundBlur(surface, &config);
     log.info("core surface initialized successfully", .{});
 }
