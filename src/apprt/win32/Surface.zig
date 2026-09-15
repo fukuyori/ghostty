@@ -29,6 +29,8 @@ core_surface: ?*CoreSurface = null,
 /// Successful renderer GPU resource rebuilds. This is observed only by the
 /// opt-in Windows recovery regression hook.
 gpu_recovery_count: std.atomic.Value(u32) = .init(0),
+/// Controlled failures consumed by the renderer recovery regression hook.
+gpu_recovery_failures_remaining: u32 = 0,
 width: u32 = 800,
 height: u32 = 600,
 cursor_pos: apprt.CursorPos = .{ .x = 0, .y = 0 },
@@ -117,6 +119,7 @@ pub fn init(
         .hwnd = hwnd,
         .window_hwnd = window_hwnd,
         .app = app,
+        .gpu_recovery_failures_remaining = app.test_device_recovery_failures,
     };
     errdefer self.deinit();
     self.updateClientSize();

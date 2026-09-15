@@ -30,6 +30,16 @@ command. This tests controlled recovery without forcing a physical GPU fault.
 Number of consecutive GPU resource rebuilds to perform in the same terminal
 session when TestGpuRecovery is enabled. The default is 1.
 
+.PARAMETER GpuRecoveryFailures
+Number of controlled failures to inject for each newly created surface before
+recovery can succeed. This requires TestGpuRecovery and is used to verify
+bounded renderer retry logic.
+
+.PARAMETER TestPowerResume
+Send a controlled Windows suspend and automatic-resume message pair to the
+dedicated test window, then verify renderer recovery and terminal continuity.
+This does not suspend the computer.
+
 .EXAMPLE
 ./scripts/test-windows-window-state.ps1
 
@@ -50,6 +60,9 @@ param(
     [switch]$TestGpuRecovery,
     [ValidateRange(1, 100)]
     [int]$GpuRecoveryIterations = 1,
+    [ValidateRange(0, 10)]
+    [int]$GpuRecoveryFailures = 0,
+    [switch]$TestPowerResume,
     [switch]$KeepOpenOnFailure
 )
 
@@ -61,6 +74,9 @@ if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
 }
 if (-not $TestGpuRecovery -and $PSBoundParameters.ContainsKey("GpuRecoveryIterations")) {
     throw "GpuRecoveryIterations requires TestGpuRecovery."
+}
+if (-not $TestGpuRecovery -and $PSBoundParameters.ContainsKey("GpuRecoveryFailures")) {
+    throw "GpuRecoveryFailures requires TestGpuRecovery."
 }
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -90,6 +106,7 @@ $sessionDirectory = Join-Path $testStateRoot $sessionName
 $configPath = Join-Path $sessionDirectory "config.ghostty"
 $inputMarkerPath = Join-Path $sessionDirectory "terminal-input.txt"
 $gpuRecoveryMarkerPath = Join-Path $sessionDirectory "gpu-recovery.txt"
+$powerResumeMarkerPath = Join-Path $sessionDirectory "power-resume.txt"
 
 if (-not ("GhosttyWindowStateNative" -as [type])) {
     Add-Type -TypeDefinition @"
@@ -354,8 +371,11 @@ $wmClose = 0x0010
 $wmKeyDown = 0x0100
 $wmKeyUp = 0x0101
 $wmChar = 0x0102
+$wmPowerBroadcast = 0x0218
 $wmTestRecoverRenderer = 0x0403
 $wmTestRecoveryStatus = 0x0404
+$pbtApmSuspend = 4
+$pbtApmResumeAutomatic = 18
 $vkF5 = 0x74
 $vkF6 = 0x75
 $vkF7 = 0x76
@@ -367,6 +387,7 @@ $gwlStyle = -16
 $gwlExStyle = -20
 $gclpHIcon = -14
 $gclpHIconSm = -34
+$gwHwndNext = 2
 $gwOwner = 4
 $gwChild = 5
 $gaRoot = 2
@@ -380,6 +401,21 @@ $wsExToolWindow = 0x00000080
 $swpNoZOrder = 0x0004
 $swpNoActivate = 0x0010
 $timeoutMilliseconds = $TimeoutSeconds * 1000
+
+function Get-ChildWindowHandles {
+    param(
+        [Parameter(Mandatory = $true)]
+        [IntPtr]$ParentHandle
+    )
+
+    $result = [System.Collections.Generic.List[IntPtr]]::new()
+    $child = [GhosttyWindowStateNative]::GetWindow($ParentHandle, $gwChild)
+    while ($child -ne [IntPtr]::Zero) {
+        $result.Add($child)
+        $child = [GhosttyWindowStateNative]::GetWindow($child, $gwHwndNext)
+    }
+    return $result.ToArray()
+}
 
 function Wait-ForCondition {
     param(
@@ -890,16 +926,25 @@ try {
         "GHOSTTY_TEST_DEVICE_RECOVERY",
         [System.EnvironmentVariableTarget]::Process
     )
+    $previousRecoveryFailures = [System.Environment]::GetEnvironmentVariable(
+        "GHOSTTY_TEST_DEVICE_RECOVERY_FAILURES",
+        [System.EnvironmentVariableTarget]::Process
+    )
     try {
         [System.Environment]::SetEnvironmentVariable(
             "GHOSTTY_LOG",
             "stderr=true",
             [System.EnvironmentVariableTarget]::Process
         )
-        if ($TestGpuRecovery) {
+        if ($TestGpuRecovery -or $TestPowerResume) {
             [System.Environment]::SetEnvironmentVariable(
                 "GHOSTTY_TEST_DEVICE_RECOVERY",
                 "1",
+                [System.EnvironmentVariableTarget]::Process
+            )
+            [System.Environment]::SetEnvironmentVariable(
+                "GHOSTTY_TEST_DEVICE_RECOVERY_FAILURES",
+                $GpuRecoveryFailures.ToString(),
                 [System.EnvironmentVariableTarget]::Process
             )
         }
@@ -918,6 +963,11 @@ try {
         [System.Environment]::SetEnvironmentVariable(
             "GHOSTTY_TEST_DEVICE_RECOVERY",
             $previousRecoveryTest,
+            [System.EnvironmentVariableTarget]::Process
+        )
+        [System.Environment]::SetEnvironmentVariable(
+            "GHOSTTY_TEST_DEVICE_RECOVERY_FAILURES",
+            $previousRecoveryFailures,
             [System.EnvironmentVariableTarget]::Process
         )
     }
@@ -1026,9 +1076,69 @@ try {
             Requested = $true
             IterationsRequested = $GpuRecoveryIterations
             IterationsCompleted = $completedRecoveries
+            FailuresInjected = $GpuRecoveryFailures
             ResourcesRecreated = $true
             TerminalSessionPreserved = $true
         }
+    }
+
+    $powerResume = $null
+    if ($TestPowerResume) {
+        $initialRecoveryCount = [GhosttyWindowStateNative]::SendMessageW(
+            $surfaceHandle,
+            $wmTestRecoveryStatus,
+            [UIntPtr]::Zero,
+            [IntPtr]::Zero
+        ).ToInt64()
+        if (-not [GhosttyWindowStateNative]::PostMessageW(
+            $windowHandle,
+            $wmPowerBroadcast,
+            [UIntPtr]::new($pbtApmSuspend),
+            [IntPtr]::Zero
+        )) {
+            throw "Failed to send the controlled Windows suspend notification."
+        }
+        if (-not [GhosttyWindowStateNative]::PostMessageW(
+            $windowHandle,
+            $wmPowerBroadcast,
+            [UIntPtr]::new($pbtApmResumeAutomatic),
+            [IntPtr]::Zero
+        )) {
+            throw "Failed to send the controlled Windows resume notification."
+        }
+        Wait-ForCondition -Description "renderer recovery after controlled power resume" -Condition {
+            [GhosttyWindowStateNative]::SendMessageW(
+                $surfaceHandle,
+                $wmTestRecoveryStatus,
+                [UIntPtr]::Zero,
+                [IntPtr]::Zero
+            ).ToInt64() -gt $initialRecoveryCount
+        }
+
+        $powerResumeValue = "ghostty-power-resume"
+        $powerResumeCommand = "echo $powerResumeValue>`"$powerResumeMarkerPath`""
+        Send-TestText -Handle $surfaceHandle -Text $powerResumeCommand
+        Send-TestKey `
+            -Handle $surfaceHandle `
+            -VirtualKey $vkReturn `
+            -Description "terminal Enter after controlled power resume"
+        Wait-ForCondition -Description "terminal input after controlled power resume" -Condition {
+            if (-not [System.IO.File]::Exists($powerResumeMarkerPath)) {
+                return $false
+            }
+            [System.IO.File]::ReadAllText($powerResumeMarkerPath).Trim() -eq `
+                $powerResumeValue
+        }
+        $powerResume = [pscustomobject]@{
+            SuspendNotification = $true
+            ResumeNotification = $true
+            RendererRecovered = $true
+            TerminalSessionPreserved = $true
+            AllSurfaceCount = 1
+            AllRenderersRecovered = $false
+            DuplicateResumeSuppressed = $false
+        }
+        Write-Verbose "Validated controlled Windows power-resume recovery."
     }
 
     Set-TestConfig `
@@ -1216,6 +1326,77 @@ try {
         -ParentHandle $secondWindowHandle `
         -TabBarHandle $secondTabBarHandle
 
+    if ($TestPowerResume) {
+        $powerSurfaceHandles = @(
+            @(Get-ChildWindowHandles -ParentHandle $windowHandle) +
+                @(Get-ChildWindowHandles -ParentHandle $secondWindowHandle)
+        )
+        if ($powerSurfaceHandles.Count -ne 3) {
+            throw "Expected three terminal surfaces for the multi-window power-resume test; found $($powerSurfaceHandles.Count)."
+        }
+
+        $initialPowerRecoveryCounts = @{}
+        foreach ($handle in $powerSurfaceHandles) {
+            $key = $handle.ToInt64().ToString()
+            $initialPowerRecoveryCounts[$key] = `
+                [GhosttyWindowStateNative]::SendMessageW(
+                    $handle,
+                    $wmTestRecoveryStatus,
+                    [UIntPtr]::Zero,
+                    [IntPtr]::Zero
+                ).ToInt64()
+        }
+
+        foreach ($event in @(
+            @{ Handle = $windowHandle; Value = $pbtApmSuspend },
+            @{ Handle = $windowHandle; Value = $pbtApmResumeAutomatic },
+            @{ Handle = $secondWindowHandle; Value = $pbtApmResumeAutomatic }
+        )) {
+            if (-not [GhosttyWindowStateNative]::PostMessageW(
+                $event.Handle,
+                $wmPowerBroadcast,
+                [UIntPtr]::new($event.Value),
+                [IntPtr]::Zero
+            )) {
+                throw "Failed to send a multi-window power notification."
+            }
+        }
+
+        Wait-ForCondition -Description "all renderers after multi-window power resume" -Condition {
+            foreach ($handle in $powerSurfaceHandles) {
+                $key = $handle.ToInt64().ToString()
+                $current = [GhosttyWindowStateNative]::SendMessageW(
+                    $handle,
+                    $wmTestRecoveryStatus,
+                    [UIntPtr]::Zero,
+                    [IntPtr]::Zero
+                ).ToInt64()
+                if ($current -le $initialPowerRecoveryCounts[$key]) {
+                    return $false
+                }
+            }
+            return $true
+        }
+
+        Start-Sleep -Milliseconds 500
+        foreach ($handle in $powerSurfaceHandles) {
+            $key = $handle.ToInt64().ToString()
+            $current = [GhosttyWindowStateNative]::SendMessageW(
+                $handle,
+                $wmTestRecoveryStatus,
+                [UIntPtr]::Zero,
+                [IntPtr]::Zero
+            ).ToInt64()
+            if ($current -ne $initialPowerRecoveryCounts[$key] + 1) {
+                throw "A duplicate power-resume notification scheduled extra renderer recovery."
+            }
+        }
+        $powerResume.AllSurfaceCount = $powerSurfaceHandles.Count
+        $powerResume.AllRenderersRecovered = $true
+        $powerResume.DuplicateResumeSuppressed = $true
+        Write-Verbose "Validated power-resume recovery across all terminal surfaces."
+    }
+
     Set-TestConfig `
         -Path $configPath `
         -TabBarMode "never"
@@ -1350,6 +1531,7 @@ try {
         MultiWindow = $multiWindow
         TerminalInput = $terminalInput
         GpuRecovery = $gpuRecovery
+        PowerResume = $powerResume
         ConfigReload = $configReload
         InitialTabBar = $initialTabBar
         InitialDivider = $initialDivider
@@ -1393,6 +1575,9 @@ try {
         }
         if ([System.IO.File]::Exists($gpuRecoveryMarkerPath)) {
             [System.IO.File]::Delete($gpuRecoveryMarkerPath)
+        }
+        if ([System.IO.File]::Exists($powerResumeMarkerPath)) {
+            [System.IO.File]::Delete($powerResumeMarkerPath)
         }
         if ([System.IO.File]::Exists($configPath)) {
             [System.IO.File]::Delete($configPath)

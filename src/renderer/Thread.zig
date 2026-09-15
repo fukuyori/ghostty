@@ -19,6 +19,7 @@ const Allocator = std.mem.Allocator;
 const log = std.log.scoped(.renderer_thread);
 
 const CURSOR_BLINK_INTERVAL = 600;
+const gpu_recovery_retry_delays_ms = [_]i64{ 100, 250 };
 
 /// Whether calls to `drawFrame` must be done from the app thread.
 ///
@@ -310,9 +311,7 @@ fn drainMailbox(self: *Thread) !void {
             .crash => @panic("crash request, crashing intentionally"),
 
             .recover_gpu => {
-                self.renderer.recoverGpuResources() catch |err| {
-                    log.err("failed to recover renderer GPU resources err={}", .{err});
-                };
+                self.recoverGpuResources();
             },
 
             .visible => |v| visible: {
@@ -450,6 +449,43 @@ fn drainMailbox(self: *Thread) !void {
                 }
             },
         }
+    }
+}
+
+fn recoverGpuResources(self: *Thread) void {
+    var attempt: usize = 1;
+    while (true) : (attempt += 1) {
+        self.renderer.recoverGpuResources() catch |err| {
+            if (err == error.DeviceRecoveryUnsupported or
+                attempt > gpu_recovery_retry_delays_ms.len)
+            {
+                log.err(
+                    "failed to recover renderer GPU resources attempts={d} err={}",
+                    .{ attempt, err },
+                );
+                return;
+            }
+
+            const delay_ms = gpu_recovery_retry_delays_ms[attempt - 1];
+            log.warn(
+                "renderer GPU recovery attempt failed attempt={d}/{d} err={} retry_delay_ms={d}",
+                .{ attempt, gpu_recovery_retry_delays_ms.len + 1, err, delay_ms },
+            );
+            std.Io.sleep(
+                global.io(),
+                .fromMilliseconds(delay_ms),
+                .awake,
+            ) catch |sleep_err| {
+                log.err("renderer GPU recovery retry wait failed err={}", .{sleep_err});
+                return;
+            };
+            continue;
+        };
+
+        if (attempt > 1) {
+            log.info("renderer GPU resources recovered after attempt={d}", .{attempt});
+        }
+        return;
     }
 }
 

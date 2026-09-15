@@ -28,7 +28,7 @@
 Windows版の主な特徴:
 
 - Win32ネイティブのウィンドウ、タイトルバー、タブバー
-- D3D11とDirectCompositionによる描画、背景透過、デバイスロスト時の自動復旧
+- D3D11とDirectCompositionによる描画、背景透過、デバイスロスト・電源復帰時の自動復旧
 - 複数ウィンドウ、ネイティブタブ、入れ子の分割ペイン
 - キーボードとマウスによるタブ操作、並べ替え、分割境界のリサイズ
 - Windows IME、クリップボード、URL・ファイル操作
@@ -55,6 +55,9 @@ Release版の反復回帰試験:
 
 ```powershell
 ./scripts/test-windows-soak.ps1 -Iterations 20
+# GPU再作成と制御電源復帰を含む耐久試験
+./scripts/test-windows-soak.ps1 -Iterations 20 -DelaySeconds 0 `
+    -TestGpuRecovery -TestPowerResume
 ```
 
 Windowsシェルの手動受け入れ試験:
@@ -62,6 +65,8 @@ Windowsシェルの手動受け入れ試験:
 ```powershell
 ./scripts/test-windows-shell.ps1 -ListOnly
 ./scripts/test-windows-shell.ps1
+# 実機スリープ復帰は明示選択時だけ実行
+./scripts/test-windows-shell.ps1 -CheckId power-resume
 ```
 
 Windows版は現在も開発中です。Windows 11で基本動作を確認していますが、

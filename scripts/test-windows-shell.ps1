@@ -51,6 +51,7 @@ param(
         "keyboard-snap",
         "snap-layout",
         "multi-window-shell",
+        "power-resume",
         "taskbar-close"
     )]
     [string[]]$CheckId = @(),
@@ -91,14 +92,27 @@ $checks = @(
         PassCriteria = "Both windows are individually selectable in Alt+Tab and both taskbar previews activate the matching window."
     },
     [pscustomobject][ordered]@{
+        Id = "power-resume"
+        Action = "Save other work, put Windows to sleep, resume it, and return to the Ghostty test window."
+        PassCriteria = "The same terminal session and content remain available, input works, and the renderer is neither blank nor frozen. Diagnostic power and renderer recovery events must also pass automatic verification."
+    },
+    [pscustomobject][ordered]@{
         Id = "taskbar-close"
         Action = "Close one window from its taskbar preview, confirm the other remains, then close the remaining preview."
         PassCriteria = "The first close affects only its window and the final close removes Ghostty from Alt+Tab and the taskbar."
     }
 )
+$defaultCheckIds = @(
+    "alt-tab",
+    "taskbar-activation",
+    "keyboard-snap",
+    "snap-layout",
+    "multi-window-shell",
+    "taskbar-close"
+)
 $selectedChecks = @(
     if ($CheckId.Count -eq 0) {
-        $checks
+        $checks | Where-Object Id -in $defaultCheckIds
     } else {
         $checks | Where-Object Id -in $CheckId
     }
@@ -170,6 +184,7 @@ $windowHandle = [IntPtr]::Zero
 $completed = $false
 $forcedCleanup = $false
 $runError = $null
+$powerResumeEvidence = $null
 
 function Write-ShellAcceptanceResult {
     param(
@@ -181,6 +196,14 @@ function Write-ShellAcceptanceResult {
     $passed = @($records | Where-Object Status -eq "pass").Count
     $failed = @($records | Where-Object Status -eq "fail").Count
     $skipped = @($records | Where-Object Status -eq "skip").Count
+    $powerCheckSelected = "power-resume" -in @($selectedChecks.Id)
+    $powerEvidencePassed = if (-not $powerCheckSelected) {
+        $true
+    } elseif ($null -ne $powerResumeEvidence) {
+        [bool]$powerResumeEvidence.Verified
+    } else {
+        $false
+    }
     $document = [ordered]@{
         StartedAt = $startedAt.ToString("o")
         UpdatedAt = $updatedAt.ToString("o")
@@ -188,7 +211,8 @@ function Write-ShellAcceptanceResult {
         OverallPassed = [bool](
             $Complete -and
             $records.Count -eq $selectedChecks.Count -and
-            $passed -eq $selectedChecks.Count
+            $passed -eq $selectedChecks.Count -and
+            $powerEvidencePassed
         )
         Executable = $executablePath
         ExecutableVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo(
@@ -210,6 +234,7 @@ function Write-ShellAcceptanceResult {
         Skipped = $skipped
         ForcedCleanup = $forcedCleanup
         Error = $runError
+        PowerResumeEvidence = $powerResumeEvidence
         SelectedChecks = @($selectedChecks.Id)
         Results = $records
     }
@@ -310,6 +335,52 @@ try {
         }
     } finally {
         try {
+            if ("power-resume" -in @($selectedChecks.Id) -and
+                $launch -and
+                (Test-Path -LiteralPath $launch.StderrLog -PathType Leaf)) {
+                try {
+                    $stderr = [System.IO.File]::ReadAllText($launch.StderrLog)
+                    $suspendCount = [regex]::Matches(
+                        $stderr,
+                        "Windows power suspend detected"
+                    ).Count
+                    $resumeMatches = [regex]::Matches(
+                        $stderr,
+                        "scheduled renderer recovery surfaces=(\d+)"
+                    )
+                    $scheduledRecoveries = 0
+                    foreach ($match in $resumeMatches) {
+                        $scheduledRecoveries += [int]$match.Groups[1].Value
+                    }
+                    $completedRecoveries = [regex]::Matches(
+                        $stderr,
+                        "renderer GPU resources recovered"
+                    ).Count
+                    $failedRecoveries = [regex]::Matches(
+                        $stderr,
+                        "failed to (schedule renderer recovery after power resume|recover renderer GPU resources)"
+                    ).Count
+                    $powerResumeEvidence = [pscustomobject][ordered]@{
+                        Verified = [bool](
+                            $suspendCount -gt 0 -and
+                            $resumeMatches.Count -gt 0 -and
+                            $scheduledRecoveries -gt 0 -and
+                            $completedRecoveries -ge $scheduledRecoveries -and
+                            $failedRecoveries -eq 0
+                        )
+                        SuspendNotifications = $suspendCount
+                        ResumeNotifications = $resumeMatches.Count
+                        RendererRecoveriesScheduled = $scheduledRecoveries
+                        RendererRecoveriesCompleted = $completedRecoveries
+                        RendererRecoveryFailures = $failedRecoveries
+                    }
+                } catch {
+                    $powerResumeEvidence = [pscustomobject][ordered]@{
+                        Verified = $false
+                        Error = $_.Exception.Message
+                    }
+                }
+            }
             Write-ShellAcceptanceResult -Complete $completed
         } finally {
             if (Test-Path -LiteralPath $configPath -PathType Leaf) {
@@ -325,14 +396,26 @@ try {
 $passed = @($records | Where-Object Status -eq "pass").Count
 $failed = @($records | Where-Object Status -eq "fail").Count
 $skipped = @($records | Where-Object Status -eq "skip").Count
+$powerCheckSelected = "power-resume" -in @($selectedChecks.Id)
+$powerEvidencePassed = if (-not $powerCheckSelected) {
+    $true
+} elseif ($null -ne $powerResumeEvidence) {
+    [bool]$powerResumeEvidence.Verified
+} else {
+    $false
+}
 [pscustomobject]@{
     ResultsPath = $resultsFile
     Completed = $completed
-    OverallPassed = [bool]($passed -eq $selectedChecks.Count)
+    OverallPassed = [bool](
+        $passed -eq $selectedChecks.Count -and
+        $powerEvidencePassed
+    )
     Passed = $passed
     Failed = $failed
     Skipped = $skipped
     ForcedCleanup = $forcedCleanup
+    PowerResumeEvidence = $powerResumeEvidence
     StdoutLog = $launch.StdoutLog
     StderrLog = $launch.StderrLog
 }

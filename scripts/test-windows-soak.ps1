@@ -31,6 +31,21 @@ Delay between iterations. The default is one second.
 .PARAMETER TimeoutSeconds
 Maximum time the window-state test waits for each state transition.
 
+.PARAMETER TestGpuRecovery
+Run controlled D3D11 resource recovery during every regression iteration.
+
+.PARAMETER GpuRecoveryIterations
+Number of consecutive controlled GPU recoveries in each process. This requires
+TestGpuRecovery. The default is 1.
+
+.PARAMETER GpuRecoveryFailures
+Number of controlled failures to inject for each newly created surface before
+recovery can succeed. This requires TestGpuRecovery. The default is zero.
+
+.PARAMETER TestPowerResume
+Run the controlled Windows suspend and resume notification checks during every
+regression iteration. This does not suspend the computer.
+
 .PARAMETER SummaryPath
 JSON checkpoint path. Relative paths are resolved from the repository root.
 The default is a timestamped file under zig-out/logs.
@@ -46,6 +61,15 @@ The default is a timestamped file under zig-out/logs.
     -Executable zig-out/window-state-release/bin/ghostty.exe `
     -Iterations 3 `
     -DelaySeconds 0
+
+.EXAMPLE
+./scripts/test-windows-soak.ps1 `
+    -Iterations 20 `
+    -DelaySeconds 0 `
+    -TestGpuRecovery `
+    -GpuRecoveryIterations 1 `
+    -GpuRecoveryFailures 2 `
+    -TestPowerResume
 #>
 [CmdletBinding()]
 param(
@@ -58,6 +82,12 @@ param(
     [int]$DelaySeconds = 1,
     [ValidateRange(1, 60)]
     [int]$TimeoutSeconds = 10,
+    [switch]$TestGpuRecovery,
+    [ValidateRange(1, 100)]
+    [int]$GpuRecoveryIterations = 1,
+    [ValidateRange(0, 10)]
+    [int]$GpuRecoveryFailures = 0,
+    [switch]$TestPowerResume,
     [string]$SummaryPath = ""
 )
 
@@ -66,6 +96,12 @@ $ErrorActionPreference = "Stop"
 
 if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
     throw "This script tests the native Windows Ghostty executable."
+}
+if (-not $TestGpuRecovery -and $PSBoundParameters.ContainsKey("GpuRecoveryIterations")) {
+    throw "GpuRecoveryIterations requires TestGpuRecovery."
+}
+if (-not $TestGpuRecovery -and $PSBoundParameters.ContainsKey("GpuRecoveryFailures")) {
+    throw "GpuRecoveryFailures requires TestGpuRecovery."
 }
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -100,7 +136,8 @@ $deadline = if ($DurationMinutes -gt 0) {
 $records = [System.Collections.Generic.List[object]]::new()
 $problemPattern = [regex]::new(
     "Configuration Error|error waiting|error interrupting|" +
-    "unexpected read thread|abrupt io thread",
+    "unexpected read thread|abrupt io thread|" +
+    "failed to (schedule renderer recovery|recover renderer GPU resources)",
     [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
 )
 $testStateRoot = Join-Path $repositoryRoot "zig-out\test-state"
@@ -133,6 +170,20 @@ function Write-SoakSummary {
         } else {
             $null
         }
+        ControlledGpuRecovery = [ordered]@{
+            Enabled = [bool]$TestGpuRecovery
+            IterationsPerRun = if ($TestGpuRecovery) {
+                $GpuRecoveryIterations
+            } else {
+                0
+            }
+            FailuresPerSurface = if ($TestGpuRecovery) {
+                $GpuRecoveryFailures
+            } else {
+                0
+            }
+        }
+        ControlledPowerResume = [bool]$TestPowerResume
         Completed = $Complete
         TotalRuns = $Results.Count
         PassedRuns = $Results.Count - $failed
@@ -168,6 +219,14 @@ try {
             }
             if (-not [string]::IsNullOrWhiteSpace($Executable)) {
                 $arguments.Executable = $Executable
+            }
+            if ($TestGpuRecovery) {
+                $arguments.TestGpuRecovery = $true
+                $arguments.GpuRecoveryIterations = $GpuRecoveryIterations
+                $arguments.GpuRecoveryFailures = $GpuRecoveryFailures
+            }
+            if ($TestPowerResume) {
+                $arguments.TestPowerResume = $true
             }
             $result = & $windowStateScript @arguments
             if ($result.ExitCode -ne 0 -or $result.ForcedTermination) {
@@ -212,6 +271,40 @@ try {
                     $result.MultiWindow.HiddenTogether -and
                     $result.MultiWindow.RestoredTogether
                 )
+                GpuRecovery = if ($TestGpuRecovery) {
+                    [bool](
+                        $result.GpuRecovery.IterationsCompleted -eq
+                            $GpuRecoveryIterations -and
+                        $result.GpuRecovery.TerminalSessionPreserved
+                    )
+                } else {
+                    $null
+                }
+                GpuRecoveryIterations = if ($TestGpuRecovery) {
+                    $result.GpuRecovery.IterationsCompleted
+                } else {
+                    0
+                }
+                GpuRecoveryFailuresPerSurface = if ($TestGpuRecovery) {
+                    $result.GpuRecovery.FailuresInjected
+                } else {
+                    0
+                }
+                PowerResume = if ($TestPowerResume) {
+                    [bool](
+                        $result.PowerResume.RendererRecovered -and
+                        $result.PowerResume.TerminalSessionPreserved -and
+                        $result.PowerResume.AllRenderersRecovered -and
+                        $result.PowerResume.DuplicateResumeSuppressed
+                    )
+                } else {
+                    $null
+                }
+                PowerResumeSurfaceCount = if ($TestPowerResume) {
+                    $result.PowerResume.AllSurfaceCount
+                } else {
+                    0
+                }
                 GracefulExit = [bool](
                     $result.MultiWindow.CloseAll -and
                     $result.ExitCode -eq 0 -and
@@ -236,6 +329,11 @@ try {
                 ConfigReload = $false
                 WindowNavigation = $false
                 VisibilityToggle = $false
+                GpuRecovery = if ($TestGpuRecovery) { $false } else { $null }
+                GpuRecoveryIterations = 0
+                GpuRecoveryFailuresPerSurface = 0
+                PowerResume = if ($TestPowerResume) { $false } else { $null }
+                PowerResumeSurfaceCount = 0
                 GracefulExit = $false
                 StdoutLog = $null
                 StderrLog = $null

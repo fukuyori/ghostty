@@ -72,6 +72,8 @@ windows: WindowList = .empty,
 backdrop_runtime: Backdrop.Runtime = .{},
 high_contrast: bool = false,
 test_device_recovery: bool = false,
+test_device_recovery_failures: u32 = 0,
+power_suspended: bool = false,
 
 pub fn init(
     self: *App,
@@ -87,6 +89,17 @@ pub fn init(
     errdefer config_ptr.deinit();
     var environ = try global.environMap();
     defer environ.deinit();
+    const test_device_recovery = if (environ.get("GHOSTTY_TEST_DEVICE_RECOVERY")) |value|
+        std.mem.eql(u8, value, "1")
+    else
+        false;
+    const test_device_recovery_failures = if (test_device_recovery)
+        if (environ.get("GHOSTTY_TEST_DEVICE_RECOVERY_FAILURES")) |value|
+            std.fmt.parseUnsigned(u32, value, 10) catch 0
+        else
+            0
+    else
+        0;
 
     self.* = .{
         .core_app = core_app,
@@ -94,10 +107,8 @@ pub fn init(
         .alloc = alloc,
         .thread_id = win32.GetCurrentThreadId(),
         .high_contrast = highContrastEnabled(),
-        .test_device_recovery = if (environ.get("GHOSTTY_TEST_DEVICE_RECOVERY")) |value|
-            std.mem.eql(u8, value, "1")
-        else
-            false,
+        .test_device_recovery = test_device_recovery,
+        .test_device_recovery_failures = test_device_recovery_failures,
     };
     errdefer self.windows.deinit(self.alloc);
     errdefer self.backdrop_runtime.deinit();
@@ -423,6 +434,8 @@ pub fn performAction(
 }
 
 fn recoverRenderer(target: apprt.Target, health: rendererpkg.Health) !bool {
+    if (comptime build_config.renderer != .d3d11) return false;
+
     const surface = targetSurface(target) orelse {
         log.warn("renderer_health targeted the application", .{});
         return false;
@@ -436,6 +449,47 @@ fn recoverRenderer(target: apprt.Target, health: rendererpkg.Health) !bool {
     const core = surface.core_surface orelse return false;
     try core.recoverRenderer();
     return true;
+}
+
+fn handlePowerBroadcast(self: *App, event: u32) void {
+    if (event == win32.PBT_APMSUSPEND) {
+        if (!self.power_suspended) log.info("Windows power suspend detected", .{});
+        self.power_suspended = true;
+        return;
+    }
+
+    if (!isPowerResumeEvent(event) or !self.power_suspended) return;
+    self.power_suspended = false;
+
+    if (comptime build_config.renderer != .d3d11) return;
+
+    var scheduled: usize = 0;
+    for (self.windows.items) |window| {
+        var surfaces = window.surfaceIterator();
+        while (surfaces.next()) |surface| {
+            const core = surface.core_surface orelse continue;
+            core.recoverRenderer() catch |err| {
+                log.err("failed to schedule renderer recovery after power resume: {}", .{err});
+                continue;
+            };
+            scheduled += 1;
+        }
+    }
+    log.info(
+        "Windows power resume detected; scheduled renderer recovery surfaces={d}",
+        .{scheduled},
+    );
+}
+
+fn isPowerResumeEvent(event: u32) bool {
+    return switch (event) {
+        win32.PBT_APMRESUMECRITICAL,
+        win32.PBT_APMRESUMESUSPEND,
+        win32.PBT_APMRESUMESTANDBY,
+        win32.PBT_APMRESUMEAUTOMATIC,
+        => true,
+        else => false,
+    };
 }
 
 fn setTabTitle(
@@ -2502,7 +2556,7 @@ fn registerWindowClass() !void {
         log.err("GetModuleHandleW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         return error.Win32Error;
     };
-    const icons = try loadWindowIcons(hinstance);
+    const icons = loadWindowIcons(hinstance);
 
     const wc: win32.WNDCLASSEXW = .{
         .cbSize = @sizeOf(win32.WNDCLASSEXW),
@@ -2567,28 +2621,31 @@ fn registerWindowClass() !void {
 }
 
 const WindowIcons = struct {
-    large: win32.HICON,
-    small: win32.HICON,
+    large: ?win32.HICON,
+    small: ?win32.HICON,
 };
 
-fn loadWindowIcons(hinstance: win32.HINSTANCE) !WindowIcons {
+/// Load the embedded application icon at the system large and small sizes.
+/// A missing or unreadable icon resource is not fatal: the window class falls
+/// back to the Windows default icon so the terminal still starts. Executables
+/// without the Windows resource script, such as the unit test binary, take
+/// this path.
+fn loadWindowIcons(hinstance: win32.HINSTANCE) WindowIcons {
     const large_width = @max(1, win32.GetSystemMetrics(win32.SM_CXICON));
     const large_height = @max(1, win32.GetSystemMetrics(win32.SM_CYICON));
     const small_width = @max(1, win32.GetSystemMetrics(win32.SM_CXSMICON));
     const small_height = @max(1, win32.GetSystemMetrics(win32.SM_CYSMICON));
 
-    return .{
-        .large = try loadWindowIcon(
-            hinstance,
-            large_width,
-            large_height,
-        ),
-        .small = try loadWindowIcon(
-            hinstance,
-            small_width,
-            small_height,
-        ),
-    };
+    const large = loadWindowIcon(hinstance, large_width, large_height) catch null;
+    const small = loadWindowIcon(hinstance, small_width, small_height) catch null;
+    if (large == null or small == null) {
+        log.warn(
+            "embedded window icon unavailable; using the Windows default icon",
+            .{},
+        );
+    }
+
+    return .{ .large = large, .small = small };
 }
 
 fn loadWindowIcon(
@@ -2604,7 +2661,7 @@ fn loadWindowIcon(
         height,
         .{ .SHARED = 1 },
     ) orelse {
-        log.err("LoadImageW(icon {d}x{d}) failed: err={d}", .{
+        log.warn("LoadImageW(icon {d}x{d}) failed: err={d}", .{
             width,
             height,
             @intFromEnum(win32.GetLastError()),
@@ -4207,6 +4264,14 @@ fn wndProc(
             }
             return 0;
         },
+        win32.WM_POWERBROADCAST => {
+            if (getSurface(hwnd)) |surface| {
+                if (hwnd == surface.windowHwnd()) {
+                    surface.rtApp().handlePowerBroadcast(@intCast(wparam));
+                }
+            }
+            return 1;
+        },
         win32.WM_SIZE => {
             if (getSurface(hwnd)) |surface| {
                 const width: u32 = @intCast(lparam & 0xFFFF);
@@ -4582,6 +4647,15 @@ test "decode Win32 DPI scale" {
     );
 }
 
+test "Win32 power resume event classification" {
+    try std.testing.expect(isPowerResumeEvent(win32.PBT_APMRESUMECRITICAL));
+    try std.testing.expect(isPowerResumeEvent(win32.PBT_APMRESUMESUSPEND));
+    try std.testing.expect(isPowerResumeEvent(win32.PBT_APMRESUMESTANDBY));
+    try std.testing.expect(isPowerResumeEvent(win32.PBT_APMRESUMEAUTOMATIC));
+    try std.testing.expect(!isPowerResumeEvent(win32.PBT_APMSUSPEND));
+    try std.testing.expect(!isPowerResumeEvent(0));
+}
+
 test "clamp Win32 window size to monitor work area" {
     const work_area: win32.RECT = .{
         .left = 0,
@@ -4635,6 +4709,16 @@ test "toggle Win32 decoration style bits" {
     try std.testing.expectEqual(@as(u1, 1), decorated.DLGFRAME);
     try std.testing.expectEqual(@as(u1, 1), decorated.SYSMENU);
     try std.testing.expectEqual(@as(u1, 1), decorated.THICKFRAME);
+}
+
+test "Win32 window icons fall back without an embedded resource" {
+    // The unit test executable does not link the Windows resource script,
+    // so the icon lookup must degrade to the default icon instead of
+    // failing window class registration.
+    const hinstance = win32.GetModuleHandleW(null) orelse return error.Win32Error;
+    const icons = loadWindowIcons(hinstance);
+    try std.testing.expect(icons.large == null);
+    try std.testing.expect(icons.small == null);
 }
 
 test "restore Win32 native window state after fullscreen" {
