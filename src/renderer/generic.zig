@@ -1714,7 +1714,10 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             const sync_display_link = locked: {
                 self.draw_mutex.lockUncancelable(global.io());
                 defer self.draw_mutex.unlock(global.io());
-                break :locked try self.drawFrameLocked(sync);
+                break :locked self.drawFrameLocked(sync) catch |err| {
+                    self.checkDeviceLoss();
+                    return err;
+                };
             };
 
             if (sync_display_link) self.syncDisplayLink(null, null);
@@ -2052,6 +2055,30 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             // waiting for all in-flight frames to complete, and this
             // callback is what signals that completion.
             self.swap_chain.?.releaseFrame();
+        }
+
+        /// Ask the graphics API whether its device is gone after a failed
+        /// frame. Only presentation reports device loss on its own; every
+        /// earlier step of a frame fails with a generic error, so without
+        /// this check a lost device would never trigger recovery.
+        ///
+        /// Caller must hold the draw mutex.
+        fn checkDeviceLoss(self: *Self) void {
+            if (comptime !@hasDecl(GraphicsAPI, "deviceLost")) return;
+            if (!self.api.deviceLost()) return;
+            log.err("graphics device lost during frame preparation", .{});
+            self.setHealth(.unhealthy);
+        }
+
+        /// Publish the unhealthy state after every attempt of a recovery
+        /// cycle failed. `recoverGpuResources` stores `.unhealthy` without
+        /// notifying, and `setHealth` only publishes transitions, so the
+        /// apprt would otherwise never learn that recovery gave up.
+        pub fn reportGpuRecoveryFailure(self: *Self) void {
+            self.health.store(.unhealthy, .seq_cst);
+            _ = self.surface_mailbox.push(.{
+                .renderer_health = .unhealthy,
+            }, .{ .forever = {} });
         }
 
         fn setHealth(self: *Self, health: Health) void {

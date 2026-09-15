@@ -33,6 +33,18 @@ const WindowList = std.ArrayListUnmanaged(*Window);
 const window_class_name = win32.L("GhosttyWindow");
 const tab_bar_class_name = win32.L("GhosttyTabBar");
 const split_divider_class_name = win32.L("GhosttySplitDivider");
+const wakeup_class_name = win32.L("GhosttyWakeup");
+
+/// Parent handle that creates a message-only window. Message-only windows
+/// never appear on screen and exist so that posted messages are delivered
+/// through DispatchMessage, including from inside modal loops.
+const hwnd_message: win32.HWND = @ptrFromInt(@as(usize, @bitCast(@as(isize, -3))));
+
+/// Renderer recovery cycles the app schedules for one surface before it
+/// stops and leaves the surface blank. Each cycle is a bounded, backed-off
+/// series of attempts on the renderer thread. A later power resume resets
+/// the budget.
+const gpu_recovery_max_cycles: u32 = 3;
 const default_window_title = win32.L("Ghostty");
 const icon_resource_id: usize = 1;
 const tab_title_dialog_id: usize = 102;
@@ -68,6 +80,11 @@ config: *Config,
 alloc: Allocator,
 running: bool = true,
 thread_id: u32,
+/// Message-only window that receives core wakeup requests. Thread messages
+/// are discarded while a modal loop (MessageBox, window move or size) runs,
+/// so wakeups are posted to this window instead. Null falls back to thread
+/// messages.
+wakeup_hwnd: ?win32.HWND = null,
 windows: WindowList = .empty,
 backdrop_runtime: Backdrop.Runtime = .{},
 high_contrast: bool = false,
@@ -114,8 +131,67 @@ pub fn init(
     errdefer self.backdrop_runtime.deinit();
 
     try registerWindowClass();
+    self.wakeup_hwnd = createWakeupWindow(self) catch |err| wakeup: {
+        log.warn("wakeup window unavailable; falling back to thread messages: {}", .{err});
+        break :wakeup null;
+    };
+    errdefer self.destroyWakeupWindow();
     try self.createWindow(.{});
     self.showConfigDiagnostics(.app, self.config);
+}
+
+fn createWakeupWindow(self: *App) !win32.HWND {
+    const hinstance = win32.GetModuleHandleW(null);
+    const hwnd = win32.CreateWindowExW(
+        .{},
+        wakeup_class_name,
+        win32.L(""),
+        .{},
+        0,
+        0,
+        0,
+        0,
+        hwnd_message,
+        null,
+        hinstance,
+        null,
+    ) orelse {
+        log.err("CreateWindowExW(wakeup) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return error.Win32Error;
+    };
+    _ = win32.SetWindowLongPtrW(
+        hwnd,
+        win32.GWLP_USERDATA,
+        @bitCast(@intFromPtr(self)),
+    );
+    return hwnd;
+}
+
+fn destroyWakeupWindow(self: *App) void {
+    const hwnd = self.wakeup_hwnd orelse return;
+    self.wakeup_hwnd = null;
+    if (win32.DestroyWindow(hwnd) == 0) {
+        log.warn("DestroyWindow(wakeup) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+    }
+}
+
+fn wakeupWndProc(
+    hwnd: win32.HWND,
+    msg: u32,
+    wparam: win32.WPARAM,
+    lparam: win32.LPARAM,
+) callconv(.winapi) win32.LRESULT {
+    if (msg == WM_WAKEUP) {
+        const ptr = win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA);
+        if (ptr != 0) {
+            const app: *App = @ptrFromInt(@as(usize, @bitCast(ptr)));
+            app.core_app.tick(app) catch |err| {
+                log.err("core app tick failed: {}", .{err});
+            };
+        }
+        return 0;
+    }
+    return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
 }
 
 pub fn run(self: *App) !void {
@@ -132,6 +208,8 @@ pub fn run(self: *App) !void {
             log.err("GetMessage failed: err={d}", .{@intFromEnum(win32.GetLastError())});
             return error.Win32Error;
         }
+        // Thread-message fallback used only when the wakeup window could
+        // not be created. Window-targeted wakeups go through DispatchMessage.
         if (msg.hwnd == null and msg.message == WM_WAKEUP) {
             self.core_app.tick(self) catch |err| {
                 log.err("core app tick failed: {}", .{err});
@@ -163,18 +241,31 @@ pub fn terminate(self: *App) void {
         self.alloc.destroy(window);
     }
     self.windows.deinit(self.alloc);
+    self.destroyWakeupWindow();
     self.backdrop_runtime.deinit();
     self.config.deinit();
     self.alloc.destroy(self.config);
 }
 
 pub fn wakeup(self: *App) void {
+    if (self.wakeup_hwnd) |hwnd| {
+        if (win32.PostMessageW(hwnd, WM_WAKEUP, 0, 0) == 0) {
+            log.warn("PostMessage(WM_WAKEUP) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        }
+        return;
+    }
     if (win32.PostThreadMessageW(self.thread_id, WM_WAKEUP, 0, 0) == 0) {
         log.warn("PostThreadMessage(WM_WAKEUP) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
     }
 }
 
 pub fn requestSurfaceClose(_: *App, surface: *Surface, confirm: bool) void {
+    // The core may request the same close more than once before the posted
+    // request runs (a child exit racing a close_tab, for example). The first
+    // request frees the surface, so a second post would dereference freed
+    // memory when it is processed.
+    if (surface.close_requested) return;
+    surface.close_requested = true;
     if (win32.PostMessageW(
         surface.windowHwnd(),
         WM_CLOSE_SURFACE,
@@ -441,11 +532,27 @@ fn recoverRenderer(target: apprt.Target, health: rendererpkg.Health) !bool {
         return false;
     };
     if (health == .healthy) {
+        surface.gpu_recovery_cycles = 0;
         log.info("D3D11 renderer recovered", .{});
         return true;
     }
 
-    log.warn("D3D11 renderer is unhealthy; scheduling device recovery", .{});
+    // The renderer thread reports unhealthy both when a frame first detects
+    // device loss and after every attempt of a recovery cycle failed. Bound
+    // the number of cycles so a permanently lost device does not rebuild
+    // forever; a later power resume resets the budget.
+    if (surface.gpu_recovery_cycles >= gpu_recovery_max_cycles) {
+        log.err(
+            "D3D11 renderer recovery exhausted after {d} cycles; rendering stays stopped",
+            .{surface.gpu_recovery_cycles},
+        );
+        return true;
+    }
+    surface.gpu_recovery_cycles += 1;
+    log.warn(
+        "D3D11 renderer is unhealthy; scheduling device recovery cycle={d}/{d}",
+        .{ surface.gpu_recovery_cycles, gpu_recovery_max_cycles },
+    );
     const core = surface.core_surface orelse return false;
     try core.recoverRenderer();
     return true;
@@ -468,6 +575,7 @@ fn handlePowerBroadcast(self: *App, event: u32) void {
         var surfaces = window.surfaceIterator();
         while (surfaces.next()) |surface| {
             const core = surface.core_surface orelse continue;
+            surface.gpu_recovery_cycles = 0;
             core.recoverRenderer() catch |err| {
                 log.err("failed to schedule renderer recovery after power resume: {}", .{err});
                 continue;
@@ -2618,6 +2726,25 @@ fn registerWindowClass() !void {
         log.err("RegisterClassExW(split divider) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         return error.Win32Error;
     }
+
+    const wakeup_class: win32.WNDCLASSEXW = .{
+        .cbSize = @sizeOf(win32.WNDCLASSEXW),
+        .style = .{},
+        .lpfnWndProc = wakeupWndProc,
+        .cbClsExtra = 0,
+        .cbWndExtra = 0,
+        .hInstance = hinstance,
+        .hIcon = null,
+        .hCursor = null,
+        .hbrBackground = null,
+        .lpszMenuName = null,
+        .lpszClassName = wakeup_class_name,
+        .hIconSm = null,
+    };
+    if (win32.RegisterClassExW(&wakeup_class) == 0) {
+        log.err("RegisterClassExW(wakeup) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return error.Win32Error;
+    }
 }
 
 const WindowIcons = struct {
@@ -4238,8 +4365,20 @@ fn wndProc(
         },
         WM_CLOSE_SURFACE => {
             if (lparam != 0) {
+                // Resolve the app through the receiving window rather than
+                // the posted pointer, and only dereference the pointer once
+                // it is confirmed to be a live surface owned by this app.
+                const owner = getSurface(hwnd) orelse return 0;
+                const app = owner.rtApp();
                 const surface: *Surface = @ptrFromInt(@as(usize, @bitCast(lparam)));
-                surface.rtApp().closeSurface(surface, wparam != 0);
+                if (app.windowForSurface(surface) == null) {
+                    log.warn("ignoring close request for a surface that no longer exists", .{});
+                    return 0;
+                }
+                // Allow a later request, for example after a declined
+                // confirmation dialog.
+                surface.close_requested = false;
+                app.closeSurface(surface, wparam != 0);
             }
             return 0;
         },

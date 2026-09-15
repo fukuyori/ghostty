@@ -31,6 +31,14 @@ core_surface: ?*CoreSurface = null,
 gpu_recovery_count: std.atomic.Value(u32) = .init(0),
 /// Controlled failures consumed by the renderer recovery regression hook.
 gpu_recovery_failures_remaining: u32 = 0,
+/// Renderer recovery cycles scheduled since the renderer was last healthy.
+/// Each cycle is a bounded series of retries on the renderer thread; the
+/// app stops scheduling new cycles once this reaches the configured limit.
+gpu_recovery_cycles: u32 = 0,
+/// True while a close request for this surface is queued in the message
+/// loop. The core can ask to close a surface more than once before the
+/// posted request runs; only the first request may be delivered.
+close_requested: bool = false,
 width: u32 = 800,
 height: u32 = 600,
 cursor_pos: apprt.CursorPos = .{ .x = 0, .y = 0 },

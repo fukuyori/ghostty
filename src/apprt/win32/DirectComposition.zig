@@ -226,6 +226,13 @@ pub fn presentTarget(
     try self.present(sync_interval);
 }
 
+/// Whether the D3D11 device reports removal, reset, or a driver fault. Frame
+/// preparation failures reach the renderer as generic buffer and texture
+/// errors, so the renderer asks the device directly after a failed frame.
+pub fn deviceLost(self: *const Self) bool {
+    return isDeviceLostHresult(self.device.GetDeviceRemovedReason());
+}
+
 /// Submit the current back buffer to DirectComposition.
 pub fn present(self: *Self, sync_interval: u32) Error!void {
     const result = self.swap_chain.IDXGISwapChain.Present(sync_interval, 0);

@@ -156,6 +156,11 @@ pub fn SplitTree(comptime View: type) type {
             parent_slot.* = sibling;
             alloc.destroy(leaf_node);
             alloc.destroy(parent_node);
+
+            // Zoom only has meaning while a split remains. Removing the last
+            // sibling of a zoomed leaf leaves a single view whose zoom could
+            // never be toggled off, so clear the state here.
+            if (self.root.* == .leaf) self.zoomed = null;
             return firstLeaf(sibling);
         }
 
@@ -1304,4 +1309,26 @@ test "Win32 split removal clears zoom only for the removed leaf" {
     try testing.expect(tree.isZoomed());
     _ = try tree.remove(testing.allocator, &first);
     try testing.expect(!tree.isZoomed());
+}
+
+test "Win32 split removal clears zoom when the last sibling is removed" {
+    const testing = std.testing;
+    const View = struct { id: u8 };
+    const Tree = SplitTree(View);
+
+    var first: View = .{ .id = 1 };
+    var second: View = .{ .id = 2 };
+    var tree = try Tree.init(testing.allocator, &first);
+    defer tree.deinit(testing.allocator);
+    try tree.split(testing.allocator, &first, &second, .horizontal, true);
+
+    try testing.expect(tree.toggleZoom(&first));
+    try testing.expect(tree.isZoomed());
+
+    // Closing the sibling of the zoomed leaf leaves a single view. The zoom
+    // state must not survive because a leaf root can never toggle it off.
+    const focus = try tree.remove(testing.allocator, &second);
+    try testing.expectEqual(&first, focus);
+    try testing.expect(!tree.isZoomed());
+    try testing.expect(tree.root.* == .leaf);
 }

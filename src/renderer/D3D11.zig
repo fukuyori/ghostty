@@ -148,6 +148,15 @@ pub fn gpuResourcesReleased(self: *D3D11) void {
     self.last_target = null;
 }
 
+/// Whether the device behind the current presenter has been lost. Called by
+/// the generic renderer after any failed frame so that device loss detected
+/// before `Present` (buffer maps, texture uploads, target creation) still
+/// schedules recovery.
+pub fn deviceLost(self: *const D3D11) bool {
+    const presenter = if (self.presenter) |*value| value else return false;
+    return presenter.deviceLost();
+}
+
 pub inline fn uniformBufferOptions(self: D3D11) bufferpkg.Options {
     const presenter = self.presenter.?;
     return .{

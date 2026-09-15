@@ -19,7 +19,13 @@ const Allocator = std.mem.Allocator;
 const log = std.log.scoped(.renderer_thread);
 
 const CURSOR_BLINK_INTERVAL = 600;
-const gpu_recovery_retry_delays_ms = [_]i64{ 100, 250 };
+
+/// Delays between GPU recovery attempts within one recovery cycle. A real
+/// device reset commonly takes seconds, so the schedule backs off far enough
+/// to give the driver time while the first retries stay quick for transient
+/// failures. The apprt decides whether to start another cycle after the last
+/// attempt fails.
+const gpu_recovery_retry_delays_ms = [_]u64{ 100, 250, 1000, 2000, 5000 };
 
 /// Whether calls to `drawFrame` must be done from the app thread.
 ///
@@ -64,6 +70,12 @@ draw_now_c: xev.Completion = .{},
 cursor_h: xev.Timer,
 cursor_c: xev.Completion = .{},
 cursor_c_cancel: xev.Completion = .{},
+
+/// Timer that spaces GPU recovery attempts without blocking the thread, so
+/// resize, focus, and config messages keep flowing between attempts.
+recovery_h: xev.Timer,
+recovery_c: xev.Completion = .{},
+recovery_attempt: usize = 0,
 
 /// Incremental scrollback compression scheduling.
 compression: Compression = undefined,
@@ -150,6 +162,10 @@ pub fn init(
     var cursor_timer = try xev.Timer.init();
     errdefer cursor_timer.deinit();
 
+    // Timer for spacing GPU recovery attempts.
+    var recovery_timer = try xev.Timer.init();
+    errdefer recovery_timer.deinit();
+
     // The mailbox for messaging this thread
     var mailbox = try Mailbox.create(alloc);
     errdefer mailbox.destroy(alloc);
@@ -163,6 +179,7 @@ pub fn init(
         .render_h = render_h,
         .draw_now = draw_now,
         .cursor_h = cursor_timer,
+        .recovery_h = recovery_timer,
         .surface = surface,
         .renderer = renderer_impl,
         .state = state,
@@ -187,6 +204,7 @@ pub fn deinit(self: *Thread) void {
     self.render_h.deinit();
     self.draw_now.deinit();
     self.cursor_h.deinit();
+    self.recovery_h.deinit();
     if (comptime terminalpkg.compression_enabled)
         self.compression.deinit();
     self.loop.deinit();
@@ -310,9 +328,7 @@ fn drainMailbox(self: *Thread) !void {
         switch (message) {
             .crash => @panic("crash request, crashing intentionally"),
 
-            .recover_gpu => {
-                self.recoverGpuResources();
-            },
+            .recover_gpu => self.startGpuRecovery(),
 
             .visible => |v| visible: {
                 // If our state didn't change we do nothing.
@@ -452,41 +468,78 @@ fn drainMailbox(self: *Thread) !void {
     }
 }
 
-fn recoverGpuResources(self: *Thread) void {
-    var attempt: usize = 1;
-    while (true) : (attempt += 1) {
-        self.renderer.recoverGpuResources() catch |err| {
-            if (err == error.DeviceRecoveryUnsupported or
-                attempt > gpu_recovery_retry_delays_ms.len)
-            {
-                log.err(
-                    "failed to recover renderer GPU resources attempts={d} err={}",
-                    .{ attempt, err },
-                );
-                return;
-            }
-
-            const delay_ms = gpu_recovery_retry_delays_ms[attempt - 1];
-            log.warn(
-                "renderer GPU recovery attempt failed attempt={d}/{d} err={} retry_delay_ms={d}",
-                .{ attempt, gpu_recovery_retry_delays_ms.len + 1, err, delay_ms },
-            );
-            std.Io.sleep(
-                global.io(),
-                .fromMilliseconds(delay_ms),
-                .awake,
-            ) catch |sleep_err| {
-                log.err("renderer GPU recovery retry wait failed err={}", .{sleep_err});
-                return;
-            };
-            continue;
-        };
-
-        if (attempt > 1) {
-            log.info("renderer GPU resources recovered after attempt={d}", .{attempt});
-        }
+/// Begin a GPU recovery cycle. Requests that arrive while a retry is
+/// already scheduled are coalesced: the device is rebuilt once per cycle,
+/// not once per request.
+fn startGpuRecovery(self: *Thread) void {
+    if (self.recovery_c.state() == .active) {
+        log.info("renderer GPU recovery already scheduled; coalescing request", .{});
         return;
     }
+    self.recovery_attempt = 0;
+    self.attemptGpuRecovery();
+}
+
+/// Run one recovery attempt. Failures schedule the next attempt on the
+/// recovery timer; the last failure of a cycle is reported to the surface so
+/// the apprt can decide whether to start another cycle later.
+fn attemptGpuRecovery(self: *Thread) void {
+    self.recovery_attempt += 1;
+    const attempt = self.recovery_attempt;
+    const max_attempts = gpu_recovery_retry_delays_ms.len + 1;
+
+    self.renderer.recoverGpuResources() catch |err| {
+        if (err == error.DeviceRecoveryUnsupported or attempt >= max_attempts) {
+            log.err(
+                "failed to recover renderer GPU resources attempts={d} err={}",
+                .{ attempt, err },
+            );
+            self.renderer.reportGpuRecoveryFailure();
+            return;
+        }
+
+        const delay_ms = gpu_recovery_retry_delays_ms[attempt - 1];
+        log.warn(
+            "renderer GPU recovery attempt failed attempt={d}/{d} err={} retry_delay_ms={d}",
+            .{ attempt, max_attempts, err, delay_ms },
+        );
+        self.recovery_h.run(
+            &self.loop,
+            &self.recovery_c,
+            delay_ms,
+            Thread,
+            self,
+            recoveryTimerCallback,
+        );
+        return;
+    };
+
+    if (attempt > 1) {
+        log.info("renderer GPU resources recovered after attempt={d}", .{attempt});
+    }
+}
+
+fn recoveryTimerCallback(
+    self_: ?*Thread,
+    _: *xev.Loop,
+    _: *xev.Completion,
+    r: xev.Timer.RunError!void,
+) xev.CallbackAction {
+    _ = r catch |err| switch (err) {
+        error.Canceled => return .disarm,
+        else => {
+            log.warn("error in GPU recovery timer callback err={}", .{err});
+            return .disarm;
+        },
+    };
+
+    const t: *Thread = self_ orelse {
+        log.warn("GPU recovery callback fired without data set", .{});
+        return .disarm;
+    };
+
+    t.attemptGpuRecovery();
+    return .disarm;
 }
 
 fn changeConfig(self: *Thread, config: *const DerivedConfig) !void {
