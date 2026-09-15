@@ -658,6 +658,20 @@ Recent verification:
   failure, controlled power resume for a single surface and all 3 surfaces,
   4-monitor movement, multiple windows, and clean exit. Exit code 0, no
   forced termination, no leftover temporary files.
+- 2026-09-15: Fixed keyboard focus not following a click into another split
+  pane. Surfaces are `WS_CHILD` windows, which never take focus on their own,
+  and `handleMouseButton` passed the event to the core without calling
+  `SetFocus`. With a single pane the top-level `WM_SETFOCUS` handler always
+  routed focus to the only surface, so the omission stayed hidden; after a
+  split, the pane the split did not focus ignored every keystroke and looked
+  unresponsive, while `goto_split` still worked. A press now focuses the
+  surface under the cursor, and the existing `WM_SETFOCUS` handler updates the
+  active tab and focused surface from there. Verified by measuring the focused
+  window with `GetGUIThreadInfo`: before the fix a click on the other pane left
+  focus on the split pane and typed text ran there; after it, focus and the
+  typed command follow the click. Added a regression phase that clicks each
+  pane in turn and requires focus to follow; it passed 3 consecutive runs and
+  fails against the released 1.3.2-windows.2 build.
 - 2026-09-15: Fixed `'xterm-ghostty': unknown terminal type.` reported by
   programs that read a terminfo database. Ghostty sets `TERM=xterm-ghostty`
   and points `TERMINFO` at the install tree, but the build skipped compiling

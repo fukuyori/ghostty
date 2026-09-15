@@ -262,8 +262,9 @@ sends Enter and Backspace the way Windows reports them while an IME is
 composing and confirms that neither reaches the shell. Using a
 temporary configuration inside the repository, it also confirms that a
 configuration reload switches the tab bar to shown, hidden, and shown again.
-It then creates a test right split and confirms that the tab bar and split
-divider track each monitor, maximize, and restore. Finally, it creates a second
+It then creates a test right split, confirms that clicking each pane moves
+keyboard focus to it, and confirms that the tab bar and split divider track
+each monitor, maximize, and restore. Finally, it creates a second
 top-level window and checks configuration reload synchronization to both
 windows, focus movement and cycling, and hiding and restoring all windows at
 once. It also checks that the original window remains after closing one

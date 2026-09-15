@@ -78,6 +78,11 @@ upgrade behavior of the installer itself are not verified.
 
 ### Known Issues
 
+- After a split, clicking the pane that the split did not focus does not move
+  keyboard focus to it, so that pane looks unresponsive and typing keeps going
+  to the other one. Child windows never take focus on their own and the mouse
+  handler did not set it. Moving between panes with `goto_split` works. Fixed
+  in the next version.
 - Programs that read a terminfo database report
   `'xterm-ghostty': unknown terminal type.` The Windows build ships only the
   terminfo source, not a compiled database, while still setting

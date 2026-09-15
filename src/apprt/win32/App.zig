@@ -4149,6 +4149,13 @@ fn handleMouseButton(
     updateCursorPosition(surface, mousePoint(lparam), mods, true);
 
     if (event.state == .press) {
+        // Child windows never take keyboard focus on their own. Without this,
+        // clicking an unfocused split leaves typing in the previously focused
+        // pane, which makes the clicked pane look unresponsive. The surface
+        // WM_SETFOCUS handler updates the window's active tab and focused
+        // surface, so the tab bar follows along.
+        if (win32.GetFocus() != hwnd) _ = win32.SetFocus(hwnd);
+
         if (surface.mouse_buttons_down == 0) _ = win32.SetCapture(hwnd);
         surface.mouse_buttons_down |= event.bit;
     } else {

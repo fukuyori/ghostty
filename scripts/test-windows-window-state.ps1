@@ -278,6 +278,24 @@ public static class GhosttyWindowStateNative
         return results.ToArray();
     }
 
+    // The focused child itself, which is where real keystrokes go. This is
+    // only non-zero while the owning thread holds keyboard focus, so callers
+    // bring the window to the foreground first.
+    public static IntPtr GetFocusedWindow(IntPtr hWnd)
+    {
+        uint processId;
+        uint threadId = GetWindowThreadProcessId(hWnd, out processId);
+        GUITHREADINFO info = new GUITHREADINFO();
+        info.cbSize = Marshal.SizeOf(typeof(GUITHREADINFO));
+        if (threadId == 0 || !GetGUIThreadInfo(threadId, ref info))
+            return IntPtr.Zero;
+        return info.hwndFocus;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+
     public static IntPtr GetFocusedRootWindow(IntPtr hWnd)
     {
         uint processId;
@@ -390,6 +408,8 @@ $vkReturn = 0x0D
 # the physical scan code, which is what makes those messages dangerous to
 # dispatch.
 $vkProcessKey = 0xE5
+$wmLButtonDown = 0x0201
+$wmLButtonUp = 0x0202
 $scanReturn = 0x1C
 $scanBackspace = 0x0E
 $gwlStyle = -16
@@ -656,6 +676,36 @@ function Test-MarkerContent {
         return [bool]([System.IO.File]::ReadAllText($Path).Trim() -eq $Expected)
     } catch [System.IO.IOException] {
         return $false
+    }
+}
+
+function Send-TestClick {
+    param(
+        [Parameter(Mandatory = $true)]
+        [IntPtr]$Handle,
+        [Parameter(Mandatory = $true)]
+        [string]$Description
+    )
+
+    $rect = [GhosttyWindowStateNative+RECT]::new()
+    if (-not [GhosttyWindowStateNative]::GetClientRect($Handle, [ref]$rect)) {
+        throw "GetClientRect failed for the $Description click target."
+    }
+    $x = [int](($rect.Right - $rect.Left) / 2)
+    $y = [int](($rect.Bottom - $rect.Top) / 2)
+    $lparam = [IntPtr]::new(($y -shl 16) -bor $x)
+    if (-not [GhosttyWindowStateNative]::PostMessageW(
+            $Handle,
+            $wmLButtonDown,
+            [UIntPtr]::new(1),
+            $lparam
+        ) -or -not [GhosttyWindowStateNative]::PostMessageW(
+            $Handle,
+            $wmLButtonUp,
+            [UIntPtr]::Zero,
+            $lparam
+        )) {
+        throw "Failed to click the $Description."
     }
 }
 
@@ -1444,6 +1494,31 @@ try {
         -TabBarHandle $tabBarHandle `
         -DividerHandle $dividerHandle
 
+    # Clicking a pane must move keyboard focus to it. Child windows never take
+    # focus on their own, so without that the pane that was not focused by the
+    # split looks unresponsive: typing keeps going to the other one.
+    $panes = @(Get-ChildWindowHandles -ParentHandle $windowHandle)
+    if ($panes.Count -ne 2) {
+        throw "Expected two terminal surfaces after the split; found $($panes.Count)."
+    }
+    $splitPane = @($panes | Where-Object { $_ -ne $surfaceHandle })[0]
+    $null = [GhosttyWindowStateNative]::SetForegroundWindow($windowHandle)
+    foreach ($target in @(
+        @{ Handle = $surfaceHandle; Name = "original pane" },
+        @{ Handle = $splitPane; Name = "split pane" },
+        @{ Handle = $surfaceHandle; Name = "original pane again" }
+    )) {
+        Send-TestClick -Handle $target.Handle -Description $target.Name
+        Wait-ForCondition -Description "keyboard focus on the $($target.Name)" -Condition {
+            [GhosttyWindowStateNative]::GetFocusedWindow($windowHandle) -eq $target.Handle
+        }
+    }
+    $splitFocus = [pscustomobject]@{
+        PaneCount = $panes.Count
+        ClickMovesFocus = $true
+    }
+    Write-Verbose "Validated that clicking a pane moves keyboard focus."
+
     $monitorLayouts = @()
     foreach ($screen in @([System.Windows.Forms.Screen]::AllScreens)) {
         Write-Verbose "Moving test window to $($screen.DeviceName)."
@@ -1799,6 +1874,7 @@ try {
         TerminalInput = $terminalInput
         ImeProcessKeys = $imeProcessKeys
         InitialGrid = $initialGrid
+        SplitFocus = $splitFocus
         GpuRecovery = $gpuRecovery
         PowerResume = $powerResume
         ConfigReload = $configReload
