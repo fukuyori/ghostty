@@ -239,11 +239,38 @@ pub fn threadExit(self: *Exec, td: *termio.Termio.ThreadData) void {
     signalReadThread(exec.read_thread_pipe);
 
     if (comptime builtin.os.tag == .windows) {
-        // Interrupt the blocking read so the thread can see the quit message
-        if (windows.exp.kernel32.CancelIoEx(exec.read_thread_fd, null) == windows.FALSE) {
-            switch (windows.GetLastError()) {
-                .NOT_FOUND => {},
-                else => |err| log.warn("error interrupting read thread err={}", .{err}),
+        const read_thread_handle = exec.read_thread.getHandle();
+        while (true) {
+            // The PTY reader uses a synchronous ReadFile on a dedicated
+            // thread. Cancellation can race with the short interval between
+            // reads, so repeat it until the reader observes the quit pipe.
+            if (windows.exp.kernel32.CancelSynchronousIo(read_thread_handle) == windows.FALSE) {
+                switch (windows.GetLastError()) {
+                    .NOT_FOUND => {},
+                    else => |err| log.warn("error interrupting synchronous read thread err={}", .{err}),
+                }
+            }
+
+            // Also cancel any handle-level operation in case the PTY backend
+            // changes to overlapped I/O in the future.
+            if (windows.exp.kernel32.CancelIoEx(exec.read_thread_fd, null) == windows.FALSE) {
+                switch (windows.GetLastError()) {
+                    .NOT_FOUND => {},
+                    else => |err| log.warn("error interrupting read thread err={}", .{err}),
+                }
+            }
+
+            switch (windows.exp.kernel32.WaitForSingleObject(read_thread_handle, 10)) {
+                windows.WAIT_OBJECT_0 => break,
+                windows.WAIT_TIMEOUT => continue,
+                windows.WAIT_FAILED => {
+                    log.warn("error waiting for read thread err={}", .{windows.GetLastError()});
+                    break;
+                },
+                else => |result| {
+                    log.warn("unexpected read thread wait result={d}", .{result});
+                    break;
+                },
             }
         }
     }

@@ -4131,7 +4131,9 @@ fn wndProc(
             if (getSurface(hwnd)) |surface| {
                 if (hwnd == surface.windowHwnd()) {
                     const app = surface.rtApp();
-                    if (app.windowForHwnd(hwnd)) |window| app.layoutWindow(window);
+                    if (app.windowForHwnd(hwnd)) |window| {
+                        app.layoutWindow(window);
+                    }
                 }
             }
             return 0;
@@ -4139,7 +4141,8 @@ fn wndProc(
         win32.WM_DPICHANGED => {
             if (getSurface(hwnd)) |surface| {
                 if (hwnd == surface.windowHwnd()) {
-                    if (surface.rtApp().windowForHwnd(hwnd)) |window| {
+                    const app = surface.rtApp();
+                    if (app.windowForHwnd(hwnd)) |window| {
                         var surfaces = window.surfaceIterator();
                         while (surfaces.next()) |candidate| {
                             if (candidate == surface) continue;
@@ -4149,8 +4152,10 @@ fn wndProc(
                                 };
                             }
                         }
+                        handleDpiChanged(surface, hwnd, wparam, lparam);
+                        app.layoutWindow(window);
+                        return 0;
                     }
-                    handleDpiChanged(surface, hwnd, wparam, lparam);
                 }
             }
             return 0;

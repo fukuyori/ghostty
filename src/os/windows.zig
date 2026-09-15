@@ -107,6 +107,8 @@ pub const PROC_THREAD_ATTRIBUTE_THREAD = 0x00010000;
 pub const S_OK = 0;
 pub const SYNCHRONIZE = 0x00100000;
 pub const VOLUME_NAME_DOS = 0x0;
+pub const WAIT_OBJECT_0 = 0;
+pub const WAIT_TIMEOUT = 258;
 pub const WAIT_FAILED = 0xFFFFFFFF;
 
 /// IOCTL that fills the output buffer with bytes from the kernel CSPRNG
@@ -259,6 +261,9 @@ pub const exp = struct {
         pub extern "kernel32" fn CancelIoEx(
             hFile: HANDLE,
             lpOverlapped: ?*OVERLAPPED,
+        ) callconv(.winapi) BOOL;
+        pub extern "kernel32" fn CancelSynchronousIo(
+            hThread: HANDLE,
         ) callconv(.winapi) BOOL;
         pub extern "kernel32" fn ReadFile(
             hFile: HANDLE,
