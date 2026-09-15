@@ -80,7 +80,9 @@ work in this document at the same time.
 
 Overall progress is estimated at approximately 98%. On 2026-09-15 the first
 preview build `1.3.2-windows.1` (tag `v1.3.2-windows.1`) was finalized after
-passing Release verification. What remains is the per-environment GUI
+passing Release verification, and `1.3.2-windows.2` (tag
+`v1.3.2-windows.2`) followed as a bug-fix preview that resolves every known
+issue of the first one. What remains is the per-environment GUI
 verification in Phase 5, and the real-hardware tests and distribution format
 decision in Phase 6. Release history is recorded in
 `docs/windows-release-notes.md`.
@@ -401,7 +403,7 @@ Completion criteria:
 
 ### Phase 6: Release Quality
 
-Status: **Partially done (approx. 98%, preview build `1.3.2-windows.1` published)**
+Status: **Partially done (approx. 98%, preview build `1.3.2-windows.2` published)**
 
 Implemented:
 
@@ -477,7 +479,9 @@ Implemented:
 - Layout-independent key input handling that determines the physical key
   from the scan code and the core's key code table and obtains the
   unmodified character of the current layout with `ToUnicodeEx`. Only
-  messages without a scan code fall back to the virtual key table
+  messages without a scan code fall back to the virtual key table.
+  Keyboard messages carrying `VK_PROCESSKEY` are handed to the IME instead
+  of the terminal, so keys consumed while composing do not reach the shell
 - Handling that restricts test hooks (`GHOSTTY_TEST_DEVICE_RECOVERY`,
   `WM_USER+3/+4`, controlled failure injection) to builds with
   `-Dwin32-test-hooks=true`, with regression scripts querying hook
@@ -651,6 +655,41 @@ Recent verification:
   failure, controlled power resume for a single surface and all 3 surfaces,
   4-monitor movement, multiple windows, and clean exit. Exit code 0, no
   forced termination, no leftover temporary files.
+- 2026-09-15: Finalized the preview build `1.3.2-windows.2` as a bug-fix
+  release for `1.3.2-windows.1`. Built two ReleaseFast, baseline CPU binaries
+  with `-Dversion-string=1.3.2-windows.2`, one for distribution and one with
+  `-TestHooks`, and confirmed `FileVersion` `1.3.2-windows.2`, numeric version
+  `1.3.2.2`, and `IsDebug` False. The distribution build passed the full
+  window-state regression including the new IME and startup grid phases, and
+  `--version` and `+list-keybinds --default` returned exit code 0. The
+  test-hook build passed the same regression plus 2 controlled GPU recovery
+  failures and power resume across 3 surfaces, and a 20-iteration soak run
+  with GPU recreation and controlled power resume completed 20 of 20 in 110.7
+  seconds with no failures and no leftover temporary files. The Win32, D3D11,
+  and build helper unit tests passed. While running the soak, a pre-existing
+  race in the regression script surfaced: the marker files are read while
+  cmd.exe still holds them open, which raised a sharing violation. The marker
+  waits now share a helper that treats that as "not ready yet".
+- 2026-09-15: Fixed a bug where keys consumed by an IME also reached the
+  terminal, so that during Japanese composition Enter inserted a newline and
+  Backspace deleted already committed characters. Windows substitutes
+  `VK_PROCESSKEY` for the virtual key of every keystroke an active IME
+  consumes while leaving the physical scan code intact; because keys are
+  resolved from the scan code, those messages produced real `.enter` and
+  `.backspace` presses, and `shouldDispatchKeyPress` did not stop them
+  because `VK_PROCESSKEY` is not a text virtual key. Printable keys produced
+  no output because the apprt does not set `utf8`, so only control keys
+  (Enter, Backspace, Tab, arrows, Escape) were visible. This was a
+  regression from the scan code change in `eab11dfd5`: before it,
+  `mapVirtualKey` returned `.unidentified` for `VK_PROCESSKEY` and the
+  message was dropped. `WM_KEYDOWN`/`WM_KEYUP` now reject `VK_PROCESSKEY`
+  and pass it to `DefWindowProc`. Verified by posting `VK_PROCESSKEY` with
+  the real scan codes to a dedicated process: before the fix the Enter ran
+  the pending command line and the Backspace turned `AB` into `A`; after the
+  fix neither reaches the shell. Added a unit test and a regression phase
+  that types a command, sends composition Enter and Backspace, and requires
+  the shell output to be unchanged. The Release 1.3.2-windows.1 build fails
+  that phase, and the fixed build passed it on 3 consecutive runs.
 - 2026-09-15: Fixed a bug where the terminal grid and ConPTY remained at the
   default 800x600 equivalent right after startup. When `window-width` and
   `window-height` are set, the resize via `initial_size` during core
@@ -831,6 +870,7 @@ the code exists.
 | Startup | Debug build startup | Verified |
 | Startup | Release build startup | PE, resources, CLI, and a dedicated GUI process verified |
 | Release | `1.3.2-windows.1` | Regression, 20-iteration soak, and CLI verified with the distribution and regression Release builds. Signing at distribution time |
+| Release | `1.3.2-windows.2` | Bug-fix preview. Regression including the IME and startup grid phases, 20-iteration soak, and CLI verified with the distribution and regression Release builds |
 | Distribution | Inno Setup installer | Creation and signing path verified, installation behavior not verified |
 | Version info | CLI version display | Verified with the Release build |
 | Version info | Windows file properties | String version, numeric version, and Debug flag verified for Debug and Release |
