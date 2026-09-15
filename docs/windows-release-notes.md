@@ -1,6 +1,8 @@
 # Ghostty for Windows Release Notes
 
 This is the release history of the Windows previews. See the
+[Changelog](windows-changelog.md) for the full list of changes between
+versions with their commits, the
 [Version Update Checklist](version-update-checklist.md) for the version
 numbering rules, the [User Guide](windows.md) for configuration and known
 limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
@@ -32,6 +34,8 @@ and power resume with the regression script, use a separate build with
 `-TestHooks`. Do not include it in the distribution.
 
 ### Changes Since 1.3.2-windows.1
+
+The [changelog](windows-changelog.md) lists these with their commits.
 
 - Keys consumed by an IME no longer reach the terminal. During Japanese
   composition, Enter no longer inserts a newline around the committed text and
@@ -71,6 +75,16 @@ The six manual Windows shell acceptance items carry over the results that
 passed on 2026-09-15 with the icon-fix build; this version changes nothing
 related to Alt+Tab, the taskbar, or Snap. Installation, uninstallation, and
 upgrade behavior of the installer itself are not verified.
+
+### Known Issues
+
+- Programs that read a terminfo database report
+  `'xterm-ghostty': unknown terminal type.` The Windows build ships only the
+  terminfo source, not a compiled database, while still setting
+  `TERM=xterm-ghostty`. Native Windows console programs are unaffected; MSYS2,
+  Git Bash, Cygwin, WSL, and remote hosts are. Compiling the entry once with
+  `tic -x -o ~/.terminfo <source>` works around it. The next version ships the
+  compiled database and documents the remaining cases.
 
 ### Known Limitations
 

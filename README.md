@@ -15,6 +15,8 @@
     ·
     <a href="docs/windows-release-notes.md">Release Notes</a>
     ·
+    <a href="docs/windows-changelog.md">Changelog</a>
+    ·
     <a href="docs/windows-roadmap.md">Roadmap</a>
     ·
     <a href="#upstream-ghostty">Original Ghostty</a>
@@ -57,7 +59,8 @@ Portable release build:
 ```
 
 See the [Windows release notes](docs/windows-release-notes.md) for preview
-versions, contents, and verification results. To reproduce a specific preview,
+versions, contents, and verification results, and the
+[changelog](docs/windows-changelog.md) for what changed between them. To reproduce a specific preview,
 replace `<version>` below with the version listed in the release notes
 (without the tag's `v` prefix):
 
