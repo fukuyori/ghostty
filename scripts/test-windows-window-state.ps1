@@ -64,6 +64,10 @@ $sessionName = "window-state-{0}-{1}" -f `
     ([System.Guid]::NewGuid().ToString("N").Substring(0, 8))
 $stdoutPath = Join-Path $logDirectory "$sessionName.stdout.log"
 $stderrPath = Join-Path $logDirectory "$sessionName.stderr.log"
+$testStateRoot = Join-Path $repositoryRoot "zig-out\test-state"
+$sessionDirectory = Join-Path $testStateRoot $sessionName
+$configPath = Join-Path $sessionDirectory "config.ghostty"
+$inputMarkerPath = Join-Path $sessionDirectory "terminal-input.txt"
 
 if (-not ("GhosttyWindowStateNative" -as [type])) {
     Add-Type -TypeDefinition @"
@@ -237,7 +241,10 @@ $swRestore = 9
 $wmClose = 0x0010
 $wmKeyDown = 0x0100
 $wmKeyUp = 0x0101
+$wmChar = 0x0102
 $vkF5 = 0x74
+$vkF6 = 0x75
+$vkReturn = 0x0D
 $gwlStyle = -16
 $gwlExStyle = -20
 $gwOwner = 4
@@ -271,6 +278,73 @@ function Wait-ForCondition {
     }
 
     throw "Timed out waiting for $Description."
+}
+
+function Set-TestConfig {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+        [Parameter(Mandatory)]
+        [ValidateSet("always", "never")]
+        [string]$TabBarMode
+    )
+
+    $lines = @(
+        "window-show-tab-bar = $TabBarMode"
+        "command = direct:cmd.exe /D /Q"
+    )
+    $content = ($lines -join [System.Environment]::NewLine) + `
+        [System.Environment]::NewLine
+    [System.IO.File]::WriteAllText(
+        $Path,
+        $content,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+
+function Send-TestText {
+    param(
+        [Parameter(Mandatory)]
+        [IntPtr]$Handle,
+        [Parameter(Mandatory)]
+        [string]$Text
+    )
+
+    foreach ($unit in $Text.ToCharArray()) {
+        if (-not [GhosttyWindowStateNative]::PostMessageW(
+            $Handle,
+            $wmChar,
+            [UIntPtr]::new([uint16]$unit),
+            [IntPtr]::Zero
+        )) {
+            throw "Failed to send terminal text to Ghostty."
+        }
+    }
+}
+
+function Send-TestKey {
+    param(
+        [Parameter(Mandatory)]
+        [IntPtr]$Handle,
+        [Parameter(Mandatory)]
+        [uint32]$VirtualKey,
+        [Parameter(Mandatory)]
+        [string]$Description
+    )
+
+    if (-not [GhosttyWindowStateNative]::PostMessageW(
+        $Handle,
+        $wmKeyDown,
+        [UIntPtr]::new($VirtualKey),
+        [IntPtr]::Zero
+    ) -or -not [GhosttyWindowStateNative]::PostMessageW(
+        $Handle,
+        $wmKeyUp,
+        [UIntPtr]::new($VirtualKey),
+        [IntPtr]::Zero
+    )) {
+        throw "Failed to send the $Description key to Ghostty."
+    }
 }
 
 function Wait-ForMainWindow {
@@ -614,14 +688,19 @@ $completed = $false
 $forcedTermination = $false
 
 try {
+    [System.IO.Directory]::CreateDirectory($sessionDirectory) | Out-Null
+    Set-TestConfig `
+        -Path $configPath `
+        -TabBarMode "always"
     $arguments = @(
         "--maximize=false"
         "--fullscreen=false"
         "--confirm-close-surface=false"
         "--quit-after-last-window-closed=true"
         "--title=Ghostty-window-state-test"
-        "--window-show-tab-bar=always"
+        "--config-file=`"$configPath`""
         "--keybind=f5=new_split:right"
+        "--keybind=f6=reload_config"
     )
     $previousGhosttyLog = [System.Environment]::GetEnvironmentVariable(
         "GHOSTTY_LOG",
@@ -678,19 +757,62 @@ try {
     if ($surfaceHandle -eq [IntPtr]::Zero) {
         throw "Ghostty surface child window was not found."
     }
-    if (-not [GhosttyWindowStateNative]::PostMessageW(
-        $surfaceHandle,
-        $wmKeyDown,
-        [UIntPtr]::new($vkF5),
-        [IntPtr]::Zero
-    ) -or -not [GhosttyWindowStateNative]::PostMessageW(
-        $surfaceHandle,
-        $wmKeyUp,
-        [UIntPtr]::new($vkF5),
-        [IntPtr]::Zero
-    )) {
-        throw "Failed to send the split test key to Ghostty."
+
+    $markerValue = "ghostty-terminal-input"
+    $markerCommand = "echo $markerValue>`"$inputMarkerPath`""
+    Send-TestText -Handle $surfaceHandle -Text $markerCommand
+    Send-TestKey `
+        -Handle $surfaceHandle `
+        -VirtualKey $vkReturn `
+        -Description "terminal Enter"
+    Wait-ForCondition -Description "terminal input marker creation" -Condition {
+        if (-not [System.IO.File]::Exists($inputMarkerPath)) {
+            return $false
+        }
+        [System.IO.File]::ReadAllText($inputMarkerPath).Trim() -eq $markerValue
     }
+    $terminalInput = [pscustomobject]@{
+        TextDelivered = $true
+        EnterDelivered = $true
+        CommandExecuted = $true
+    }
+    Write-Verbose "Validated terminal text input and command execution."
+
+    Set-TestConfig `
+        -Path $configPath `
+        -TabBarMode "never"
+    Send-TestKey `
+        -Handle $surfaceHandle `
+        -VirtualKey $vkF6 `
+        -Description "config reload"
+    Wait-ForCondition -Description "the tab bar to hide after config reload" -Condition {
+        -not [GhosttyWindowStateNative]::IsWindowVisible($tabBarHandle)
+    }
+
+    Set-TestConfig `
+        -Path $configPath `
+        -TabBarMode "always"
+    Send-TestKey `
+        -Handle $surfaceHandle `
+        -VirtualKey $vkF6 `
+        -Description "config reload"
+    Wait-ForCondition -Description "the tab bar to return after config reload" -Condition {
+        [GhosttyWindowStateNative]::IsWindowVisible($tabBarHandle)
+    }
+    $reloadedTabBar = Wait-ForTabBarLayout `
+        -ParentHandle $windowHandle `
+        -TabBarHandle $tabBarHandle
+    $configReload = [pscustomobject]@{
+        Hidden = $true
+        Restored = $true
+        RestoredLayout = $reloadedTabBar
+    }
+    Write-Verbose "Validated config reload with tab bar hide and restore."
+
+    Send-TestKey `
+        -Handle $surfaceHandle `
+        -VirtualKey $vkF5 `
+        -Description "split test"
     $dividerHandle = Wait-ForProcessWindow `
         -ProcessId $process.Id `
         -ClassName "GhosttySplitDivider"
@@ -837,6 +959,8 @@ try {
         TabBarHandle = $tabBarHandle
         DividerHandle = $dividerHandle
         ShellEligibility = $shellEligibility
+        TerminalInput = $terminalInput
+        ConfigReload = $configReload
         InitialTabBar = $initialTabBar
         InitialDivider = $initialDivider
         MonitorLayouts = $monitorLayouts
@@ -873,4 +997,17 @@ try {
     $null = [GhosttyWindowStateNative]::SetThreadDpiAwarenessContext(
         $previousDpiAwareness
     )
+    if ($null -eq $process -or $process.HasExited) {
+        if ([System.IO.File]::Exists($inputMarkerPath)) {
+            [System.IO.File]::Delete($inputMarkerPath)
+        }
+        if ([System.IO.File]::Exists($configPath)) {
+            [System.IO.File]::Delete($configPath)
+        }
+        if ([System.IO.Directory]::Exists($sessionDirectory)) {
+            [System.IO.Directory]::Delete($sessionDirectory, $false)
+        }
+    } elseif ($KeepOpenOnFailure) {
+        Write-Warning "Keeping test config for the open process: $configPath"
+    }
 }
