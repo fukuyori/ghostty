@@ -403,7 +403,7 @@ Completion criteria:
 
 ### Phase 6: Release Quality
 
-Status: **Partially done (approx. 98%, preview build `1.3.2-windows.2` published)**
+Status: **Partially done (approx. 98%, preview build `1.3.2-windows.3` published)**
 
 Implemented:
 
@@ -658,6 +658,18 @@ Recent verification:
   failure, controlled power resume for a single surface and all 3 surfaces,
   4-monitor movement, multiple windows, and clean exit. Exit code 0, no
   forced termination, no leftover temporary files.
+- 2026-09-16: Released the preview build `1.3.2-windows.3`. Built the
+  distribution and `-TestHooks` ReleaseFast binaries with
+  `-Dversion-string=1.3.2-windows.3` and confirmed `FileVersion`
+  `1.3.2-windows.3`, numeric version `1.3.2.3`, `IsDebug` False, and a
+  compiled terminfo database in both. The distribution build passed the full
+  window-state regression including the IME, split focus, and startup grid
+  phases, and `--version` and `+list-keybinds --default` returned exit code 0.
+  The test-hook build passed the same regression plus 2 controlled GPU
+  recovery failures and power resume across 3 surfaces, and a 20-iteration
+  soak run completed 20 of 20 in 115.0 seconds with no failures and no
+  leftover temporary files. The Win32, D3D11, and build helper unit tests
+  passed.
 - 2026-09-16: Investigated the reported imbalance between Latin and Japanese
   text and found the font size adjustment working as designed. Instrumented
   the fallback load path and measured, at `font-size = 12`: the primary face
@@ -889,40 +901,38 @@ Completion criteria:
 ## 7. Next Steps
 
 The automatable regression tests are all in place, and `1.3.2-windows.3` is
-prepared with the split focus, terminfo, and installer fixes. What remains is
+released with the split focus, terminfo, and installer fixes. What remains is
 verification that depends on real environments and real-hardware operation,
 the font handling questions raised during the 1.3.2-windows.3 cycle, and the
 distribution policy decision.
 
-1. Build, verify, and tag `1.3.2-windows.3`, filling in the verification
-   table in `docs/windows-release-notes.md` from the release build.
-2. Verify individual tab names, selection state, and state change
+1. Verify individual tab names, selection state, and state change
    notifications with Narrator or NVDA. The automated regression tests and
    MSAA API checks are complete; screen reader acceptance verification
    remains.
-3. Verify the split dividers, tab bar, and title bar in a high contrast
+2. Verify the split dividers, tab bar, and title bar in a high contrast
    environment.
-4. Automated regression verification of the tab bar and split dividers on
+3. Automated regression verification of the tab bar and split dividers on
    four monitors mixing 96 DPI and 120 DPI is complete. Perform the same
    verification on real hardware at 144 DPI and 192 DPI.
-5. Actually put the PC to sleep with
+4. Actually put the PC to sleep with
    `scripts/test-windows-shell.ps1 -CheckId power-resume` and record
    rendering and input after resume together with the automatic diagnostic
    log cross-check.
-6. Obtain soak results on the scale of several hours with
+5. Obtain soak results on the scale of several hours with
    `scripts/test-windows-soak.ps1 -DurationMinutes`. The 20-iteration
    baseline results are verified.
-7. Decide how far to take font handling: whether to warn when a configured
+6. Decide how far to take font handling: whether to warn when a configured
    `font-family` matches nothing (issue 1), and whether to replace the
    first-match fallback scan with DirectWrite's font fallback (issue 2). The
    size adjustment asymmetry (issue 3) is upstream behavior and is left as is
    for now.
-8. Decide on the handling of variable blur and on signing, and reflect the
+7. Decide on the handling of variable blur and on signing, and reflect the
    decisions in the user guide. The distribution format is settled: a
    portable release tree plus an Inno Setup installer.
 
-Items 2 to 6 require a real-hardware environment and operator time, so they
-are performed in the user's environment. Items 7 and 8 are policy decisions;
+Items 1 to 5 require a real-hardware environment and operator time, so they
+are performed in the user's environment. Items 6 and 7 are policy decisions;
 the documents and scripts are updated once they are made.
 
 ## 8. Verification Matrix
@@ -936,6 +946,7 @@ the code exists.
 | Startup | Release build startup | PE, resources, CLI, and a dedicated GUI process verified |
 | Release | `1.3.2-windows.1` | Regression, 20-iteration soak, and CLI verified with the distribution and regression Release builds. Signing at distribution time |
 | Release | `1.3.2-windows.2` | Bug-fix preview. Regression including the IME and startup grid phases, 20-iteration soak, and CLI verified with the distribution and regression Release builds |
+| Release | `1.3.2-windows.3` | Bug-fix preview. Regression including the split focus phase, 20-iteration soak, and CLI verified with both Release builds. Compiled terminfo shipped |
 | Fonts | Family matching and fallback | Measured: a configured family that matches nothing is replaced silently, and the automatic fallback takes the first file containing the codepoint. Tracked as issues 1, 2, and 3 |
 | Distribution | Inno Setup installer | Creation and signing path verified, installation behavior not verified |
 | Version info | CLI version display | Verified with the Release build |

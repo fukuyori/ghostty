@@ -9,8 +9,9 @@ known issues, and known limitations of each version; the
 
 ## 1.3.2-windows.3
 
-Not released yet. Range:
-[`v1.3.2-windows.2..windows`](https://github.com/fukuyori/ghostty/compare/v1.3.2-windows.2...windows).
+Released 2026-09-16. A bug-fix preview for `1.3.2-windows.2` that resolves
+every known issue of that version. Full range:
+[`v1.3.2-windows.2..v1.3.2-windows.3`](https://github.com/fukuyori/ghostty/compare/v1.3.2-windows.2...v1.3.2-windows.3).
 
 ### Fixed
 

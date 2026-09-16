@@ -9,8 +9,8 @@ limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 
 ## 1.3.2-windows.3
 
-- Release date: not released yet
-- Tag: `v1.3.2-windows.3` (not created yet)
+- Release date: 2026-09-16
+- Tag: `v1.3.2-windows.3`
 - Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
 - Status: preview. A bug-fix release for `1.3.2-windows.2`; it fixes every
   known issue listed for that version.
@@ -47,8 +47,22 @@ The [changelog](windows-changelog.md) lists these with their commits.
 
 ### Verification
 
-Not yet run. Fill this in from the release build before tagging, following
-`docs/version-update-checklist.md` section 5.
+Verified on 2026-09-16 on Windows 11 Pro (10.0.26200, four monitors: three at
+96 DPI and one at 120 DPI) against the ReleaseFast, baseline CPU executable.
+
+| Item | Result |
+|---|---|
+| Release build script checks (PE32+, x64, WindowsGui, version information, icon, resources, compiled terminfo) | Passed. `FileVersion` 1.3.2-windows.3, numeric version 1.3.2.3, `IsDebug` False, `TerminfoCompiled` True |
+| `--version`, `+list-keybinds --default` | Exit code 0 |
+| Window-state regression on the distribution build (terminal input, IME process keys, split pane click focus, startup grid, config reload, splits, 4 monitors, multiple windows, maximize/minimize/restore, clean exit) | All items passed, exit code 0, no forced termination |
+| The same regression plus GPU resource re-creation (2 controlled failures) and power resume (3 surfaces) on the test-hook build | All items passed |
+| 20-iteration soak test (including GPU re-creation and controlled power resume) | All 20 processes passed, 0 failures, 115.0 seconds elapsed, no leftover temporary files |
+| Unit tests for Win32, D3D11, and build helpers | Passed |
+
+The six manual Windows shell acceptance items carry over the results that
+passed on 2026-09-15 with the icon-fix build; this version changes nothing
+related to Alt+Tab, the taskbar, or Snap. Installation, uninstallation, and
+upgrade behavior of the installer itself are not verified.
 
 ### Known Limitations
 
