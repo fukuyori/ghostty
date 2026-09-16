@@ -675,7 +675,11 @@ Recent verification:
   (`mouse_event` normal) the press was consumed and no menu opened. The
   ReleaseFast build reports `1.3.2-windows.6`, numeric version 1.3.2.6, and
   `IsDebug` False, repeats both menu results, and the unit tests passed 3838
-  of 3900 with 62 skipped and 0 failures.
+  of 3900 with 62 skipped and 0 failures. The window-state regression passed
+  on the distribution build and on the test-hook build with 2 controlled GPU
+  recovery failures and power resume, and a 20-iteration soak run completed
+  20 of 20 in 131.4 seconds with no failures. The installer script and the
+  menu with a real mouse were confirmed on real hardware.
 - 2026-09-16: Found and fixed why splitting a pane emptied it, and prepared
   `1.3.2-windows.5`. On `1.3.2-windows.4`, a split followed by a click back
   into the original pane showed nothing but the cursor, while the in-box host

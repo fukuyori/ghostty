@@ -42,20 +42,22 @@ The [changelog](windows-changelog.md) lists these with their commits.
 
 ### Verification
 
-Verified on 2026-09-16 on Windows 11 Pro (10.0.26200) against the ReleaseFast,
-baseline CPU executable. The verification for this version is partial.
+Verified on 2026-09-16 on Windows 11 Pro (10.0.26200, four monitors) against
+the ReleaseFast, baseline CPU executable.
 
 | Item | Result |
 |---|---|
 | Release build script checks (PE32+, x64, WindowsGui, version information, icon, resources, compiled terminfo) | Passed. `FileVersion` and `ProductVersion` 1.3.2-windows.6, numeric version 1.3.2.6, `IsDebug` False, `bin\conpty.dll` and `bin\OpenConsole.exe` present |
 | `--version`, `+list-keybinds --default` | Exit code 0 |
+| Window-state regression on the distribution build (terminal input, IME process keys, split pane click focus, startup grid, config reload, splits, 4 monitors, multiple windows, maximize/minimize/restore, clean exit) | All items passed, exit code 0, no forced termination |
+| The same regression plus GPU resource re-creation (2 controlled failures) and power resume on the test-hook build | All items passed. Resources re-created, renderers recovered on all 3 surfaces, terminal sessions preserved, duplicate resume suppressed |
+| 20-iteration soak test (including GPU re-creation and controlled power resume) | All 20 passed, 0 failures, 131.4 seconds elapsed |
 | Unit tests | 3838 of 3900 passed, 62 skipped, 0 failed |
 | Context menu | A posted right-click opens the menu, Escape closes it, and Split then Split Right takes the window from 1 pane to 2. With mouse reporting turned on in the shell, a right-click opens no menu |
+| Context menu with a real mouse | Confirmed on real hardware |
+| Installer | `scripts/build-installer.ps1` confirmed on real hardware |
 
-Not run for this version: the window-state regression, the same regression
-with GPU recovery and power resume on the test-hook build, the soak run, the
-installer script, and a right-click with a real mouse. The executable is not
-signed.
+The executables used for the automated checks above were unsigned builds.
 
 ### Known Limitations
 
