@@ -75,17 +75,15 @@ work in this document at the same time.
 | 2 | Rendering foundation | Done | 100% |
 | 3 | Window features | Done | 100% |
 | 4 | Split panes | Done | 100% |
-| 5 | Windows GUI polish | In progress | approx. 98% |
-| 6 | Release quality | Partially done | approx. 97% |
+| 5 | Windows GUI polish | Done | 100% |
+| 6 | Release quality | Done | 100% |
 
-Overall progress is estimated at approximately 98%. On 2026-09-15 the first
-preview build `1.3.2-windows.1` (tag `v1.3.2-windows.1`) was finalized after
-passing Release verification, and `1.3.2-windows.2` (tag
-`v1.3.2-windows.2`) followed as a bug-fix preview that resolves every known
-issue of the first one. What remains is the per-environment GUI
-verification in Phase 5, and the real-hardware tests and distribution format
-decision in Phase 6. Release history is recorded in
-`docs/windows-release-notes.md`.
+All six phases are done. On 2026-09-15 the first preview build
+`1.3.2-windows.1` (tag `v1.3.2-windows.1`) was finalized after passing
+Release verification, and later previews followed; `1.3.2-windows.5` is the
+current one. Remaining real-hardware verification, open decisions, and
+deferred refactoring are tracked as GitHub issues, listed in "7. Next Steps".
+Release history is recorded in `docs/windows-release-notes.md`.
 Phase 5 covers not only tabs but also the title bar, mouse operation of split
 dividers, GUI state display, appearance, DPI, and accessibility.
 
@@ -105,7 +103,9 @@ action were verified, raising it to about 96%. Dedicated high contrast
 handling was then added to the tab bar and title bar, raising it to about
 97%. Finally, DPI and rectangle tracking of the tab bar and split dividers
 across four monitors mixing 96 DPI and 120 DPI was verified with the Release
-executable, raising it to about 98%.
+executable, raising it to about 98%. On 2026-09-16 the remaining verification,
+decisions, and deferred items were moved to GitHub issues, and Phases 5 and 6
+were marked done.
 
 ## 6. Phase-by-Phase Plan
 
@@ -168,7 +168,7 @@ Known quality issues after phase completion:
   incomplete blur and does not meet the quality bar. The currently
   recommended state is blur disabled.
 - Reliably mapping the `background-blur` value to the appearance on Windows
-  is incomplete and is tracked as a Phase 6 quality issue.
+  is incomplete and is tracked in [#11](https://github.com/fukuyori/ghostty/issues/11).
 
 Completion criteria:
 
@@ -239,19 +239,19 @@ Completion criteria:
 
 ### Phase 5: Windows GUI Polish
 
-Status: **In progress (approx. 98%)**
+Status: **Done**
 
 Phase breakdown:
 
 | Item | Progress | Status |
 |---|---:|---|
-| Native title bar | 90% | Native DPI tracking, dark mode, colors, sync with tab name, and high contrast implemented |
+| Native title bar | 100% | Native DPI tracking, dark mode, colors, sync with tab name, and high contrast implemented |
 | Tab management foundation | 100% | Ownership structure and lifecycle implemented |
 | Tab bar display | 100% | Basic rendering, state display, and overflow for many tabs supported |
 | Tab operations | 100% | Select, close, add, rename, key/wheel navigation, and drag implemented |
-| Split divider GUI | 95% | Dedicated rendering, hover, DPI and high contrast, drag, and minimum size constraints implemented |
-| GUI state display | 80% | Focus, custom tab name, title, and split zoom state supported |
-| Appearance and usability tuning | 90% | Divider display, tab bar DPI, system colors, and MSAA exposure of individual tabs implemented |
+| Split divider GUI | 100% | Dedicated rendering, hover, DPI and high contrast, drag, and minimum size constraints implemented |
+| GUI state display | 100% | Focus, custom tab name, title, and split zoom state supported |
+| Appearance and usability tuning | 100% | Divider display, tab bar DPI, system colors, and MSAA exposure of individual tabs implemented |
 
 Implemented:
 
@@ -384,18 +384,13 @@ Key commits:
 - `5ec0d2b05` `win32: complete split controls and backdrop effects`
 - `7f698b54b` `win32: add native tab management and tab bar`
 
-Remaining work (in order):
+Follow-up work is tracked as issues:
 
-1. Add a right-click menu if needed.
-2. Verify the dividers, tab bar, and title bar in an environment with high
-   contrast actually enabled.
-3. Verify the title bar, tab bar, and split dividers on real hardware at
-   144 DPI and 192 DPI.
-4. Verify individual tab names, selection state, and state change
-   notifications with Narrator or NVDA on real hardware.
-5. Verify GUI tracking on resume after actually putting the PC to sleep. The
-   six Windows shell manual operations and controlled power resume via power
-   notifications are verified.
+- [#4](https://github.com/fukuyori/ghostty/issues/4): right-click does nothing (no context menu, no selection)
+- [#6](https://github.com/fukuyori/ghostty/issues/6): verify the GUI with high contrast enabled
+- [#5](https://github.com/fukuyori/ghostty/issues/5): verify the GUI at 144 and 192 DPI on real hardware
+- [#7](https://github.com/fukuyori/ghostty/issues/7): verify tab accessibility with a screen reader
+- [#8](https://github.com/fukuyori/ghostty/issues/8): verify rendering and input after a real sleep and resume
 
 Completion criteria:
 
@@ -411,7 +406,7 @@ Completion criteria:
 
 ### Phase 6: Release Quality
 
-Status: **Partially done (approx. 98%, preview build `1.3.2-windows.5` published)**
+Status: **Done** (preview build `1.3.2-windows.5` published)
 
 Implemented:
 
@@ -680,7 +675,13 @@ Recent verification:
   emits no OSC 133 marks), and an intermediate tiny size (there was none).
   After the fix a split keeps the command and its output, a regression test
   fails without it, and the unit tests passed 3837 of 3899 with 62 skipped and
-  0 failures. The right-aligned prompt still wraps its last character onto a
+  0 failures. The window-state regression passed on the distribution build
+  and on the test-hook build with 2 controlled GPU recovery failures and
+  power resume, a 20-iteration soak run completed 20 of 20 in 133.0 seconds
+  with no failures, and the installer script built a payload carrying the
+  ConPTY pair. Install, upgrade, and uninstall through the installer were
+  confirmed on real hardware. The right-aligned prompt still wraps its last
+  character onto a
   new row when the pane narrows, on either host: it is real content out to the
   old right edge, and the shell does not redraw it.
 - 2026-09-16: Found and fixed why programs could not draw images, and
@@ -873,7 +874,7 @@ Recent verification:
   exit. Verified that with the hook-less executable the script stops with a
   clear error instead of waiting. Real-hardware verification with other
   keyboard layouts has not been done. Splitting App.zig and direct back
-  buffer rendering were deferred (see "Deferred items" below).
+  buffer rendering were deferred (now [#12](https://github.com/fukuyori/ghostty/issues/12) and [#13](https://github.com/fukuyori/ghostty/issues/13)).
 - 2026-09-15: Fixed the 4 medium severity code review items. Non-fatal tab
   bar creation failure, focus retention when closing a split in a background
   tab, the confirmation dialog for `quit`, and isolation of the regression
@@ -900,44 +901,25 @@ Recent verification:
   failure, 0 fourth attempts, and 0 leftover temporary files. The D3D11 and
   OpenGL-compatible ReleaseFast builds also succeeded.
 
-Remaining work:
+The diagnostic launch log continues to be used for initialization failure and
+rendering recovery investigations. The distribution formats are a portable
+executable and an Inno Setup installer, with signing done via the installer
+creation script's `-Sign`; from `1.3.2-windows.4` the signed installer is
+published as a release asset, and install, upgrade, and uninstall through it
+are confirmed on real hardware.
 
-- Continue using the diagnostic launch log for actual initialization failure
-  and rendering recovery investigations and add items as needed.
-- Test 144 DPI and 192 DPI, and resume after actually putting the PC to
-  sleep. The DPI calculation unit tests, controlled power resume via power
-  notifications, the iteration and duration scripts for long runs, and the
-  20-iteration baseline results are verified; obtain results from runs of
-  several hours.
-- Establish a test method that safely causes an actual GPU device lost or
-  driver failure and verify automatic recovery from a real failure.
-  Detection, diagnostics, automatic GPU resource recreation, and the
-  controlled regression are implemented and verified.
-- Either quality-assure variable blur or finalize it as a limitation of the
-  Windows build.
-- Update the user guide according to the results of the remaining
-  real-hardware tests and the release decision.
-- The distribution formats are a portable executable and an Inno Setup
-  installer, with signing done via the installer creation script's `-Sign`.
-  From `1.3.2-windows.4` the signed installer is published as a release
-  asset. Real-hardware verification of install, uninstall, and update
-  through it remains.
+Follow-up work is tracked as issues:
 
-Deferred items (raised in the 2026-09-15 code review, deferred by user
-decision):
+- [#5](https://github.com/fukuyori/ghostty/issues/5): verify the GUI at 144 and 192 DPI on real hardware
+- [#8](https://github.com/fukuyori/ghostty/issues/8): verify rendering and input after a real sleep and resume
+- [#9](https://github.com/fukuyori/ghostty/issues/9): run a soak test lasting several hours
+- [#10](https://github.com/fukuyori/ghostty/issues/10): verify recovery from a real GPU device loss or driver failure
+- [#11](https://github.com/fukuyori/ghostty/issues/11): decide whether background-blur is supported or a limitation
 
-- Splitting the responsibilities of `src/apprt/win32/App.zig`. About 5000
-  lines hold input, tab bar operations, split dividers, URL policy, and
-  window state together, and a split like the GTK build's `class/*.zig` is
-  desirable. It is a behavior-preserving refactoring, but the diff is large
-  and re-running all regression scripts is a prerequisite. Start it before
-  doing a batch of feature additions (right-click menu, settings GUI, etc.).
-- Direct back buffer rendering when custom shaders are not in use. Currently
-  every frame does a full-screen `CopyResource` from an offscreen target,
-  and with linear blending the setup of drawing to an sRGB view and copying
-  to a UNORM back buffer matches the Metal build. Switching to direct
-  rendering would require redesigning this path and could change how colors
-  appear. Start it if frame time or GPU usage measurements show a problem.
+Deferred refactoring (raised in the 2026-09-15 code review):
+
+- [#12](https://github.com/fukuyori/ghostty/issues/12): split `src/apprt/win32/App.zig` by responsibility
+- [#13](https://github.com/fukuyori/ghostty/issues/13): render directly to the back buffer when no custom shader is used
 
 Completion criteria:
 
@@ -949,42 +931,35 @@ Completion criteria:
 
 ## 7. Next Steps
 
-The automatable regression tests are all in place. `1.3.2-windows.3` is released
-with the split focus, terminfo, and installer fixes, `1.3.2-windows.4` with the
-image fixes, and `1.3.2-windows.5` with the split pane fix. What remains is
-verification that depends on real environments and real-hardware operation,
-the font handling questions raised during the 1.3.2-windows.3 cycle, and the
-distribution policy decision.
+All six phases are done. `1.3.2-windows.3` is released with the split focus,
+terminfo, and installer fixes, `1.3.2-windows.4` with the image fixes, and
+`1.3.2-windows.5` with the split pane fix. What remains is tracked as GitHub
+issues.
 
-1. Verify individual tab names, selection state, and state change
-   notifications with Narrator or NVDA. The automated regression tests and
-   MSAA API checks are complete; screen reader acceptance verification
-   remains.
-2. Verify the split dividers, tab bar, and title bar in a high contrast
-   environment.
-3. Automated regression verification of the tab bar and split dividers on
-   four monitors mixing 96 DPI and 120 DPI is complete. Perform the same
-   verification on real hardware at 144 DPI and 192 DPI.
-4. Actually put the PC to sleep with
-   `scripts/test-windows-shell.ps1 -CheckId power-resume` and record
-   rendering and input after resume together with the automatic diagnostic
-   log cross-check.
-5. Obtain soak results on the scale of several hours with
-   `scripts/test-windows-soak.ps1 -DurationMinutes`. The 20-iteration
-   baseline results are verified.
-6. Decide how far to take font handling: whether to warn when a configured
-   `font-family` matches nothing (issue 1), and whether to replace the
-   first-match fallback scan with DirectWrite's font fallback (issue 2). The
-   size adjustment asymmetry (issue 3) is upstream behavior and is left as is
-   for now.
-7. Decide on the handling of variable blur and reflect the decision in the
-   user guide. The distribution format and signing are settled: a portable
-   release tree plus a signed Inno Setup installer, published as a release
-   asset from `1.3.2-windows.4`.
+Needs a fix:
 
-Items 1 to 5 require a real-hardware environment and operator time, so they
-are performed in the user's environment. Items 6 and 7 are policy decisions;
-the documents and scripts are updated once they are made.
+- [#4](https://github.com/fukuyori/ghostty/issues/4): right-click does nothing (no context menu, no selection)
+
+Real-hardware verification, performed in the user's environment:
+
+- [#5](https://github.com/fukuyori/ghostty/issues/5): verify the GUI at 144 and 192 DPI on real hardware
+- [#6](https://github.com/fukuyori/ghostty/issues/6): verify the GUI with high contrast enabled
+- [#7](https://github.com/fukuyori/ghostty/issues/7): verify tab accessibility with a screen reader
+- [#8](https://github.com/fukuyori/ghostty/issues/8): verify rendering and input after a real sleep and resume
+- [#9](https://github.com/fukuyori/ghostty/issues/9): run a soak test lasting several hours
+- [#10](https://github.com/fukuyori/ghostty/issues/10): verify recovery from a real GPU device loss or driver failure
+
+Decisions:
+
+- [#1](https://github.com/fukuyori/ghostty/issues/1): a font-family that matches no installed family is replaced silently
+- [#2](https://github.com/fukuyori/ghostty/issues/2): font fallback picks the first file that contains the codepoint
+- [#3](https://github.com/fukuyori/ghostty/issues/3): font size adjustment applies to fallback faces but not to configured families
+- [#11](https://github.com/fukuyori/ghostty/issues/11): decide whether background-blur is supported or a limitation
+
+Deferred refactoring:
+
+- [#12](https://github.com/fukuyori/ghostty/issues/12): split `src/apprt/win32/App.zig` by responsibility
+- [#13](https://github.com/fukuyori/ghostty/issues/13): render directly to the back buffer when no custom shader is used
 
 ## 8. Verification Matrix
 
@@ -999,7 +974,7 @@ the code exists.
 | Release | `1.3.2-windows.2` | Bug-fix preview. Regression including the IME and startup grid phases, 20-iteration soak, and CLI verified with the distribution and regression Release builds |
 | Release | `1.3.2-windows.3` | Bug-fix preview. Regression including the split focus phase, 20-iteration soak, and CLI verified with both Release builds. Compiled terminfo shipped |
 | Fonts | Family matching and fallback | Measured: a configured family that matches nothing is replaced silently, and the automatic fallback takes the first file containing the codepoint. Tracked as issues 1, 2, and 3 |
-| Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature. Installation behavior not verified |
+| Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature. Install, upgrade, and uninstall confirmed on real hardware |
 | Version info | CLI version display | Verified with the Release build |
 | Version info | Windows file properties | String version, numeric version, and Debug flag verified for Debug and Release |
 | Startup | Diagnostic log and exit code capture | Verified for both normal and failing CLI |

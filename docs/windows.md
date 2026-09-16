@@ -671,9 +671,9 @@ output with Narrator and NVDA is still under acceptance verification.
   "Terminal Type and terminfo".
 - The effect and quality of `background-blur` vary with the Windows and GPU
   configuration.
-- A signed installer is published as a release asset from `1.3.2-windows.4`
-  on, but installing, uninstalling, and upgrading through it are not verified
-  on real hardware. There is no automatic update.
+- There is no automatic update. A signed installer is published as a release
+  asset from `1.3.2-windows.4` on, and installing, upgrading, and
+  uninstalling through it are confirmed on real hardware.
 - There is no GUI equivalent to the macOS SwiftUI settings window or the Linux
   GTK integration.
 - The Sentry crash reporter is not available. It is disabled by default

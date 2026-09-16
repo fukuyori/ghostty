@@ -43,22 +43,25 @@ The [changelog](windows-changelog.md) lists these with their commits.
 
 ### Verification
 
-Verified on 2026-09-16 on Windows 11 Pro (10.0.26200) against the ReleaseFast,
-baseline CPU executable. The verification for this version is partial.
+Verified on 2026-09-16 on Windows 11 Pro (10.0.26200, four monitors: three at
+96 DPI and one at 120 DPI) against the ReleaseFast, baseline CPU executable.
 
 | Item | Result |
 |---|---|
 | Release build script checks (PE32+, x64, WindowsGui, version information, icon, resources) | Passed. `FileVersion` and `ProductVersion` 1.3.2-windows.5, numeric version 1.3.2.5, `IsDebug` False |
 | `--version`, `+list-keybinds --default` | Exit code 0 |
+| Window-state regression on the distribution build (terminal input, IME process keys, split pane click focus, startup grid, config reload, splits, 4 monitors, multiple windows, maximize/minimize/restore, clean exit) | All items passed, exit code 0, no forced termination |
+| The same regression plus GPU resource re-creation (2 controlled failures) and power resume on the test-hook build | All items passed. Resources re-created, renderers recovered on all 3 surfaces, terminal sessions preserved, duplicate resume suppressed |
+| 20-iteration soak test (including GPU re-creation and controlled power resume) | All 20 passed, 0 failures, 133.0 seconds elapsed |
 | Unit tests | 3837 of 3899 passed, 62 skipped, 0 failed |
 | Split pane | After splitting and clicking back into the original pane, the command and its output remain. The new reflow test fails without the fix |
+| Installer | `scripts/build-installer.ps1` succeeds (`TerminfoCompiled` True) and the payload contains `bin\ghostty.exe`, `bin\conpty.dll`, `bin\OpenConsole.exe`, and `THIRD-PARTY-NOTICES.md` |
+| Install, upgrade, and uninstall | Confirmed on real hardware |
 
-Not run for this version: the window-state regression, the same regression
-with GPU recovery and power resume on the test-hook build, the soak run, and
-the installer script. The only change since `1.3.2-windows.4`, which passed
-all of them, is the reflow fix. A right-aligned prompt still wraps its last
-character onto a new row when its pane narrows; it is real content out to the
-old right edge, and the shell does not redraw it.
+The installer script check above built an unsigned installer. A right-aligned
+prompt still wraps its last character onto a new row when its pane narrows;
+it is real content out to the old right edge, and the shell does not redraw
+it.
 
 ### Known Limitations
 

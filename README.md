@@ -100,15 +100,14 @@ The Windows build is a preview. Basic operation has been verified on
 Windows 11; Windows 10, 144 and 192 DPI, keyboard layouts other than
 Japanese, real sleep and resume, and long-running sessions have not been
 verified yet. From `1.3.2-windows.4` a signed installer is published as a
-release asset; installing, uninstalling, and upgrading through it are not
-verified on real hardware, and there is no automatic update. Background
+release asset, and installing, upgrading, and uninstalling through it are
+confirmed on real hardware; there is no automatic update. Background
 opacity works, but `background-blur` quality depends on the environment, so
 leaving it disabled is recommended for now.
 
 ### Work Phases
 
-Windows support is developed in six phases. The percentages are rough
-estimates of the work involved.
+Windows support was developed in six phases, all of which are done.
 
 | Phase | Scope | Status |
 |---|---|---:|
@@ -116,11 +115,12 @@ estimates of the work involved.
 | 2 | Rendering: D3D11, DirectComposition, background opacity, images | Done |
 | 3 | Window features: multiple windows, fullscreen, config reload | Done |
 | 4 | Split panes: create, navigate, resize, zoom | Done |
-| 5 | Windows GUI polish: tabs, mouse handling, DPI, accessibility | ~98% |
-| 6 | Release quality: diagnostics, release verification, hardware tests, distribution | ~98% |
+| 5 | Windows GUI polish: tabs, mouse handling, DPI, accessibility | Done |
+| 6 | Release quality: diagnostics, release verification, hardware tests, distribution | Done |
 
-Overall progress is about 98%. Current work is the environment-specific GUI
-verification of phase 5 and the release-quality work of phase 6 in parallel.
+Remaining real-hardware verification, open decisions, and deferred
+refactoring are tracked as
+[issues](https://github.com/fukuyori/ghostty/issues).
 
 Configuration, default keybindings, diagnostics, and known limitations are in
 the [Windows user guide](docs/windows.md); implemented items and remaining
