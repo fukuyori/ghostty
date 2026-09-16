@@ -386,7 +386,7 @@ Key commits:
 
 Follow-up work is tracked as issues:
 
-- [#4](https://github.com/fukuyori/ghostty/issues/4): right-click does not open a context menu
+- [#4](https://github.com/fukuyori/ghostty/issues/4): right-click does not open a context menu (fixed for `1.3.2-windows.6`)
 - [#6](https://github.com/fukuyori/ghostty/issues/6): verify the GUI with high contrast enabled
 - [#5](https://github.com/fukuyori/ghostty/issues/5): verify the GUI at 144 and 192 DPI on real hardware
 - [#7](https://github.com/fukuyori/ghostty/issues/7): verify tab accessibility with a screen reader
@@ -661,6 +661,21 @@ Recent verification:
   failure, controlled power resume for a single surface and all 3 surfaces,
   4-monitor movement, multiple windows, and clean exit. Exit code 0, no
   forced termination, no leftover temporary files.
+- 2026-09-16: Added the right-click context menu (#4) and prepared
+  `1.3.2-windows.6`. The core already selected the word under a right press
+  and left the press unconsumed for the runtime to show a menu, which the
+  Windows runtime ignored. The runtime now remembers an unconsumed right
+  press and opens a native popup menu on release. The first attempt never
+  opened: a debug log showed the pending flag set on press and cleared by
+  release, because releasing mouse capture sends `WM_CAPTURECHANGED`
+  synchronously and its handler cleared the flag; it now clears only when
+  capture is lost with a button still down. With the debug executable, a
+  posted right-click opened the menu, Escape closed it, Split then Split
+  Right took the window from 1 pane to 2, and with mouse reporting turned on
+  (`mouse_event` normal) the press was consumed and no menu opened. The
+  ReleaseFast build reports `1.3.2-windows.6`, numeric version 1.3.2.6, and
+  `IsDebug` False, repeats both menu results, and the unit tests passed 3838
+  of 3900 with 62 skipped and 0 failures.
 - 2026-09-16: Found and fixed why splitting a pane emptied it, and prepared
   `1.3.2-windows.5`. On `1.3.2-windows.4`, a split followed by a click back
   into the original pane showed nothing but the cursor, while the in-box host
@@ -933,12 +948,10 @@ Completion criteria:
 
 All six phases are done. `1.3.2-windows.3` is released with the split focus,
 terminfo, and installer fixes, `1.3.2-windows.4` with the image fixes, and
-`1.3.2-windows.5` with the split pane fix. What remains is tracked as GitHub
-issues.
-
-Needs a fix:
-
-- [#4](https://github.com/fukuyori/ghostty/issues/4): right-click does not open a context menu
+`1.3.2-windows.5` with the split pane fix. `1.3.2-windows.6` is prepared with
+the right-click context menu, which resolves
+[#4](https://github.com/fukuyori/ghostty/issues/4), and awaits its
+verification run. What remains is tracked as GitHub issues.
 
 Real-hardware verification, performed in the user's environment:
 

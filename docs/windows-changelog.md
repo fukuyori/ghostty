@@ -7,6 +7,32 @@ known issues, and known limitations of each version; the
 [version update checklist](version-update-checklist.md) describes the
 `X.Y.Z-windows.N` numbering.
 
+## 1.3.2-windows.6
+
+Not released yet. Range:
+[`v1.3.2-windows.5..windows`](https://github.com/fukuyori/ghostty/compare/v1.3.2-windows.5...windows).
+
+### Added
+
+- Right-clicking in a terminal opens a context menu (`fd8ec1769`, #4). It
+  carries Copy and Paste, Clear and Reset, and the Split, Tab, Window, and
+  Config submenus: split up, down, left, and right, close the split, change
+  the tab title, open and close a tab or a window, open the configuration in
+  the OS editor or in a new window, and reload it. The items follow the GTK
+  menu, minus the surface title prompt, the window title prompt, and notify on
+  next command finish, which the Windows runtime does not support yet. The
+  menu opens when the button is released, as in other Windows applications,
+  and only when `right-click-action` is `context-menu`, the default, and the
+  program in the terminal is not using the mouse. Right-click still selects
+  the word or the blank run under the pointer first, as before. The menu key
+  and Shift+F10 still go to the terminal.
+
+### Documentation
+
+- The roadmap no longer says right-click selects nothing; it did select, and
+  only the menu was missing (`4ab76b5cd`).
+
+
 ## 1.3.2-windows.5
 
 Released 2026-09-16. A bug-fix preview for `1.3.2-windows.4`: splitting a pane
