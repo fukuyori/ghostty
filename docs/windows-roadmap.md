@@ -80,7 +80,7 @@ work in this document at the same time.
 
 All six phases are done. On 2026-09-15 the first preview build
 `1.3.2-windows.1` (tag `v1.3.2-windows.1`) was finalized after passing
-Release verification, and later previews followed; `1.3.2-windows.5` is the
+Release verification, and later previews followed; `1.3.2-windows.6` is the
 current one. Remaining real-hardware verification, open decisions, and
 deferred refactoring are tracked as GitHub issues, listed in "7. Next Steps".
 Release history is recorded in `docs/windows-release-notes.md`.
@@ -406,7 +406,7 @@ Completion criteria:
 
 ### Phase 6: Release Quality
 
-Status: **Done** (preview build `1.3.2-windows.5` published)
+Status: **Done** (preview build `1.3.2-windows.6` published)
 
 Implemented:
 
@@ -947,11 +947,11 @@ Completion criteria:
 ## 7. Next Steps
 
 All six phases are done. `1.3.2-windows.3` is released with the split focus,
-terminfo, and installer fixes, `1.3.2-windows.4` with the image fixes, and
-`1.3.2-windows.5` with the split pane fix. `1.3.2-windows.6` is prepared with
-the right-click context menu, which resolves
-[#4](https://github.com/fukuyori/ghostty/issues/4), and awaits its
-verification run. What remains is tracked as GitHub issues.
+terminfo, and installer fixes, `1.3.2-windows.4` with the image fixes,
+`1.3.2-windows.5` with the split pane fix, and `1.3.2-windows.6` with the
+right-click context menu, which resolves
+[#4](https://github.com/fukuyori/ghostty/issues/4). What remains is tracked as
+GitHub issues.
 
 Real-hardware verification, performed in the user's environment:
 

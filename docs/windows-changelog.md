@@ -9,8 +9,9 @@ known issues, and known limitations of each version; the
 
 ## 1.3.2-windows.6
 
-Not released yet. Range:
-[`v1.3.2-windows.5..windows`](https://github.com/fukuyori/ghostty/compare/v1.3.2-windows.5...windows).
+Released 2026-09-16. A preview that adds a right-click context menu to
+`1.3.2-windows.5`. Full range:
+[`v1.3.2-windows.5..v1.3.2-windows.6`](https://github.com/fukuyori/ghostty/compare/v1.3.2-windows.5...v1.3.2-windows.6).
 
 ### Added
 
