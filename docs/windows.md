@@ -36,13 +36,10 @@ Portable Release build:
 ./zig-out/release/bin/ghostty.exe
 ```
 
-To reproduce a published version, check out the tag and specify the version
-number explicitly.
-
-```powershell
-git checkout v1.3.2-windows.1
-./scripts/build-release.ps1 -AdditionalZigArgs '-Dversion-string=1.3.2-windows.1'
-```
+The version of the Release build is read from `dist/windows/version.txt` in the
+working tree, so it is the same whether or not the changes are committed or
+tagged. The script takes no version: a version given on the command line would
+only relabel the current sources.
 
 ## Creating the Installer
 
@@ -53,14 +50,14 @@ contents of `zig-out\release` to `zig-out\installer\stage` before processing,
 so the Release build itself is not modified.
 
 ```powershell
-./scripts/build-release.ps1 -AdditionalZigArgs '-Dversion-string=1.3.2-windows.1'
-./scripts/build-installer.ps1 -Version 1.3.2-windows.1
+./scripts/build-release.ps1
+./scripts/build-installer.ps1
 ```
 
 The output is `zig-out\installer\ghostty-<version>-x64-setup.exe`. The
 installer's `ProductVersion` and numeric version take the same values as the
-executable, and the script checks that they match. If `-Version` is passed, the
-script fails when the executable's version does not match.
+executable, and the script checks that they match. The script also fails when
+the executable's version differs from `dist/windows/version.txt`.
 
 The installer has the following contents.
 
@@ -97,7 +94,7 @@ command line.
 
 ```powershell
 $env:CODESIGN_CERT = "certificate subject name"
-./scripts/build-installer.ps1 -Version 1.3.2-windows.1 -Sign
+./scripts/build-installer.ps1 -Sign
 ```
 
 The signature is SHA-256, and by default a timestamp from

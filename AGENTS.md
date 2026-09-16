@@ -13,13 +13,16 @@ All commands run from the repository root in PowerShell.
 
 - **Build (Debug):** `zig build` → `zig-out\bin\ghostty.exe`
 - **Build (Release):** `.\scripts\build-release.ps1` → `zig-out\release`
-  - Pass a version explicitly for a published preview:
-    `.\scripts\build-release.ps1 -AdditionalZigArgs '-Dversion-string=X.Y.Z-windows.N'`
+  - The version comes from `dist\windows\version.txt` in the working tree,
+    regardless of commits or tags. The script takes no version and rejects
+    `-Dversion-string`.
   - Add `-TestHooks -OutputDirectory zig-out\release-hooks` for a build the
     GPU recovery and power resume checks can drive. Never distribute it.
 - **Installer:** `.\scripts\build-installer.ps1 -Sign` → `zig-out\installer`
   - Requires an existing release tree and Inno Setup 6.3 or newer. The
     certificate comes from the `CODESIGN_CERT` environment variable.
+  - Fails unless the release executable reports the version in
+    `dist\windows\version.txt`.
 - **Test (Zig):** `zig build test`
   - Prefer targeted runs with `-Dtest-filter` because the full suite is slow.
   - Win32 tests that exercise the regression hooks need

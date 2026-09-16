@@ -19,7 +19,14 @@ GPU recovery and power-resume regression scripts can drive the release
 executable. Leave this off for distributed builds.
 
 .PARAMETER AdditionalZigArgs
-Additional arguments passed to `zig build`.
+Additional arguments passed to `zig build`. -Dversion-string is rejected;
+change dist/windows/version.txt instead.
+
+.NOTES
+The version is read from dist/windows/version.txt in the working tree and
+passed as -Dversion-string, so it does not depend on commits or tags.
+Specifying a version would only relabel the current sources, so it is not
+supported.
 
 .EXAMPLE
 ./scripts/build-release.ps1
@@ -60,6 +67,13 @@ if ($LASTEXITCODE -ne 0) {
     throw "Failed to query the Zig version."
 }
 
+if (@($AdditionalZigArgs | Where-Object { $_ -like "-Dversion-string*" }).Count -gt 0) {
+    throw ("-Dversion-string only relabels the current sources. Set the version " +
+        "in dist/windows/version.txt instead.")
+}
+. (Join-Path $PSScriptRoot "windows-version.ps1")
+$expectedVersion = Get-GhosttyWindowsVersion -RepositoryRoot $repositoryRoot
+
 $buildArguments = @(
     "build"
     "--prefix"
@@ -67,6 +81,7 @@ $buildArguments = @(
     "-Doptimize=ReleaseFast"
     "-Dcpu=baseline"
     "-Demit-docs=false"
+    "-Dversion-string=$expectedVersion"
     "--summary"
     "all"
 ) + $(if ($TestHooks) { @("-Dwin32-test-hooks=true") } else { @() }) + $AdditionalZigArgs
@@ -75,7 +90,7 @@ $buildArguments = @(
 # it when it is on disk, and a release without it cannot show images.
 & (Join-Path $PSScriptRoot "fetch-conpty.ps1")
 
-Write-Host "Building Ghostty release with Zig $zigVersion"
+Write-Host "Building Ghostty release $expectedVersion with Zig $zigVersion"
 Write-Host "Output: $releaseRoot"
 
 Push-Location $repositoryRoot
@@ -192,6 +207,9 @@ if ([string]::IsNullOrWhiteSpace($versionInfo.ProductVersion)) {
 }
 if ($versionInfo.FileVersion -ne $versionInfo.ProductVersion) {
     throw "FileVersion and ProductVersion do not match."
+}
+if ($versionInfo.FileVersion -ne $expectedVersion) {
+    throw "The release executable reports $($versionInfo.FileVersion), expected $expectedVersion."
 }
 if ($versionInfo.IsDebug) {
     throw "The release executable is marked as a debug build."

@@ -60,18 +60,12 @@ Portable release build:
 
 See the [Windows release notes](docs/windows-release-notes.md) for preview
 versions, contents, and verification results, and the
-[changelog](docs/windows-changelog.md) for what changed between them. To reproduce a specific preview,
-replace `<version>` below with the version listed in the release notes
-(without the tag's `v` prefix):
+[changelog](docs/windows-changelog.md) for what changed between them.
 
-```powershell
-$releaseVersion = '<version>'
-git checkout "v$releaseVersion"
-./scripts/build-release.ps1 -AdditionalZigArgs "-Dversion-string=$releaseVersion"
-```
-
-Building the Inno Setup installer uses the release executable's version
-automatically (`-Sign` signs the executable, the installer, and the uninstaller):
+The release build and the installer take the version from
+`dist/windows/version.txt`, and the installer script refuses a release
+executable that reports a different one (`-Sign` signs the executable, the
+installer, and the uninstaller):
 
 ```powershell
 ./scripts/build-installer.ps1

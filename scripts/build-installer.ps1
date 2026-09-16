@@ -18,10 +18,6 @@ are resolved from the repository root. The default is zig-out\release.
 Directory that receives the installer and the staged, optionally signed,
 release files. The default is zig-out\installer.
 
-.PARAMETER Version
-Expected version string, for example 1.3.2-windows.1. When given, the
-executable's FileVersion must match or the build fails.
-
 .PARAMETER OutputBaseName
 Installer file name without the extension. The default is
 ghostty-<version>-x64-setup, with the version read from the release
@@ -70,17 +66,16 @@ Path to ISCC.exe. The default searches the Inno Setup 6 install locations.
 
 .EXAMPLE
 # Uses the certificate named by $env:CODESIGN_CERT.
-./scripts/build-installer.ps1 -Version 1.3.2-windows.1 -Sign
+./scripts/build-installer.ps1 -Sign
 
 .EXAMPLE
-./scripts/build-installer.ps1 -Version 1.3.2-windows.1 -Sign `
+./scripts/build-installer.ps1 -Sign `
     -CertificateThumbprint 0123456789ABCDEF0123456789ABCDEF01234567
 #>
 [CmdletBinding()]
 param(
     [string]$ReleaseDirectory = "",
     [string]$OutputDirectory = "",
-    [string]$Version = "",
     [string]$OutputBaseName = "",
     [switch]$Sign,
     [string]$CertificateSubject = "",
@@ -170,33 +165,26 @@ if ($versionInfo.IsDebug) {
     throw "The release executable is a debug build; installers are built from ReleaseFast output."
 }
 $versionString = $versionInfo.FileVersion
-if (-not [string]::IsNullOrWhiteSpace($Version) -and $Version -ne $versionString) {
-    throw "Expected version $Version but the executable reports $versionString."
+. (Join-Path $PSScriptRoot "windows-version.ps1")
+$expectedVersion = Get-GhosttyWindowsVersion -RepositoryRoot $repositoryRoot
+if ($expectedVersion -ne $versionString) {
+    throw ("dist/windows/version.txt holds $expectedVersion but the executable " +
+        "reports $versionString. Rebuild with scripts/build-release.ps1.")
 }
 $numericVersion = "{0}.{1}.{2}.{3}" -f `
     $versionInfo.FileMajorPart, `
     $versionInfo.FileMinorPart, `
     $versionInfo.FileBuildPart, `
     $versionInfo.FilePrivatePart
-# The file name carries the version read from the executable, minus the build
-# metadata a development build appends (1.3.2-windows-+abc1234), which would
-# otherwise change the name on every commit. Inno Setup rejects file names
-# outside this character set, and dropping the metadata leaves a trailing
-# separator to clean up.
-#   1.3.2-windows-+abc1234 -> ghostty-1.3.2-windows-x64-setup.exe
-#   1.3.2-windows.3        -> ghostty-1.3.2-windows.3-x64-setup.exe
-$isDevelopmentBuild = $versionString.Contains("+")
+# The file name carries the version, minus any build metadata. Inno Setup
+# rejects file names outside this character set.
+#   1.3.2-windows.3 -> ghostty-1.3.2-windows.3-x64-setup.exe
 if (-not [string]::IsNullOrWhiteSpace($OutputBaseName)) {
     $outputBase = $OutputBaseName
 } else {
     $safeVersion = $versionString.Split("+")[0]
     $safeVersion = ($safeVersion -replace '[^0-9A-Za-z.\-]', '-') -replace '-{2,}', '-'
     $outputBase = "ghostty-$($safeVersion.Trim('-'))-x64-setup"
-}
-if ($isDevelopmentBuild) {
-    Write-Warning ("Packaging the development build $versionString. This is " +
-        "not a distributable release; build with " +
-        "-AdditionalZigArgs '-Dversion-string=X.Y.Z-windows.N' for that.")
 }
 
 # ---------------------------------------------------------------------------
@@ -449,7 +437,7 @@ $hash = Get-FileHash -LiteralPath $installer -Algorithm SHA256
 [pscustomobject]@{
     Installer            = $installer
     Version              = $versionString
-    DevelopmentBuild     = $isDevelopmentBuild
+    DevelopmentBuild     = $versionString.Contains("+")
     TerminfoCompiled     = $terminfoCompiled
     NumericVersion       = $numericVersion
     SizeBytes            = (Get-Item -LiteralPath $installer).Length
