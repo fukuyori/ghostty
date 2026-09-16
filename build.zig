@@ -216,6 +216,9 @@ pub fn build(b: *std.Build) !void {
             exe.install();
             resources.install();
             if (i18n) |v| v.install();
+            if (config.target.result.os.tag == .windows) {
+                installConPty(b);
+            }
         }
     } else if (!config.emit_lib_vt) {
         // The macOS Ghostty Library
@@ -460,4 +463,41 @@ fn addGhosttyH(
         .optimize = optimize,
         .system_include_paths = &.{b.path("include")},
     }) catch unreachable;
+}
+
+/// Install the ConPTY host next to ghostty.exe.
+///
+/// Ghostty prefers a `conpty.dll` beside its own executable over the one in
+/// kernel32, because the in-box host drops APC and so hides every image a
+/// program tries to draw with the Kitty graphics protocol. See
+/// `src/os/conpty.zig` and `vendor/conpty/README.md`.
+///
+/// The pair is fetched by `scripts/fetch-conpty.ps1` rather than committed.
+/// When it isn't there we install nothing and say so: Ghostty still runs on
+/// the kernel32 host, just without images, and a developer build shouldn't
+/// need a network round trip to start.
+fn installConPty(b: *std.Build) void {
+    // Both, or neither: conpty.dll without its OpenConsole.exe silently
+    // falls back to the in-box host, which is worse than not shipping it
+    // because it looks like the real thing.
+    const names: []const []const u8 = &.{ "conpty.dll", "OpenConsole.exe" };
+    for (names) |name| {
+        const path = b.pathJoin(&.{ "vendor", "conpty", name });
+        b.build_root.handle.access(b.graph.io, path, .{}) catch {
+            std.log.warn(
+                "vendor/conpty/{s} is missing, so Ghostty will use the ConPTY " ++
+                    "in kernel32 and programs will not be able to draw images. " ++
+                    "Run scripts/fetch-conpty.ps1 to get it.",
+                .{name},
+            );
+            return;
+        };
+    }
+
+    for (names) |name| {
+        b.getInstallStep().dependOn(&b.addInstallBinFile(
+            b.path(b.pathJoin(&.{ "vendor", "conpty", name })),
+            name,
+        ).step);
+    }
 }

@@ -96,6 +96,15 @@ Name: "addtopath"; Description: "{cm:AddToPath}"; GroupDescription: "{cm:Environ
 ; resources by climbing from its own path until share\terminfo\ghostty.terminfo
 ; is found; share\ghostty next to it then becomes the resources directory.
 Source: "{#GhosttySourceDir}\bin\ghostty.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
+; The ConPTY host, next to the executable so Ghostty loads it in preference
+; to the one in kernel32. That one drops APC, which hides every image a
+; program draws with the Kitty graphics protocol. Both files are required
+; and must be the matched pair: conpty.dll on its own silently falls back
+; to the in-box host, which looks like no change rather than an error.
+Source: "{#GhosttySourceDir}\bin\conpty.dll"; DestDir: "{app}\bin"; Flags: ignoreversion
+Source: "{#GhosttySourceDir}\bin\OpenConsole.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
+; Required by the MIT license the ConPTY host is redistributed under.
+Source: "..\..\dist\windows\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 ; The whole terminfo directory, so the compiled database ships alongside the
 ; source. Without it, programs that read terminfo inside Ghostty fail with
 ; 'xterm-ghostty': unknown terminal type.

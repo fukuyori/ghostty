@@ -137,6 +137,10 @@ $requiredPaths = @(
     (Join-Path $releaseRoot "share\terminfo\ghostty.terminfo")
     (Join-Path $releaseRoot "share\ghostty\themes")
     (Join-Path $releaseRoot "share\ghostty\shell-integration")
+    # Both halves of the ConPTY host. Without them Ghostty falls back to the
+    # ConPTY in kernel32, which drops the escapes that carry images.
+    (Join-Path $releaseRoot "bin\conpty.dll")
+    (Join-Path $releaseRoot "bin\OpenConsole.exe")
 )
 foreach ($required in $requiredPaths) {
     if (-not (Test-Path -LiteralPath $required)) {

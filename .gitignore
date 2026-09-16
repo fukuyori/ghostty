@@ -24,6 +24,11 @@ test/cases/**/*.actual.png
 flatpak/builddir/
 flatpak/repo/
 
+# The ConPTY host is fetched by scripts/fetch-conpty.ps1, not committed.
+# See vendor/conpty/README.md.
+/vendor/conpty/conpty.dll
+/vendor/conpty/OpenConsole.exe
+
 glad.zip
 /Box_test.ppm
 /Box_test_diff.ppm

@@ -97,6 +97,30 @@ build on the `windows` branch has the form `X.Y.Z-windows-+abcdef0`.
 - [ ] For a Ghostty-core-only update, confirm that `lib_version` was not
   changed.
 
+### When Updating the Bundled ConPTY Host
+
+Ghostty ships `conpty.dll` and `OpenConsole.exe` next to its executable and
+loads them in preference to the ConPTY in `kernel32.dll`, which drops the
+escape sequences that carry images. They are pinned to one version of the
+`Microsoft.Windows.Console.ConPTY` package and are fetched rather than
+committed. See `vendor/conpty/README.md`.
+
+This version moves independently of Ghostty's own, so it is not touched
+during a normal version update.
+
+- [ ] Update `$Version` and all three hashes in `scripts/fetch-conpty.ps1`:
+  the package and both extracted files. Get them with `Get-FileHash`.
+- [ ] Update the pinned version recorded in `vendor/conpty/README.md`.
+- [ ] Re-run `./scripts/fetch-conpty.ps1 -Force` and confirm it reports the
+  new version without a hash mismatch.
+- [ ] Confirm both files are updated together. `conpty.dll` on its own
+  silently falls back to the in-box host, so a mismatched pair looks like no
+  change rather than an error.
+- [ ] Start the build and confirm the log line
+  `info(conpty): using the sideloaded conpty.dll next to our executable`,
+  then confirm a program that draws with the Kitty graphics protocol still
+  shows its image.
+
 ### When Creating a Source Tarball
 
 - [ ] Confirm that package creation was explicitly requested.
@@ -114,6 +138,9 @@ build on the `windows` branch has the form `X.Y.Z-windows-+abcdef0`.
   `ExecutableSignature` and `InstallerSignature` are `Valid`.
 - [ ] Confirm that the output file name is
   `ghostty-X.Y.Z-windows.N-x64-setup.exe`.
+- [ ] Confirm that the release tree has `bin\conpty.dll` and
+  `bin\OpenConsole.exe` (the script refuses to build without them) and that
+  the installed tree contains both plus `THIRD-PARTY-NOTICES.md`.
 
 ### When Tagging or Publishing
 

@@ -71,6 +71,10 @@ $buildArguments = @(
     "all"
 ) + $(if ($TestHooks) { @("-Dwin32-test-hooks=true") } else { @() }) + $AdditionalZigArgs
 
+# Ghostty ships the ConPTY host beside its executable; build.zig only installs
+# it when it is on disk, and a release without it cannot show images.
+& (Join-Path $PSScriptRoot "fetch-conpty.ps1")
+
 Write-Host "Building Ghostty release with Zig $zigVersion"
 Write-Host "Output: $releaseRoot"
 

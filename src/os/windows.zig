@@ -19,8 +19,10 @@ pub const BOOL = windows.BOOL;
 pub const COORD = windows.COORD;
 pub const DWORD = windows.DWORD;
 pub const DWORD_PTR = windows.DWORD_PTR;
+pub const FARPROC = windows.FARPROC;
 pub const HANDLE = windows.HANDLE;
 pub const HINSTANCE = windows.HINSTANCE;
+pub const HMODULE = windows.HMODULE;
 pub const HPCON = windows.LPVOID;
 pub const HRESULT = c_long;
 pub const LARGE_INTEGER = windows.LARGE_INTEGER;
@@ -97,6 +99,9 @@ pub const MEM_COMMIT = 0x1000;
 pub const MEM_RELEASE = 0x8000;
 pub const MEM_RESERVE = 0x2000;
 pub const OPEN_EXISTING = 3; // Known as FILE_OPEN in Windows docs
+/// LoadLibraryExW dwFlags: resolve the module's own dependencies from
+/// the directory it was loaded from rather than the search path.
+pub const LOAD_WITH_ALTERED_SEARCH_PATH = 0x00000008;
 pub const PAGE_READWRITE = 0x04;
 pub const PIPE_ACCESS_OUTBOUND = 0x00000002;
 pub const PIPE_TYPE_BYTE = 0x00000000;
@@ -139,6 +144,22 @@ pub const OBJECT_ATTRIBUTES = windows.OBJECT.ATTRIBUTES;
 // Exported functions by library
 pub const exp = struct {
     pub const kernel32 = struct {
+        pub extern "kernel32" fn LoadLibraryExW(
+            lpLibFileName: LPCWSTR,
+            hFile: ?HANDLE,
+            dwFlags: DWORD,
+        ) callconv(.winapi) ?HMODULE;
+        pub extern "kernel32" fn GetProcAddress(
+            hModule: HMODULE,
+            lpProcName: [*:0]const u8,
+        ) callconv(.winapi) ?FARPROC;
+        /// lpFilename is a plain out buffer rather than LPWSTR: the
+        /// terminator is what this writes, not something we hand it.
+        pub extern "kernel32" fn GetModuleFileNameW(
+            hModule: ?HMODULE,
+            lpFilename: [*]u16,
+            nSize: DWORD,
+        ) callconv(.winapi) DWORD;
         pub extern "kernel32" fn CreatePipe(
             hReadPipe: *HANDLE,
             hWritePipe: *HANDLE,
