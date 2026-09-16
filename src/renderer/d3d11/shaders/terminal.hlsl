@@ -278,7 +278,9 @@ ImageOutput image_vertex(ImageInput input, uint vertex_id : SV_VertexID) {
     image_position += input.dest_size * corner;
 
     ImageOutput output;
-    output.position = mul(projection_matrix, float4(image_position, 1.0, 1.0));
+    // z must be 0: ortho2d negates z, so a 1.0 here lands at clip z = -1 and
+    // D3D clips the whole quad away (it keeps only 0 <= z <= w).
+    output.position = mul(projection_matrix, float4(image_position, 0.0, 1.0));
     output.tex_coord = input.source_rect.xy + input.source_rect.zw * corner;
     return output;
 }
