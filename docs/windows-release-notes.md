@@ -9,8 +9,8 @@ limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 
 ## 1.3.2-windows.4
 
-- Release date: not released yet
-- Tag: `v1.3.2-windows.4` (not created yet)
+- Release date: 2026-09-16
+- Tag: `v1.3.2-windows.4`
 - Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
 - Status: preview. A bug-fix release for `1.3.2-windows.3`; programs running
   in Ghostty can draw images.

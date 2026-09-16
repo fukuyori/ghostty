@@ -9,8 +9,10 @@ known issues, and known limitations of each version; the
 
 ## 1.3.2-windows.4
 
-Not released yet. Range:
-[`v1.3.2-windows.3..windows`](https://github.com/fukuyori/ghostty/compare/v1.3.2-windows.3...windows).
+Released 2026-09-16. A bug-fix preview for `1.3.2-windows.3`: programs running
+in Ghostty can draw images, which they could not do in any earlier version.
+Full range:
+[`v1.3.2-windows.3..v1.3.2-windows.4`](https://github.com/fukuyori/ghostty/compare/v1.3.2-windows.3...v1.3.2-windows.4).
 
 ### Fixed
 
