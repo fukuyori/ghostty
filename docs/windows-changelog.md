@@ -7,6 +7,66 @@ known issues, and known limitations of each version; the
 [version update checklist](version-update-checklist.md) describes the
 `X.Y.Z-windows.N` numbering.
 
+## 1.3.2-windows.3
+
+Not released yet. Range:
+[`v1.3.2-windows.2..windows`](https://github.com/fukuyori/ghostty/compare/v1.3.2-windows.2...windows).
+
+### Fixed
+
+- A click no longer leaves keyboard focus on the wrong split pane
+  (`a1d619c96`). Surfaces are `WS_CHILD` windows, which never take focus on
+  their own, and the mouse handler passed the event to the core without
+  calling `SetFocus`. With a single pane the top-level focus handler always
+  routed focus to the only surface, so the omission stayed hidden; after a
+  split, the pane the split did not focus ignored every keystroke and looked
+  unresponsive, while `goto_split` still worked.
+- Programs that read a terminfo database resolve `xterm-ghostty`
+  (`d61ffd900`). The build skipped compiling the database on Windows and
+  installed only the terminfo source, so MSYS2, Git Bash, Cygwin, WSL, and
+  remote hosts reported `'xterm-ghostty': unknown terminal type.` The
+  database is now compiled with `tic` when it can be found, searching the Git
+  for Windows, MSYS2, and Cygwin locations in addition to `PATH`.
+- The installer ships the compiled terminfo database (`fa058e342`). It staged
+  only `share\terminfo\ghostty.terminfo`, so an installed copy never got the
+  database even after the build produced one.
+
+### Changed
+
+- The installer file name drops the build metadata, so a development build no
+  longer encodes its commit hash and changes the name on every commit
+  (`fa058e342`):
+  `1.3.2-windows-+abc1234` becomes `ghostty-1.3.2-windows-x64-setup.exe`,
+  while `1.3.2-windows.3` stays `ghostty-1.3.2-windows.3-x64-setup.exe`.
+  `-OutputBaseName` overrides the name, and packaging a development build now
+  warns that it is not a distributable release.
+- The release script reports whether the compiled terminfo database is
+  present and warns when it is missing (`d61ffd900`).
+
+### Added
+
+- A regression phase that clicks each split pane in turn and requires
+  keyboard focus, measured with `GetGUIThreadInfo`, to follow the click
+  (`a1d619c96`).
+
+### Documentation
+
+- A changelog covering every change between preview versions (`b31d7f80d`).
+- A "Fonts" section in the user guide: how `font-family` matches family
+  names, what happens when it does not, how the automatic fallback picks a
+  face on Windows, and which faces are resized.
+- A "Crash Reports and Diagnostics" section in the README. The Sentry crash
+  reporter is not available on Windows, so the startup diagnostic log takes
+  its place.
+- `AGENTS.md` rewritten for this fork: Windows commands, the verification
+  scripts, the Windows directory layout, release rules, and issue and pull
+  request guidance that applies the upstream prohibition to upstream only.
+- The README covers only the Windows build. Sections inherited from upstream
+  were removed and replaced with a short pointer, including a notice that
+  upstream runs a strict contribution process and that this fork, being
+  developed with AI assistance, opens nothing upstream.
+- Terminfo handling documented for MSYS2, Git Bash, Cygwin, WSL, and SSH.
+
 ## 1.3.2-windows.2
 
 Released 2026-09-15. A bug-fix preview for `1.3.2-windows.1` that resolves

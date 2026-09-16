@@ -405,6 +405,84 @@ resume were also run, and all 20 independent processes succeeded in 59.004
 seconds. All 100 GPU resource recreations, 5 per process, completed, with 0
 recovery failures, 0 invalid JSON records, and 0 leftover temporary files.
 
+## Fonts
+
+Set the font with `font-family` in the configuration file. Give the **family
+name**, not a style name. A style suffix does not match, and Ghostty then
+falls back to another font without saying so.
+
+```
+font-family = "Moralerspace Neon"
+```
+
+`Moralerspace Neon Regular` does not match, because `Regular` is a style
+within the family. `Cascadia Code NF` does match, because `NF` is part of the
+family name. List the installed family names to check:
+
+```powershell
+& .\zig-out\release\bin\ghostty.exe +list-fonts | Out-String
+```
+
+To see which face actually renders a character:
+
+```powershell
+& .\zig-out\release\bin\ghostty.exe +show-face --string=Aa | Out-String
+```
+
+`font-family` can be repeated. Characters missing from the first family are
+looked up in the next one.
+
+### Japanese and other non-Latin text
+
+A Latin programming font usually has no Japanese glyphs, so those characters
+come from somewhere else. What happens next depends on whether you named a
+font that covers them.
+
+| Case | Face selection | Size |
+|---|---|---|
+| A family in `font-family` covers the character | That family | Used at `font-size` unchanged |
+| No configured family covers it | Automatic fallback | Scaled to match the primary font |
+
+The automatic fallback walks `%SYSTEMROOT%\Fonts` and then
+`%LOCALAPPDATA%\Microsoft\Windows\Fonts`, and takes the first font file
+that contains the character. It does not consider whether the font is
+monospaced, which language it targets, or how well it pairs with the primary
+font, so which font you get depends on what is installed and in which order
+the directory lists it.
+
+A face chosen that way is resized so that its ideograph width matches the
+primary font, which keeps full-width characters inside two cells. A face you
+named in `font-family` is never resized; Ghostty uses your choice as it is.
+That means an explicitly named font is not made to fit the cell grid, and a
+mismatched pair can look unbalanced.
+
+For predictable results, name a font that covers both scripts, or name the
+Japanese font explicitly as a second family:
+
+```
+font-family = "Moralerspace Neon"
+```
+
+```
+font-family = "Cascadia Code NF"
+font-family = "Yu Gothic UM"
+```
+
+Fonts designed to pair Latin and Japanese at the same optical size, such as
+Moralerspace or PlemolJP, need no further adjustment. Two unrelated fonts may
+not line up, and there is no setting that rescales a font you named.
+
+`font-codepoint-map` does not avoid the resizing: faces mapped that way are
+treated like automatic fallbacks.
+
+Three parts of this behavior are tracked as issues: a configured family that
+matches nothing is replaced without a warning
+([1](https://github.com/fukuyori/ghostty/issues/1)), the fallback scan takes
+the first file that contains the character rather than asking Windows
+([2](https://github.com/fukuyori/ghostty/issues/2)), and the resizing applies
+to fallbacks but never to a family you named
+([3](https://github.com/fukuyori/ghostty/issues/3)).
+
 ## Keyboard Layouts
 
 Because the physical key for a key binding is determined from the scan code,
@@ -579,6 +657,10 @@ output with Narrator and NVDA is still under acceptance verification.
   versions. There is no automatic update.
 - There is no GUI equivalent to the macOS SwiftUI settings window or the Linux
   GTK integration.
+- The Sentry crash reporter is not available. It is disabled by default
+  outside macOS and returns early on Windows even when enabled at build time,
+  so no crash reports are written and `ghostty +crash-report` lists nothing.
+  Use the startup diagnostic log described above instead.
 
 For details on the implementation status and verification items, see the
 [Windows production-readiness roadmap](windows-roadmap.md).

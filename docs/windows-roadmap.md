@@ -658,6 +658,29 @@ Recent verification:
   failure, controlled power resume for a single surface and all 3 surfaces,
   4-monitor movement, multiple windows, and clean exit. Exit code 0, no
   forced termination, no leftover temporary files.
+- 2026-09-16: Investigated the reported imbalance between Latin and Japanese
+  text and found the font size adjustment working as designed. Instrumented
+  the fallback load path and measured, at `font-size = 12`: the primary face
+  reports 1 em = 16.00 px and a cell width of 9.000 px; it has no ideograph,
+  so `ic_width` is null and the estimator `min(asciiHeight, 2 x cell_width)`
+  yields 18.000 px; the fallback face reports a real `ic_width` of 16.00 px,
+  giving a factor of 1.1250, after which the face is 13.5 pt with an
+  ideograph width of 18.00 px, exactly two cells. The instrumentation was
+  removed after the measurement. Three separate problems were found instead:
+  the configured `font-family` was `Moralerspace Neon Regular`, which is a
+  style name rather than a family name and therefore matched nothing, and
+  Ghostty silently used a different face without a warning in the diagnostic
+  log; the automatic fallback on Windows takes the first font file in
+  `%SYSTEMROOT%\Fonts` and then `%LOCALAPPDATA%\Microsoft\Windows\Fonts`
+  that contains the codepoint, with no regard for monospacing, language, or
+  pairing, because there is no equivalent of the CoreText
+  `CTFontCreateForString` path used on macOS; and the size adjustment applies
+  to automatic fallbacks but never to a face named in `font-family`
+  (`src/font/SharedGridSet.zig`), with no setting to change either side. The
+  asymmetry is upstream behavior and is left as is. The findings are
+  documented in the "Fonts" section of `docs/windows.md` and tracked as
+  issues 1 (silent substitution), 2 (first-match fallback), and 3 (the size
+  adjustment asymmetry).
 - 2026-09-15: Fixed keyboard focus not following a click into another split
   pane. Surfaces are `WS_CHILD` windows, which never take focus on their own,
   and `handleMouseButton` passed the event to the core without calling
@@ -865,36 +888,42 @@ Completion criteria:
 
 ## 7. Next Steps
 
-The tab name specification, edit operations, default key bindings, MSAA
-exposure of individual tabs, the six Windows shell manual operations,
-automatic GPU resource recreation with finite retries, and controlled power
-resume via power notifications are complete. The automatable regression
-tests are all in place; what remains is verification that depends on real
-environments and real-hardware operation, and the release format decision.
+The automatable regression tests are all in place, and `1.3.2-windows.3` is
+prepared with the split focus, terminfo, and installer fixes. What remains is
+verification that depends on real environments and real-hardware operation,
+the font handling questions raised during the 1.3.2-windows.3 cycle, and the
+distribution policy decision.
 
-1. Verify individual tab names, selection state, and state change
+1. Build, verify, and tag `1.3.2-windows.3`, filling in the verification
+   table in `docs/windows-release-notes.md` from the release build.
+2. Verify individual tab names, selection state, and state change
    notifications with Narrator or NVDA. The automated regression tests and
    MSAA API checks are complete; screen reader acceptance verification
    remains.
-2. Verify the split dividers, tab bar, and title bar in a high contrast
+3. Verify the split dividers, tab bar, and title bar in a high contrast
    environment.
-3. Automated regression verification of the tab bar and split dividers on
+4. Automated regression verification of the tab bar and split dividers on
    four monitors mixing 96 DPI and 120 DPI is complete. Perform the same
    verification on real hardware at 144 DPI and 192 DPI.
-4. Actually put the PC to sleep with
+5. Actually put the PC to sleep with
    `scripts/test-windows-shell.ps1 -CheckId power-resume` and record
    rendering and input after resume together with the automatic diagnostic
    log cross-check.
-5. Obtain soak results on the scale of several hours with
+6. Obtain soak results on the scale of several hours with
    `scripts/test-windows-soak.ps1 -DurationMinutes`. The 20-iteration
    baseline results are verified.
-6. Decide on the handling of variable blur, the distribution format, signing,
-   and whether an installer is needed, and reflect the decisions in the user
-   guide.
+7. Decide how far to take font handling: whether to warn when a configured
+   `font-family` matches nothing (issue 1), and whether to replace the
+   first-match fallback scan with DirectWrite's font fallback (issue 2). The
+   size adjustment asymmetry (issue 3) is upstream behavior and is left as is
+   for now.
+8. Decide on the handling of variable blur and on signing, and reflect the
+   decisions in the user guide. The distribution format is settled: a
+   portable release tree plus an Inno Setup installer.
 
-Items 1 to 5 require a real-hardware environment and operator time, so they
-are performed in the user's environment. Item 6 is a policy decision; the
-documents and scripts are updated once it is made.
+Items 2 to 6 require a real-hardware environment and operator time, so they
+are performed in the user's environment. Items 7 and 8 are policy decisions;
+the documents and scripts are updated once they are made.
 
 ## 8. Verification Matrix
 
@@ -907,6 +936,7 @@ the code exists.
 | Startup | Release build startup | PE, resources, CLI, and a dedicated GUI process verified |
 | Release | `1.3.2-windows.1` | Regression, 20-iteration soak, and CLI verified with the distribution and regression Release builds. Signing at distribution time |
 | Release | `1.3.2-windows.2` | Bug-fix preview. Regression including the IME and startup grid phases, 20-iteration soak, and CLI verified with the distribution and regression Release builds |
+| Fonts | Family matching and fallback | Measured: a configured family that matches nothing is replaced silently, and the automatic fallback takes the first file containing the codepoint. Tracked as issues 1, 2, and 3 |
 | Distribution | Inno Setup installer | Creation and signing path verified, installation behavior not verified |
 | Version info | CLI version display | Verified with the Release build |
 | Version info | Windows file properties | String version, numeric version, and Debug flag verified for Debug and Release |
