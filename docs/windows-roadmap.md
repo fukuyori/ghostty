@@ -411,7 +411,7 @@ Completion criteria:
 
 ### Phase 6: Release Quality
 
-Status: **Partially done (approx. 98%, preview build `1.3.2-windows.4` published)**
+Status: **Partially done (approx. 98%, preview build `1.3.2-windows.5` published)**
 
 Implemented:
 
@@ -951,8 +951,7 @@ Completion criteria:
 
 The automatable regression tests are all in place. `1.3.2-windows.3` is released
 with the split focus, terminfo, and installer fixes, `1.3.2-windows.4` with the
-image fixes, and `1.3.2-windows.5` is prepared with the split pane fix and
-awaits its verification run. What remains is
+image fixes, and `1.3.2-windows.5` with the split pane fix. What remains is
 verification that depends on real environments and real-hardware operation,
 the font handling questions raised during the 1.3.2-windows.3 cycle, and the
 distribution policy decision.

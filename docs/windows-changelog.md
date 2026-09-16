@@ -9,8 +9,9 @@ known issues, and known limitations of each version; the
 
 ## 1.3.2-windows.5
 
-Not released yet. Range:
-[`v1.3.2-windows.4..windows`](https://github.com/fukuyori/ghostty/compare/v1.3.2-windows.4...windows).
+Released 2026-09-16. A bug-fix preview for `1.3.2-windows.4`: splitting a pane
+no longer empties the pane that was split. Full range:
+[`v1.3.2-windows.4..v1.3.2-windows.5`](https://github.com/fukuyori/ghostty/compare/v1.3.2-windows.4...v1.3.2-windows.5).
 
 ### Fixed
 
