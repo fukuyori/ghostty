@@ -95,6 +95,10 @@ pending_high_surrogate: ?u16 = null,
 /// us release core state when Windows cancels capture unexpectedly.
 mouse_buttons_down: u8 = 0,
 
+/// Set when the core leaves a right press unconsumed, so the context menu
+/// opens when the button is released.
+context_menu_pending: bool = false,
+
 /// True while TrackMouseEvent is waiting to deliver WM_MOUSELEAVE.
 tracking_mouse_leave: bool = false,
 

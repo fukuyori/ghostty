@@ -21,6 +21,7 @@ const D3D11Sampler = @import("../../renderer/d3d11/Sampler.zig");
 const D3D11Shaders = @import("../../renderer/d3d11/shaders.zig");
 const D3D11Texture = @import("../../renderer/d3d11/Texture.zig");
 const Backdrop = @import("Backdrop.zig");
+const ContextMenu = @import("ContextMenu.zig");
 const DirectComposition = @import("DirectComposition.zig");
 const Surface = @import("Surface.zig");
 const TabBar = @import("TabBar.zig");
@@ -4163,9 +4164,17 @@ fn handleMouseButton(
     }
 
     if (surface.core_surface) |core| {
-        _ = core.mouseButtonCallback(event.state, event.button, mods) catch |err| {
+        const consumed = core.mouseButtonCallback(event.state, event.button, mods) catch |err| consumed: {
             log.err("mouse button callback error: {}", .{err});
+            break :consumed true;
         };
+
+        // The core leaves a right press unconsumed when right-click-action
+        // is context-menu and the program is not capturing the mouse. Like
+        // other Windows applications, open the menu on release.
+        if (event.button == .right and event.state == .press) {
+            surface.context_menu_pending = !consumed;
+        }
     }
 
     if (event.state == .release and surface.mouse_buttons_down == 0 and
@@ -4176,6 +4185,15 @@ fn handleMouseButton(
         }
     }
 
+    if (event.state == .release and event.button == .right and surface.context_menu_pending) {
+        surface.context_menu_pending = false;
+        if (surface.core_surface) |core| {
+            // The menu may close this surface, so nothing touches it afterwards.
+            ContextMenu.show(surface.rtApp().alloc, hwnd, core, mouseClientPoint(lparam));
+        }
+        return 0;
+    }
+
     // XBUTTON messages require TRUE to prevent further processing.
     return if (event.xbutton) 1 else 0;
 }
@@ -4183,6 +4201,9 @@ fn handleMouseButton(
 fn releaseMouseButtons(surface: *Surface) void {
     const down = surface.mouse_buttons_down;
     if (down == 0) return;
+    // Capture was taken away mid-click, so the right release that would open
+    // the context menu is never coming.
+    surface.context_menu_pending = false;
     surface.mouse_buttons_down = 0;
 
     const buttons = [_]struct { u8, input.MouseButton }{
