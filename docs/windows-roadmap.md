@@ -666,6 +666,23 @@ Recent verification:
   failure, controlled power resume for a single surface and all 3 surfaces,
   4-monitor movement, multiple windows, and clean exit. Exit code 0, no
   forced termination, no leftover temporary files.
+- 2026-09-16: Found and fixed why splitting a pane emptied it, and prepared
+  `1.3.2-windows.5`. On `1.3.2-windows.4`, a split followed by a click back
+  into the original pane showed nothing but the cursor, while the in-box host
+  kept the text. Recording the bytes each host sent showed the OpenConsole
+  host clearing lines with literal spaces (62 runs up to the full 140 columns,
+  no erase sequences) and sending nothing at all on resize. Logging the resize
+  showed the cause in Ghostty: narrowing from 140 to 69 columns took the
+  screen from 30 rows to 90 and the cursor to row 0, because reflow kept the
+  spaces as content and wrapped each row into three. Ruled out along the way:
+  the `CreatePseudoConsole` flags (0x0, 0x1, 0x2, and 0x7 all emptied the
+  pane), prompt clearing on resize (it ran but cleared nothing, as the shell
+  emits no OSC 133 marks), and an intermediate tiny size (there was none).
+  After the fix a split keeps the command and its output, a regression test
+  fails without it, and the unit tests passed 3837 of 3899 with 62 skipped and
+  0 failures. The right-aligned prompt still wraps its last character onto a
+  new row when the pane narrows, on either host: it is real content out to the
+  old right edge, and the shell does not redraw it.
 - 2026-09-16: Found and fixed why programs could not draw images, and
   prepared `1.3.2-windows.4`. Two unrelated faults hid each other. Driving
   `CreatePseudoConsole` directly on Windows 11 26200 showed the ConPTY in
@@ -932,10 +949,10 @@ Completion criteria:
 
 ## 7. Next Steps
 
-The automatable regression tests are all in place, `1.3.2-windows.3` is
-released with the split focus, terminfo, and installer fixes, and
-`1.3.2-windows.4` is released with the image fixes.
-What remains is
+The automatable regression tests are all in place. `1.3.2-windows.3` is released
+with the split focus, terminfo, and installer fixes, `1.3.2-windows.4` with the
+image fixes, and `1.3.2-windows.5` is prepared with the split pane fix and
+awaits its verification run. What remains is
 verification that depends on real environments and real-hardware operation,
 the font handling questions raised during the 1.3.2-windows.3 cycle, and the
 distribution policy decision.

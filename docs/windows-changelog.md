@@ -7,6 +7,27 @@ known issues, and known limitations of each version; the
 [version update checklist](version-update-checklist.md) describes the
 `X.Y.Z-windows.N` numbering.
 
+## 1.3.2-windows.5
+
+Not released yet. Range:
+[`v1.3.2-windows.4..windows`](https://github.com/fukuyori/ghostty/compare/v1.3.2-windows.4...windows).
+
+### Fixed
+
+- Splitting a pane no longer empties the pane that was split (`677ccc239`).
+  The OpenConsole ConPTY host that `1.3.2-windows.4` introduced clears a line
+  by writing spaces across all of it rather than erasing it: one pane received
+  62 runs of literal spaces, up to the full 140-column width, and not a single
+  erase sequence, where the in-box host sent 57. Reflow counted those spaces as
+  content, so narrowing a 140-column pane to 69 columns wrapped every row into
+  three: the screen grew from 30 rows to 90, the cursor moved to the top, and
+  everything above it went into scrollback. Reflow now drops trailing plain
+  spaces that carry no style, hyperlink, or protection, the same way it
+  already dropped empty cells. A space with a style is kept, since a
+  background colour makes it visible. As a side effect, trailing unstyled
+  spaces on a line are not preserved across a reflow.
+
+
 ## 1.3.2-windows.4
 
 Released 2026-09-16. A bug-fix preview for `1.3.2-windows.3`: programs running
