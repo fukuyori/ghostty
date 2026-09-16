@@ -386,7 +386,7 @@ Key commits:
 
 Follow-up work is tracked as issues:
 
-- [#4](https://github.com/fukuyori/ghostty/issues/4): right-click does nothing (no context menu, no selection)
+- [#4](https://github.com/fukuyori/ghostty/issues/4): right-click does not open a context menu
 - [#6](https://github.com/fukuyori/ghostty/issues/6): verify the GUI with high contrast enabled
 - [#5](https://github.com/fukuyori/ghostty/issues/5): verify the GUI at 144 and 192 DPI on real hardware
 - [#7](https://github.com/fukuyori/ghostty/issues/7): verify tab accessibility with a screen reader
@@ -938,7 +938,7 @@ issues.
 
 Needs a fix:
 
-- [#4](https://github.com/fukuyori/ghostty/issues/4): right-click does nothing (no context menu, no selection)
+- [#4](https://github.com/fukuyori/ghostty/issues/4): right-click does not open a context menu
 
 Real-hardware verification, performed in the user's environment:
 
