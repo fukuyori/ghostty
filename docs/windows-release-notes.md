@@ -52,15 +52,25 @@ The [changelog](windows-changelog.md) lists these with their commits.
 
 ### Verification
 
-Not yet run. Fill this in from the release build before tagging, following
-`docs/version-update-checklist.md` section 5.
+Verified on 2026-09-16 on Windows 11 Pro (10.0.26200, four monitors: three at
+96 DPI and one at 120 DPI) against the ReleaseFast, baseline CPU executable.
 
-Verified so far: `terminal-browser` renders a page in a ReleaseFast build, the
-log reports the sideloaded host, the release and installer scripts both
-succeed, and the installer payload contains `bin\conpty.dll`,
-`bin\OpenConsole.exe`, and `THIRD-PARTY-NOTICES.md`. The window-state
-regression, the soak run, the CLI checks, and the unit tests have not been run
-for this version.
+| Item | Result |
+|---|---|
+| Release build script checks (PE32+, x64, WindowsGui, version information, icon, resources, compiled terminfo) | Passed. `FileVersion` 1.3.2-windows.4, numeric version 1.3.2.4, `IsDebug` False, `TerminfoCompiled` True |
+| `--version`, `+list-keybinds --default` | Exit code 0 |
+| Window-state regression on the distribution build (terminal input, IME process keys, split pane click focus, startup grid, config reload, splits, 4 monitors, multiple windows, maximize/minimize/restore, clean exit) | All items passed, exit code 0, no forced termination |
+| The same regression plus GPU resource re-creation (2 controlled failures) and power resume on the test-hook build | All items passed. Resources re-created, renderer recovered, terminal session preserved |
+| 20-iteration soak test (including GPU re-creation and controlled power resume) | All 20 passed, 0 failures, 141.9 seconds elapsed |
+| Unit tests | 3835 of 3897 passed, 62 skipped, 0 failed, across 77 build steps |
+| Images through the Kitty graphics protocol | `terminal-browser` renders a page. The log reports `using the sideloaded conpty.dll next to our executable` |
+| Installer | `scripts/build-installer.ps1` succeeds and the payload contains `bin\conpty.dll`, `bin\OpenConsole.exe`, and `THIRD-PARTY-NOTICES.md` |
+
+The six manual Windows shell acceptance items carry over the results that
+passed on 2026-09-15; this version changes nothing related to Alt+Tab, the
+taskbar, or Snap. Installation, uninstallation, and upgrade behavior of the
+installer itself are not verified, and the image path is verified with
+`terminal-browser` only, not with other programs that draw images.
 
 ### Known Limitations
 

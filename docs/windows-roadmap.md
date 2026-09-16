@@ -153,9 +153,16 @@ Implemented:
 - Background transparency via `background-opacity`
 - Experimental implementation of Windows backdrop and Gaussian blur
 - Transparency and backdrop updates on config changes
+- Image rendering for the Kitty graphics protocol, which needed both the
+  OpenConsole ConPTY host (the one in `kernel32.dll` discards the APC
+  sequences the protocol travels in) and a fix to the D3D11 image vertex
+  shader, which passed a z that `ortho2d` turned into clip `z = -1` so
+  every quad was clipped away
 
 Known quality issues after phase completion:
 
+- Images were not drawn at all until `1.3.2-windows.4`, and neither fault
+  logged anything. This phase was marked done on text rendering alone.
 - Background transparency is usable.
 - Blur has an implementation path, but on some environments it produces an
   incomplete blur and does not meet the quality bar. The currently
@@ -167,6 +174,7 @@ Completion criteria:
 
 - The terminal can be rendered with D3D11/DirectComposition.
 - `background-opacity` is reflected on screen.
+- A program using the Kitty graphics protocol can display an image.
 - The OpenGL-compatible configuration can be built.
 
 ### Phase 3: Window Features
@@ -403,7 +411,7 @@ Completion criteria:
 
 ### Phase 6: Release Quality
 
-Status: **Partially done (approx. 98%, preview build `1.3.2-windows.3` published)**
+Status: **Partially done (approx. 98%, preview build `1.3.2-windows.3` published, `1.3.2-windows.4` verified and awaiting its tag)**
 
 Implemented:
 
@@ -676,8 +684,11 @@ Recent verification:
   `scripts/build-release.ps1` and `scripts/build-installer.ps1` both
   succeeded, and the installer payload contained `bin\conpty.dll`,
   `bin\OpenConsole.exe`, and `THIRD-PARTY-NOTICES.md`. The window-state
-  regression, the soak run, the CLI checks, and the unit tests have not
-  been run for this version.
+  regression passed on the distribution build, and on the test-hook build
+  with 2 controlled GPU recovery failures and power resume. A 20-iteration
+  soak run completed 20 of 20 in 141.9 seconds with no failures. The unit
+  tests passed 3835 of 3897 with 62 skipped and 0 failures across 77 build
+  steps. `--version` and `+list-keybinds --default` returned exit code 0.
 - 2026-09-16: Released the preview build `1.3.2-windows.3`. Built the
   distribution and `-TestHooks` ReleaseFast binaries with
   `-Dversion-string=1.3.2-windows.3` and confirmed `FileVersion`
@@ -922,8 +933,8 @@ Completion criteria:
 
 The automatable regression tests are all in place, `1.3.2-windows.3` is
 released with the split focus, terminfo, and installer fixes, and
-`1.3.2-windows.4` is prepared with the image fixes and awaits its
-verification run. What remains is
+`1.3.2-windows.4` is verified with the image fixes and awaits its tag.
+What remains is
 verification that depends on real environments and real-hardware operation,
 the font handling questions raised during the 1.3.2-windows.3 cycle, and the
 distribution policy decision.

@@ -112,11 +112,11 @@ estimates of the work involved.
 | Phase | Scope | Status |
 |---|---|---:|
 | 1 | Core runtime: startup, input, IME, clipboard, DPI | Done |
-| 2 | Rendering: D3D11, DirectComposition, background opacity | Done |
+| 2 | Rendering: D3D11, DirectComposition, background opacity, images | Done |
 | 3 | Window features: multiple windows, fullscreen, config reload | Done |
 | 4 | Split panes: create, navigate, resize, zoom | Done |
 | 5 | Windows GUI polish: tabs, mouse handling, DPI, accessibility | ~98% |
-| 6 | Release quality: diagnostics, release verification, hardware tests, distribution | ~97% |
+| 6 | Release quality: diagnostics, release verification, hardware tests, distribution | ~98% |
 
 Overall progress is about 98%. Current work is the environment-specific GUI
 verification of phase 5 and the release-quality work of phase 6 in parallel.
