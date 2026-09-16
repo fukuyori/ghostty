@@ -7,6 +7,63 @@ known issues, and known limitations of each version; the
 [version update checklist](version-update-checklist.md) describes the
 `X.Y.Z-windows.N` numbering.
 
+## 1.3.2-windows.4
+
+Not released yet. Range:
+[`v1.3.2-windows.3..windows`](https://github.com/fukuyori/ghostty/compare/v1.3.2-windows.3...windows).
+
+### Fixed
+
+- Programs can draw images (`1de9481b6`, `c67f70308`). Two unrelated
+  faults both had to be fixed before anything appeared, and together they hid
+  each other: the escape sequences never arrived, and the images that did
+  arrive were never rasterized.
+  - The ConPTY in `kernel32.dll` rebuilds a program's output from a text
+    screen buffer and drops what it does not model, including APC
+    (`ESC _ ... ESC \`) — the envelope the Kitty graphics protocol travels
+    in. Measured on Windows 11 26200: that host passes text and OSC but
+    discards APC, while the OpenConsole host passes all three, at any
+    `CreatePseudoConsole` flags. It is the host, not the flags;
+    `PSEUDOCONSOLE_PASSTHROUGH_MODE` is in no Windows SDK header and changed
+    nothing. Ghostty now loads a `conpty.dll` sitting next to its own
+    executable in preference to the one in `kernel32`, by full path, and
+    falls back when it isn't there. Query replies round-trip as a result:
+    `ESC [ c` is answered by Ghostty (`ESC [ ?62;22;52 c`) rather than by the
+    in-box console host, and `ESC [ 16 t` reports the cell size.
+  - The D3D11 image vertex shader passed `z = 1.0` to the projection.
+    `ortho2d` negates z, so that landed at clip `z = -1`, and D3D keeps only
+    `0 <= z <= w`: every image quad was clipped away before rasterization.
+    Nothing reported it — the placement was built, the texture was uploaded
+    and ready, and the draw call was issued every frame. The Metal shader has
+    always passed `0.0`.
+
+### Added
+
+- `scripts/fetch-conpty.ps1`, which downloads the pinned
+  `Microsoft.Windows.Console.ConPTY` package, verifies the package and both
+  extracted files against recorded SHA-256 hashes, and writes `conpty.dll`
+  and `OpenConsole.exe` into `vendor/conpty` (`1de9481b6`). The binaries are
+  fetched rather than committed: Zig's package manager keys the archive
+  format off the file extension and refuses `.nupkg`, and Microsoft publishes
+  them in no other form. A build without the pair still works, it just cannot
+  show images, so a developer build needs no network round trip. The release
+  and installer scripts fetch them and refuse to ship without them.
+
+### Changed
+
+- The installer ships `conpty.dll`, `OpenConsole.exe`, and
+  `THIRD-PARTY-NOTICES.md` (`1de9481b6`, `aea4d0e5c`). The ConPTY host is
+  redistributed under the MIT license, which the notices file carries. Both
+  halves are required and must come from the same package version:
+  `conpty.dll` on its own silently falls back to the in-box host, which looks
+  like no change rather than an error.
+
+### Documentation
+
+- A "When Updating the Bundled ConPTY Host" section in the version update
+  checklist, covering the three hashes to change and the pairing requirement
+  (`1de9481b6`).
+
 ## 1.3.2-windows.3
 
 Released 2026-09-16. A bug-fix preview for `1.3.2-windows.2` that resolves

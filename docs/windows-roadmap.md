@@ -658,6 +658,26 @@ Recent verification:
   failure, controlled power resume for a single surface and all 3 surfaces,
   4-monitor movement, multiple windows, and clean exit. Exit code 0, no
   forced termination, no leftover temporary files.
+- 2026-09-16: Found and fixed why programs could not draw images, and
+  prepared `1.3.2-windows.4`. Two unrelated faults hid each other. Driving
+  `CreatePseudoConsole` directly on Windows 11 26200 showed the ConPTY in
+  `kernel32.dll` passing text and OSC but discarding APC, at flags 0, and
+  the OpenConsole host passing all three, at flags 0, 0x7, and 0xF: it is
+  the host, not the flags, and `PSEUDOCONSOLE_PASSTHROUGH_MODE` is in no
+  Windows SDK header and changed nothing. With the OpenConsole host loaded
+  from beside the executable, DA1 came back as Ghostty's `ESC [ ?62;22;52 c`
+  rather than the in-box host's `ESC [ ?61;...c`, `ESC [ 16 t` reported the
+  cell size, and the Kitty graphics query was answered. Images still did
+  not appear: the D3D11 image vertex shader passed `z = 1.0` to a
+  projection that negates z, so every quad sat at clip `z = -1` and was
+  clipped away, with the placement built, the texture ready, and the draw
+  call issued every frame and nothing logged. After both fixes,
+  `terminal-browser` rendered a page in a ReleaseFast build.
+  `scripts/build-release.ps1` and `scripts/build-installer.ps1` both
+  succeeded, and the installer payload contained `bin\conpty.dll`,
+  `bin\OpenConsole.exe`, and `THIRD-PARTY-NOTICES.md`. The window-state
+  regression, the soak run, the CLI checks, and the unit tests have not
+  been run for this version.
 - 2026-09-16: Released the preview build `1.3.2-windows.3`. Built the
   distribution and `-TestHooks` ReleaseFast binaries with
   `-Dversion-string=1.3.2-windows.3` and confirmed `FileVersion`
@@ -900,8 +920,10 @@ Completion criteria:
 
 ## 7. Next Steps
 
-The automatable regression tests are all in place, and `1.3.2-windows.3` is
-released with the split focus, terminfo, and installer fixes. What remains is
+The automatable regression tests are all in place, `1.3.2-windows.3` is
+released with the split focus, terminfo, and installer fixes, and
+`1.3.2-windows.4` is prepared with the image fixes and awaits its
+verification run. What remains is
 verification that depends on real environments and real-hardware operation,
 the font handling questions raised during the 1.3.2-windows.3 cycle, and the
 distribution policy decision.

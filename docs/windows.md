@@ -10,6 +10,18 @@ created with Inno Setup.
 
 ## Build and Launch
 
+Ghostty ships a ConPTY host next to its executable, because the one in
+`kernel32.dll` drops the escape sequences that carry images. It is fetched
+rather than committed, so get it once before building:
+
+```powershell
+./scripts/fetch-conpty.ps1
+```
+
+A build without it still works, it just cannot show images from programs
+that use the Kitty graphics protocol, and the build says so.
+`build-release.ps1` fetches it on its own. See `vendor/conpty/README.md`.
+
 Debug build:
 
 ```powershell
@@ -56,6 +68,12 @@ The installer has the following contents.
   `share\terminfo\ghostty.terminfo`. The executable looks for
   `share\terminfo\ghostty.terminfo` relative to its own location to determine
   the resource directory, so this layout cannot be changed.
+- Places `bin\conpty.dll` and `bin\OpenConsole.exe`, the ConPTY host,
+  beside the executable, which is where Ghostty looks for them. Both are
+  required and must come from the same package version: `conpty.dll` on its
+  own silently falls back to the host in `kernel32.dll`, and images stop
+  appearing. `THIRD-PARTY-NOTICES.md` carries the MIT notice they are
+  redistributed under.
 - The default is a per-user installation (no administrator rights required);
   installation for all users into `Program Files` can also be selected from
   the dialog.
