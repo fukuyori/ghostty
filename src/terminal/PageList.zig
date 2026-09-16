@@ -1328,6 +1328,29 @@ pub fn resize(self: *PageList, opts: Resize) Allocator.Error!void {
 }
 
 /// Resize the pagelist with reflow by adding or removing columns.
+/// Whether a cell at the end of an unwrapped row can be dropped when the row
+/// is reflowed to a different width.
+///
+/// Empty cells can, and so can a plain space with no style, hyperlink, or
+/// protection: it draws exactly like an empty cell. Kept as content, though,
+/// it makes the row as long as its old width, so narrowing the terminal wraps
+/// it into several rows of nothing. Some hosts clear a line by writing spaces
+/// across all of it instead of erasing it (the OpenConsole ConPTY host does),
+/// and there a split pane turned every row into two or three and pushed the
+/// whole screen above the cursor into scrollback.
+///
+/// A space that carries a style is kept: a background colour makes it
+/// visible.
+fn isReflowBlank(cell: pagepkg.Cell) bool {
+    if (cell.isEmpty()) return true;
+    return cell.content_tag == .codepoint and
+        cell.content.codepoint.data == ' ' and
+        cell.wide == .narrow and
+        cell.style_id == stylepkg.default_id and
+        !cell.hyperlink and
+        !cell.protected;
+}
+
 fn resizeCols(
     self: *PageList,
     cols: size.CellCountInt,
@@ -1632,7 +1655,7 @@ const ReflowCursor = struct {
         var cols_len = src_page.size.cols;
         if (!src_row.wrap) {
             while (cols_len > 0) {
-                if (!cells[cols_len - 1].isEmpty()) break;
+                if (!isReflowBlank(cells[cols_len - 1])) break;
                 cols_len -= 1;
             }
 
@@ -17952,6 +17975,88 @@ test "PageList resize reflow less cols blank lines" {
         try testing.expectEqual(@as(usize, 2), cells.len);
         try testing.expectEqual(@as(u21, 2), cells[0].content.codepoint.data);
     }
+}
+
+test "PageList resize reflow less cols trailing spaces are blank" {
+    // A host that clears lines by writing spaces across them (the OpenConsole
+    // ConPTY host) must not have those spaces wrap into extra rows when the
+    // terminal narrows. Otherwise a split pane pushes its whole screen into
+    // scrollback.
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var s = try init(alloc, .{ .cols = 6, .rows = 3, .max_size = 0 });
+    defer s.deinit();
+    const page = s.pages.first.?.page();
+
+    // Row 0: "ab" followed by spaces. Row 1: nothing but spaces.
+    for (0..2) |y| {
+        for (0..6) |x| {
+            const rac = page.getRowAndCell(x, y);
+            const ch: u21 = if (y == 0 and x == 0)
+                'a'
+            else if (y == 0 and x == 1)
+                'b'
+            else
+                ' ';
+            rac.cell.* = .{
+                .content_tag = .codepoint,
+                .content = .{ .codepoint = .{ .data = ch } },
+            };
+        }
+    }
+
+    try s.resize(.{ .cols = 3, .reflow = true });
+    try testing.expectEqual(@as(usize, 3), s.cols);
+    try testing.expectEqual(@as(usize, 3), s.totalRows());
+
+    var it = s.rowIterator(.right_down, .{ .active = .{} }, null);
+    {
+        const offset = it.next().?;
+        const rac = offset.rowAndCell();
+        const cells = offset.node.page().getCells(rac.row);
+        try testing.expect(!rac.row.wrap);
+        try testing.expectEqual(@as(u21, 'a'), cells[0].content.codepoint.data);
+        try testing.expectEqual(@as(u21, 'b'), cells[1].content.codepoint.data);
+    }
+    {
+        const offset = it.next().?;
+        const rac = offset.rowAndCell();
+        try testing.expect(!rac.row.wrap);
+    }
+}
+
+test "PageList resize reflow less cols trailing styled spaces wrap" {
+    // A space with a background colour is visible, so it stays content and
+    // wraps like any other character.
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    var s = try init(alloc, .{ .cols = 6, .rows = 3, .max_size = 0 });
+    defer s.deinit();
+    const page = s.pages.first.?.page();
+
+    const style: stylepkg.Style = .{ .bg_color = .{ .palette = 4 } };
+    const style_id = try page.styles.add(page.memory, style);
+    for (0..6) |x| {
+        const rac = page.getRowAndCell(x, 0);
+        rac.cell.* = .{
+            .content_tag = .codepoint,
+            .content = .{ .codepoint = .{ .data = ' ' } },
+            .style_id = style_id,
+        };
+        rac.row.styled = true;
+        page.styles.use(page.memory, style_id);
+    }
+    // We're over-counted by 1 because `add` implies `use`.
+    page.styles.release(page.memory, style_id);
+
+    try s.resize(.{ .cols = 3, .reflow = true });
+    try testing.expectEqual(@as(usize, 3), s.cols);
+
+    var it = s.rowIterator(.right_down, .{ .active = .{} }, null);
+    const offset = it.next().?;
+    try testing.expect(offset.rowAndCell().row.wrap);
 }
 
 test "PageList resize reflow less cols blank lines between" {
