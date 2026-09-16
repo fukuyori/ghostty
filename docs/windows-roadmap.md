@@ -902,8 +902,9 @@ Remaining work:
   real-hardware tests and the release decision.
 - The distribution formats are a portable executable and an Inno Setup
   installer, with signing done via the installer creation script's `-Sign`.
-  Decide on real-hardware verification of installer install, uninstall, and
-  update, and when to bundle it with the public release.
+  From `1.3.2-windows.4` the signed installer is published as a release
+  asset. Real-hardware verification of install, uninstall, and update
+  through it remains.
 
 Deferred items (raised in the 2026-09-15 code review, deferred by user
 decision):
@@ -960,9 +961,10 @@ distribution policy decision.
    first-match fallback scan with DirectWrite's font fallback (issue 2). The
    size adjustment asymmetry (issue 3) is upstream behavior and is left as is
    for now.
-7. Decide on the handling of variable blur and on signing, and reflect the
-   decisions in the user guide. The distribution format is settled: a
-   portable release tree plus an Inno Setup installer.
+7. Decide on the handling of variable blur and reflect the decision in the
+   user guide. The distribution format and signing are settled: a portable
+   release tree plus a signed Inno Setup installer, published as a release
+   asset from `1.3.2-windows.4`.
 
 Items 1 to 5 require a real-hardware environment and operator time, so they
 are performed in the user's environment. Items 6 and 7 are policy decisions;
@@ -981,7 +983,7 @@ the code exists.
 | Release | `1.3.2-windows.2` | Bug-fix preview. Regression including the IME and startup grid phases, 20-iteration soak, and CLI verified with the distribution and regression Release builds |
 | Release | `1.3.2-windows.3` | Bug-fix preview. Regression including the split focus phase, 20-iteration soak, and CLI verified with both Release builds. Compiled terminfo shipped |
 | Fonts | Family matching and fallback | Measured: a configured family that matches nothing is replaced silently, and the automatic fallback takes the first file containing the codepoint. Tracked as issues 1, 2, and 3 |
-| Distribution | Inno Setup installer | Creation and signing path verified, installation behavior not verified |
+| Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature. Installation behavior not verified |
 | Version info | CLI version display | Verified with the Release build |
 | Version info | Windows file properties | String version, numeric version, and Debug flag verified for Debug and Release |
 | Startup | Diagnostic log and exit code capture | Verified for both normal and failing CLI |

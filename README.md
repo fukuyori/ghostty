@@ -99,10 +99,11 @@ Manual Windows shell acceptance checks:
 The Windows build is a preview. Basic operation has been verified on
 Windows 11; Windows 10, 144 and 192 DPI, keyboard layouts other than
 Japanese, real sleep and resume, and long-running sessions have not been
-verified yet. An installer can be built but is not bundled with the published
-preview, and there is no automatic update. Background opacity works, but
-`background-blur` quality depends on the environment, so leaving it disabled
-is recommended for now.
+verified yet. From `1.3.2-windows.4` a signed installer is published as a
+release asset; installing, uninstalling, and upgrading through it are not
+verified on real hardware, and there is no automatic update. Background
+opacity works, but `background-blur` quality depends on the environment, so
+leaving it disabled is recommended for now.
 
 ### Work Phases
 
