@@ -348,6 +348,14 @@ if (Test-Path -LiteralPath $stageRoot) {
 [System.IO.Directory]::CreateDirectory((Join-Path $stageRoot "bin")) | Out-Null
 [System.IO.Directory]::CreateDirectory((Join-Path $stageRoot "share")) | Out-Null
 Copy-Item -LiteralPath $releaseExecutable -Destination (Join-Path $stageRoot "bin\ghostty.exe")
+# The ConPTY host travels with the executable, and signing must not reach
+# into zig-out/release, so it is staged too. Both halves or neither:
+# conpty.dll on its own silently falls back to the in-box host.
+foreach ($conpty in @("conpty.dll", "OpenConsole.exe")) {
+    Copy-Item `
+        -LiteralPath (Join-Path $releaseRoot (Join-Path "bin" $conpty)) `
+        -Destination (Join-Path $stageRoot (Join-Path "bin" $conpty))
+}
 # The whole terminfo directory, so the compiled database travels with the
 # source rather than only the source file.
 Copy-Item `
