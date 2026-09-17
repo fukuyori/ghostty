@@ -62,6 +62,17 @@ See the [Windows release notes](docs/windows-release-notes.md) for preview
 versions, contents, and verification results, and the
 [changelog](docs/windows-changelog.md) for what changed between them.
 
+Checking the version of a build or an installation (`ghostty.exe` is a GUI
+application, so pipe its output to have PowerShell wait for it and print it):
+
+```powershell
+./zig-out/release/bin/ghostty.exe --version | Out-String
+# An installation for the current user
+& "$env:LOCALAPPDATA\Programs\Ghostty\bin\ghostty.exe" --version | Out-String
+# The same version is in the file properties
+(Get-Item ./zig-out/release/bin/ghostty.exe).VersionInfo.ProductVersion
+```
+
 The release build and the installer take the version from
 `dist/windows/version.txt`, and the installer script refuses a release
 executable that reports a different one (`-Sign` signs the executable, the
