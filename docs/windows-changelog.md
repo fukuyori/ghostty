@@ -7,6 +7,27 @@ known issues, and known limitations of each version; the
 [version update checklist](version-update-checklist.md) describes the
 `X.Y.Z-windows.N` numbering.
 
+## 1.3.2-windows.8
+
+Windows preview dated 2026-09-17. Fixes Shift character input in
+antigravity. The repository owner confirmed successful real input testing;
+the Release executable and signed installer were also verified locally.
+
+### Fixed
+
+- Mark Shift as consumed when Win32 `WM_CHAR` produces text, while preserving
+  the existing AltGr handling. In Kitty keyboard disambiguation mode, this
+  lets characters such as `:` and `?` reach antigravity as text instead of
+  being encoded with an unconsumed Shift modifier.
+- Add regression tests for consumed Shift, AltGr, and their combination,
+  and for plain-text encoding of `:`, `?`, and `A` with consumed Shift.
+
+### Documentation
+
+- Add the [Windows technical specification](windows-technical-spec.md),
+  including the Win32 consumed-modifier handling and antigravity verification.
+- Document how to rebuild when a running Ghostty locks the output executable.
+
 ## 1.3.2-windows.7
 
 Windows preview dated 2026-09-17. Fixes the renderer notification hang in

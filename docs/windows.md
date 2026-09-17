@@ -2,11 +2,15 @@
 
 This document summarizes the configuration, operation, and known limitations
 for building and using the native Windows build of this fork. The Windows
-build is at the preview stage; the current version is `1.3.2-windows.1`. See
+build is at the preview stage; its version is recorded in
+`dist/windows/version.txt`. See
 the [release notes](windows-release-notes.md) for the publication history and
 the verification results of each version. There are two distribution forms: a
 portable executable produced by the Release build script, and an installer
 created with Inno Setup.
+
+See the [Windows technical specification](windows-technical-spec.md)
+(Japanese) for the implementation overview and input handling details.
 
 ## Build and Launch
 
@@ -40,6 +44,24 @@ The version of the Release build is read from `dist/windows/version.txt` in the
 working tree, so it is the same whether or not the changes are committed or
 tagged. The script takes no version: a version given on the command line would
 only relabel the current sources.
+
+If the install step fails with `AccessDenied` while updating
+`zig-out\release\bin\ghostty.exe`, check whether that executable is running:
+
+```powershell
+Get-Process -Name ghostty -ErrorAction SilentlyContinue | Select-Object Id, Path
+```
+
+Save the terminal work, close Ghostty instances running from the output
+directory, and rerun the build from another terminal. To keep Ghostty running,
+choose a different output directory:
+
+```powershell
+./scripts/build-release.ps1 -OutputDirectory zig-out/release-next
+```
+
+This builds into `zig-out/release-next` instead of replacing the running
+executable in `zig-out/release`.
 
 ## Creating the Installer
 
@@ -508,6 +530,10 @@ modifiers on the current layout. Only key messages posted by automation tools
 without a scan code fall back to the US-layout-equivalent virtual key table.
 Unit tests and regression tests pass on real hardware with a Japanese layout,
 but other layouts have not been verified on real hardware.
+
+Starting with `1.3.2-windows.8`, Shift characters such as `:` and `?` are
+handled correctly in Kitty keyboard disambiguation mode. Actual `:`, `?`,
+and `!` input in antigravity was confirmed by the repository owner.
 
 ## Manual Acceptance Check for the Windows Shell
 

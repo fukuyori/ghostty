@@ -7,6 +7,63 @@ versions with their commits, the
 numbering rules, the [User Guide](windows.md) for configuration and known
 limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 
+## 1.3.2-windows.8
+
+- Prepared: 2026-09-17
+- Source tag: `v1.3.2-windows.8`
+- Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
+- Status: preview. Input fix verified, including actual use in antigravity,
+  as reported and confirmed by the repository owner. Release executable and
+  signed installer verified locally on 2026-09-17.
+
+### Changes Since 1.3.2-windows.7
+
+- Fix Shift character input in antigravity by marking Shift as consumed in
+  Win32 `WM_CHAR` text events. The Kitty keyboard encoder can then send the
+  generated text in disambiguation mode. Existing AltGr consumption remains.
+- Add tests for consumed Shift and AltGr modifiers and for plain-text
+  encoding of `:`, `?`, and `A` with consumed Shift.
+
+### Verification
+
+The following results were reported by the repository owner for the input
+fix before this version bump on 2026-09-17:
+
+| Item | Result |
+|---|---|
+| `zig build test -Dtest-filter="consumed text modifiers"` | Passed |
+| `zig build test -Dtest-filter="plain text with consumed shift"` | Passed |
+| `zig build test -Dtest-filter=Win32 -Dwin32-test-hooks=true` | Passed |
+| `zig build` | Succeeded |
+| Actual Shift character input in antigravity (`:`, `?`, `!`) | Passed; confirmed by the repository owner |
+
+Subsequent local artifact checks on 2026-09-17 confirmed:
+
+- The distribution executable reports `Ghostty 1.3.2-windows.8` and
+  `ReleaseFast` through `--version`.
+- The release executable, staged distribution executable, and installer
+  report `1.3.2-windows.8` with `IsDebug` set to `False`.
+- Authenticode signatures on the staged executable and
+  `ghostty-1.3.2-windows.8-x64-setup.exe` are `Valid`.
+
+These artifact checks do not record a new install/upgrade/uninstall run.
+
+### Building This Version
+
+The release script reads `dist/windows/version.txt` from the working tree:
+
+```powershell
+./scripts/build-release.ps1
+./zig-out/release/bin/ghostty.exe --version
+```
+
+The target version is `1.3.2-windows.8`, with numeric version `1.3.2.8`.
+Use `./scripts/build-installer.ps1 -Sign` for the signed installer.
+
+### Known Limitations
+
+The existing limitations of `1.3.2-windows.7` still apply.
+
 ## 1.3.2-windows.7
 
 - Prepared: 2026-09-17

@@ -1260,6 +1260,51 @@ test "kitty: plain text" {
     try testing.expectEqualStrings("abcd", writer.buffered());
 }
 
+test "kitty: plain text with consumed shift" {
+    var buf: [128]u8 = undefined;
+    {
+        var writer: std.Io.Writer = .fixed(&buf);
+        try kitty(&writer, .{
+            .key = .semicolon,
+            .mods = .{ .shift = true },
+            .consumed_mods = .{ .shift = true },
+            .utf8 = ":",
+            .unshifted_codepoint = ';',
+        }, .{
+            .kitty_flags = .{ .disambiguate = true },
+        });
+        try testing.expectEqualStrings(":", writer.buffered());
+    }
+
+    {
+        var writer: std.Io.Writer = .fixed(&buf);
+        try kitty(&writer, .{
+            .key = .slash,
+            .mods = .{ .shift = true },
+            .consumed_mods = .{ .shift = true },
+            .utf8 = "?",
+            .unshifted_codepoint = '/',
+        }, .{
+            .kitty_flags = .{ .disambiguate = true },
+        });
+        try testing.expectEqualStrings("?", writer.buffered());
+    }
+
+    {
+        var writer: std.Io.Writer = .fixed(&buf);
+        try kitty(&writer, .{
+            .key = .key_a,
+            .mods = .{ .shift = true },
+            .consumed_mods = .{ .shift = true },
+            .utf8 = "A",
+            .unshifted_codepoint = 'a',
+        }, .{
+            .kitty_flags = .{ .disambiguate = true },
+        });
+        try testing.expectEqualStrings("A", writer.buffered());
+    }
+}
+
 test "kitty: repeat with just disambiguate" {
     var buf: [128]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&buf);

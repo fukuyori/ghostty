@@ -3657,6 +3657,18 @@ fn isAltGr(mods: input.Mods) bool {
     return mods.ctrl and mods.alt and mods.sides.alt == .right;
 }
 
+fn consumedTextModifiers(mods: input.Mods) input.Mods {
+    var consumed: input.Mods = .{};
+    if (isAltGr(mods)) {
+        consumed.ctrl = true;
+        consumed.alt = true;
+    }
+    if (mods.shift) {
+        consumed.shift = true;
+    }
+    return consumed;
+}
+
 fn shouldDispatchKeyPress(vk: win32.WPARAM, mods: input.Mods) bool {
     if (!isTextVirtualKey(vk)) return true;
     if (mods.super) return true;
@@ -3761,11 +3773,7 @@ fn handleTextInput(surface: *Surface, wparam: win32.WPARAM) win32.LRESULT {
 
     var utf8_buf: [4]u8 = undefined;
     const len = std.unicode.utf8Encode(codepoint, &utf8_buf) catch return 0;
-    var consumed_mods: input.Mods = .{};
-    if (isAltGr(mods)) {
-        consumed_mods.ctrl = true;
-        consumed_mods.alt = true;
-    }
+    const consumed_mods = consumedTextModifiers(mods);
 
     const event: input.KeyEvent = .{
         .action = if (pending) |value| value.action else .press,
@@ -4992,6 +5000,26 @@ test "classify Win32 text keys" {
     var left_alt: input.Mods = .{ .alt = true };
     left_alt.sides.alt = .left;
     try std.testing.expect(shouldDispatchKeyPress(0x41, left_alt));
+}
+
+test "Win32 consumed text modifiers" {
+    const shift: input.Mods = .{ .shift = true };
+    try std.testing.expect(consumedTextModifiers(shift).shift);
+    try std.testing.expect(!consumedTextModifiers(shift).ctrl);
+
+    var altgr: input.Mods = .{ .ctrl = true, .alt = true };
+    altgr.sides.alt = .right;
+    const consumed_altgr = consumedTextModifiers(altgr);
+    try std.testing.expect(consumed_altgr.ctrl);
+    try std.testing.expect(consumed_altgr.alt);
+    try std.testing.expect(!consumed_altgr.shift);
+
+    var altgr_shift = altgr;
+    altgr_shift.shift = true;
+    const consumed_both = consumedTextModifiers(altgr_shift);
+    try std.testing.expect(consumed_both.ctrl);
+    try std.testing.expect(consumed_both.alt);
+    try std.testing.expect(consumed_both.shift);
 }
 
 test "decode Win32 UTF-16 input" {

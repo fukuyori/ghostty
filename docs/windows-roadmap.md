@@ -81,8 +81,12 @@ work in this document at the same time.
 All six phases are done. On 2026-09-15 the first preview build
 `1.3.2-windows.1` (tag `v1.3.2-windows.1`) was finalized after passing
 Release verification, and later previews followed. The current Windows
-preview is `1.3.2-windows.7`; the repository owner confirmed completion of
-distribution-build, signing, and installer verification on 2026-09-17.
+preview is `1.3.2-windows.8`, which fixes Shift character input in antigravity.
+The repository owner reported passing unit tests and a Debug build, and
+confirmed actual input on 2026-09-17. Local artifact checks also confirmed
+the ReleaseFast executable and installer version as `1.3.2-windows.8`, and
+Valid signatures on the staged executable and installer. A new
+install/upgrade/uninstall run is not recorded for this preview.
 Remaining real-hardware verification, open decisions, and
 deferred refactoring are tracked as GitHub issues, listed in "7. Next Steps".
 Release history is recorded in `docs/windows-release-notes.md`.
@@ -493,6 +497,9 @@ Implemented:
   messages without a scan code fall back to the virtual key table.
   Keyboard messages carrying `VK_PROCESSKEY` are handed to the IME instead
   of the terminal, so keys consumed while composing do not reach the shell
+- Consumption of Shift in `WM_CHAR` text events, alongside existing AltGr
+  handling, so Kitty keyboard disambiguation mode preserves generated
+  characters. The owner confirmed Shift input in antigravity on 2026-09-17.
 - Handling that restricts test hooks (`GHOSTTY_TEST_DEVICE_RECOVERY`,
   `WM_USER+3/+4`, controlled failure injection) to builds with
   `-Dwin32-test-hooks=true`, with regression scripts querying hook
@@ -964,6 +971,12 @@ GitHub issues. `1.3.2-windows.7` fixes the IOCP notification hang; its
 distribution-build, signing, and installer verification is complete,
 as confirmed by the repository owner.
 
+`1.3.2-windows.8` includes the Shift character input fix. Unit tests, a Debug
+build, and actual input in antigravity passed as reported by the owner.
+The ReleaseFast executable, version metadata, and signatures on the staged
+executable and installer were subsequently verified locally. A new
+install/upgrade/uninstall run is not recorded for this preview.
+
 Real-hardware verification, performed in the user's environment:
 
 - [#5](https://github.com/fukuyori/ghostty/issues/5): verify the GUI at 144 and 192 DPI on real hardware
@@ -998,6 +1011,7 @@ the code exists.
 | Release | `1.3.2-windows.2` | Bug-fix preview. Regression including the IME and startup grid phases, 20-iteration soak, and CLI verified with the distribution and regression Release builds |
 | Release | `1.3.2-windows.3` | Bug-fix preview. Regression including the split focus phase, 20-iteration soak, and CLI verified with both Release builds. Compiled terminfo shipped |
 | Release | `1.3.2-windows.7` | Fix regression and 20-iteration soak passed with the Debug test build. Distribution-build, signing, and installer verification completed by the repository owner; staged executable and installer signatures locally confirmed Valid |
+| Release | `1.3.2-windows.8` | Input tests, Win32 tests with hooks, Debug build, and actual antigravity input passed as reported by the owner. ReleaseFast CLI and executable/installer version metadata verified locally; staged executable and installer signatures Valid. No new install/upgrade/uninstall run recorded |
 | Fonts | Family matching and fallback | Measured: a configured family that matches nothing is replaced silently, and the automatic fallback takes the first file containing the codepoint. Tracked as issues 1, 2, and 3 |
 | Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature. Install, upgrade, and uninstall confirmed on real hardware |
 | Version info | CLI version display | Verified with the Release build |
@@ -1006,6 +1020,7 @@ the code exists.
 | Config | Config loading from LocalAppData | Verified |
 | Config | Config reload | Tab bar hide/reshow via a temporary config and synchronization across multiple windows automatically verified with the Release build |
 | Input | Keyboard and IME | Character input and Enter automatically verified with the Release build, IME basically verified |
+| Input | Shift text in Kitty keyboard disambiguation mode | 2026-09-17: consumed-modifier and encoding tests passed; actual `:`, `?`, and `!` input in antigravity confirmed by the owner |
 | Input | Mouse and clipboard | Basic implementation done, regression verification needed |
 | Rendering | D3D11 display | Verified |
 | Rendering | Copied IOCP wakeups and full renderer mailbox | 2026-09-17: old preview reproduced a focus hang after 70 spaced output batches; fixed Debug test build passed output, split/focus/close, subsequent input, screenshot inspection, and clean exit. Win32 tests: 144 passed, 1 skipped; ordinary window regression: 20/20 clean exits |
