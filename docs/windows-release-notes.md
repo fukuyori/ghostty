@@ -7,6 +7,62 @@ versions with their commits, the
 numbering rules, the [User Guide](windows.md) for configuration and known
 limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 
+## 1.3.2-windows.7
+
+- Prepared: 2026-09-17
+- Source tag: `v1.3.2-windows.7`
+- Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
+- Status: preview. Distribution build, signing, and installer verification
+  completed; confirmed by the repository owner on 2026-09-17.
+
+### Changes Since 1.3.2-windows.6
+
+- Fix an unresponsive window after terminal output fills the renderer's
+  64-message mailbox. Windows IOCP Async handles now share their notification
+  state across copies, so terminal IO can wake the renderer and let it drain
+  the queue before a focus change needs more space.
+- Add unit coverage and the optional `-TestRendererWakeup` window regression,
+  which emits 70 spaced output batches and checks split focus, pane closure,
+  subsequent input, and a captured window image.
+
+### Verification
+
+Automated fix verification used a separate Debug build with test hooks on
+2026-09-17, before the version bump. The repository owner subsequently
+confirmed completion of distribution-build, signing, and installer
+verification for `1.3.2-windows.7`. These are recorded separately below.
+
+| Item | Result |
+|---|---|
+| Regression on the previous Release executable | Reproduced the focus hang after 70 spaced output batches |
+| Same regression on the fixed Debug executable | Passed; output through batch 70 and subsequent input visually checked in the capture |
+| Win32 unit tests with test hooks | 144 passed, 1 skipped, 0 failed |
+| Window-state checks, controlled GPU recreation and power-resume notifications | Passed; 4 monitors, recovery on all 3 surfaces, terminal sessions preserved, exit code 0, no forced termination |
+| 20 ordinary window regression iterations | 20 passed, 0 failed, 102.153 seconds; clean exits and no remaining test processes |
+| Distribution build and installer verification | Completed; confirmed by the repository owner on 2026-09-17 |
+| Distribution version metadata | Release executable and installer report 1.3.2-windows.7, numeric version 1.3.2.7, and IsDebug False |
+| Signing | Completed; confirmed by the repository owner. Authenticode status of the staged executable and installer also checked locally: Valid. The original release-tree executable remains unsigned, as the installer script signs its staged copy |
+
+### Building This Version
+
+The release script reads `dist/windows/version.txt` from the working tree:
+
+```powershell
+./scripts/build-release.ps1
+./zig-out/release/bin/ghostty.exe --version
+```
+
+The version is `1.3.2-windows.7`, with numeric version `1.3.2.7`.
+Use `./scripts/build-installer.ps1 -Sign` to sign the staged distribution
+executable and build the signed installer. Test-hook builds must not be
+distributed.
+
+### Known Limitations
+
+The existing limitations of `1.3.2-windows.6` still apply. Real GPU device
+loss, physical sleep/resume, and several-hour endurance testing remain
+separate verification items. There is no automatic update.
+
 ## 1.3.2-windows.6
 
 - Release date: 2026-09-16

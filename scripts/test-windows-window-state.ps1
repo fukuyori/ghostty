@@ -40,6 +40,12 @@ Send a controlled Windows suspend and automatic-resume message pair to the
 dedicated test window, then verify renderer recovery and terminal continuity.
 This does not suspend the computer.
 
+.PARAMETER TestRendererWakeup
+Emit 70 spaced PTY output batches (about 40 seconds), then split, change
+focus, and close the new pane. This catches copied IOCP notifications that
+leave the renderer asleep until its 64-message mailbox fills. Saves a PNG
+of the dedicated test window for visual inspection.
+
 .EXAMPLE
 ./scripts/test-windows-window-state.ps1
 
@@ -63,6 +69,7 @@ param(
     [ValidateRange(0, 10)]
     [int]$GpuRecoveryFailures = 0,
     [switch]$TestPowerResume,
+    [switch]$TestRendererWakeup,
     [switch]$KeepOpenOnFailure
 )
 
@@ -110,6 +117,9 @@ $gridMarkerPath = Join-Path $sessionDirectory "grid-at-start.txt"
 $gridResizedMarkerPath = Join-Path $sessionDirectory "grid-after-resize.txt"
 $gpuRecoveryMarkerPath = Join-Path $sessionDirectory "gpu-recovery.txt"
 $powerResumeMarkerPath = Join-Path $sessionDirectory "power-resume.txt"
+$rendererOutputScript = Join-Path $sessionDirectory "renderer-output.ps1"
+$rendererOutputMarker = Join-Path $sessionDirectory "renderer-output.txt"
+$rendererScreenshot = Join-Path $logDirectory "$sessionName.renderer.png"
 
 if (-not ("GhosttyWindowStateNative" -as [type])) {
     Add-Type -TypeDefinition @"
@@ -1177,6 +1187,7 @@ try {
         "--keybind=f8=close_all_windows"
         "--keybind=f9=goto_window:next"
         "--keybind=f10=toggle_visibility"
+        "--keybind=f11=close_surface"
     )
     $previousGhosttyLog = [System.Environment]::GetEnvironmentVariable(
         "GHOSTTY_LOG",
@@ -1336,6 +1347,76 @@ try {
         MarkerContent = $imeContent
     }
     Write-Verbose "Validated that IME process keys do not reach the terminal."
+
+    $rendererWakeup = $null
+    if ($TestRendererWakeup) {
+        $outputScript = @'
+param([string]$Marker)
+for ($batch = 1; $batch -le 70; $batch++) {
+    Write-Host "Renderer wakeup batch $batch / 70"
+    Start-Sleep -Milliseconds 550
+}
+Write-Host 'RENDERER WAKEUP COMPLETE'
+[System.IO.File]::WriteAllText($Marker, 'complete')
+'@
+        [System.IO.File]::WriteAllText($rendererOutputScript, $outputScript)
+        Send-TestText -Handle $surfaceHandle -Text (
+            "powershell.exe -NoLogo -NoProfile -File `"$rendererOutputScript`" -Marker `"$rendererOutputMarker`""
+        )
+        Send-TestKey -Handle $surfaceHandle -VirtualKey $vkReturn -Description "renderer output command"
+        $outputWait = [System.Diagnostics.Stopwatch]::StartNew()
+        while (-not (Test-MarkerContent -Path $rendererOutputMarker -Expected 'complete')) {
+            if ($process.HasExited -or $outputWait.Elapsed.TotalSeconds -gt 60) {
+                throw "Renderer wakeup output did not complete."
+            }
+            Start-Sleep -Milliseconds 100
+        }
+
+        # The old IOCP value copies accumulate 64 reset_cursor_blink messages.
+        # A focus change then blocks the UI trying to publish message 65.
+        Send-TestKey -Handle $surfaceHandle -VirtualKey $vkF5 -Description "split after sustained output"
+        Wait-ForCondition -Description "two panes after sustained output" -Condition {
+            @(Get-ChildWindowHandles -ParentHandle $windowHandle).Count -eq 2
+        }
+        $outputSplitPane = @(Get-ChildWindowHandles -ParentHandle $windowHandle |
+            Where-Object { $_ -ne $surfaceHandle })[0]
+        $null = [GhosttyWindowStateNative]::SetForegroundWindow($windowHandle)
+        foreach ($targetPane in @($surfaceHandle, $outputSplitPane)) {
+            Send-TestClick -Handle $targetPane -Description "renderer wakeup focus"
+            Wait-ForCondition -Description "focus after sustained output" -Condition {
+                [GhosttyWindowStateNative]::GetFocusedWindow($windowHandle) -eq $targetPane
+            }
+        }
+        Send-TestKey -Handle $outputSplitPane -VirtualKey 0x7A -Description "close renderer test split"
+        Wait-ForCondition -Description "closed split after sustained output" -Condition {
+            @(Get-ChildWindowHandles -ParentHandle $windowHandle).Count -eq 1 -and
+                [GhosttyWindowStateNative]::GetFocusedWindow($windowHandle) -eq $surfaceHandle
+        }
+        Send-TestText -Handle $surfaceHandle -Text "echo renderer-responsive>`"$inputMarkerPath`""
+        Send-TestKey -Handle $surfaceHandle -VirtualKey $vkReturn -Description "input after renderer wakeup"
+        Wait-ForCondition -Description "input after sustained output and split close" -Condition {
+            Test-MarkerContent -Path $inputMarkerPath -Expected 'renderer-responsive'
+        }
+
+        Add-Type -AssemblyName System.Drawing
+        Start-Sleep -Milliseconds 250
+        $captureRect = Get-WindowRectangle -Handle $windowHandle
+        $bitmap = [System.Drawing.Bitmap]::new($captureRect.Width, $captureRect.Height)
+        try {
+            $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+            try {
+                $graphics.CopyFromScreen($captureRect.X, $captureRect.Y, 0, 0, $bitmap.Size)
+            } finally { $graphics.Dispose() }
+            $bitmap.Save($rendererScreenshot, [System.Drawing.Imaging.ImageFormat]::Png)
+        } finally { $bitmap.Dispose() }
+        $rendererWakeup = [pscustomobject]@{
+            OutputBatches = 70
+            SplitFocusAndClose = $true
+            InputAfterClose = $true
+            Screenshot = $rendererScreenshot
+        }
+        Write-Verbose "Validated renderer wakeups after 70 spaced output batches."
+    }
 
     $gpuRecovery = $null
     if ($TestGpuRecovery) {
@@ -1875,6 +1956,7 @@ try {
         ImeProcessKeys = $imeProcessKeys
         InitialGrid = $initialGrid
         SplitFocus = $splitFocus
+        RendererWakeup = $rendererWakeup
         GpuRecovery = $gpuRecovery
         PowerResume = $powerResume
         ConfigReload = $configReload
@@ -1915,6 +1997,11 @@ try {
         $previousDpiAwareness
     )
     if ($null -eq $process -or $process.HasExited) {
+        foreach ($rendererFile in @($rendererOutputScript, $rendererOutputMarker)) {
+            if ([System.IO.File]::Exists($rendererFile)) {
+                [System.IO.File]::Delete($rendererFile)
+            }
+        }
         if ([System.IO.File]::Exists($inputMarkerPath)) {
             [System.IO.File]::Delete($inputMarkerPath)
         }

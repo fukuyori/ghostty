@@ -80,10 +80,15 @@ work in this document at the same time.
 
 All six phases are done. On 2026-09-15 the first preview build
 `1.3.2-windows.1` (tag `v1.3.2-windows.1`) was finalized after passing
-Release verification, and later previews followed; `1.3.2-windows.6` is the
-current one. Remaining real-hardware verification, open decisions, and
+Release verification, and later previews followed. The current Windows
+preview is `1.3.2-windows.7`; the repository owner confirmed completion of
+distribution-build, signing, and installer verification on 2026-09-17.
+Remaining real-hardware verification, open decisions, and
 deferred refactoring are tracked as GitHub issues, listed in "7. Next Steps".
 Release history is recorded in `docs/windows-release-notes.md`.
+The `1.3.2-windows.7` Windows IOCP notification fix addresses the 2026-09-17 hang:
+copied Async handles now share the registered waiter rather than accumulating
+notifications in separate values.
 Phase 5 covers not only tabs but also the title bar, mouse operation of split
 dividers, GUI state display, appearance, DPI, and accessibility.
 
@@ -955,7 +960,9 @@ terminfo, and installer fixes, `1.3.2-windows.4` with the image fixes,
 `1.3.2-windows.5` with the split pane fix, and `1.3.2-windows.6` with the
 right-click context menu, which resolves
 [#4](https://github.com/fukuyori/ghostty/issues/4). What remains is tracked as
-GitHub issues.
+GitHub issues. `1.3.2-windows.7` fixes the IOCP notification hang; its
+distribution-build, signing, and installer verification is complete,
+as confirmed by the repository owner.
 
 Real-hardware verification, performed in the user's environment:
 
@@ -990,6 +997,7 @@ the code exists.
 | Release | `1.3.2-windows.1` | Regression, 20-iteration soak, and CLI verified with the distribution and regression Release builds. Signing at distribution time |
 | Release | `1.3.2-windows.2` | Bug-fix preview. Regression including the IME and startup grid phases, 20-iteration soak, and CLI verified with the distribution and regression Release builds |
 | Release | `1.3.2-windows.3` | Bug-fix preview. Regression including the split focus phase, 20-iteration soak, and CLI verified with both Release builds. Compiled terminfo shipped |
+| Release | `1.3.2-windows.7` | Fix regression and 20-iteration soak passed with the Debug test build. Distribution-build, signing, and installer verification completed by the repository owner; staged executable and installer signatures locally confirmed Valid |
 | Fonts | Family matching and fallback | Measured: a configured family that matches nothing is replaced silently, and the automatic fallback takes the first file containing the codepoint. Tracked as issues 1, 2, and 3 |
 | Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature. Install, upgrade, and uninstall confirmed on real hardware |
 | Version info | CLI version display | Verified with the Release build |
@@ -1000,6 +1008,7 @@ the code exists.
 | Input | Keyboard and IME | Character input and Enter automatically verified with the Release build, IME basically verified |
 | Input | Mouse and clipboard | Basic implementation done, regression verification needed |
 | Rendering | D3D11 display | Verified |
+| Rendering | Copied IOCP wakeups and full renderer mailbox | 2026-09-17: old preview reproduced a focus hang after 70 spaced output batches; fixed Debug test build passed output, split/focus/close, subsequent input, screenshot inspection, and clean exit. Win32 tests: 144 passed, 1 skipped; ordinary window regression: 20/20 clean exits |
 | Rendering | GPU resource recreation | 100 consecutive controlled recreations and finite retries automatically verified with the Release build, real failure not verified |
 | Rendering | Background transparency | Verified |
 | Rendering | Variable blur | On hold |
@@ -1042,6 +1051,10 @@ git diff --check
 - Input changes are verified by real-hardware key, mouse, and IME operation.
 - Window lifecycle changes are verified for leftover processes and exit
   codes.
+- For renderer or IO wakeup changes, also run
+  `./scripts/test-windows-window-state.ps1 -Executable <test-build> -TestRendererWakeup`.
+  It takes about 40 seconds longer, exercises output beyond the 64-message
+  queue capacity, and saves a PNG under `zig-out/logs` for visual inspection.
 - Release artifacts are created only for script verification or on explicit
   request.
 

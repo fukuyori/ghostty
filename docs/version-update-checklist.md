@@ -21,6 +21,18 @@ rules are kept as well.
 Do not place `VERSION` in a normal Git checkout. If it exists, it takes
 precedence over `build.zig.zon`, so do not create or update it by hand.
 
+For a Windows-preview-only increment, update these files together:
+
+- `dist/windows/version.txt`: the new preview number.
+- `docs/windows-changelog.md`: changes assigned to that preview.
+- `docs/windows-release-notes.md`: preparation/release status, verification,
+  and limitations. Distinguish prior Debug checks from distribution checks.
+- `docs/windows-roadmap.md`: working-tree version, published version, and
+  remaining release work.
+
+Keep `build.zig.zon` and `lib_version` unchanged when only incrementing the
+Windows preview sequence. Historical release entries retain their versions.
+
 The `.version` in `pkg/*/build.zig.zon` is the version of each dependency
 component and is not changed when updating the Ghostty core version.
 

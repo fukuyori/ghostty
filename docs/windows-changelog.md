@@ -7,6 +7,26 @@ known issues, and known limitations of each version; the
 [version update checklist](version-update-checklist.md) describes the
 `X.Y.Z-windows.N` numbering.
 
+## 1.3.2-windows.7
+
+Windows preview dated 2026-09-17. Fixes the renderer notification hang in
+`1.3.2-windows.6`. Distribution-build, signing, and installer verification
+completed, as confirmed by the repository owner.
+
+### Fixed
+
+- Keep Windows IOCP notification state shared when Async handles are copied
+  into the terminal IO and stream handler. Previously, those copies could
+  accumulate cursor-blink reset messages without waking the renderer. Once
+  its 64-message mailbox filled, a focus change blocked the UI indefinitely.
+  The Windows adapter owns one stable notification state; other platforms
+  continue to use the original libxev interface.
+- Add regression coverage for notifications through copied handles before
+  and after waiter registration, cross-thread notification, and repeated
+  draining of a full mailbox. `test-windows-window-state.ps1
+  -TestRendererWakeup` emits 70 spaced output batches, verifies split focus,
+  pane closure and subsequent input, and saves a window capture.
+
 ## 1.3.2-windows.6
 
 Released 2026-09-16. A preview that adds a right-click context menu to
