@@ -7,6 +7,27 @@ known issues, and known limitations of each version; the
 [version update checklist](version-update-checklist.md) describes the
 `X.Y.Z-windows.N` numbering.
 
+## 1.3.2-windows.9
+
+Windows preview dated 2026-09-17. Fixes numpad digits and operators being
+entered twice. The repository owner confirmed actual numpad input.
+
+### Fixed
+
+- Treat the numpad digit and operator virtual keys (`VK_NUMPAD0` through
+  `VK_DIVIDE`) as text keys. The key press was dispatched to the core, which
+  sent the digit, and the `WM_CHAR` that `TranslateMessage` generated for the
+  same keystroke sent it again, so `0` arrived as `00`. The key press now
+  travels with its `WM_CHAR` as one key event, as the main-row keys do. The
+  duplication predates `1.3.2-windows.1`: the `1.3.2-windows.6` and
+  `1.3.2-windows.8` builds and a 2026-09-15 build before `1.3.2-windows.1`
+  all reproduced it. With NumLock off the numpad reports navigation keys,
+  which are unchanged.
+- In Kitty keyboard disambiguation mode, a numpad digit now arrives as its
+  text alone. Before, both `CSI 57399;129u` and the digit arrived.
+- Extend the Win32 text key classification test to cover the numpad keys and
+  the navigation keys the numpad reports with NumLock off.
+
 ## 1.3.2-windows.8
 
 Windows preview dated 2026-09-17. Fixes Shift character input in

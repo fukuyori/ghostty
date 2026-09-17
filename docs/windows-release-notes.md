@@ -7,6 +7,78 @@ versions with their commits, the
 numbering rules, the [User Guide](windows.md) for configuration and known
 limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 
+## 1.3.2-windows.9
+
+- Prepared: 2026-09-17
+- Source tag: `v1.3.2-windows.9` (not created yet)
+- Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
+- Status: preview. Numpad digits and operators are no longer entered twice.
+  Actual numpad input confirmed by the repository owner. The signed installer
+  was built and installed by the repository owner on 2026-09-17.
+
+### Changes Since 1.3.2-windows.8
+
+- Fix numpad digits and operators being entered twice (`0` arrived as
+  `00`). The Win32 runtime dispatched the numpad key press to the core and
+  then also sent the `WM_CHAR` text for the same keystroke; the numpad virtual
+  keys are now text keys, so the two travel as one key event. The duplication
+  predates `1.3.2-windows.1`.
+- In Kitty keyboard disambiguation mode, a numpad digit arrives as its text
+  alone instead of both `CSI 57399;129u` and the digit.
+- Extend the Win32 text key classification test to the numpad keys.
+
+### Verification
+
+Before the version bump, on a Debug build of the fix, 2026-09-17:
+
+| Item | Result |
+|---|---|
+| `zig build test -Dtest-filter="classify Win32 text keys"` | Passed |
+| `zig build test -Dtest-filter=Win32 -Dwin32-test-hooks=true` | 145 passed, 1 skipped, 0 failed |
+| Numpad `0`, `1`, `.`, `+` posted to a surface, bytes recorded by a program in the terminal | Each arrives once in normal, Kitty disambiguation, and application keypad modes. The `1.3.2-windows.8` release, `1.3.2-windows.6`, and a 2026-09-15 build all sent `00`, `11`, `..`, `++` |
+| Shift input from `1.3.2-windows.8` (`:`, `?`, `A`; Shift+Enter) | Unchanged: text, and `CSI 13;130u` for Shift+Enter |
+| Window-state regression | All items passed, exit code 0, no forced termination |
+| Actual numpad input | Confirmed by the repository owner |
+
+On the ReleaseFast, baseline CPU executable after the version bump,
+2026-09-17:
+
+| Item | Result |
+|---|---|
+| Release build script checks (PE32+, x64, WindowsGui, version information, icon, resources, compiled terminfo) | Passed. `FileVersion` and `ProductVersion` 1.3.2-windows.9, numeric version 1.3.2.9, `IsDebug` False, `bin\conpty.dll` and `bin\OpenConsole.exe` present |
+| `--version`, `+list-keybinds --default` | Exit code 0; `--version` reports `Ghostty 1.3.2-windows.9` and `ReleaseFast` |
+| Numpad and Shift input | Numpad `0`, `1`, `.`, `+` arrive once in normal and Kitty disambiguation modes; `:`, `?`, `A` arrive as text |
+| Window-state regression on the distribution build (terminal input, IME process keys, split pane click focus, startup grid, config reload, splits, 4 monitors, multiple windows, maximize/minimize/restore, clean exit) | All items passed, exit code 0, no forced termination |
+| The same regression plus GPU resource re-creation (2 controlled failures) and power resume on the test-hook build | All items passed. Resources re-created, renderers recovered on all 3 surfaces, terminal sessions preserved, duplicate resume suppressed |
+| 20-iteration soak test on the test-hook build (including GPU re-creation and controlled power resume) | All 20 passed, 0 failures, 135.4 seconds elapsed |
+
+The executables used for the checks above are unsigned builds.
+
+Distribution on 2026-09-17:
+
+| Item | Result |
+|---|---|
+| Signed installer | Built by the repository owner with `scripts/build-installer.ps1 -Sign`. `ghostty-1.3.2-windows.9-x64-setup.exe` and the staged `bin\ghostty.exe` report 1.3.2-windows.9, numeric version 1.3.2.9, `IsDebug` False; Authenticode status checked locally: Valid |
+| Installation | Performed by the repository owner. The installed `bin\ghostty.exe` reports 1.3.2-windows.9 with a Valid signature, and the installed tree carries `bin\conpty.dll`, `bin\OpenConsole.exe` (1.24.260710001, Valid Microsoft signatures), and `THIRD-PARTY-NOTICES.md` |
+
+Uninstall is not recorded for this version.
+
+### Building This Version
+
+The release script reads `dist/windows/version.txt` from the working tree:
+
+```powershell
+./scripts/build-release.ps1
+./zig-out/release/bin/ghostty.exe --version
+```
+
+The target version is `1.3.2-windows.9`, with numeric version `1.3.2.9`.
+Use `./scripts/build-installer.ps1 -Sign` for the signed installer.
+
+### Known Limitations
+
+The existing limitations of `1.3.2-windows.8` still apply.
+
 ## 1.3.2-windows.8
 
 - Prepared: 2026-09-17

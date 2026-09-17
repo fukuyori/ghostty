@@ -80,13 +80,17 @@ work in this document at the same time.
 
 All six phases are done. On 2026-09-15 the first preview build
 `1.3.2-windows.1` (tag `v1.3.2-windows.1`) was finalized after passing
-Release verification, and later previews followed. The current Windows
-preview is `1.3.2-windows.8`, which fixes Shift character input in antigravity.
-The repository owner reported passing unit tests and a Debug build, and
-confirmed actual input on 2026-09-17. Local artifact checks also confirmed
-the ReleaseFast executable and installer version as `1.3.2-windows.8`, and
-Valid signatures on the staged executable and installer. A new
-install/upgrade/uninstall run is not recorded for this preview.
+Release verification, and later previews followed. The working tree is
+prepared as `1.3.2-windows.9`, which fixes numpad digits and operators being
+entered twice; the tag is not created yet. The repository owner confirmed
+actual numpad input on 2026-09-17, and the ReleaseFast executable reports
+`1.3.2-windows.9`. The window-state regression passed on the distribution
+build and on the test-hook build with GPU recovery and power resume, and a
+20-iteration soak run passed 20 of 20. The owner built the signed installer
+and installed it; the installer and the installed executable report
+`1.3.2-windows.9` with Valid signatures. Uninstall is not recorded for it.
+The latest tagged preview is `1.3.2-windows.8`, which fixes Shift character
+input in antigravity.
 Remaining real-hardware verification, open decisions, and
 deferred refactoring are tracked as GitHub issues, listed in "7. Next Steps".
 Release history is recorded in `docs/windows-release-notes.md`.
@@ -500,6 +504,10 @@ Implemented:
 - Consumption of Shift in `WM_CHAR` text events, alongside existing AltGr
   handling, so Kitty keyboard disambiguation mode preserves generated
   characters. The owner confirmed Shift input in antigravity on 2026-09-17.
+- Classification of the numpad digit and operator virtual keys as text keys,
+  so a numpad keystroke is sent once as one key event carrying its
+  `WM_CHAR` text instead of twice. The owner confirmed numpad input on
+  2026-09-17.
 - Handling that restricts test hooks (`GHOSTTY_TEST_DEVICE_RECOVERY`,
   `WM_USER+3/+4`, controlled failure injection) to builds with
   `-Dwin32-test-hooks=true`, with regression scripts querying hook
@@ -977,6 +985,17 @@ The ReleaseFast executable, version metadata, and signatures on the staged
 executable and installer were subsequently verified locally. A new
 install/upgrade/uninstall run is not recorded for this preview.
 
+`1.3.2-windows.9` is prepared with the numpad double-input fix. Win32 tests,
+the window-state regression, and numpad input recorded from a terminal program
+passed on a Debug build; the owner confirmed actual numpad input; and the
+ReleaseFast executable reports `1.3.2-windows.9`. On the ReleaseFast builds,
+the window-state regression passed on the distribution build and on the
+test-hook build with 2 controlled GPU recovery failures and power resume, and
+a 20-iteration soak run completed 20 of 20 in 135.4 seconds. The owner built
+the signed installer and installed it; the installer and the installed
+executable report `1.3.2-windows.9` with Valid signatures. The tag and an
+uninstall run are not yet recorded.
+
 Real-hardware verification, performed in the user's environment:
 
 - [#5](https://github.com/fukuyori/ghostty/issues/5): verify the GUI at 144 and 192 DPI on real hardware
@@ -1012,6 +1031,7 @@ the code exists.
 | Release | `1.3.2-windows.3` | Bug-fix preview. Regression including the split focus phase, 20-iteration soak, and CLI verified with both Release builds. Compiled terminfo shipped |
 | Release | `1.3.2-windows.7` | Fix regression and 20-iteration soak passed with the Debug test build. Distribution-build, signing, and installer verification completed by the repository owner; staged executable and installer signatures locally confirmed Valid |
 | Release | `1.3.2-windows.8` | Input tests, Win32 tests with hooks, Debug build, and actual antigravity input passed as reported by the owner. ReleaseFast CLI and executable/installer version metadata verified locally; staged executable and installer signatures Valid. No new install/upgrade/uninstall run recorded |
+| Release | `1.3.2-windows.9` | Prepared. Win32 tests with hooks, window-state regression, and recorded numpad input passed on a Debug build; actual numpad input confirmed by the owner; ReleaseFast CLI and version metadata verified; regression on the distribution and test-hook ReleaseFast builds and 20-iteration soak (20/20) passed. Signed installer built and installed by the owner; installer and installed executable signatures Valid. Tag and uninstall not yet recorded |
 | Fonts | Family matching and fallback | Measured: a configured family that matches nothing is replaced silently, and the automatic fallback takes the first file containing the codepoint. Tracked as issues 1, 2, and 3 |
 | Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature. Install, upgrade, and uninstall confirmed on real hardware |
 | Version info | CLI version display | Verified with the Release build |
@@ -1021,6 +1041,7 @@ the code exists.
 | Config | Config reload | Tab bar hide/reshow via a temporary config and synchronization across multiple windows automatically verified with the Release build |
 | Input | Keyboard and IME | Character input and Enter automatically verified with the Release build, IME basically verified |
 | Input | Shift text in Kitty keyboard disambiguation mode | 2026-09-17: consumed-modifier and encoding tests passed; actual `:`, `?`, and `!` input in antigravity confirmed by the owner |
+| Input | Numpad digits and operators | 2026-09-17: `0`, `1`, `.`, and `+` arrive once in normal, Kitty disambiguation, and application keypad modes (before: twice); actual numpad input confirmed by the owner |
 | Input | Mouse and clipboard | Basic implementation done, regression verification needed |
 | Rendering | D3D11 display | Verified |
 | Rendering | Copied IOCP wakeups and full renderer mailbox | 2026-09-17: old preview reproduced a focus hang after 70 spaced output batches; fixed Debug test build passed output, split/focus/close, subsequent input, screenshot inspection, and clean exit. Win32 tests: 144 passed, 1 skipped; ordinary window regression: 20/20 clean exits |

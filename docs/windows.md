@@ -535,6 +535,10 @@ Starting with `1.3.2-windows.8`, Shift characters such as `:` and `?` are
 handled correctly in Kitty keyboard disambiguation mode. Actual `:`, `?`,
 and `!` input in antigravity was confirmed by the repository owner.
 
+Starting with `1.3.2-windows.9`, numpad digits and operators are entered once.
+Earlier previews sent each of them twice (`0` arrived as `00`). With NumLock
+off the numpad works as navigation keys, as before.
+
 ## Manual Acceptance Check for the Windows Shell
 
 The automated regression test checks the window structure required to be a

@@ -3648,6 +3648,11 @@ fn isTextVirtualKey(vk: win32.WPARAM) bool {
         // non-US layouts (for example the key left of Z on ISO keyboards).
         0xDB...0xDF,
         0xE2,
+        // VK_NUMPAD0..VK_DIVIDE: with NumLock on, the numpad also produces
+        // WM_CHAR. Dispatching the key press as well would send its digit or
+        // operator twice, so it travels with the text like the main-row keys.
+        // With NumLock off these keys arrive as navigation virtual keys.
+        0x60...0x6F,
         => true,
         else => false,
     };
@@ -4988,6 +4993,17 @@ test "classify Win32 text keys" {
     try std.testing.expect(isTextVirtualKey(0x41));
     try std.testing.expect(isTextVirtualKey(0xDE));
     try std.testing.expect(!isTextVirtualKey(0x25));
+
+    // Numpad digits and operators produce WM_CHAR, so their key press is
+    // held for the text instead of being dispatched on its own.
+    for ([_]win32.WPARAM{ 0x60, 0x65, 0x69, 0x6A, 0x6B, 0x6D, 0x6E, 0x6F }) |vk| {
+        try std.testing.expect(isTextVirtualKey(vk));
+        try std.testing.expect(!shouldDispatchKeyPress(vk, .{}));
+    }
+    // With NumLock off the numpad reports navigation keys (VK_INSERT,
+    // VK_END), which have no text and are still dispatched.
+    try std.testing.expect(shouldDispatchKeyPress(0x2D, .{}));
+    try std.testing.expect(shouldDispatchKeyPress(0x23, .{}));
 
     try std.testing.expectEqual(input.Action.press, keyAction(0));
     try std.testing.expectEqual(input.Action.repeat, keyAction(1 << 30));
