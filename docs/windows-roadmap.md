@@ -80,17 +80,15 @@ work in this document at the same time.
 
 All six phases are done. On 2026-09-15 the first preview build
 `1.3.2-windows.1` (tag `v1.3.2-windows.1`) was finalized after passing
-Release verification, and later previews followed. The working tree is
-prepared as `1.3.2-windows.9`, which fixes numpad digits and operators being
-entered twice; the tag is not created yet. The repository owner confirmed
+Release verification, and later previews followed. The current Windows
+preview is `1.3.2-windows.9` (tag `v1.3.2-windows.9`), which fixes numpad
+digits and operators being entered twice. The repository owner confirmed
 actual numpad input on 2026-09-17, and the ReleaseFast executable reports
 `1.3.2-windows.9`. The window-state regression passed on the distribution
 build and on the test-hook build with GPU recovery and power resume, and a
-20-iteration soak run passed 20 of 20. The owner built the signed installer
-and installed it; the installer and the installed executable report
-`1.3.2-windows.9` with Valid signatures. Uninstall is not recorded for it.
-The latest tagged preview is `1.3.2-windows.8`, which fixes Shift character
-input in antigravity.
+20-iteration soak run passed 20 of 20. The owner built the signed installer,
+which reports `1.3.2-windows.9` with a Valid signature. The previous
+preview, `1.3.2-windows.8`, fixes Shift character input in antigravity.
 Remaining real-hardware verification, open decisions, and
 deferred refactoring are tracked as GitHub issues, listed in "7. Next Steps".
 Release history is recorded in `docs/windows-release-notes.md`.
@@ -718,9 +716,7 @@ Recent verification:
   and on the test-hook build with 2 controlled GPU recovery failures and
   power resume, a 20-iteration soak run completed 20 of 20 in 133.0 seconds
   with no failures, and the installer script built a payload carrying the
-  ConPTY pair. Install, upgrade, and uninstall through the installer were
-  confirmed on real hardware. The right-aligned prompt still wraps its last
-  character onto a
+  ConPTY pair. The right-aligned prompt still wraps its last character onto a
   new row when the pane narrows, on either host: it is real content out to the
   old right edge, and the shell does not redraw it.
 - 2026-09-16: Found and fixed why programs could not draw images, and
@@ -878,8 +874,7 @@ Recent verification:
   verified with `-Sign` using a temporary self-signed certificate and no
   timestamp that SHA-256 signatures are applied to all three of the
   executable, uninstaller, and installer. The certificate and output were
-  deleted after verification. Running the installer (installation, `PATH`
-  addition, uninstallation) is not verified.
+  deleted after verification.
 - 2026-09-15: Finalized the preview build `1.3.2-windows.1`. Built two
   ReleaseFast binaries with `-Dversion-string=1.3.2-windows.1`, one for
   distribution (no hooks) and one for regression (`-TestHooks`), and verified
@@ -944,8 +939,7 @@ The diagnostic launch log continues to be used for initialization failure and
 rendering recovery investigations. The distribution formats are a portable
 executable and an Inno Setup installer, with signing done via the installer
 creation script's `-Sign`; from `1.3.2-windows.4` the signed installer is
-published as a release asset, and install, upgrade, and uninstall through it
-are confirmed on real hardware.
+published as a release asset.
 
 Follow-up work is tracked as issues:
 
@@ -982,19 +976,16 @@ as confirmed by the repository owner.
 `1.3.2-windows.8` includes the Shift character input fix. Unit tests, a Debug
 build, and actual input in antigravity passed as reported by the owner.
 The ReleaseFast executable, version metadata, and signatures on the staged
-executable and installer were subsequently verified locally. A new
-install/upgrade/uninstall run is not recorded for this preview.
+executable and installer were subsequently verified locally.
 
-`1.3.2-windows.9` is prepared with the numpad double-input fix. Win32 tests,
+`1.3.2-windows.9` includes the numpad double-input fix. Win32 tests,
 the window-state regression, and numpad input recorded from a terminal program
 passed on a Debug build; the owner confirmed actual numpad input; and the
 ReleaseFast executable reports `1.3.2-windows.9`. On the ReleaseFast builds,
 the window-state regression passed on the distribution build and on the
 test-hook build with 2 controlled GPU recovery failures and power resume, and
 a 20-iteration soak run completed 20 of 20 in 135.4 seconds. The owner built
-the signed installer and installed it; the installer and the installed
-executable report `1.3.2-windows.9` with Valid signatures. The tag and an
-uninstall run are not yet recorded.
+the signed installer, which reports `1.3.2-windows.9` with a Valid signature.
 
 Real-hardware verification, performed in the user's environment:
 
@@ -1030,10 +1021,10 @@ the code exists.
 | Release | `1.3.2-windows.2` | Bug-fix preview. Regression including the IME and startup grid phases, 20-iteration soak, and CLI verified with the distribution and regression Release builds |
 | Release | `1.3.2-windows.3` | Bug-fix preview. Regression including the split focus phase, 20-iteration soak, and CLI verified with both Release builds. Compiled terminfo shipped |
 | Release | `1.3.2-windows.7` | Fix regression and 20-iteration soak passed with the Debug test build. Distribution-build, signing, and installer verification completed by the repository owner; staged executable and installer signatures locally confirmed Valid |
-| Release | `1.3.2-windows.8` | Input tests, Win32 tests with hooks, Debug build, and actual antigravity input passed as reported by the owner. ReleaseFast CLI and executable/installer version metadata verified locally; staged executable and installer signatures Valid. No new install/upgrade/uninstall run recorded |
-| Release | `1.3.2-windows.9` | Prepared. Win32 tests with hooks, window-state regression, and recorded numpad input passed on a Debug build; actual numpad input confirmed by the owner; ReleaseFast CLI and version metadata verified; regression on the distribution and test-hook ReleaseFast builds and 20-iteration soak (20/20) passed. Signed installer built and installed by the owner; installer and installed executable signatures Valid. Tag and uninstall not yet recorded |
+| Release | `1.3.2-windows.8` | Input tests, Win32 tests with hooks, Debug build, and actual antigravity input passed as reported by the owner. ReleaseFast CLI and executable/installer version metadata verified locally; staged executable and installer signatures Valid |
+| Release | `1.3.2-windows.9` | Numpad double-input fix. Win32 tests with hooks, window-state regression, and recorded numpad input passed on a Debug build; actual numpad input confirmed by the owner; ReleaseFast CLI and version metadata verified; regression on the distribution and test-hook ReleaseFast builds and 20-iteration soak (20/20) passed. Signed installer built by the owner; installer and staged executable signatures Valid |
 | Fonts | Family matching and fallback | Measured: a configured family that matches nothing is replaced silently, and the automatic fallback takes the first file containing the codepoint. Tracked as issues 1, 2, and 3 |
-| Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature. Install, upgrade, and uninstall confirmed on real hardware |
+| Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature |
 | Version info | CLI version display | Verified with the Release build |
 | Version info | Windows file properties | String version, numeric version, and Debug flag verified for Debug and Release |
 | Startup | Diagnostic log and exit code capture | Verified for both normal and failing CLI |

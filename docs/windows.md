@@ -699,8 +699,7 @@ output with Narrator and NVDA is still under acceptance verification.
 - The effect and quality of `background-blur` vary with the Windows and GPU
   configuration.
 - There is no automatic update. A signed installer is published as a release
-  asset from `1.3.2-windows.4` on, and installing, upgrading, and
-  uninstalling through it are confirmed on real hardware.
+  asset from `1.3.2-windows.4` on.
 - There is no GUI equivalent to the macOS SwiftUI settings window or the Linux
   GTK integration.
 - The Sentry crash reporter is not available. It is disabled by default

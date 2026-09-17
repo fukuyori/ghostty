@@ -105,8 +105,7 @@ The Windows build is a preview. Basic operation has been verified on
 Windows 11; Windows 10, 144 and 192 DPI, keyboard layouts other than
 Japanese, real sleep and resume, and long-running sessions have not been
 verified yet. From `1.3.2-windows.4` a signed installer is published as a
-release asset, and installing, upgrading, and uninstalling through it are
-confirmed on real hardware; there is no automatic update. Background
+release asset; there is no automatic update. Background
 opacity works, but `background-blur` quality depends on the environment, so
 leaving it disabled is recommended for now.
 

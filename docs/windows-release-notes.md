@@ -10,11 +10,11 @@ limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 ## 1.3.2-windows.9
 
 - Prepared: 2026-09-17
-- Source tag: `v1.3.2-windows.9` (not created yet)
+- Source tag: `v1.3.2-windows.9`
 - Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
 - Status: preview. Numpad digits and operators are no longer entered twice.
   Actual numpad input confirmed by the repository owner. The signed installer
-  was built and installed by the repository owner on 2026-09-17.
+  was built by the repository owner on 2026-09-17.
 
 ### Changes Since 1.3.2-windows.8
 
@@ -59,9 +59,6 @@ Distribution on 2026-09-17:
 | Item | Result |
 |---|---|
 | Signed installer | Built by the repository owner with `scripts/build-installer.ps1 -Sign`. `ghostty-1.3.2-windows.9-x64-setup.exe` and the staged `bin\ghostty.exe` report 1.3.2-windows.9, numeric version 1.3.2.9, `IsDebug` False; Authenticode status checked locally: Valid |
-| Installation | Performed by the repository owner. The installed `bin\ghostty.exe` reports 1.3.2-windows.9 with a Valid signature, and the installed tree carries `bin\conpty.dll`, `bin\OpenConsole.exe` (1.24.260710001, Valid Microsoft signatures), and `THIRD-PARTY-NOTICES.md` |
-
-Uninstall is not recorded for this version.
 
 ### Building This Version
 
@@ -117,8 +114,6 @@ Subsequent local artifact checks on 2026-09-17 confirmed:
   report `1.3.2-windows.8` with `IsDebug` set to `False`.
 - Authenticode signatures on the staged executable and
   `ghostty-1.3.2-windows.8-x64-setup.exe` are `Valid`.
-
-These artifact checks do not record a new install/upgrade/uninstall run.
 
 ### Building This Version
 
@@ -300,7 +295,6 @@ Verified on 2026-09-16 on Windows 11 Pro (10.0.26200, four monitors: three at
 | Unit tests | 3837 of 3899 passed, 62 skipped, 0 failed |
 | Split pane | After splitting and clicking back into the original pane, the command and its output remain. The new reflow test fails without the fix |
 | Installer | `scripts/build-installer.ps1` succeeds (`TerminfoCompiled` True) and the payload contains `bin\ghostty.exe`, `bin\conpty.dll`, `bin\OpenConsole.exe`, and `THIRD-PARTY-NOTICES.md` |
-| Install, upgrade, and uninstall | Confirmed on real hardware |
 
 The installer script check above built an unsigned installer. A right-aligned
 prompt still wraps its last character onto a new row when its pane narrows;
@@ -376,9 +370,8 @@ Verified on 2026-09-16 on Windows 11 Pro (10.0.26200, four monitors: three at
 
 The six manual Windows shell acceptance items carry over the results that
 passed on 2026-09-15; this version changes nothing related to Alt+Tab, the
-taskbar, or Snap. The published installer is signed and verified as a file,
-but installing, uninstalling, and upgrading through it are not verified on
-real hardware. The image path is verified with
+taskbar, or Snap. The published installer is signed and verified as a file.
+The image path is verified with
 `terminal-browser` only, not with other programs that draw images.
 
 ### Known Limitations
@@ -440,8 +433,7 @@ Verified on 2026-09-16 on Windows 11 Pro (10.0.26200, four monitors: three at
 
 The six manual Windows shell acceptance items carry over the results that
 passed on 2026-09-15 with the icon-fix build; this version changes nothing
-related to Alt+Tab, the taskbar, or Snap. Installation, uninstallation, and
-upgrade behavior of the installer itself are not verified.
+related to Alt+Tab, the taskbar, or Snap.
 
 ### Known Limitations
 
@@ -517,8 +509,7 @@ Verified on 2026-09-15 on Windows 11 Pro (10.0.26200, four monitors: three at
 
 The six manual Windows shell acceptance items carry over the results that
 passed on 2026-09-15 with the icon-fix build; this version changes nothing
-related to Alt+Tab, the taskbar, or Snap. Installation, uninstallation, and
-upgrade behavior of the installer itself are not verified.
+related to Alt+Tab, the taskbar, or Snap.
 
 ### Known Issues
 
