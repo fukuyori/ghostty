@@ -7,6 +7,47 @@ known issues, and known limitations of each version; the
 [version update checklist](version-update-checklist.md) describes the
 `X.Y.Z-windows.N` numbering.
 
+## 1.3.2-windows.10
+
+Windows preview dated 2026-09-19. Resolves `xterm-ghostty` for programs that
+read terminfo from a working directory outside the drive Ghostty is installed
+on.
+
+### Fixed
+
+- Register the compiled terminfo entry in the running user's
+  `%USERPROFILE%\.terminfo\78\xterm-ghostty` at startup. Ghostty points
+  `TERMINFO` at its own `share\terminfo`, but the ncurses that Git for Windows
+  ships resolves that Windows-style path only from a working directory on the
+  drive Ghostty is installed on, so from anywhere else `less`, `tput`, and
+  everything else that reads terminfo reported
+  `'xterm-ghostty': unknown terminal type.` ncurses searches
+  `$HOME/.terminfo` whatever `TERMINFO` holds, which makes the lookup
+  drive-independent. An entry already in place is never replaced, so one
+  compiled by hand with `tic` survives; the copy goes through a temporary file
+  beside the destination and a move that refuses to overwrite, so a second
+  Ghostty starting at the same time and one killed mid-write both leave a
+  usable state; and a failure only writes to the log. The installer was left
+  as it was, because Inno Setup documents that user-level files must not be
+  written from an administrative install mode installer and a machine-wide
+  install runs as whoever elevated it.
+- Cover the empty, occupied, and leftover-temporary-file cases with unit
+  tests.
+
+### Documentation
+
+- Correct the terminfo section of the Windows documentation. It said the
+  ncurses used by MSYS2 and Git Bash does not accept a Windows-style path in
+  `TERMINFO`; measurement shows that it does, from a working directory on the
+  install drive, and fails elsewhere. The drive-letter explanation is now
+  marked as an unconfirmed hypothesis, and the relationship between Cygwin,
+  MSYS2, and Git for Windows is spelled out. Cygwin, a standalone MSYS2, and
+  a custom `HOME` are not covered by the registration above and still need the
+  one-time `tic`.
+- Report the compiled entry as `TerminfoUserEntry` from
+  `scripts/build-installer.ps1`, so that a package built without `tic`, which
+  has nothing for Ghostty to copy, can be told apart.
+
 ## 1.3.2-windows.9
 
 Windows preview dated 2026-09-17. Fixes numpad digits and operators being

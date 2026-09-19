@@ -199,20 +199,72 @@ read a terminfo database do use them, and report
 'xterm-ghostty': unknown terminal type.
 ```
 
-when the database does not contain the entry.
+when they cannot resolve the entry.
 
 The Release build compiles the database into `share\terminfo` whenever `tic`
 is available on the build machine. Git for Windows ships one in
 `C:\Program Files\Git\usr\bin`, and the build also looks in the usual MSYS2
 and Cygwin locations. Without `tic` the build installs only the terminfo
 source, `share\terminfo\ghostty.terminfo`, and prints a warning.
+`scripts/build-installer.ps1` reports the compiled entry as
+`TerminfoUserEntry` and warns when it is absent, because the registration
+described below has nothing to copy without it.
 
-### MSYS2, Git Bash, and Cygwin
+### Why `TERMINFO` is not enough
 
-The ncurses build used by these environments does not accept a Windows-style
-path in `TERMINFO`, so it cannot read the shipped database directly. Compile
-the entry into your home directory once; ncurses searches `~/.terminfo`
-regardless of what `TERMINFO` contains.
+The programs that read terminfo here are not native Windows programs. `less`,
+`tput`, and `tic` under `C:\Program Files\Git\usr\bin` come from MSYS2, which
+is a fork of Cygwin, and Git for Windows bundles it. So a plain PowerShell
+session reaches this ncurses as soon as Git pipes its output to `less`.
+
+That ncurses cannot resolve the Windows-style path in `TERMINFO` from
+everywhere. Whether the lookup succeeds turns on which drive the shell
+happens to be on:
+
+| Current directory | `TERMINFO=C:\...\Ghostty\share\terminfo` |
+| ----------------- | ---------------------------------------- |
+| on `C:`           | resolves                                 |
+| on any other drive | `'xterm-ghostty': unknown terminal type.` |
+
+Measured with the ncurses 6.6 in Git for Windows, from both PowerShell and
+Git Bash. Only a POSIX-form path such as `/c/Users/<you>/...` resolves from
+every drive. The likely mechanism is that the drive letter is dropped and the
+rest is taken from the root of the current drive, but that is a hypothesis
+and has not been confirmed.
+
+### What Ghostty does about it
+
+ncurses searches `$HOME/.terminfo` whatever `TERMINFO` holds, so an entry
+there is found from any drive. Starting with `1.3.2-windows.10`, Ghostty
+copies its compiled entry at startup to
+
+```
+%USERPROFILE%\.terminfo\78\xterm-ghostty
+```
+
+`78` is the hex form of `x`; this ncurses does not look in `x\`. An entry
+that is already there is never replaced, so one compiled by hand with `tic`
+survives. The entry is written to a temporary file beside its destination and
+then moved onto it, with a move that refuses to overwrite, so nothing ever
+reads a half-written file: two copies of Ghostty starting together are safe,
+and one killed mid-write leaves only the temporary file, which the next start
+replaces. The copy is not the installer's job: a machine-wide installation
+runs as whoever elevated it, whereas every user reaches Ghostty's startup as
+themselves. Nothing is removed on uninstall, for the same reason the existing
+file is not replaced. A failure to copy does not stop Ghostty; the reason is
+written to the log, which `scripts/run-windows-diagnostics.ps1` captures.
+
+This covers the environments that take their home directory from the Windows
+profile. Git for Windows is one: its `/etc/nsswitch.conf` carries
+`db_home: env windows`.
+
+### Cygwin, MSYS2 proper, and a custom `HOME`
+
+Cygwin and a standalone MSYS2 keep the home directory inside their own
+installation root, `/home/<user>`, rather than in the Windows profile, and
+a `HOME` set in the Windows environment wins over both. In those cases the
+entry Ghostty registers is in the wrong place and is not read. Compile the
+entry into the home directory that environment actually uses, once.
 
 ```bash
 tic -x -o ~/.terminfo "$LOCALAPPDATA/Programs/Ghostty/share/terminfo/ghostty.terminfo"
@@ -220,8 +272,10 @@ tic -x -o ~/.terminfo "$LOCALAPPDATA/Programs/Ghostty/share/terminfo/ghostty.ter
 
 For a portable build, replace the path with the `share\terminfo` directory of
 that build. Confirm the result with `tput longname`, which prints `Ghostty`,
-and `tput colors`, which prints `256`. The line `tic` prints about the
-description field is a note from newer `tic` versions, not an error.
+and `tput colors`, which prints `256`. Run the check from a directory on a
+drive other than the one Ghostty is installed on, which is where the original
+failure shows up. The line `tic` prints about the description field is a note
+from newer `tic` versions, not an error.
 
 ### WSL
 

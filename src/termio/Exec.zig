@@ -704,6 +704,16 @@ const Subprocess = struct {
                 std.fs.path.dirname(base) orelse unreachable,
             });
             try env.put("TERMINFO", dir);
+
+            // On Windows, TERMINFO alone does not reach the ncurses that
+            // Git for Windows ships, so the entry also goes into this
+            // user's home directory. See src/os/terminfo.zig.
+            internal_os.terminfo.ensureUserEntry(
+                gpa,
+                global.io(),
+                &env,
+                dir,
+            );
         } else {
             if (comptime builtin.target.os.tag.isDarwin()) {
                 log.warn("ghostty terminfo not found, using xterm-256color", .{});

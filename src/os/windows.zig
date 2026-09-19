@@ -224,6 +224,16 @@ pub const exp = struct {
             nBufferLength: DWORD,
             lpBuffer: LPWSTR,
         ) callconv(.winapi) DWORD;
+        /// https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw
+        ///
+        /// Called with dwFlags of 0 this is the one move that refuses to
+        /// replace an existing destination, which std.Io.Dir.rename always
+        /// does.
+        pub extern "kernel32" fn MoveFileExW(
+            lpExistingFileName: LPCWSTR,
+            lpNewFileName: ?LPCWSTR,
+            dwFlags: DWORD,
+        ) callconv(.winapi) BOOL;
         pub extern "kernel32" fn SetHandleInformation(
             hObject: HANDLE,
             dwMask: DWORD,

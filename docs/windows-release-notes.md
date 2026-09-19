@@ -7,6 +7,55 @@ versions with their commits, the
 numbering rules, the [User Guide](windows.md) for configuration and known
 limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 
+## 1.3.2-windows.10
+
+- Prepared: 2026-09-19
+- Source tag: `v1.3.2-windows.10`
+- Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
+- Status: preparing. Programs that read terminfo now resolve `xterm-ghostty`
+  from a working directory on any drive.
+
+### Changes Since 1.3.2-windows.9
+
+- Register the compiled terminfo entry in the running user's
+  `%USERPROFILE%\.terminfo\78\xterm-ghostty` at startup. `TERMINFO` points at
+  Ghostty's own `share\terminfo`, but the ncurses that Git for Windows ships
+  resolves that Windows-style path only from a working directory on the drive
+  Ghostty is installed on, so from anywhere else `less`, `tput`, and anything
+  else that reads terminfo reported `'xterm-ghostty': unknown terminal type.`
+  An entry already in place is never replaced, the copy goes through a
+  temporary file and a move that refuses to overwrite, and a failure only
+  writes to the log.
+- Report the compiled entry as `TerminfoUserEntry` from
+  `scripts/build-installer.ps1`.
+- Correct the terminfo section of `docs/windows.md`, which said this ncurses
+  does not accept a Windows-style `TERMINFO` path at all.
+
+### Verification
+
+On a Debug build, 2026-09-19:
+
+| Item | Result |
+|---|---|
+| `zig build` | Succeeded |
+| `zig build test` | 3840 passed, 62 skipped, 0 failed |
+| Unit tests for the empty, occupied, and leftover-temporary-file cases | Added; the totals above are 3 higher than the 3837 of `1.3.2-windows.5` with the skip count unchanged |
+| Registration with nothing in `%USERPROFILE%\.terminfo`, launched from `D:` | The entry appeared with the same SHA-256 as the shipped file, and no temporary file was left behind |
+| `tput longname` and `tput colors` from `D:` afterwards | `Ghostty` and `256`, both with the `TERMINFO` Ghostty exports and with none. Before the fix both reported `unknown terminal` |
+| Registration with a sentinel file already at the destination | Untouched, and no temporary file left behind |
+| The failure this fixes, measured with ncurses 6.6 from PowerShell and Git Bash | `tput longname` reported `Ghostty` from a working directory on `C:` and `unknown terminal` from one on `D:`, for the value Ghostty exports and for an all-backslash path alike; a POSIX `/c/...` path resolved from either |
+
+The executables used for the checks above are unsigned Debug builds. The
+ReleaseFast verification, the window-state regression, the soak run, and the
+signed installer remain to be done.
+
+### Known Limitations
+
+- Cygwin, a standalone MSYS2, and a `HOME` pointed somewhere else keep the
+  home directory outside the Windows profile, so the entry registered at
+  startup is not the one they read. Those environments still need the
+  one-time `tic` described in `docs/windows.md`.
+
 ## 1.3.2-windows.9
 
 - Prepared: 2026-09-17

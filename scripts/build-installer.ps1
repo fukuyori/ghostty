@@ -157,6 +157,20 @@ if (-not $terminfoCompiled) {
         "one) and rerun scripts/build-release.ps1.")
 }
 
+# At startup Ghostty copies this one entry into the running user's
+# ~/.terminfo\78, which is where the ncurses in Git for Windows finds it no
+# matter which drive the working directory is on. Without the entry in the
+# package there is nothing to copy, and the users of such a build have to run
+# tic themselves. Report the state so package verification can see it.
+$terminfoUserEntry = Join-Path $terminfoRoot (Join-Path "78" "xterm-ghostty")
+$terminfoUserEntryPresent = Test-Path -LiteralPath $terminfoUserEntry -PathType Leaf
+if (-not $terminfoUserEntryPresent) {
+    Write-Warning ("The release tree has no share\terminfo\78\xterm-ghostty, " +
+        "so Ghostty cannot register the terminfo entry for the user at " +
+        "startup and xterm-ghostty stays unresolved outside the install " +
+        "drive. See docs/windows.md, Terminal Type and terminfo.")
+}
+
 $versionInfo = (Get-Item -LiteralPath $releaseExecutable).VersionInfo
 if ([string]::IsNullOrWhiteSpace($versionInfo.FileVersion)) {
     throw "The release executable does not contain FileVersion information."
@@ -439,6 +453,7 @@ $hash = Get-FileHash -LiteralPath $installer -Algorithm SHA256
     Version              = $versionString
     DevelopmentBuild     = $versionString.Contains("+")
     TerminfoCompiled     = $terminfoCompiled
+    TerminfoUserEntry    = $terminfoUserEntryPresent
     NumericVersion       = $numericVersion
     SizeBytes            = (Get-Item -LiteralPath $installer).Length
     Sha256               = $hash.Hash

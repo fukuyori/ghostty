@@ -81,14 +81,21 @@ work in this document at the same time.
 All six phases are done. On 2026-09-15 the first preview build
 `1.3.2-windows.1` (tag `v1.3.2-windows.1`) was finalized after passing
 Release verification, and later previews followed. The current Windows
-preview is `1.3.2-windows.9` (tag `v1.3.2-windows.9`), which fixes numpad
-digits and operators being entered twice. The repository owner confirmed
-actual numpad input on 2026-09-17, and the ReleaseFast executable reports
-`1.3.2-windows.9`. The window-state regression passed on the distribution
-build and on the test-hook build with GPU recovery and power resume, and a
-20-iteration soak run passed 20 of 20. The owner built the signed installer,
-which reports `1.3.2-windows.9` with a Valid signature. The previous
-preview, `1.3.2-windows.8`, fixes Shift character input in antigravity.
+preview being prepared in the working tree is `1.3.2-windows.10` (tag
+`v1.3.2-windows.10`), which makes programs that read terminfo resolve
+`xterm-ghostty` from a working directory on any drive, by registering the
+compiled entry in the running user's `%USERPROFILE%\.terminfo`. Its
+verification so far is on a Debug build: `zig build test` passed 3840 of
+3902 with 62 skipped, and the registration was exercised from `D:` against an
+empty, an occupied, and a leftover-temporary-file destination. The
+ReleaseFast verification and the signed installer remain to be done. The
+published preview is `1.3.2-windows.9` (tag `v1.3.2-windows.9`), which fixes
+numpad digits and operators being entered twice; the repository owner
+confirmed actual numpad input on 2026-09-17, the window-state regression
+passed on the distribution build and on the test-hook build with GPU recovery
+and power resume, a 20-iteration soak run passed 20 of 20, and the owner
+built the signed installer, which reports `1.3.2-windows.9` with a Valid
+signature.
 Remaining real-hardware verification, open decisions, and
 deferred refactoring are tracked as GitHub issues, listed in "7. Next Steps".
 Release history is recorded in `docs/windows-release-notes.md`.
@@ -493,6 +500,11 @@ Implemented:
 - Compilation of the terminfo database on Windows with `tic` when it is
   available, installed next to the terminfo source so that programs reading
   terminfo can resolve `xterm-ghostty`
+- Registration of that compiled entry in the running user's
+  `%USERPROFILE%\.terminfo\78` at startup, which is where the ncurses in Git
+  for Windows finds it from a working directory on any drive. An entry
+  already in place is never replaced, and the copy goes through a temporary
+  file and a move that refuses to overwrite
 - Layout-independent key input handling that determines the physical key
   from the scan code and the core's key code table and obtains the
   unmodified character of the current layout with `ToUnicodeEx`. Only
@@ -679,6 +691,40 @@ Recent verification:
   failure, controlled power resume for a single surface and all 3 surfaces,
   4-monitor movement, multiple windows, and clean exit. Exit code 0, no
   forced termination, no leftover temporary files.
+- 2026-09-19: Fixed `'xterm-ghostty': unknown terminal type.` still appearing
+  outside the install drive, and corrected what the 2026-09-15 entry below
+  says about the cause. The ncurses in Git for Windows does accept the
+  Windows-style path Ghostty puts in `TERMINFO`, but only from a working
+  directory on the drive Ghostty is installed on. Measured with ncurses 6.6
+  from both PowerShell and Git Bash: `tput longname` reported `Ghostty` from
+  `C:\Users\<user>` and `unknown terminal` from `D:\home\source\zig\ghostty`,
+  both for the mixed-separator value Ghostty exports and for an
+  all-backslash one, while a POSIX `/c/...` path resolved from either. Only
+  the dependence on the current drive is measured; dropping the drive letter
+  and taking the rest from the root of the current drive would explain it but
+  is not confirmed. Ghostty now copies its compiled entry to
+  `%USERPROFILE%\.terminfo\78\xterm-ghostty` before starting the child
+  process, which ncurses searches whatever `TERMINFO` holds
+  (`src/os/terminfo.zig`); `78` is the hex form of `x` and an entry in `x\`
+  is not read. It never replaces what is already there, writes through a
+  temporary file beside the destination and moves it with `MoveFileExW`
+  without `MOVEFILE_REPLACE_EXISTING`, and never stops startup on failure.
+  The installer was deliberately left alone: Inno Setup documents that
+  user-level files must not be written from an administrative install mode
+  installer, and a machine-wide install runs as whoever elevated it, not as
+  the people who will run Ghostty. Verified on a debug build launched from
+  `D:`: with nothing registered the entry appeared with the same SHA-256 as
+  the shipped file and no temporary file left behind, after which
+  `tput longname` and `tput colors` reported `Ghostty` and `256` both with
+  the exported `TERMINFO` and with none; with a sentinel already in place it
+  was untouched. Three unit tests cover the empty, occupied, and
+  leftover-temporary-file cases, and the unit tests passed 3840 of 3902 with
+  62 skipped and 0 failures. WezTerm was examined for prior art and has none:
+  its default `TERM` is `xterm-256color`, it sets no `TERMINFO`, ships no
+  terminfo in its Windows installer, and never writes `~/.terminfo`. Not
+  covered: Cygwin, a standalone MSYS2, and a `HOME` pointed elsewhere, which
+  keep the home directory outside the Windows profile and still need the
+  one-time `tic`.
 - 2026-09-16: Added the right-click context menu (#4) and prepared
   `1.3.2-windows.6`. The core already selected the word under a right press
   and left the press unconsumed for the runtime to show a menu, which the
@@ -987,6 +1033,15 @@ test-hook build with 2 controlled GPU recovery failures and power resume, and
 a 20-iteration soak run completed 20 of 20 in 135.4 seconds. The owner built
 the signed installer, which reports `1.3.2-windows.9` with a Valid signature.
 
+`1.3.2-windows.10` registers the compiled terminfo entry in the running
+user's `%USERPROFILE%\.terminfo\78` at startup, so that programs reading
+terminfo resolve `xterm-ghostty` from a working directory on any drive. On a
+Debug build, `zig build test` passed 3840 of 3902 with 62 skipped, and the
+registration was exercised from `D:` against an empty destination, one
+holding the user's own entry, and one holding a temporary file from an
+interrupted run. The ReleaseFast verification, the window-state regression,
+the soak run, and the signed installer remain to be done.
+
 Real-hardware verification, performed in the user's environment:
 
 - [#5](https://github.com/fukuyori/ghostty/issues/5): verify the GUI at 144 and 192 DPI on real hardware
@@ -1022,6 +1077,7 @@ the code exists.
 | Release | `1.3.2-windows.3` | Bug-fix preview. Regression including the split focus phase, 20-iteration soak, and CLI verified with both Release builds. Compiled terminfo shipped |
 | Release | `1.3.2-windows.7` | Fix regression and 20-iteration soak passed with the Debug test build. Distribution-build, signing, and installer verification completed by the repository owner; staged executable and installer signatures locally confirmed Valid |
 | Release | `1.3.2-windows.8` | Input tests, Win32 tests with hooks, Debug build, and actual antigravity input passed as reported by the owner. ReleaseFast CLI and executable/installer version metadata verified locally; staged executable and installer signatures Valid |
+| Release | `1.3.2-windows.10` | Terminfo registration in the user's home. Unit tests (3840/3902, 62 skipped) and registration against an empty, an occupied, and a leftover-temporary-file destination passed on a Debug build launched from `D:`; `tput longname` and `tput colors` then resolved from `D:`. ReleaseFast verification, regression, soak, and signed installer outstanding |
 | Release | `1.3.2-windows.9` | Numpad double-input fix. Win32 tests with hooks, window-state regression, and recorded numpad input passed on a Debug build; actual numpad input confirmed by the owner; ReleaseFast CLI and version metadata verified; regression on the distribution and test-hook ReleaseFast builds and 20-iteration soak (20/20) passed. Signed installer built by the owner; installer and staged executable signatures Valid |
 | Fonts | Family matching and fallback | Measured: a configured family that matches nothing is replaced silently, and the automatic fallback takes the first file containing the codepoint. Tracked as issues 1, 2, and 3 |
 | Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature |
