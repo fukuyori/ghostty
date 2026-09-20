@@ -182,9 +182,14 @@ fn testDir(gpa: Allocator) ![]u8 {
     const root = try osfile.allocTmpDir(gpa, global.environ());
     defer osfile.freeTmpDir(gpa, root);
 
+    // One directory rather than a fixed parent holding a random child, so
+    // that deleting it takes everything the test made with it. The soak run
+    // counts leftover temporary files.
     var name_buf: [osfile.random_basename_len:0]u8 = undefined;
     const base = try osfile.randomBasename(&name_buf);
-    return try std.fs.path.join(gpa, &.{ root, "ghostty-terminfo-test", base });
+    const name = try std.fmt.allocPrint(gpa, "ghostty-terminfo-test-{s}", .{base});
+    defer gpa.free(name);
+    return try std.fs.path.join(gpa, &.{ root, name });
 }
 
 /// How many entries `dir` holds, so that a test can show that nothing was
