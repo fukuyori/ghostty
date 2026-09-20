@@ -12,8 +12,9 @@ limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 - Prepared: 2026-09-19
 - Source tag: `v1.3.2-windows.10`
 - Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
-- Status: preparing. Programs that read terminfo now resolve `xterm-ghostty`
-  from a working directory on any drive.
+- Status: preview. Programs that read terminfo now resolve `xterm-ghostty`
+  from a working directory on any drive. The signed installer was built by the
+  repository owner on 2026-09-20.
 
 ### Changes Since 1.3.2-windows.9
 
@@ -45,9 +46,30 @@ On a Debug build, 2026-09-19:
 | Registration with a sentinel file already at the destination | Untouched, and no temporary file left behind |
 | The failure this fixes, measured with ncurses 6.6 from PowerShell and Git Bash | `tput longname` reported `Ghostty` from a working directory on `C:` and `unknown terminal` from one on `D:`, for the value Ghostty exports and for an all-backslash path alike; a POSIX `/c/...` path resolved from either |
 
-The executables used for the checks above are unsigned Debug builds. The
-ReleaseFast verification, the window-state regression, the soak run, and the
-signed installer remain to be done.
+The executables used for the checks above are unsigned Debug builds.
+
+On the ReleaseFast, baseline CPU executable after the version bump,
+2026-09-20:
+
+| Item | Result |
+|---|---|
+| Version information on `zig-out\release\bin\ghostty.exe` | `FileVersion` and `ProductVersion` 1.3.2-windows.10, numeric version 1.3.2.10, `IsDebug` False |
+| `--version` on the installed executable | `Ghostty 1.3.2-windows.10`, ReleaseFast, `.win32` runtime, D3D11 renderer, IOCP libxev |
+| Window-state regression on the distribution build (terminal input, IME process keys, startup grid, split pane click focus, config reload, multiple windows, shell eligibility, 4 monitors, maximize/minimize/restore, clean exit) | All items passed, exit code 0, no forced termination |
+| 20-iteration soak run on the distribution build | All 20 passed, 0 failures, 0 non-graceful exits, 0 errors recorded, 115.4 seconds elapsed |
+| Temporary files left behind by the soak run | None |
+
+The four monitors are all at 96 DPI, so this run is not a mixed-DPI check.
+GPU resource re-creation and power resume were not included, because they
+need a `-Dwin32-test-hooks=true` build.
+
+Distribution on 2026-09-20:
+
+| Item | Result |
+|---|---|
+| `ghostty-1.3.2-windows.10-x64-setup.exe` | Built by the repository owner, 17,800,680 bytes, `ProductVersion` 1.3.2-windows.10 |
+| Installer signature | Valid, `CN=Noriaki Fukuyori` |
+| Staged executable signature | Valid |
 
 ### Known Limitations
 

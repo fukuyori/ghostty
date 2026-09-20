@@ -81,21 +81,15 @@ work in this document at the same time.
 All six phases are done. On 2026-09-15 the first preview build
 `1.3.2-windows.1` (tag `v1.3.2-windows.1`) was finalized after passing
 Release verification, and later previews followed. The current Windows
-preview being prepared in the working tree is `1.3.2-windows.10` (tag
-`v1.3.2-windows.10`), which makes programs that read terminfo resolve
-`xterm-ghostty` from a working directory on any drive, by registering the
-compiled entry in the running user's `%USERPROFILE%\.terminfo`. Its
-verification so far is on a Debug build: `zig build test` passed 3840 of
-3902 with 62 skipped, and the registration was exercised from `D:` against an
-empty, an occupied, and a leftover-temporary-file destination. The
-ReleaseFast verification and the signed installer remain to be done. The
-published preview is `1.3.2-windows.9` (tag `v1.3.2-windows.9`), which fixes
-numpad digits and operators being entered twice; the repository owner
-confirmed actual numpad input on 2026-09-17, the window-state regression
-passed on the distribution build and on the test-hook build with GPU recovery
-and power resume, a 20-iteration soak run passed 20 of 20, and the owner
-built the signed installer, which reports `1.3.2-windows.9` with a Valid
-signature.
+preview is `1.3.2-windows.10` (tag `v1.3.2-windows.10`), which makes programs
+that read terminfo resolve `xterm-ghostty` from a working directory on any
+drive, by registering the compiled entry in the running user's
+`%USERPROFILE%\.terminfo`. The ReleaseFast executable reports
+`1.3.2-windows.10`, the window-state regression passed on the distribution
+build, and a 20-iteration soak run passed 20 of 20 in 115.4 seconds. The
+owner built the signed installer, which reports `1.3.2-windows.10` with a
+Valid signature. The previous preview, `1.3.2-windows.9`, fixes numpad digits
+and operators being entered twice.
 Remaining real-hardware verification, open decisions, and
 deferred refactoring are tracked as GitHub issues, listed in "7. Next Steps".
 Release history is recorded in `docs/windows-release-notes.md`.
@@ -691,6 +685,31 @@ Recent verification:
   failure, controlled power resume for a single surface and all 3 surfaces,
   4-monitor movement, multiple windows, and clean exit. Exit code 0, no
   forced termination, no leftover temporary files.
+- 2026-09-20: Verified `1.3.2-windows.10` on the ReleaseFast build. The
+  executable and the installed copy both report `1.3.2-windows.10`, with
+  numeric version 1.3.2.10 and `IsDebug` False. `ghostty.exe` is a GUI
+  subsystem application, so PowerShell prints its `--version` output only
+  when it is piped, as the README says. The window-state regression passed on
+  the distribution build: terminal input, IME process keys, the startup grid,
+  split pane click focus, config reload, multiple windows, shell eligibility,
+  four monitors, and maximize, minimize, and restore, with exit code 0 and no
+  forced termination. A 20-iteration soak run passed 20 of 20 in 115.4
+  seconds with no failures, no non-graceful exits, and no recorded errors.
+  The owner built the signed installer, whose signature and staged executable
+  signature are both Valid. The four monitors are all at 96 DPI, so this is
+  not a mixed-DPI check, and GPU resource re-creation and power resume were
+  not included because they need a `-Dwin32-test-hooks=true` build.
+- 2026-09-20, after the tag: Fixed the temporary directory the new terminfo
+  unit tests left behind. Checking the soak run for leftover temporary files
+  turned it up: the tests created a random directory under a fixed parent,
+  `%TEMP%\ghostty-terminfo-test`, and deleted only the child, so the parent
+  stayed. They now use a single directory that deletion takes with it. After
+  the change `zig build test` passed 3840 of 3902 with 62 skipped and 0
+  failures, the same counts as before it, and `%TEMP%` held no
+  `ghostty-terminfo-test*` directory. This touches a helper called only from
+  the tests, so the build distributed as `1.3.2-windows.10` is unaffected,
+  the tag was left where it is, and the release notes record only the
+  distribution build's verification.
 - 2026-09-19: Fixed `'xterm-ghostty': unknown terminal type.` still appearing
   outside the install drive, and corrected what the 2026-09-15 entry below
   says about the cause. The ncurses in Git for Windows does accept the
@@ -1039,8 +1058,12 @@ terminfo resolve `xterm-ghostty` from a working directory on any drive. On a
 Debug build, `zig build test` passed 3840 of 3902 with 62 skipped, and the
 registration was exercised from `D:` against an empty destination, one
 holding the user's own entry, and one holding a temporary file from an
-interrupted run. The ReleaseFast verification, the window-state regression,
-the soak run, and the signed installer remain to be done.
+interrupted run. On the ReleaseFast builds, the window-state regression
+passed on the distribution build and a 20-iteration soak run completed 20 of
+20 in 115.4 seconds with no failures and no leftover temporary files. The
+owner built the signed installer, which reports `1.3.2-windows.10` with a
+Valid signature. GPU resource re-creation and power resume were not included,
+because they need a `-Dwin32-test-hooks=true` build.
 
 Real-hardware verification, performed in the user's environment:
 
@@ -1077,7 +1100,7 @@ the code exists.
 | Release | `1.3.2-windows.3` | Bug-fix preview. Regression including the split focus phase, 20-iteration soak, and CLI verified with both Release builds. Compiled terminfo shipped |
 | Release | `1.3.2-windows.7` | Fix regression and 20-iteration soak passed with the Debug test build. Distribution-build, signing, and installer verification completed by the repository owner; staged executable and installer signatures locally confirmed Valid |
 | Release | `1.3.2-windows.8` | Input tests, Win32 tests with hooks, Debug build, and actual antigravity input passed as reported by the owner. ReleaseFast CLI and executable/installer version metadata verified locally; staged executable and installer signatures Valid |
-| Release | `1.3.2-windows.10` | Terminfo registration in the user's home. Unit tests (3840/3902, 62 skipped) and registration against an empty, an occupied, and a leftover-temporary-file destination passed on a Debug build launched from `D:`; `tput longname` and `tput colors` then resolved from `D:`. ReleaseFast verification, regression, soak, and signed installer outstanding |
+| Release | `1.3.2-windows.10` | Terminfo registration in the user's home. Unit tests (3840/3902, 62 skipped) and registration against an empty, an occupied, and a leftover-temporary-file destination passed on a Debug build launched from `D:`; `tput longname` and `tput colors` then resolved from `D:`. ReleaseFast version metadata verified, window-state regression and 20-iteration soak (20/20, 115.4 s) passed on the distribution build. Signed installer built by the owner; installer and staged executable signatures Valid. GPU recovery and power resume not run (needs a test-hook build) |
 | Release | `1.3.2-windows.9` | Numpad double-input fix. Win32 tests with hooks, window-state regression, and recorded numpad input passed on a Debug build; actual numpad input confirmed by the owner; ReleaseFast CLI and version metadata verified; regression on the distribution and test-hook ReleaseFast builds and 20-iteration soak (20/20) passed. Signed installer built by the owner; installer and staged executable signatures Valid |
 | Fonts | Family matching and fallback | Measured: a configured family that matches nothing is replaced silently, and the automatic fallback takes the first file containing the codepoint. Tracked as issues 1, 2, and 3 |
 | Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature |
