@@ -746,10 +746,13 @@ output with Narrator and NVDA is still under acceptance verification.
   verified. D3D11 present HRESULTs and device removal reasons are recorded in
   the diagnostic log.
 - The terminfo database is compiled only when `tic` is available on the build
-  machine, and the ncurses build used by MSYS2, Git Bash, and Cygwin cannot
-  read it through the Windows-style `TERMINFO` path Ghostty sets. Those
-  environments, WSL, and remote hosts need the one-time step described in
-  "Terminal Type and terminfo".
+  machine. The ncurses build used by MSYS2, Git Bash, and Cygwin reads the
+  Windows-style `TERMINFO` path Ghostty sets only from a working directory on
+  the drive Ghostty is installed on, so from 1.3.2-windows.10 Ghostty also
+  registers the entry in `%USERPROFILE%\.terminfo`, which is found from any
+  drive. That covers Git Bash. Cygwin, a standalone MSYS2, a `HOME` pointed
+  elsewhere, WSL, and remote hosts keep their home directory somewhere else
+  and still need the one-time step described in "Terminal Type and terminfo".
 - The effect and quality of `background-blur` vary with the Windows and GPU
   configuration.
 - There is no automatic update. A signed installer is published as a release
