@@ -558,6 +558,7 @@ function Test-InitialGrid {
     try {
         $gridProcess = Start-Process `
             -FilePath $executablePath `
+            -WindowStyle Hidden `
             -ArgumentList @(
                 "--config-default-files=false"
                 "--config-file=`"$gridConfigPath`""
@@ -567,7 +568,14 @@ function Test-InitialGrid {
                 "--quit-after-last-window-closed=true"
                 "--title=Ghostty-window-state-grid-test"
             ) `
+            -RedirectStandardOutput (Join-Path $logDirectory "$sessionName.grid.stdout.log") `
+            -RedirectStandardError (Join-Path $logDirectory "$sessionName.grid.stderr.log") `
             -PassThru
+        Wait-ForCondition -Description "grid test window creation" -Condition {
+            [GhosttyWindowStateNative]::FindWindow($gridProcess.Id, "GhosttyWindow") -ne [IntPtr]::Zero
+        }
+        $gridWindow = [GhosttyWindowStateNative]::FindWindow($gridProcess.Id, "GhosttyWindow")
+        $null = [GhosttyWindowStateNative]::ShowWindow($gridWindow, $swRestore)
         $gridWindow = Wait-ForMainWindow -Process $gridProcess
         $gridSurface = [GhosttyWindowStateNative]::GetWindow($gridWindow, $gwChild)
         if ($gridSurface -eq [IntPtr]::Zero) {
@@ -636,9 +644,36 @@ function Test-InitialGrid {
             Consistent = $true
             ExitCode = $gridProcess.ExitCode
         }
+    } catch {
+        # Preserve grid-process evidence before removing its temporary inputs.
+        # A startup timeout must not be reduced to the parent process's log.
+        try {
+            foreach ($path in @($gridConfigPath, $gridMarkerPath, $gridResizedMarkerPath)) {
+                if ([System.IO.File]::Exists($path)) {
+                    Copy-Item -LiteralPath $path -Destination (
+                        Join-Path $logDirectory "$sessionName.$([IO.Path]::GetFileName($path))"
+                    )
+                }
+            }
+            if ($gridProcess -and -not $gridProcess.HasExited -and
+                (Get-Variable gridWindow -ErrorAction SilentlyContinue)) {
+                Add-Type -AssemblyName System.Drawing
+                $captureRect = Get-WindowRectangle -Handle $gridWindow
+                $bitmap = [System.Drawing.Bitmap]::new($captureRect.Width, $captureRect.Height)
+                try {
+                    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+                    try {
+                        $graphics.CopyFromScreen($captureRect.X, $captureRect.Y, 0, 0, $bitmap.Size)
+                    } finally { $graphics.Dispose() }
+                    $bitmap.Save((Join-Path $logDirectory "$sessionName.grid-failure.png"), [System.Drawing.Imaging.ImageFormat]::Png)
+                } finally { $bitmap.Dispose() }
+            }
+        } catch { Write-Warning "Could not capture grid failure evidence: $_" }
+        throw
     } finally {
         if ($null -ne $gridProcess -and -not $gridProcess.HasExited) {
             $gridProcess.Kill()
+            $null = $gridProcess.WaitForExit($timeoutMilliseconds)
         }
         foreach ($path in @($gridConfigPath, $gridMarkerPath, $gridResizedMarkerPath)) {
             if ([System.IO.File]::Exists($path)) {

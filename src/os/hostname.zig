@@ -12,7 +12,10 @@ pub const LocalHostnameValidationError = error{
 /// by `gethostname`).
 pub fn isLocal(hostname: []const u8) LocalHostnameValidationError!bool {
     // A 'localhost' hostname is always considered local.
-    if (std.mem.eql(u8, "localhost", hostname)) return true;
+    if (if (builtin.os.tag == .windows)
+        std.ascii.eqlIgnoreCase("localhost", hostname)
+    else
+        std.mem.eql(u8, "localhost", hostname)) return true;
 
     // If hostname is not "localhost" it must match our hostname.
     switch (builtin.os.tag) {
@@ -22,7 +25,7 @@ pub fn isLocal(hostname: []const u8) LocalHostnameValidationError!bool {
             var nSize: windows.DWORD = buf.len;
             if (windows.exp.kernel32.GetComputerNameA(&buf, &nSize) == windows.FALSE) return false;
             const ourHostname = buf[0..nSize];
-            return std.mem.eql(u8, hostname, ourHostname);
+            return std.ascii.eqlIgnoreCase(hostname, ourHostname);
         },
         else => {
             var buf: [posix.HOST_NAME_MAX]u8 = undefined;
@@ -34,6 +37,20 @@ pub fn isLocal(hostname: []const u8) LocalHostnameValidationError!bool {
 
 test "isLocal returns true when provided hostname is localhost" {
     try std.testing.expect(try isLocal("localhost"));
+}
+
+test "Win32 OSC 7 hostname comparison ignores ASCII case" {
+    if (comptime builtin.os.tag != .windows) return error.SkipZigTest;
+    try std.testing.expect(try isLocal("LOCALHOST"));
+    const windows = @import("windows.zig");
+    var buf: [256:0]u8 = undefined;
+    var len: windows.DWORD = buf.len;
+    if (windows.exp.kernel32.GetComputerNameA(&buf, &len) == windows.FALSE)
+        return error.GetComputerNameFailed;
+    for (buf[0..len]) |*c| c.* = std.ascii.toLower(c.*);
+    try std.testing.expect(try isLocal(buf[0..len]));
+    for (buf[0..len]) |*c| c.* = std.ascii.toUpper(c.*);
+    try std.testing.expect(try isLocal(buf[0..len]));
 }
 
 test "isLocal returns true when hostname is local" {

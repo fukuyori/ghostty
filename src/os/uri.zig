@@ -1,5 +1,35 @@
 const std = @import("std");
 
+/// Convert an OSC 7 native Windows drive path to a subprocess working
+/// directory. Unix/WSL paths need shell-specific translation; UNC/device
+/// paths are deliberately outside this native-drive conversion.
+pub fn windowsWorkingDirectory(alloc: std.mem.Allocator, raw: []const u8) ![]u8 {
+    const path = if (raw.len > 0 and raw[0] == '/') raw[1..] else raw;
+    if (path.len < 3 or !std.ascii.isAlphabetic(path[0]) or path[1] != ':' or
+        (path[2] != '/' and path[2] != '\\')) return error.InvalidWindowsWorkingDirectory;
+    if (!std.unicode.utf8ValidateSlice(path)) return error.InvalidWindowsWorkingDirectory;
+    for (path[2..]) |c| switch (c) {
+        0...31, ':', '*', '?', '"', '<', '>', '|' => return error.InvalidWindowsWorkingDirectory,
+        else => {},
+    };
+    const result = try alloc.dupe(u8, path);
+    std.mem.replaceScalar(u8, result, '/', '\\');
+    return result;
+}
+
+test "Win32 OSC 7 native working directory" {
+    const alloc = std.testing.allocator;
+    const uri = try parse("file://localhost/C:/work/a%20b/%E6%97%A5%E6%9C%AC", .{});
+    const raw = try uri.path.toRawMaybeAlloc(alloc);
+    defer alloc.free(raw);
+    const path = try windowsWorkingDirectory(alloc, raw);
+    defer alloc.free(path);
+    try std.testing.expectEqualStrings("C:\\work\\a b\\日本", path);
+    for ([_][]const u8{ "/home/user", "/c/work", "C:relative", "//server/share", "/C:/bad\x00path", "/C:/bad:stream", "/C:/\xff" }) |invalid| {
+        try std.testing.expectError(error.InvalidWindowsWorkingDirectory, windowsWorkingDirectory(alloc, invalid));
+    }
+}
+
 pub const ParseOptions = struct {
     /// Parse MAC addresses in the host component.
     ///

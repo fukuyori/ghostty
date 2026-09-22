@@ -28,6 +28,8 @@ const TabBar = @import("TabBar.zig");
 const TabBarAccessibility = @import("TabBarAccessibility.zig");
 const Titlebar = @import("Titlebar.zig");
 const Window = @import("Window.zig");
+const SearchBar = @import("SearchBar.zig");
+const Mouse = @import("Mouse.zig");
 
 const log = std.log.scoped(.win32);
 const WindowList = std.ArrayListUnmanaged(*Window);
@@ -227,6 +229,18 @@ pub fn run(self: *App) !void {
             };
             continue;
         }
+        const search_handled = search: {
+            for (self.windows.items) |window| {
+                var surfaces = window.surfaceIterator();
+                while (surfaces.next()) |surface| {
+                    if (surface.search_bar) |bar| {
+                        if (bar.filterMessage(&msg)) break :search true;
+                    }
+                }
+            }
+            break :search false;
+        };
+        if (search_handled) continue;
         _ = win32.TranslateMessage(&msg);
         _ = win32.DispatchMessageW(&msg);
     }
@@ -495,6 +509,46 @@ pub fn performAction(
             },
         },
         .set_tab_title => return try self.setTabTitle(target, value),
+        .start_search => {
+            const surface = targetSurface(target) orelse return false;
+            if (surface.search_bar == null) {
+                const bar = try self.alloc.create(SearchBar);
+                errdefer self.alloc.destroy(bar);
+                try bar.init(surface);
+                surface.search_bar = bar;
+            }
+            const bar = surface.search_bar.?;
+            try bar.start(value.needle);
+            if (self.windowForSurface(surface)) |window| self.layoutWindow(window);
+            bar.focus();
+            return true;
+        },
+        .end_search => {
+            const surface = targetSurface(target) orelse return false;
+            if (surface.search_bar) |bar| bar.stop();
+            if (self.windowForSurface(surface)) |window| self.layoutWindow(window);
+            return true;
+        },
+        .search_total, .search_selected => {
+            const surface = targetSurface(target) orelse return false;
+            if (surface.search_bar) |bar| {
+                if (action == .search_total) bar.total = value.total else bar.selected = value.selected;
+                bar.updateStatus();
+            }
+            return true;
+        },
+        .mouse_shape => {
+            const surface = targetSurface(target) orelse return false;
+            surface.mouse_shape = value;
+            Mouse.refresh(surface);
+            return true;
+        },
+        .mouse_visibility => {
+            const surface = targetSurface(target) orelse return false;
+            surface.mouse_visible = value == .visible;
+            Mouse.refresh(surface);
+            return true;
+        },
         .prompt_title => return try self.promptTitle(target, value),
         .new_window => {
             try self.createWindow(.{});
@@ -2333,6 +2387,18 @@ fn toggleSplitZoom(self: *App, target: apprt.Target) bool {
     return true;
 }
 
+/// Native search controls belong to a pane even while the terminal itself
+/// has no keyboard focus. Keep window actions and cwd inheritance targeted
+/// at that pane without sending terminal focus-in events for an edit control.
+pub fn focusSearchPane(self: *App, surface: *Surface) void {
+    const window = self.windowForSurface(surface) orelse return;
+    _ = window.setFocusedSurface(surface);
+    if (surface.core_surface) |core| self.core_app.focusSurface(core);
+    _ = win32.SetWindowLongPtrW(window.hwnd, win32.GWLP_USERDATA, @bitCast(@intFromPtr(surface)));
+    surface.syncTitle();
+    invalidateTabBar(window);
+}
+
 fn layoutWindow(self: *App, window: *Window) void {
     var client: win32.RECT = std.mem.zeroes(win32.RECT);
     if (win32.GetClientRect(window.hwnd, &client) == 0) {
@@ -2387,13 +2453,17 @@ fn layoutWindow(self: *App, window: *Window) void {
         rects,
     );
     for (rects[0..count]) |entry| {
+        const search_height = if (entry.view.search_bar) |bar|
+            bar.layout(entry.rect.x, entry.rect.y, entry.rect.width, entry.rect.height, windowDpi(window.hwnd))
+        else
+            0;
         if (win32.SetWindowPos(
             entry.view.hwnd,
             null,
             entry.rect.x,
-            entry.rect.y,
+            entry.rect.y + search_height,
             entry.rect.width,
-            entry.rect.height,
+            entry.rect.height - search_height,
             .{ .NOZORDER = 1, .NOACTIVATE = 1 },
         ) == 0) {
             log.warn("SetWindowPos(surface layout) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
@@ -2413,6 +2483,9 @@ fn layoutWindow(self: *App, window: *Window) void {
             surface.hwnd,
             if (visible) win32.SW_SHOWNA else win32.SW_HIDE,
         );
+        if (surface.search_bar) |bar| {
+            _ = win32.ShowWindow(bar.hwnd.?, if (visible and bar.active) win32.SW_SHOWNA else win32.SW_HIDE);
+        }
     }
 
     self.layoutSplitDividers(window, content_bounds, divider_gap);
@@ -4741,6 +4814,10 @@ fn wndProc(
                 if ((hwnd == surface.hwnd or hwnd == surface.windowHwnd()) and
                     handleSplitDividerCursor(surface))
                 {
+                    return 1;
+                }
+                if (hwnd == surface.hwnd and @as(u16, @truncate(@as(usize, @bitCast(lparam)))) == win32.HTCLIENT) {
+                    Mouse.apply(surface);
                     return 1;
                 }
             }

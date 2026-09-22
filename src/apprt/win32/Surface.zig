@@ -43,6 +43,9 @@ width: u32 = 800,
 height: u32 = 600,
 cursor_pos: apprt.CursorPos = .{ .x = 0, .y = 0 },
 title: ?[:0]const u8 = null,
+search_bar: ?*@import("SearchBar.zig") = null,
+mouse_shape: terminal.MouseShape = .text,
+mouse_visible: bool = true,
 
 /// Adjustable Host Backdrop composition layer attached below this surface's
 /// renderer target on the same child HWND.
@@ -139,6 +142,11 @@ pub fn init(
 }
 
 pub fn deinit(self: *Self) void {
+    if (self.search_bar) |bar| {
+        bar.deinit();
+        self.rtApp().alloc.destroy(bar);
+        self.search_bar = null;
+    }
     if (self.core_surface) |surface| {
         const app = self.rtApp();
         app.core_app.deleteSurface(self);

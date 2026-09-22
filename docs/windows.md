@@ -719,6 +719,47 @@ the Windows-managed color scheme.
 In addition, `Ctrl+Shift+N` opens a new window, `Ctrl+Enter` toggles
 fullscreen, `Alt+F4` closes the window, and `Ctrl+Shift+Q` quits Ghostty.
 
+## Terminal Search and Working Directories (Unreleased)
+
+The following features are in the working tree after `1.3.2-windows.10`;
+they are not part of that preview's installer.
+
+Press `Ctrl+Shift+F` to open the current pane's search bar. It searches
+scrollback as well as the visible screen. Enter moves to the next match,
+Shift+Enter to the previous match, and Escape closes the bar and returns
+focus to the terminal. Each pane retains its own query. Native controls
+provide text editing and IME input; physical IME acceptance testing remains
+outstanding. The `search_selection` binding can start with selected text.
+
+Working-directory inheritance now accepts OSC 7 `file://localhost/C:/...`
+and `file:///C:/...` notifications, including percent-encoded spaces and
+Unicode. The local computer's hostname is also accepted case-insensitively.
+The `window-inherit-working-directory`, `tab-inherit-working-directory`,
+and `split-inherit-working-directory` settings control each creation mode.
+Without a shell notification, Ghostty only knows the startup directory.
+
+PowerShell can emit a notification for its current native filesystem path:
+
+```powershell
+[Console]::Write("$([char]27)]7;$([Uri]::new($PWD.ProviderPath + '\').AbsoluteUri)$([char]7)")
+```
+
+This is a one-time notification, not automatic prompt integration. Remote
+hosts, UNC/device paths, WSL paths such as `/home/user`, and MSYS paths such
+as `/c/work` are not translated or inherited. Native paths such as `/C:/work`
+are supported. Emit a new notification after changing directories.
+
+Terminal mouse shapes now use the configured Windows system pointers, with
+the nearest available shape for cursors Windows does not provide.
+`mouse-hide-while-typing` hides the pointer over the terminal and restores it
+on mouse movement; native search controls retain their own pointers.
+
+With `right-click-action = context-menu`, right-clicking text selects its
+word or link and opens the menu. On a row containing only empty cells,
+spaces, or tabs, the menu opens without creating a new selection. An
+existing selection is retained, including when right-clicking inside it.
+Double-click word selection is unchanged.
+
 ## Accessibility
 
 The custom-drawn tab bar is exposed as an MSAA page tab list. Each tab's name,

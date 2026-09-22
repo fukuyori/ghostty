@@ -4142,6 +4142,13 @@ pub fn mouseButtonCallback(
                     // word selection where we clicked.
                 }
 
+                // ConPTY can paint an apparently empty row with spaces.
+                // Keep the menu available without selecting that whole row.
+                // An existing selection (including one on this row) survives.
+                if (comptime builtin.os.tag == .windows) {
+                    if (SurfaceMouse.contextMenuRowIsBlank(pin)) return false;
+                }
+
                 // If there is a link at this position, we want to
                 // select the link. Otherwise, select the word.
                 if (try self.linkAtPos(pos)) |link| {

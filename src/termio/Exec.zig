@@ -98,6 +98,11 @@ pub fn deinit(self: *Exec) void {
 /// after termio begins because it may put the internal terminal state
 /// into a bad state.
 pub fn initTerminal(self: *Exec, term: *terminal.Terminal) void {
+    // ConPTY owns its screen buffer and repaints it on resize. Pulling our
+    // scrollback into the active area would desynchronize the two screens.
+    if (comptime builtin.os.tag == .windows)
+        term.flags.resize_pull_scrollback = false;
+
     // If we have an initial pwd requested by the subprocess, then we
     // set that on the terminal now. This allows rapidly initializing
     // new surfaces to use the proper pwd.
@@ -2116,6 +2121,30 @@ fn appendEnvAlways(
 /// not available on a particular platform.
 pub fn getProcessInfo(self: *Exec, comptime info: ProcessInfo) ?ProcessInfo.Type(info) {
     return self.subprocess.getProcessInfo(info);
+}
+
+test "Win32 exec configures ConPTY resize and preserves it on reset" {
+    if (comptime builtin.os.tag != .windows) return error.SkipZigTest;
+    const testing = std.testing;
+    var term = try terminal.Terminal.init(testing.io, testing.allocator, .{ .cols = 5, .rows = 3 });
+    defer term.deinit(testing.allocator);
+    var exec: Exec = .{ .subprocess = .{
+        .arena = .init(testing.allocator),
+        .cwd = null,
+        .env = null,
+        .args = &.{},
+        .grid_size = undefined,
+        .screen_size = undefined,
+        .rt_pre_exec_info = .{},
+        .rt_post_fork_info = .{},
+    } };
+    defer exec.subprocess.arena.deinit();
+    exec.initTerminal(&term);
+    term.fullReset();
+    try testing.expect(!term.flags.resize_pull_scrollback);
+    try term.printString("1\n2\n3\n4\n5");
+    try term.resize(testing.allocator, .{ .cols = 5, .rows = 5 });
+    try testing.expectEqual(@as(terminal.size.CellCountInt, 2), term.screens.active.cursor.y);
 }
 
 test "execCommand darwin: shell command" {

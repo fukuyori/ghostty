@@ -7,14 +7,84 @@ versions with their commits, the
 numbering rules, the [User Guide](windows.md) for configuration and known
 limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 
-## Unreleased
+## 1.3.2-windows.11
 
+- Prepared: 2026-09-22
+- Planned source tag: `v1.3.2-windows.11` (not created)
+- Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
+- Status: preparing. `dist/windows/version.txt` now selects this preview;
+  the ReleaseFast build and signed installer are ready. Tagging and
+  publication remain pending.
+
+### Changes Since 1.3.2-windows.10
+
+- Right-clicking a blank row opens the context menu without creating a
+  full-row selection. Right-click word selection and existing selections
+  remain available.
+- Add native per-pane terminal search, native-drive OSC 7 cwd inheritance,
+  system mouse cursor shapes and hide-while-typing behavior. Configure
+  ConPTY resize to avoid pulling scrollback into its active screen.
+- These additions need physical IME and mixed-DPI acceptance checks. OSC 7
+  requires a shell that emits native Windows drive paths; WSL/MSYS path
+  translation and automatic PowerShell prompt integration are not included.
 - Integrate upstream `main` through `bd1c82bc5` (2026-09-22), including Bash
   shell-integration and terminal-core fixes. Preserve the Windows D3D11 and
   WGL rendering paths across upstream's graphics lifecycle changes.
-- This working-tree update is not part of the distributed
-  `1.3.2-windows.10` installer. Its version file and source tag are unchanged.
-- Integration verification is recorded in the [Roadmap](windows-roadmap.md).
+
+### Verification
+
+Before the version bump, dedicated Debug builds passed the controlled
+search, cwd inheritance, cursor, resize, blank-row context-menu, and
+window-state checks recorded in the [Roadmap](windows-roadmap.md).
+The usability run passed 148 tests with 1 skipped; the subsequent focused
+blank-row context-menu run passed 77/77. These are separate historical runs,
+not test results for a `1.3.2-windows.11` distribution build.
+
+On the ReleaseFast, baseline CPU distribution build, 2026-09-22:
+
+| Item | Result |
+|---|---|
+| Release build script | 128/128 steps succeeded; PE32+, x64, WindowsGui, resources, icons, compiled terminfo, and bundled ConPTY files verified |
+| Executable metadata and `--version` | `1.3.2-windows.11`, numeric version `1.3.2.11`, `IsDebug` False, ReleaseFast, Win32, D3D11, IOCP |
+| Win32-filtered unit tests with hooks (separate Debug test executable) | 149 passed, 1 skipped, 0 failed |
+| Native search, cwd inheritance, cursor behavior, resize | Passed with inheritance enabled and disabled; search screenshots inspected; exit code 0 |
+| Blank-row context menu | Blank rows open the menu without a new selection; word selection is `alpha`; existing `alpha beta` selection survives right-clicks inside it and on a blank row. Screenshots inspected; exit code 0 |
+| Window-state regression | Passed terminal input, IME process keys, startup grid, split focus, config reload, multiple windows, four monitors, window states, and clean exit; no forced termination |
+| Final 20-iteration soak with grid-process diagnostics | 20 passed, 0 failed, 119.3 seconds, all graceful exits, no temporary-state entries or Ghostty processes left behind |
+
+The first cursor check timed out waiting for the OSC 22 hand cursor. Runs
+with additional timeout diagnostics subsequently passed on the same binary;
+the original timeout's cause was not established. An initial soak attempt
+stopped because retained reproduction inputs occupied the temporary-state
+directory; the scripts now preserve them under `zig-out/test-fixtures`.
+The next soak passed 17 runs and timed out on run 18 while reading startup
+rows. Grid-process logs and failure screenshots are now captured separately;
+the final 20-run soak passed, but the earlier timeout has not been
+established as fixed. The diagnostic script's intermediate hidden-window
+wait was also corrected before that final run. Results are preserved in
+`zig-out/logs/windows11-soak-{grid-timeout,diagnostic,final}.json`.
+
+Distribution artifacts prepared on 2026-09-22:
+
+| Item | Result |
+|---|---|
+| `ghostty-1.3.2-windows.11-x64-setup.exe` | 17,807,728 bytes; product version `1.3.2-windows.11`, numeric version `1.3.2.11` |
+| Installer and staged executable signatures | Valid, timestamped, `CN=Noriaki Fukuyori` |
+| Signed staged executable | `--version` and window-state regression passed; exit code 0, no forced termination |
+| Embedded uninstaller | Signed successfully during Inno Setup compilation |
+| Installer SHA-256 | `42df813be2f2bee2c511ad7a94b3345eef4fe818c3155ecc25b3680aae0d9fb8` |
+
+Physical IME composition in the search field and mixed-DPI presentation
+remain unverified; all four tested monitors were at 96 DPI. GPU recovery and
+power resume were not run on this distribution build (they require test
+hooks). Installer installation, upgrade, and uninstallation were not rerun.
+
+This release retains the current product name. Renaming and rebranding are
+the highest priority starting with the next release, tracked in
+[#31](https://github.com/fukuyori/ghostty/issues/31).
+
+This preparation does not change the distributed `1.3.2-windows.10`
+installer or its source tag.
 
 ## 1.3.2-windows.10
 

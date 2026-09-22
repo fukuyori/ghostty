@@ -7,7 +7,39 @@ known issues, and known limitations of each version; the
 [version update checklist](version-update-checklist.md) describes the
 `X.Y.Z-windows.N` numbering.
 
-## Unreleased
+## 1.3.2-windows.11 (preparing)
+
+Windows preview preparation dated 2026-09-22. Includes the upstream merge
+and Windows usability changes below. Verification results are recorded in
+the release notes and roadmap. This preview retains the current product
+name; renaming and rebranding are the highest priority starting with the
+next release, tracked in [#31](https://github.com/fukuyori/ghostty/issues/31).
+
+### Windows terminal usability (2026-09-22, working tree)
+
+- Avoid automatically selecting a whole space-filled row on Windows
+  right-click. Keep the context menu, word/link selection on text, and
+  existing selections. Double-click selection is unchanged.
+- Configure the ConPTY execution backend to keep scrollback out of the
+  active screen on resize. Preserve this setting across a terminal reset.
+- Accept OSC 7 notifications for local native Windows drive paths, including
+  percent-encoded spaces and Unicode, and use them with the existing window,
+  tab, and split working-directory inheritance settings. Reject remote hosts
+  and paths that cannot be represented as a native local drive path.
+- Add a per-pane native search bar using the shared search engine. Support
+  scrollback, Unicode queries, match counts, next/previous navigation, and
+  Escape to return to the terminal. Retain each pane's query across tab changes.
+- Apply terminal mouse cursor shapes and `mouse-hide-while-typing` using
+  Windows system cursors, without changing the global cursor visibility counter.
+
+### Verification tooling
+
+- Add controlled native checks for search, cwd inheritance, cursor behavior,
+  resize, and blank-row context menus. Retain reproduction inputs under
+  `zig-out/test-fixtures` so they do not conflict with the soak test's
+  temporary-file cleanup checks. Record cursor and window state on pointer
+  check timeouts. Preserve the initial-grid subprocess's logs and capture
+  its window and input files on failure.
 
 ### Upstream integration (2026-09-22)
 
@@ -15,8 +47,8 @@ known issues, and known limitations of each version; the
   upstream baseline). This includes the Bash command-status and prompt-hook
   fixes, terminal mode-query fixes, Unicode data update, and the terminal
   API option for disabling scrollback pull during resize. The new resize
-  option retains its upstream default; enabling it for ConPTY is separate
-  work.
+  option was initially merged with its upstream default; the Windows
+  usability changes above now enable it for ConPTY.
 - Preserve the Win32 WGL context and window-buffer presentation path while
   adopting upstream's renderer-thread GPU initialization. Keep D3D11 device
   recovery and release its shader pipelines on renderer-thread shutdown.

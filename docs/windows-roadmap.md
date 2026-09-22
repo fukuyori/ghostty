@@ -30,7 +30,8 @@ reconciled at merge time.
 - The 2026-09-22 integration targets upstream `bd1c82bc5`, via local `main`.
   It adds 142 upstream commits to the working tree after the distributed
   `1.3.2-windows.10` preview; it does not move that release's tag. The ConPTY
-  resize option is available in the core but keeps its upstream default.
+  resize option was initially left at its upstream default. The subsequent
+  Windows usability work enables it specifically for ConPTY.
 - The mattn build is kept as a reference for history and implementation.
 - Keep the settings that prevent accidental pushes to upstream/mattn.
 - Commits, tags, pushes, and package creation are done only when explicitly
@@ -84,8 +85,8 @@ work in this document at the same time.
 
 All six phases are done. On 2026-09-15 the first preview build
 `1.3.2-windows.1` (tag `v1.3.2-windows.1`) was finalized after passing
-Release verification, and later previews followed. The current Windows
-preview is `1.3.2-windows.10` (tag `v1.3.2-windows.10`), which makes programs
+Release verification, and later previews followed. The latest distributed
+Windows preview is `1.3.2-windows.10` (tag `v1.3.2-windows.10`), which makes programs
 that read terminfo resolve `xterm-ghostty` from a working directory on any
 drive, by registering the compiled entry in the running user's
 `%USERPROFILE%\.terminfo`. The ReleaseFast executable reports
@@ -94,6 +95,20 @@ build, and a 20-iteration soak run passed 20 of 20 in 115.4 seconds. The
 owner built the signed installer, which reports `1.3.2-windows.10` with a
 Valid signature. The previous preview, `1.3.2-windows.9`, fixes numpad digits
 and operators being entered twice.
+
+The working-tree version is now `1.3.2-windows.11` (preparing, 2026-09-22).
+It includes the upstream integration, ConPTY resize configuration, native
+OSC 7 cwd inheritance, per-pane search, mouse cursor behavior, and blank-row
+context-menu fix. Debug checks and ReleaseFast distribution checks are
+recorded separately below. The final distribution soak passed 20/20 in
+119.3 seconds, and the signed installer and staged executable have Valid
+timestamped signatures. Earlier cursor and startup-row timeouts remain
+unexplained; passing reruns do not establish their causes as fixed.
+Tagging and publication remain pending. The distributed
+`1.3.2-windows.10` tag remains unchanged. At the owner's direction, this
+preview retains its current name; rebranding is the highest priority
+starting with the next release ([#31](https://github.com/fukuyori/ghostty/issues/31)).
+
 Remaining real-hardware verification, open decisions, and
 deferred refactoring are tracked as GitHub issues, listed in "7. Next Steps".
 Release history is recorded in `docs/windows-release-notes.md`.
@@ -333,6 +348,55 @@ Implemented:
   path for tab switching
 
 Recent verification:
+
+- 2026-09-22, blank-row context menu: Windows right-click skips automatic
+  selection on rows made entirely of empty cells, spaces, or tabs. Word/link
+  selection on text, existing selections, and the menu remain available;
+  double-click behavior is unchanged. The focused unit run passed 77/77
+  tests, including empty/space/tab rows, text elsewhere on the row, Japanese,
+  and a combining mark on a space. A dedicated Debug build passed 128/128
+  build steps. `scripts/test-windows-context-menu.ps1` reproduced the unwanted
+  blank-row selection on the earlier `parity-d3d11` binary, then passed on
+  `zig-out/blank-context/bin/ghostty.exe`. It uses SendInput with the machine's
+  swapped-button setting, verifies Copy is disabled on unselected blank rows,
+  checks the selected text via `search_selection` without using the clipboard,
+  and confirms `alpha` word selection and preservation of `alpha beta` both
+  inside that selection and on a separate blank row. Menu/selection PNGs were
+  inspected; the test process exited with code 0. Result logs are
+  `zig-out/logs/blank-context-{before,after}.log`, and the successful image
+  session is `blank-context-20260922-210459-297`. This is controlled native
+  input verification; user-operated mouse acceptance remains separate.
+  The existing window-state regression also passed on the same Debug build
+  with exit code 0 and no forced termination; see
+  `zig-out/logs/blank-context-window-state.log`.
+
+- 2026-09-22, Windows usability work after the upstream merge: the working
+  tree adds ConPTY resize configuration, local native-drive OSC 7 cwd
+  inheritance, per-pane native search, and system mouse pointer behavior.
+  `scripts/test-windows-parity.ps1` exercises these features in dedicated
+  processes; `-DisableCwdInheritance` checks the three opt-out settings.
+  Win32-filtered tests with hooks passed 148, skipped 1, and failed none.
+  Dedicated D3D11 and OpenGL Debug builds each passed 128/128 build steps.
+  Both passed scrollback search (3 matches), Unicode search (2 matches),
+  next/previous navigation, empty/no-match queries, query refocusing and
+  reopening, per-tab visibility and query isolation, closing a split with
+  an active search, eight resize cycles, subsequent shell input, OSC 22
+  pointer changes, typing hide/motion restore, and window/tab/split cwd
+  inheritance. D3D11 also passed with all three inheritance settings off.
+  Remote-host and Unix-path reports preserved the last accepted native cwd.
+  Each run exited with code 0, and the dedicated test applications did not
+  remain running. D3D11/OpenGL search screenshots were inspected after fixing
+  GDI control redirection and stale pixels on resizing the search bar.
+  Final result logs are `zig-out/logs/parity-final-{d3d11,no-inherit,opengl}.log`;
+  screenshot sessions are `parity-20260922-203350-007` (D3D11) and
+  `parity-20260922-203407-322` (OpenGL). The existing D3D11 window-state
+  regression also passed, including input, IME process-key suppression,
+  startup grid, split focus, config reload, multiple windows, window states,
+  and clean exit; its log is `zig-out/logs/parity-window-state.log`. All four
+  monitors in that run were 96 DPI, so it is not mixed-DPI evidence.
+  Physical IME composition in the search edit and mixed-DPI presentation
+  remain acceptance work. WSL/MSYS path translation, PowerShell prompt
+  injection, and link URL tooltips are not implemented by this change.
 
 - 2026-09-14: Executed new tab, select first tab, and close first tab in
   sequence.
@@ -713,6 +777,37 @@ Recent verification:
   failure, controlled power resume for a single surface and all 3 surfaces,
   4-monitor movement, multiple windows, and clean exit. Exit code 0, no
   forced termination, no leftover temporary files.
+- 2026-09-22: Prepared the `1.3.2-windows.11` ReleaseFast/baseline build
+  (128/128 build steps, version `1.3.2-windows.11`, numeric `1.3.2.11`,
+  Win32/D3D11/IOCP, `IsDebug` False). Win32-filtered Debug tests with hooks
+  passed 149, skipped 1, and failed none; the earlier 148-pass record is
+  retained as a separate run before the blank-row test was added.
+  Distribution checks passed search, cwd inheritance with all three settings
+  enabled and disabled, cursor shape/visibility, resize/input continuity,
+  blank-row menus and existing selections, and window state. Screenshots
+  were inspected. The first cursor check timed out; diagnostic reruns passed
+  without changing the product binary, and its cause remains unestablished.
+  The first soak found 29 retained reproduction directories in the cleanup
+  area. Both new scripts now retain inputs under `zig-out/test-fixtures`;
+  the existing evidence was preserved there. The next soak passed 17 runs,
+  then timed out reading startup rows on run 18. Grid-process stdout/stderr,
+  failure screenshots, and marker files are now retained separately. After
+  correcting the diagnostic script's hidden-window wait, the final soak
+  passed 20/20 in 119.3 seconds, with all graceful exits and no leftover
+  temporary-state entries or Ghostty processes. This does not establish
+  the earlier timeout as fixed. See `zig-out/logs/windows11-unit.log`,
+  `windows11-parity-{diagnostic,no-inherit,final}.log`,
+  `windows11-context-menu-final.log`, `windows11-window-state.log`, and
+  `windows11-soak-{grid-timeout,diagnostic,final}.json` in the same directory.
+  The signed installer is 17,807,728 bytes; it and the staged executable
+  have Valid timestamped signatures. Inno Setup signed the uninstaller.
+  The signed staged executable also passed `--version` and window-state
+  regression with exit code 0 and no forced termination; see
+  `windows11-signed-window-state.log`.
+  See `windows11-installer.log` and `windows11-artifacts.json`. Installation,
+  upgrade, and uninstallation were not rerun. Physical search IME and mixed
+  DPI remain unverified (all four monitors were 96 DPI); GPU/power hooks
+  were not exercised on this distribution build.
 - 2026-09-20: Verified `1.3.2-windows.10` on the ReleaseFast build. The
   executable and the installed copy both report `1.3.2-windows.10`, with
   numeric version 1.3.2.10 and `IsDebug` False. `ghostty.exe` is a GUI
@@ -1093,6 +1188,13 @@ owner built the signed installer, which reports `1.3.2-windows.10` with a
 Valid signature. GPU resource re-creation and power resume were not included,
 because they need a `-Dwin32-test-hooks=true` build.
 
+`1.3.2-windows.11` has a locally verified ReleaseFast build and signed
+installer; tagging and publication remain pending. Preserve the earlier
+cursor/startup-row timeout observations separately from successful reruns.
+Rebranding is the highest priority starting with the following release (#31).
+Search-bar focus restoration and message-loop routing remain review items;
+physical IME search input and mixed-DPI presentation remain unverified.
+
 Real-hardware verification, performed in the user's environment:
 
 - [#5](https://github.com/fukuyori/ghostty/issues/5): verify the GUI at 144 and 192 DPI on real hardware
@@ -1130,6 +1232,7 @@ the code exists.
 | Release | `1.3.2-windows.8` | Input tests, Win32 tests with hooks, Debug build, and actual antigravity input passed as reported by the owner. ReleaseFast CLI and executable/installer version metadata verified locally; staged executable and installer signatures Valid |
 | Release | `1.3.2-windows.10` | Terminfo registration in the user's home. Unit tests (3840/3902, 62 skipped) and registration against an empty, an occupied, and a leftover-temporary-file destination passed on a Debug build launched from `D:`; `tput longname` and `tput colors` then resolved from `D:`. ReleaseFast version metadata verified, window-state regression and 20-iteration soak (20/20, 115.4 s) passed on the distribution build. Signed installer built by the owner; installer and staged executable signatures Valid. GPU recovery and power resume not run (needs a test-hook build) |
 | Release | `1.3.2-windows.9` | Numpad double-input fix. Win32 tests with hooks, window-state regression, and recorded numpad input passed on a Debug build; actual numpad input confirmed by the owner; ReleaseFast CLI and version metadata verified; regression on the distribution and test-hook ReleaseFast builds and 20-iteration soak (20/20) passed. Signed installer built by the owner; installer and staged executable signatures Valid |
+| Release | `1.3.2-windows.11` | Preparing; publication pending. ReleaseFast metadata/runtime and native regressions passed; final soak 20/20 (119.3 s), no process or temporary-state leftovers. Signed installer and staged executable signatures Valid. Earlier cursor/startup-row timeouts remain unexplained; physical IME/mixed DPI and installation/upgrade/uninstallation remain unverified |
 | Fonts | Family matching and fallback | Measured: a configured family that matches nothing is replaced silently, and the automatic fallback takes the first file containing the codepoint. Tracked as issues 1, 2, and 3 |
 | Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature |
 | Version info | CLI version display | Verified with the Release build |
@@ -1140,7 +1243,10 @@ the code exists.
 | Input | Keyboard and IME | Character input and Enter automatically verified with the Release build, IME basically verified |
 | Input | Shift text in Kitty keyboard disambiguation mode | 2026-09-17: consumed-modifier and encoding tests passed; actual `:`, `?`, and `!` input in antigravity confirmed by the owner |
 | Input | Numpad digits and operators | 2026-09-17: `0`, `1`, `.`, and `+` arrive once in normal, Kitty disambiguation, and application keypad modes (before: twice); actual numpad input confirmed by the owner |
-| Input | Mouse and clipboard | Basic implementation done, regression verification needed |
+| Input | Mouse and clipboard | Preparing `1.3.2-windows.11`: OSC 22 cursor shapes, hide/restore on typing, and blank-row context-menu behavior tested on Debug builds. Physical pointer/input regression remains |
+| Terminal | ConPTY resize | Preparing `1.3.2-windows.11`: backend disables scrollback pull; reset and resize unit regression plus eight native resize cycles with search/input continuity passed on Debug builds |
+| Shell | OSC 7 cwd inheritance | Preparing `1.3.2-windows.11`: native local-drive paths supported for windows, tabs and splits; Unicode/space paths and remote/Unix-path rejection tested on Debug builds. WSL/MSYS translation remains unsupported |
+| GUI | Terminal search | Preparing `1.3.2-windows.11`: per-pane native bar; scrollback, Unicode, navigation, empty/no matches, tab visibility, and closing a pane during search tested on Debug builds. Physical IME and mixed-DPI acceptance remain |
 | Rendering | D3D11 display | Verified |
 | Rendering | Copied IOCP wakeups and full renderer mailbox | 2026-09-17: old preview reproduced a focus hang after 70 spaced output batches; fixed Debug test build passed output, split/focus/close, subsequent input, screenshot inspection, and clean exit. Win32 tests: 144 passed, 1 skipped; ordinary window regression: 20/20 clean exits |
 | Rendering | GPU resource recreation | 100 consecutive controlled recreations and finite retries automatically verified with the Release build, real failure not verified |

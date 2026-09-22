@@ -50,6 +50,22 @@ antigravity 上での `:`・`?`・`!` の実入力も正常であることを確
 
 #### 主要モジュール構成
 
+2026-09-22 の upstream 統合後の未リリース変更では、`SearchBar.zig` が
+ペインごとのモデルレス検索欄を管理します。検索処理と強調表示は共通コアに
+委ね、Win32 の EDIT / BUTTON と `IsDialogMessageW` で入力・フォーカスを
+処理します。D3D11 の親ウィンドウは `WS_EX_NOREDIRECTIONBITMAP` を使うため、
+検索欄は不透明なレイヤード子ウィンドウとして GDI の描画先を確保し、
+レイアウト変更時には子コントロールも再描画します。検索欄の高さをペインの
+端末領域から差し引き、タブの切替時には対応する検索欄の表示も切り替えます。
+
+同じ変更で `Mouse.zig` が端末のポインター形状・表示状態をシステムカーソルに
+反映します。`ShowCursor` のグローバルカウンタは変更しません。ConPTY の
+実行バックエンドでは `resize_pull_scrollback = false` を設定します。
+OSC 7 はローカルホストとネイティブのドライブパスを検証して既存の作業
+ディレクトリ継承に接続し、WSL/MSYS のパス変換は行いません。これらは
+配布済み `1.3.2-windows.10` の内容とは区別し、自動回帰と画像確認の結果は
+ロードマップに記録します。検索欄の実機 IME・混在 DPI 確認は未完了です。
+
 - `App.zig`：アプリケーションライフサイクル、メッセージ専用ウィンドウ（`GhosttyWakeup` / `HWND_MESSAGE`）によるモーダルループ内での非同期メッセージディスパッチ、GPUリセット・スリープ復帰に対応するバックオフ付き自動復旧機構（GPU Recovery / Power Resume）の管理。
 - `Window.zig` / `Surface.zig` / `Tab.zig`：`Window -> Tab -> Surface/SplitTree` という明確なオブジェクト所有権階層の構築。
 - `TabBar.zig` & `TabBarAccessibility.zig`：素のWin32 APIで描画されるネイティブタブバー。タブのドラッグ並べ替え、マウスホイール切替、ダブルクリックでのインライン名変更ダイアログ、オーバーフロー時左右スクロール、MSAA（Microsoft Active Accessibility）対応。

@@ -31,6 +31,45 @@ over_link: bool,
 /// True if the mouse pointer is currently hidden.
 hidden: bool,
 
+/// Whether the physical row is empty or contains only spaces/tabs. This is
+/// for Win32 context-menu auto-selection, not double-click word selection.
+pub fn contextMenuRowIsBlank(pin: terminal.Pin) bool {
+    const row = pin.rowAndCell().row;
+    for (pin.node.page().getCells(row)) |cell| {
+        // A combining mark on a space can be visible and must stay selectable.
+        if (cell.hasGrapheme()) return false;
+        switch (cell.codepoint()) {
+            0, ' ', '\t' => {},
+            else => return false,
+        }
+    }
+    return true;
+}
+
+test "Win32 context menu distinguishes blank rows from text" {
+    const testing = std.testing;
+    const cases = [_]struct { text: []const u8, blank: bool }{
+        .{ .text = "", .blank = true },
+        .{ .text = "                    ", .blank = true },
+        .{ .text = "  \t ", .blank = true },
+        .{ .text = "alpha beta", .blank = false },
+        .{ .text = "                  x", .blank = false },
+        .{ .text = "日本語", .blank = false },
+        .{ .text = " \u{0301}", .blank = false },
+    };
+    for (cases) |case| {
+        var screen = try terminal.Screen.init(testing.io, testing.allocator, .{
+            .cols = 20,
+            .rows = 3,
+            .max_scrollback_bytes = 0,
+        });
+        defer screen.deinit();
+        try screen.testWriteString(case.text);
+        const pin = screen.pages.pin(.{ .active = .{ .x = 0, .y = 0 } }).?;
+        try testing.expectEqual(case.blank, contextMenuRowIsBlank(pin));
+    }
+}
+
 /// Translates key state to mouse shape, called during key events. This mainly
 /// handles overrides on key presses depending on whether or not we are in
 /// mouse tracking mode, however it is also responsible for resetting cursor

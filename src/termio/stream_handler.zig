@@ -1482,11 +1482,6 @@ pub const StreamHandler = struct {
             return;
         }
 
-        if (builtin.os.tag == .windows) {
-            log.warn("reportPwd unimplemented on windows", .{});
-            return;
-        }
-
         // Attempt to parse this file-style URI using options appropriate
         // for this OSC 7 context (e.g. kitty-shell-cwd expects the full,
         // unencoded path).
@@ -1506,26 +1501,32 @@ pub const StreamHandler = struct {
         }
 
         var host_buffer: [std.Io.net.HostName.max_len]u8 = undefined;
-        const host = uri.getHost(&host_buffer) catch |err| switch (err) {
-            error.UriMissingHost => {
-                log.warn("OSC 7 uri must contain a hostname: {}", .{err});
-                return;
-            },
+        const host: []const u8 = host: {
+            const parsed = uri.getHost(&host_buffer) catch |err| switch (err) {
+                error.UriMissingHost => {
+                    // file:///C:/... denotes a local Windows drive.
+                    if (comptime builtin.os.tag == .windows) break :host "";
+                    log.warn("OSC 7 uri must contain a hostname: {}", .{err});
+                    return;
+                },
+            };
+            break :host parsed.bytes;
         };
 
         // OSC 7 is a little sketchy because anyone can send any value from
         // any host (such an SSH session). The best practice terminals follow
         // is to valid the hostname to be local.
-        const host_valid = internal_os.hostname.isLocal(host.bytes) catch |err| switch (err) {
-            error.PermissionDenied,
-            error.Unexpected,
-            => {
-                log.warn("failed to get hostname for OSC 7 validation: {}", .{err});
-                return;
-            },
-        };
+        const host_valid = (builtin.os.tag == .windows and host.len == 0) or
+            internal_os.hostname.isLocal(host) catch |err| switch (err) {
+                error.PermissionDenied,
+                error.Unexpected,
+                => {
+                    log.warn("failed to get hostname for OSC 7 validation: {}", .{err});
+                    return;
+                },
+            };
         if (!host_valid) {
-            log.warn("OSC 7 host ({s}) must be local", .{host.bytes});
+            log.warn("OSC 7 host ({s}) must be local", .{host});
             return;
         }
 
@@ -1534,7 +1535,15 @@ pub const StreamHandler = struct {
         var arena_alloc: std.heap.ArenaAllocator = .init(self.alloc);
         var stack_alloc = std.heap.stackFallback(1024, arena_alloc.allocator());
         defer arena_alloc.deinit();
-        const path = try uri.path.toRawMaybeAlloc(stack_alloc.get());
+        const path_alloc = stack_alloc.get();
+        const raw_path = try uri.path.toRawMaybeAlloc(path_alloc);
+        const path = if (comptime builtin.os.tag == .windows)
+            internal_os.uri.windowsWorkingDirectory(path_alloc, raw_path) catch |err| {
+                log.warn("invalid Windows path in OSC 7: {}", .{err});
+                return;
+            }
+        else
+            raw_path;
 
         log.debug("terminal pwd: {s}", .{path});
         try self.terminal.setPwd(path);
