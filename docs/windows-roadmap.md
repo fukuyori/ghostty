@@ -85,18 +85,19 @@ work in this document at the same time.
 
 All six phases are done. On 2026-09-15 the first preview build
 `1.3.2-windows.1` (tag `v1.3.2-windows.1`) was finalized after passing
-Release verification, and later previews followed. The latest distributed
-Windows preview is `1.3.2-windows.10` (tag `v1.3.2-windows.10`), which makes programs
+Release verification, and later previews followed. The preceding Windows
+preview, `1.3.2-windows.10` (tag `v1.3.2-windows.10`), makes programs
 that read terminfo resolve `xterm-ghostty` from a working directory on any
 drive, by registering the compiled entry in the running user's
 `%USERPROFILE%\.terminfo`. The ReleaseFast executable reports
 `1.3.2-windows.10`, the window-state regression passed on the distribution
 build, and a 20-iteration soak run passed 20 of 20 in 115.4 seconds. The
 owner built the signed installer, which reports `1.3.2-windows.10` with a
-Valid signature. The previous preview, `1.3.2-windows.9`, fixes numpad digits
+Valid signature. The earlier preview, `1.3.2-windows.9`, fixes numpad digits
 and operators being entered twice.
 
-The working-tree version is now `1.3.2-windows.11` (preparing, 2026-09-22).
+The current Windows preview is `1.3.2-windows.11`, published on 2026-09-22
+with tag `v1.3.2-windows.11` pointing to source commit `969d637e3`.
 It includes the upstream integration, ConPTY resize configuration, native
 OSC 7 cwd inheritance, per-pane search, mouse cursor behavior, and blank-row
 context-menu fix. Debug checks and ReleaseFast distribution checks are
@@ -104,9 +105,10 @@ recorded separately below. The final distribution soak passed 20/20 in
 119.3 seconds, and the signed installer and staged executable have Valid
 timestamped signatures. Earlier cursor and startup-row timeouts remain
 unexplained; passing reruns do not establish their causes as fixed.
-Tagging and publication remain pending. The distributed
-`1.3.2-windows.10` tag remains unchanged. At the owner's direction, this
-preview retains its current name; rebranding is the highest priority
+The signed installer is available on
+[GitHub Releases](https://github.com/fukuyori/ghostty/releases/tag/v1.3.2-windows.11).
+The distributed `1.3.2-windows.10` tag remains unchanged. At the owner's
+direction, this preview retains its current name; rebranding is the highest priority
 starting with the next release ([#31](https://github.com/fukuyori/ghostty/issues/31)).
 
 Remaining real-hardware verification, open decisions, and
@@ -777,6 +779,13 @@ Recent verification:
   failure, controlled power resume for a single surface and all 3 surfaces,
   4-monitor movement, multiple windows, and clean exit. Exit code 0, no
   forced termination, no leftover temporary files.
+- 2026-09-22: Published `v1.3.2-windows.11`, source commit `969d637e3`,
+  with the signed x64 installer as the latest GitHub Release. Re-downloaded
+  the published installer and verified its timestamped Authenticode signature
+  is Valid and its SHA-256 is
+  `42df813be2f2bee2c511ad7a94b3345eef4fe818c3155ecc25b3680aae0d9fb8`.
+  The source tag stays on the release commit; this publication record is a
+  subsequent documentation-only update.
 - 2026-09-22: Prepared the `1.3.2-windows.11` ReleaseFast/baseline build
   (128/128 build steps, version `1.3.2-windows.11`, numeric `1.3.2.11`,
   Win32/D3D11/IOCP, `IsDebug` False). Win32-filtered Debug tests with hooks
@@ -1189,8 +1198,9 @@ Valid signature. GPU resource re-creation and power resume were not included,
 because they need a `-Dwin32-test-hooks=true` build.
 
 `1.3.2-windows.11` has a locally verified ReleaseFast build and signed
-installer; tagging and publication remain pending. Preserve the earlier
-cursor/startup-row timeout observations separately from successful reruns.
+installer, published with source tag `v1.3.2-windows.11` (`969d637e3`).
+Preserve the earlier cursor/startup-row timeout observations separately
+from successful reruns.
 Rebranding is the highest priority starting with the following release (#31).
 Search-bar focus restoration and message-loop routing remain review items;
 physical IME search input and mixed-DPI presentation remain unverified.
@@ -1232,7 +1242,7 @@ the code exists.
 | Release | `1.3.2-windows.8` | Input tests, Win32 tests with hooks, Debug build, and actual antigravity input passed as reported by the owner. ReleaseFast CLI and executable/installer version metadata verified locally; staged executable and installer signatures Valid |
 | Release | `1.3.2-windows.10` | Terminfo registration in the user's home. Unit tests (3840/3902, 62 skipped) and registration against an empty, an occupied, and a leftover-temporary-file destination passed on a Debug build launched from `D:`; `tput longname` and `tput colors` then resolved from `D:`. ReleaseFast version metadata verified, window-state regression and 20-iteration soak (20/20, 115.4 s) passed on the distribution build. Signed installer built by the owner; installer and staged executable signatures Valid. GPU recovery and power resume not run (needs a test-hook build) |
 | Release | `1.3.2-windows.9` | Numpad double-input fix. Win32 tests with hooks, window-state regression, and recorded numpad input passed on a Debug build; actual numpad input confirmed by the owner; ReleaseFast CLI and version metadata verified; regression on the distribution and test-hook ReleaseFast builds and 20-iteration soak (20/20) passed. Signed installer built by the owner; installer and staged executable signatures Valid |
-| Release | `1.3.2-windows.11` | Preparing; publication pending. ReleaseFast metadata/runtime and native regressions passed; final soak 20/20 (119.3 s), no process or temporary-state leftovers. Signed installer and staged executable signatures Valid. Earlier cursor/startup-row timeouts remain unexplained; physical IME/mixed DPI and installation/upgrade/uninstallation remain unverified |
+| Release | `1.3.2-windows.11` | Published 2026-09-22, source `969d637e3`. ReleaseFast metadata/runtime and native regressions passed; final soak 20/20 (119.3 s), no process or temporary-state leftovers. Signed installer and staged executable signatures Valid. Earlier cursor/startup-row timeouts remain unexplained; physical IME/mixed DPI and installation/upgrade/uninstallation remain unverified |
 | Fonts | Family matching and fallback | Measured: a configured family that matches nothing is replaced silently, and the automatic fallback takes the first file containing the codepoint. Tracked as issues 1, 2, and 3 |
 | Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature |
 | Version info | CLI version display | Verified with the Release build |
@@ -1243,10 +1253,10 @@ the code exists.
 | Input | Keyboard and IME | Character input and Enter automatically verified with the Release build, IME basically verified |
 | Input | Shift text in Kitty keyboard disambiguation mode | 2026-09-17: consumed-modifier and encoding tests passed; actual `:`, `?`, and `!` input in antigravity confirmed by the owner |
 | Input | Numpad digits and operators | 2026-09-17: `0`, `1`, `.`, and `+` arrive once in normal, Kitty disambiguation, and application keypad modes (before: twice); actual numpad input confirmed by the owner |
-| Input | Mouse and clipboard | Preparing `1.3.2-windows.11`: OSC 22 cursor shapes, hide/restore on typing, and blank-row context-menu behavior tested on Debug builds. Physical pointer/input regression remains |
-| Terminal | ConPTY resize | Preparing `1.3.2-windows.11`: backend disables scrollback pull; reset and resize unit regression plus eight native resize cycles with search/input continuity passed on Debug builds |
-| Shell | OSC 7 cwd inheritance | Preparing `1.3.2-windows.11`: native local-drive paths supported for windows, tabs and splits; Unicode/space paths and remote/Unix-path rejection tested on Debug builds. WSL/MSYS translation remains unsupported |
-| GUI | Terminal search | Preparing `1.3.2-windows.11`: per-pane native bar; scrollback, Unicode, navigation, empty/no matches, tab visibility, and closing a pane during search tested on Debug builds. Physical IME and mixed-DPI acceptance remain |
+| Input | Mouse and clipboard | `1.3.2-windows.11`: OSC 22 cursor shapes, hide/restore on typing, and blank-row context-menu behavior tested on Debug and ReleaseFast builds. Physical pointer/input regression remains |
+| Terminal | ConPTY resize | `1.3.2-windows.11`: backend disables scrollback pull; reset/resize unit regression and eight native resize cycles with search/input continuity passed; Debug and ReleaseFast coverage |
+| Shell | OSC 7 cwd inheritance | `1.3.2-windows.11`: native local-drive paths supported for windows, tabs and splits; Unicode/space paths and remote/Unix-path rejection tested on Debug and ReleaseFast builds. WSL/MSYS translation remains unsupported |
+| GUI | Terminal search | `1.3.2-windows.11`: per-pane native bar; scrollback, Unicode, navigation, empty/no matches, tab visibility, and closing a pane during search tested on Debug and ReleaseFast builds. Physical IME and mixed-DPI acceptance remain |
 | Rendering | D3D11 display | Verified |
 | Rendering | Copied IOCP wakeups and full renderer mailbox | 2026-09-17: old preview reproduced a focus hang after 70 spaced output batches; fixed Debug test build passed output, split/focus/close, subsequent input, screenshot inspection, and clean exit. Win32 tests: 144 passed, 1 skipped; ordinary window regression: 20/20 clean exits |
 | Rendering | GPU resource recreation | 100 consecutive controlled recreations and finite retries automatically verified with the Release build, real failure not verified |

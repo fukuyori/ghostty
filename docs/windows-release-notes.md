@@ -10,11 +10,11 @@ limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 ## 1.3.2-windows.11
 
 - Prepared: 2026-09-22
-- Planned source tag: `v1.3.2-windows.11` (not created)
+- Published: 2026-09-22 ([GitHub Release](https://github.com/fukuyori/ghostty/releases/tag/v1.3.2-windows.11))
+- Source tag: `v1.3.2-windows.11` (`969d637e3`)
 - Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
-- Status: preparing. `dist/windows/version.txt` now selects this preview;
-  the ReleaseFast build and signed installer are ready. Tagging and
-  publication remain pending.
+- Status: preview. The ReleaseFast build and signed installer were verified
+  locally, and the installer is published on GitHub Releases.
 
 ### Changes Since 1.3.2-windows.10
 
@@ -73,6 +73,7 @@ Distribution artifacts prepared on 2026-09-22:
 | Signed staged executable | `--version` and window-state regression passed; exit code 0, no forced termination |
 | Embedded uninstaller | Signed successfully during Inno Setup compilation |
 | Installer SHA-256 | `42df813be2f2bee2c511ad7a94b3345eef4fe818c3155ecc25b3680aae0d9fb8` |
+| Published asset | Re-downloaded from GitHub Releases; SHA-256 matches the verified installer, timestamped Authenticode signature Valid |
 
 Physical IME composition in the search field and mixed-DPI presentation
 remain unverified; all four tested monitors were at 96 DPI. GPU recovery and
@@ -83,7 +84,7 @@ This release retains the current product name. Renaming and rebranding are
 the highest priority starting with the next release, tracked in
 [#31](https://github.com/fukuyori/ghostty/issues/31).
 
-This preparation does not change the distributed `1.3.2-windows.10`
+This release does not change the distributed `1.3.2-windows.10`
 installer or its source tag.
 
 ## 1.3.2-windows.10

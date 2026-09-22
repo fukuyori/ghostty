@@ -7,15 +7,15 @@ known issues, and known limitations of each version; the
 [version update checklist](version-update-checklist.md) describes the
 `X.Y.Z-windows.N` numbering.
 
-## 1.3.2-windows.11 (preparing)
+## 1.3.2-windows.11
 
-Windows preview preparation dated 2026-09-22. Includes the upstream merge
+Windows preview published 2026-09-22. Includes the upstream merge
 and Windows usability changes below. Verification results are recorded in
 the release notes and roadmap. This preview retains the current product
 name; renaming and rebranding are the highest priority starting with the
 next release, tracked in [#31](https://github.com/fukuyori/ghostty/issues/31).
 
-### Windows terminal usability (2026-09-22, working tree)
+### Windows terminal usability (2026-09-22, `969d637e3`)
 
 - Avoid automatically selecting a whole space-filled row on Windows
   right-click. Keep the context menu, word/link selection on text, and
