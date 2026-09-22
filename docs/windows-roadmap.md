@@ -1,6 +1,6 @@
 # Ghostty Windows Production-Readiness Roadmap
 
-- Last updated: 2026-09-15
+- Last updated: 2026-09-22
 - Target branch: `windows`
 - Baseline commit: `132a5d078` (`docs: add Windows implementation roadmap`)
 - Phase breakdown basis: the six phases agreed in the conversation as of 2026-09-14
@@ -27,6 +27,10 @@ reconciled at merge time.
 
 - The default development branch is `windows`.
 - Upstream updates are merged explicitly from `upstream`.
+- The 2026-09-22 integration targets upstream `bd1c82bc5`, via local `main`.
+  It adds 142 upstream commits to the working tree after the distributed
+  `1.3.2-windows.10` preview; it does not move that release's tag. The ConPTY
+  resize option is available in the core but keeps its upstream default.
 - The mattn build is kept as a reference for history and implementation.
 - Keep the settings that prevent accidental pushes to upstream/mattn.
 - Commits, tags, pushes, and package creation are done only when explicitly
@@ -539,6 +543,30 @@ Implemented:
   Version
 
 Recent verification:
+
+- 2026-09-22: Upstream integration through `bd1c82bc5`, verified on dedicated
+  Debug builds with Win32 test hooks under `zig-out/upstream-merge-d3d11`
+  and `zig-out/upstream-merge-opengl`. Both builds passed 128/128 build steps
+  and report the Win32 runtime, IOCP, and their respective D3D11/OpenGL
+  renderer. The Win32-filtered hook tests passed. The full
+  `zig build test -Dwin32-test-hooks=true` run passed 3864 tests, skipped 62,
+  and failed none (3926 total, including the build-helper tests); the main
+  test runner took about seven minutes after compilation. The libghostty-vt
+  resize test command passed 451/451 tests across its two runners.
+  Both renderers passed the window-state regression and 70-batch renderer
+  wakeup test; captured images were inspected and showed the final batch and
+  responsive prompt. Both exited with code 0 without forced termination.
+  D3D11 additionally passed three controlled GPU rebuilds with two injected
+  failures per surface and the controlled suspend/resume checks, including
+  recovery of all three surfaces. Its 20-run soak passed 20/20 in 119.6 seconds,
+  with no failed or non-graceful runs and no leftover test applications;
+  the summary is `zig-out/logs/upstream-merge-soak.json`. Logs are in
+  `zig-out/logs/upstream-merge-*.log`; the D3D11 and OpenGL screenshot sessions
+  are `window-state-20260922-193327-281-ec111a01` and
+  `window-state-20260922-193435-860-66aa666c` respectively.
+  This is integration validation, not a ReleaseFast build or signed release.
+  All four monitors were at 96 DPI; mixed DPI, physical GPU loss/sleep, and
+  manual IME composition were not tested in this run.
 
 - Executed a nonexistent CLI action and obtained exit code 1 and the
   pre-initialization error message from the standard error log.

@@ -119,6 +119,12 @@ pub const Shaders = struct {
     post_pipelines: []const Pipeline = &.{},
     defunct: bool = false,
 
+    /// GPU pipelines are created lazily on the renderer thread.
+    pub const uninit: Shaders = .{
+        .pipelines = undefined,
+        .defunct = true,
+    };
+
     pub fn init(device: *win32.ID3D11Device) Pipeline.Error!Shaders {
         const bg_color = try Pipeline.init(null, .{
             .device = device,

@@ -7,6 +7,15 @@ versions with their commits, the
 numbering rules, the [User Guide](windows.md) for configuration and known
 limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 
+## Unreleased
+
+- Integrate upstream `main` through `bd1c82bc5` (2026-09-22), including Bash
+  shell-integration and terminal-core fixes. Preserve the Windows D3D11 and
+  WGL rendering paths across upstream's graphics lifecycle changes.
+- This working-tree update is not part of the distributed
+  `1.3.2-windows.10` installer. Its version file and source tag are unchanged.
+- Integration verification is recorded in the [Roadmap](windows-roadmap.md).
+
 ## 1.3.2-windows.10
 
 - Prepared: 2026-09-19

@@ -7,6 +7,22 @@ known issues, and known limitations of each version; the
 [version update checklist](version-update-checklist.md) describes the
 `X.Y.Z-windows.N` numbering.
 
+## Unreleased
+
+### Upstream integration (2026-09-22)
+
+- Merge upstream `main` at `bd1c82bc5` (142 commits since the previous
+  upstream baseline). This includes the Bash command-status and prompt-hook
+  fixes, terminal mode-query fixes, Unicode data update, and the terminal
+  API option for disabling scrollback pull during resize. The new resize
+  option retains its upstream default; enabling it for ConPTY is separate
+  work.
+- Preserve the Win32 WGL context and window-buffer presentation path while
+  adopting upstream's renderer-thread GPU initialization. Keep D3D11 device
+  recovery and release its shader pipelines on renderer-thread shutdown.
+- Exclude POSIX-only translated headers from Windows builds. Retain the
+  fork's removal of upstream-only GitHub workflows and vouch configuration.
+
 ## 1.3.2-windows.10
 
 Windows preview dated 2026-09-19. Resolves `xterm-ghostty` for programs that

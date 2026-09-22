@@ -2,9 +2,11 @@
 const Self = @This();
 
 const std = @import("std");
+const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 const gl = @import("opengl");
 
+const global = @import("../../global.zig");
 const Renderer = @import("../generic.zig").Renderer(OpenGL);
 const OpenGL = @import("../OpenGL.zig");
 const Target = @import("Target.zig");
@@ -51,19 +53,43 @@ pub inline fn renderPass(
 ///
 /// If `sync` is true, this will block until the frame is presented.
 ///
-/// NOTE: For OpenGL, `sync` is ignored and we always block.
+/// NOTE: For OpenGL, `sync` is ignored and we never block, instead
+/// pushing the newly presented and exported frame to the frame queue.
 pub fn complete(self: *const Self, sync: bool) void {
     _ = sync;
-    gl.finish();
 
     // If there are any GL errors, consider the frame unhealthy.
     const health: Health = if (gl.errors.getError()) .healthy else |_| .unhealthy;
 
-    // If the frame is healthy, present it.
-    if (health == .healthy) {
+    if (comptime builtin.os.tag == .windows) {
         self.renderer.api.present(self.target.*) catch |err| {
-            log.err("Failed to present render target: err={}", .{err});
+            log.warn("failed to present render target: err={}", .{err});
         };
+        gl.finish();
+        self.renderer.frameCompleted(health);
+        return;
+    }
+
+    // If the frame is healthy, draw it to an ExportedFrame
+    // Then sync before exporting and pushing to the present queue.
+    // The apprt pulls from this queue in its snapshot handler.
+    const presented_frame: ?OpenGL.ExportedFrame = if (health == .healthy) frame: {
+        const frame = self.renderer.api.present(self.target.*) catch |err| {
+            log.warn("failed to present render target: err={}", .{err});
+            break :frame null;
+        };
+        break :frame frame;
+    } else null;
+
+    // Sync after frame draw AND frame present GL calls.
+    gl.finish();
+
+    // At this point the ExportedFrame is finished and can be shared
+    if (presented_frame) |frame| {
+        self.renderer.pushFrame(frame);
+
+        // Notify the surface that it should redraw
+        _ = self.renderer.surface_mailbox.push(.redraw, .{ .forever = {} });
     }
 
     // Report the health to the renderer.

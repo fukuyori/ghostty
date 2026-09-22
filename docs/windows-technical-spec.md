@@ -97,6 +97,8 @@ antigravity 上での `:`・`?`・`!` の実入力も正常であることを確
 
 #### 3. グラフィックススタックとシェーダーパイプライン
 
+2026-09-22 の上流 `bd1c82bc5` 取り込みでは、GPU シェーダーの初期化を描画スレッドへ遅延する構成に追従しています。Windows の OpenGL 経路は引き続き WGL を使い、メインスレッドで作成したコンテキストを解放して描画スレッドで取得し、ウィンドウのバックバッファへ描画して交換します。上流 GTK の EGL・DMA-BUF 経路とは OS 条件で分岐します。D3D11 は未初期化シェーダーの解放を安全に扱い、描画スレッド終了時の解放と既存の GPU 復旧処理を維持します。
+
 - 本リポジトリ (`fukuyori/ghostty`)：
   Windows ネイティブの Direct3D 11 レンダラー（`src/renderer/D3D11.zig`）および DirectComposition を採用しています。Kitty 画像レンダリング時の頂点シェーダーz座標クリッピングバグ（`ortho2d` 変換で z=-1 となり描画消失する問題）を修正済みであり、`background-opacity` によるウィンドウ背景の透過合成や、DirectComposition Visual ツリーを用いた Backdrop / Gaussian Blur の実験的実装を含みます。
 - `noctty`：
