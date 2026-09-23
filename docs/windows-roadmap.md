@@ -1217,7 +1217,9 @@ scope must be reassessed after F1-F8; they are not part of Phase 7 completion.
 ## 7. Next Steps
 
 Rebranding [#31](https://github.com/fukuyori/ghostty/issues/31) is the
-highest priority for the release after `1.3.2-windows.11`. Phase 7 then
+highest priority for the release after `1.3.2-windows.11`. The
+[rebranding plan](windows-rebranding-plan.md) records the decisions, compatibility
+boundary, work sequence, and acceptance checks. Phase 7 then
 follows the F1-F8 order in Section 6; its issues are tracked there.
 Search-bar focus restoration and message-loop routing remain review items.
 Physical search IME input and mixed-DPI presentation remain unverified.

@@ -21,6 +21,10 @@ known issues, and known limitations of each version; the
   six phases' completion history, current rebranding priority, and open
   hardware verification distinct from the unstarted F1-F8 work.
 
+- Add the [Windows rebranding plan](windows-rebranding-plan.md) for #31,
+  covering name decisions, official Windows Ghostty coexistence, shared
+  configuration, migration, and release acceptance checks. No runtime changes.
+
 ## 1.3.2-windows.11
 
 Windows preview published 2026-09-22. Includes the upstream merge
