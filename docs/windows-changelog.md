@@ -25,6 +25,18 @@ known issues, and known limitations of each version; the
   covering name decisions, official Windows Ghostty coexistence, shared
   configuration, migration, and release acceptance checks. No runtime changes.
 
+- Record the selected ghoultty icon candidate in the rebranding plan and
+  add its transparent PNG for use when the name change is implemented. The
+  current application icon remains unchanged.
+
+- Record ghoultty as the chosen product name. First establish the branch
+  workflow and develop on a rebrand/ghoultty branch from windows. Keep main
+  as an upstream mirror and windows as the Windows development and release
+  branch. Rename the GitHub repository only after implementation and
+  integration, before final release-candidate validation; the destination
+  name remains undecided. The work branch has not been created, and neither
+  the repository nor the application has been renamed.
+
 ## 1.3.2-windows.11
 
 Windows preview published 2026-09-22. Includes the upstream merge

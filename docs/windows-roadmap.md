@@ -29,12 +29,25 @@ order, or status changes.
 
 | Remote | Purpose | push |
 |---|---|---|
-| `origin` (`fukuyori/ghostty`) | Development and publishing of the Windows build | Enabled |
+| `origin` (`fukuyori/ghostty`、改名先は未決定) | `main` でupstreamを保持し、`windows` でWindows版を開発・公開する | Enabled |
 | `upstream` (`ghostty-org/ghostty`) | Source for continuous merges from the official build | Disabled |
 | `mattn` (`mattn/ghostty`) | Reference for the earlier Windows implementation | Disabled |
 
-- The default development branch is `windows`.
-- Upstream updates are merged explicitly from `upstream`.
+| ブランチ | 役割 | 現状 |
+|---|---|---|
+| `main` | upstream `main` に追従するミラー。Windows固有の変更は加えない | ローカルと `origin` に存在するが、`origin/main` の同期は未実施 |
+| `windows` | Windows版の開発・公開ブランチ。upstreamの更新を `main` から明示的に取り込む | 現在の作業ブランチ |
+| `rebrand/ghoultty` | `windows` から分ける名称変更用ブランチ。検証後に `windows` へ統合する | 未作成 |
+
+- 名称変更作業の最初にこのブランチ運用を整え、履歴と作業ツリーを
+  確認してから `rebrand/ghoultty` を作る。upstreamの更新は先に `main` に
+  取り込み、必要に応じて `windows` へ統合する。強制プッシュは行わない。
+  この運用への移行はまだ完了していない。
+- GitHubリポジトリの改名は、名称変更の実装・統合が終わった最後の作業とする。
+  改名先は未決定で、`fukuyori/ghoultty` は候補。改名後に
+  `origin`、Issue、新旧URL、文書・配布URLを確認し、最終リリース候補を
+  検証する。改名と作業ブランチの作成はまだ実施していない。
+  詳細は[名称変更計画](windows-rebranding-plan.md)の第5節に記録する。
 - The 2026-09-22 integration targets upstream `bd1c82bc5`, via local `main`.
   It adds 142 upstream commits to the working tree after the distributed
   `1.3.2-windows.10` preview; it does not move that release's tag. The ConPTY
@@ -1216,10 +1229,15 @@ scope must be reassessed after F1-F8; they are not part of Phase 7 completion.
 
 ## 7. Next Steps
 
-Rebranding [#31](https://github.com/fukuyori/ghostty/issues/31) is the
+Rebranding as ghoultty [#31](https://github.com/fukuyori/ghostty/issues/31) is the
 highest priority for the release after `1.3.2-windows.11`. The
 [rebranding plan](windows-rebranding-plan.md) records the decisions, compatibility
-boundary, work sequence, and acceptance checks. Phase 7 then
+boundary, work sequence, and acceptance checks. First establish the branch
+workflow and work on `rebrand/ghoultty` from `windows`. After implementation
+and integration, rename the GitHub repository as the final change before
+release-candidate validation. The destination name remains undecided;
+`fukuyori/ghoultty` is a candidate. Neither the work branch
+nor the repository rename exists yet. Phase 7 then
 follows the F1-F8 order in Section 6; its issues are tracked there.
 Search-bar focus restoration and message-loop routing remain review items.
 Physical search IME input and mixed-DPI presentation remain unverified.
