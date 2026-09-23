@@ -1,170 +1,109 @@
-# Windows版 名称変更・共存対応計画
+# Windows Rebranding and Coexistence Plan
 
-- 作成日: 2026-09-23
-- 対象: fukuyori/ghostty の windows ブランチ
-- 状態: 計画段階。製品名は ghoultty に決定。アイコン候補は選定済み。旧コマンドの移行方式などは未決定で、コード変更・配布物検証は未着手
-- 追跡: [Issue #31](https://github.com/fukuyori/ghostty/issues/31)、[Windowsロードマップ](windows-roadmap.md)
+- Created: 2026-09-23
+- Scope: the `windows` branch of `fukuyori/ghostty`
+- Status: Planning. The product name is ghoultty and an icon candidate has been selected. Legacy command migration and other decisions remain open; code changes and distribution validation have not begun.
+- Tracking: [Issue #31](https://github.com/fukuyori/ghostty/issues/31), [Windows roadmap](windows-roadmap.md)
 
-## 1. 目的と境界
+## 1. Purpose and Boundaries
 
-このWindowsフォークの利用者向け名称とアイコンを独立したものに変更する。
-[noctty #119](https://github.com/amanthanvi/noctty/issues/119) に記載された
-Ghosttyチームからの名称・アイコンに関する要請を踏まえる。
-この計画は商標の適否を判断する文書ではない。名称は ghoultty に決定し、名称と図案の適否は配布前に確認する。
+Give this Windows fork a distinct user-facing name and icon in response to the Ghostty team's request recorded in [noctty #119](https://github.com/amanthanvi/noctty/issues/119). This plan does not determine trademark suitability. The chosen name is ghoultty; confirm the name and artwork against the request before distribution.
 
-将来の公式Windows版Ghosttyと本フォークを同時にインストール・起動でき、
-共通のGhostty設定ファイルを利用できることを製品要件とする。
-公式Windows版の配布形態や設定探索は現時点では未確認のため、
-公開された実物との共存試験を最終確認として残す。
-既存プレビューからのアップグレードと、従来のCLI利用者の移行も対象に含める。
+The product must be able to coexist with a future official Windows Ghostty: both applications should be installable and runnable at the same time and able to use a shared Ghostty configuration file. The official Windows release's packaging and config lookup are not yet known, so testing against that actual release remains a final check. Upgrades from existing previews and migration for CLI users are also in scope.
 
-この計画は実装・リポジトリ改名・パッケージ作成の承認ではない。
-歴史的なリリース記録とupstreamの著作権・ライセンス表示は維持する。
+This plan does not authorize implementation, a GitHub repository rename, or packaging. Preserve historical release records and upstream copyright and license notices.
 
-## 2. 現時点の方針と未決定事項
+## 2. Decisions and Open Questions
 
-| 項目 | 決定事項・現時点の方針 | 残る作業・確認 |
+| Item | Decision or current direction | Remaining work |
 |---|---|---|
-| 製品名 | ghoultty に決定 | Windows版の表示名・配布名に反映し、配布前に名称要請との整合を確認する |
-| 実行ファイル | ghoultty.exe に変更する | ビルド、CLI、署名、インストーラー、検証スクリプトを同じ名称に揃える |
-| CLI | 新しい実行ファイルから既存のオプション・サブコマンドを使えるようにする案 | +version の表示名、旧名での呼び出し、移行告知を決める |
-| アイコン・ロゴ | 選定済みの候補PNGを ghoultty への名称変更時に適用する | EXE、インストーラー、README、ショートカット用に必要なサイズと形式を作成し、小サイズの判読性を確認する |
-| リポジトリ名・URL | 名称変更の実装・統合後、最後に改名する。改名先は未決定で `fukuyori/ghoultty` は候補 | 改名先を確定し、`origin`、Issue、利用者向けリンクとインストーラーのURLを新URLに揃え、旧URLからの到達先も検証する |
-| 旧 ghostty.exe | リンク・エイリアス等の互換手段を検討中 | 公式版とのコマンド衝突、旧スクリプト、ZIP、更新・削除を比較する |
-| インストール先・グループ | 新規・既存導入とも Ghostty フォルダを使わず、新名称の専用フォルダへ移す。旧フォルダの扱いは設計する | 同一AppIdで旧インストール先・グループが再利用されない指定（UsePreviousAppDir / UsePreviousGroup）と、旧ファイル・ショートカット・PATHの移行方法を確認する |
-| AppId | このフォークの既存GUIDを更新経路として維持する案 | 旧版更新と公式版との独立登録を確認する。公式版の識別子は公開後に照合する |
-| 共通コードの表示名 | Windowsターゲットに限定して変更する案 | macOS/Linuxの表示やupstreamマージへの影響を確認する |
+| Product name | ghoultty | Apply it to Windows display and distribution names; confirm alignment with the naming request before release |
+| Executable | Rename to `ghoultty.exe` | Align builds, CLI, signing, installer, and verification scripts |
+| CLI | Keep existing options and subcommands available through the new executable | Decide the `+version` display, legacy invocation, and migration notice |
+| Icon and logo | Apply the selected candidate PNG when implementing the ghoultty rename | Produce required sizes and formats for EXE, installer, README, and shortcuts; inspect small-size legibility |
+| Repository name and URL | Rename only after implementation and integration. The destination is undecided; `fukuyori/ghoultty` is a candidate | Choose the destination; update `origin`, issues, user links, and installer URLs; verify access from the old URL |
+| Legacy `ghostty.exe` | Links, aliases, and other compatibility options remain under consideration | Compare collision with the official app, old scripts, ZIP distributions, upgrades, and removal |
+| Install directory and group | Use a dedicated new-name directory for both fresh and upgraded installations, never the old Ghostty directory; design handling of the old directory | Prevent reuse of the old directory and group with `UsePreviousAppDir` / `UsePreviousGroup`; determine migration of old files, shortcuts, and PATH entries |
+| AppId | Proposed: keep this fork's existing GUID for upgrades | Verify upgrades and separate registration from the official app; compare identifiers when the official release exists |
+| Shared-code display name | Proposed: change only for Windows targets | Check effects on macOS/Linux and upstream merges |
 
-レモンは、[ghoultty用アイコン候補](../dist/windows/ghoultty-icon-candidate.png)を
-ghoulttyへの名称変更時に適用すると決めた。現行の ghostty.ico は維持する。
-候補PNGは透過マスターであり、ICOの各サイズや実機表示は名称変更作業で
-作成・検証する。
+The repository owner chose the [ghoultty icon candidate](../dist/windows/ghoultty-icon-candidate.png) for use when implementing the name change. Keep the current `ghostty.ico` until then. The PNG is a transparent master; create and verify ICO sizes and their actual display as part of the rename.
 
-名称と候補アイコンの現行アプリへの適用は、名称変更の実装段階で行う。
-旧名の互換策は独立した判断とし、PATH上に ghostty.exe を標準配置する案は
-公式版のコマンドを横取りし得るため、共存試験なしに採用しない。
-PATHはディレクトリ探索用であり、環境変数だけで旧コマンド名は作れない。
-シェル固有のエイリアスは PowerShell、cmd、明示的な exe パスを一括では扱えない。
+Treat legacy command compatibility as a separate decision. Do not put `ghostty.exe` on PATH by default without a coexistence test: it could intercept commands intended for the official app. PATH resolves directories, and an environment variable alone cannot create the old command name. Shell-specific aliases cannot cover PowerShell, cmd, and explicit EXE paths together.
 
-## 3. 共有する技術識別子と分離する製品識別子
+## 3. Shared Technical Identifiers and Separate Product Identifiers
 
-| 維持するもの | 理由・確認点 |
+| Keep | Reason and verification |
 |---|---|
-| TERM=xterm-ghostty と terminfo エントリ | 既存の端末能力と接続先での解決を維持する。改名後も実アプリで確認する |
-| %USERPROFILE%\.terminfo\78\xterm-ghostty のユーザーコピー | 現行は存在しない場合だけ登録する。両アプリが使う場所を上書き・削除せず、版差を検証する |
-| ghostty/config.ghostty、旧 ghostty/config と従来の設定探索 | 既存設定を読み、将来の公式版と共有できる状態を保つ |
-| upstream由来の設定キー、値、既定値、アクション | 共通ファイルを両アプリが読める範囲を保つ。フォーク専用キーを共通ファイルへ必須にしない |
-| GHOSTTY_* と shell integration の連携 | 端末プロトコルとして維持する。公式版の探索先を変えるマシン全体の環境変数は設定しない |
-| share/ghostty、share/terminfo とリソース探索 | 現行の配置とロード条件を維持する。別インストール先に各アプリが自身の資源を持つ |
-| upstream帰属、LICENSE、第三者通知 | コードの出所と再配布条件を保持する |
+| `TERM=xterm-ghostty` and the terminfo entry | Preserve terminal capabilities and resolution on remote hosts; check with the renamed application |
+| User copy at `%USERPROFILE%\.terminfo\78\xterm-ghostty` | The current app installs it only when absent. Neither app should overwrite or remove the other's entry; check version differences |
+| `ghostty/config.ghostty`, legacy `ghostty/config`, and existing lookup order | Continue reading existing settings and allow sharing with the future official app |
+| Upstream config keys, values, defaults, and actions | Keep the shared file readable by both apps; do not require fork-only keys in that file |
+| `GHOSTTY_*` and shell integration | Preserve protocol behavior; do not set machine-wide environment variables that redirect the official app's lookup |
+| `share/ghostty`, `share/terminfo`, and resource lookup | Preserve layout and loading; each app keeps its own resources in a separate install directory |
+| Upstream attribution, LICENSE, and third-party notices | Preserve provenance and redistribution terms |
 
-独立させるものは、実行ファイル名、表示名、アイコン、ショートカット、
-配布ファイル名、インストール先、アンインストール表示である。
-同じ設定ファイルを共有しても、版差によって片方が新しい設定キーを
-認識できない可能性がある。共通設定で使えるキーの範囲と診断表示を
-両アプリの実バージョンで検証し、完全な互換を未検証のまま約束しない。
-設定の自動書き換えや移動は行わず、必要なら別途移行仕様を定める。
+Separate the executable, display name, icon, shortcuts, distribution filenames, install location, and uninstall display name. Sharing a config file does not guarantee that both versions understand every key. Check supported keys and diagnostics with actual versions before promising full compatibility. Do not automatically rewrite or move settings; specify any needed migration separately.
 
-## 4. 実装対象の棚卸し
+## 4. Implementation Inventory
 
-| 領域 | 現行の主な箇所 | 作業 |
+| Area | Current locations | Work |
 |---|---|---|
-| ビルド名 | src/build/GhosttyExe.zig | Windowsターゲットだけ新しいexe名にする。共有コアへの変更を最小化する |
-| Windowsリソース | dist/windows/ghostty.rc、dist/windows/ghostty.ico、dist/windows/ghoultty-icon-candidate.png | FileDescription、OriginalFilename、ProductNameを変更し、選定した候補PNGから各サイズのアイコンを作成・適用する |
-| Win32表示 | src/apprt/win32/App.zig、Tab.zig、TabBar.zig、TabBarAccessibility.zig、Surface.zig | タイトル、エラー、権限ダイアログ、アクセシビリティ名と関連テストを更新する |
-| 内部識別子 | App.zig のウィンドウクラス名など | test-windows-context-menu.ps1 と test-windows-parity.ps1 の GhosttyWindow 参照を確認し、変更の必要性を判断する。無条件に置換しない |
-| CLI表示 | src/cli/version.zig、scripts/build-release.ps1 | Windows版の表示名とバージョン抽出を合わせ、他OSへの影響を検査する |
-| リリース | scripts/build-release.ps1、scripts/test-windows-context-menu.ps1、scripts/test-windows-parity.ps1 など | 出力exe、リソース、バージョン、テストの既定exeパスを更新する |
-| インストーラー | dist/windows/ghostty.iss、scripts/build-installer.ps1 | 表示、ファイル、アイコン、PATH、署名対象、出力名、更新・削除を合わせる |
-| 文書 | README.md、docs/windows.md、docs/version-update-checklist.md、関連Windows文書 | 現行利用手順と帰属表示を更新し、READMEのupstream関係節に無関係のフォークである旨を明記する。過去のリリース履歴は書き換えない |
-| 配布URL | iss の AppPublisherURL 等、README、文書 | リポジトリ改名後に新URLへ更新し、リンクと転送先を検証する |
+| Build name | `src/build/GhosttyExe.zig` | Rename the EXE only for Windows; minimize shared-core changes |
+| Windows resources | `dist/windows/ghostty.rc`, `dist/windows/ghostty.ico`, `dist/windows/ghoultty-icon-candidate.png` | Change FileDescription, OriginalFilename, and ProductName; create and apply icon sizes from the selected PNG |
+| Win32 UI | `src/apprt/win32/App.zig`, `Tab.zig`, `TabBar.zig`, `TabBarAccessibility.zig`, `Surface.zig` | Update titles, errors, permission dialogs, accessibility names, and related tests |
+| Internal identifiers | Window class names in `App.zig` and similar identifiers | Review `GhosttyWindow` references in `test-windows-context-menu.ps1` and `test-windows-parity.ps1`; change only where needed |
+| CLI output | `src/cli/version.zig`, `scripts/build-release.ps1` | Align Windows display name and version parsing; check effects on other OSes |
+| Release tooling | `scripts/build-release.ps1`, `scripts/test-windows-context-menu.ps1`, `scripts/test-windows-parity.ps1`, and related scripts | Update output EXE, resources, version handling, and default test EXE paths |
+| Installer | `dist/windows/ghostty.iss`, `scripts/build-installer.ps1` | Align display, files, icons, PATH, signing targets, output name, upgrades, and removal |
+| Documentation | `README.md`, `docs/windows.md`, `docs/version-update-checklist.md`, related Windows docs | Update current instructions and attribution; state in the README's upstream relationship section that this is an unaffiliated fork. Do not rewrite historical release records |
+| Distribution URLs | Installer `AppPublisherURL` and related fields, README, docs | Update to the new URL after the repository rename; verify links and redirects |
 
-旧名の文字列には、プロトコル・設定・資源・著作権表示・履歴・
-テスト用固定値も含まれる。検索結果を一括置換せず、各出現箇所の用途で判断する。
+Old-name strings also include protocol, config, resource, copyright, historical, and test identifiers. Classify each occurrence rather than replacing them all.
 
-## 5. 作業順序と各段階の出口
+## 5. Work Sequence and Exit Criteria
 
-最初にブランチ運用を整理し、実装は windows から分けた
-rebrand/ghoultty ブランチで進める。GitHubリポジトリの改名は
-実装・統合後の最後の作業とする。ブランチ作成・統合・改名は
-まだ実施していない。
+Establish the branch workflow first and implement on `rebrand/ghoultty` from `windows`. Rename the GitHub repository only after implementation and integration. The work branch, integration, and rename have not happened.
 
-1. **ブランチ運用の整理**: `main` をupstream `main` に追従する
-   ミラー、`windows` をWindows版の開発・公開ブランチとする。
-   履歴と作業ツリーを確認してから `windows` から
-   `rebrand/ghoultty` を分ける。upstreamの更新は `main` に取り込み、
-   明示的に `windows` へ統合する。強制プッシュは行わない。
-2. **仕様決定**: ghoultty と選定アイコンを確定事項として #31 に記録し、
-   旧コマンドの互換範囲、旧フォルダ移行方式、+versionを確定する。
-   商標要請との整合に不確実性が残る場合は、配布前に確認する。
-3. **実装準備**: 旧版インストール状態とPATH・ショートカット・設定の
-   初期状態を記録する。新旧ファイル名の一覧と変更対象スクリプトを確定する。
-4. **Windowsビルドと表示の変更**: exe、アイコン、リソース、Win32文字列、
-   CLI表示を更新する。Windows以外のビルド名・表示は維持する。
-5. **配布と移行の変更**: ReleaseとInnoのスクリプト、署名対象、配置、
-   更新・削除処理を更新する。旧 Ghostty フォルダを再利用せず、
-   旧フォルダのフォーク所有ファイル、旧ショートカット、旧PATH登録の
-   整理を設計する。旧ファイルを消す処理はこのフォークの
-   旧インストールだけを対象にし、共有設定と公式版のファイルは触れない。
-6. **文書と開発中の検証**: 現行手順、帰属、既知の移行差分を更新する。
-   次節の検証結果と未検証事項を #31、ロードマップ、
-   changelog に反映する。公開時だけ release notes に配布物の結果を記録する。
-7. **統合**: 実装と開発中の検証が揃ったら、作業ブランチの内容を
-   windows に統合する。統合・プッシュは別途の依頼に従う。
-8. **リポジトリ改名**: 名称変更の実装・統合後、最後に改名先を確定し、
-   GitHub上の `fukuyori/ghostty` をその名称に変更する。
-   新旧URLの到達先、Issue、`origin` の取得・プッシュ先を確認し、
-   文書・インストーラーのURLを新URLに更新する。`upstream` と
-   `mattn` の誤プッシュ防止設定を維持する。
-9. **リリース前の受け入れ**: 改名後のURLを反映した最終候補について、
-   新規インストール・旧版からのアップグレード・アンインストールを
-   実機で一度確認する。開発中の各ステップには繰り返し組み込まない。
+1. **Branch workflow:** Keep `main` as a mirror of upstream `main` and `windows` as the Windows development and release branch. Inspect history and the working tree, then create `rebrand/ghoultty` from `windows`. Bring upstream updates into `main` and explicitly integrate them into `windows`. Do not force-push.
+2. **Resolve specifications:** Record ghoultty and the selected icon in #31; decide legacy command scope, old-directory migration, and `+version`. Resolve any uncertainty about the naming request before distribution.
+3. **Prepare implementation:** Record the old installation, PATH, shortcuts, and config state. Inventory old and new filenames and affected scripts.
+4. **Change Windows build and UI:** Update EXE, icon, resources, Win32 strings, and CLI output. Keep non-Windows build names and output unchanged.
+5. **Change distribution and migration:** Update Release and Inno scripts, signing targets, layout, upgrade, and removal. Do not reuse the old Ghostty directory. Design cleanup of the fork's old files, shortcuts, and PATH entries. Touch only this fork's old installation, not shared config or official-app files.
+6. **Document and verify during development:** Update current instructions, attribution, and migration differences. Record results and open checks in #31, the roadmap, and changelog. Put actual distribution results in release notes only when publishing.
+7. **Integrate:** Once implementation and development checks pass, integrate the work branch into `windows`. Integration and pushing require a separate request.
+8. **Rename the repository:** As the final change after implementation and integration, choose the destination and rename `fukuyori/ghostty` on GitHub. Verify old and new URLs, issues, and `origin` fetch/push targets; update documentation and installer URLs. Keep accidental pushes to `upstream` and `mattn` disabled.
+9. **Pre-release acceptance:** On the final candidate with the renamed URL, perform one real-machine pass for fresh install, upgrade from the old version, and uninstall. Do not repeat these at every development step.
 
-同一リリースで扱う変更を小さなレビュー単位に分けても、
-旧名と新名が混在した配布物を完成扱いしない。
+Small review increments are fine, but do not treat a distribution with mixed old and new product names as complete.
 
-## 6. 受け入れ検証
+## 6. Acceptance Verification
 
-開発中は変更に対応したソース・表示・CLIの検証を行う。実機での
-インストール・アップグレード・アンインストールは、リポジトリ改名と
-配布URL更新を終え、最終リリース候補が揃ってから一度だけ実施する
-必須のリリース前確認とする。
+During development, verify the source, UI, and CLI affected by each change. Fresh install, upgrade, and uninstall on a real machine are required once, after the repository rename and distribution URL update, when the final release candidate is ready.
 
-| 範囲 | 必須の確認 |
+| Scope | Required checks |
 |---|---|
-| ソース・ビルド | Zigの対象テスト、Debugビルド、Windows以外の名称が変わらないこと、git diff --check |
-| 新しいexe | 起動、--version と主要CLI、ファイルプロパティ、アイコン、リソース探索、クリーン終了 |
-| 実画面 | タイトル、タスクバー、エラー表示、アクセシビリティ名、複数ウィンドウ、DPI。16/32/48pxのアイコン表示と判読性 |
-| 設定共有 | 既存の %LOCALAPPDATA%\ghostty\config.ghostty と XDG_CONFIG_HOME の優先順位、再読込、両アプリで共通設定が効くこと |
-| 端末互換 | TERM、terminfo、shell integration、GHOSTTY_*、SSH先での既存手順。ユーザー領域の xterm-ghostty エントリを両アプリが上書き・削除しないこと |
-| コマンド解決 | PowerShell、cmd、PATH、明示的exeパス、旧名互換策を採る場合の衝突 |
-| 配布物 | ReleaseツリーとZIPの中身、ステージ済みexe、Innoインストーラー・アンインストーラーの署名、表示名と版 |
-| 将来の公式版との共存 | 公式版が利用可能になった時点で両方を導入し、双方の起動、設定、資源、PATH、削除を確認する |
+| Source and build | Relevant Zig tests, Debug build, unchanged non-Windows names, `git diff --check` |
+| New EXE | Startup, `--version` and main CLI commands, file properties, icon, resource lookup, clean exit |
+| Actual UI | Title, taskbar, errors, accessibility names, multiple windows, DPI; legibility of 16/32/48-pixel icons |
+| Shared config | Existing `%LOCALAPPDATA%\ghostty\config.ghostty`, `XDG_CONFIG_HOME` precedence, reload, and shared settings in both apps |
+| Terminal compatibility | TERM, terminfo, shell integration, `GHOSTTY_*`, existing SSH procedure; neither app overwrites or deletes the user `xterm-ghostty` entry |
+| Command resolution | PowerShell, cmd, PATH, explicit EXE paths, and collision if legacy compatibility is provided |
+| Distribution | Release tree and ZIP contents, staged EXE, signatures on Inno installer and uninstaller, displayed name and version |
+| Future official-app coexistence | Once available, install both and check launch, config, resources, PATH, and removal |
 
-### リリース前に一度行う実機確認
+### One Real-Machine Pass Before Release
 
-最終リリース候補のインストーラーで、次の3経路を一連の確認として行う。
-実装段階ごとには繰り返さない。
+Use the final release-candidate installer for these three paths in one acceptance pass, not at every implementation step.
 
-| 経路 | 確認項目 |
+| Path | Checks |
 |---|---|
-| 実機の新規導入 | 新名称の専用フォルダ、ショートカット、PATH、起動、設定読み込み。Ghostty フォルダに入らないこと |
-| 実機のアップグレード | 1.3.2-windows.11から更新し、旧 Ghostty フォルダを再利用しないこと。旧exe・旧ショートカット・PATHの移行と設定保持 |
-| 実機のアンインストール | 新旧のフォーク所有ファイル、ショートカット、PATH登録、レジストリ項目の後片付け。共有設定・terminfoと他アプリを保持する |
+| Fresh install | New-name directory, shortcuts, PATH, launch, config loading; do not install into a Ghostty directory |
+| Upgrade | Upgrade from `1.3.2-windows.11` without reusing the old Ghostty directory; migrate old EXE, shortcuts, and PATH while preserving config |
+| Uninstall | Clean up old and new fork-owned files, shortcuts, PATH entries, and registry entries; preserve shared config, terminfo, and other apps |
 
-ビルド成功だけで完了にしない。exeの実表示、署名、設定読み込みを確認する。
-一度のリリース前実機確認では、新規導入・更新・削除の結果を別々に記録する。
-実機操作はレモン側で行い、対象版、インストール方式、操作結果と
-残存物を記録する。未実施ならリリース前の受け入れは完了しない。
-配布物の作成はその時点の依頼・許可範囲に従う。
-公式版が未公開なら別アプリの配置を模した予備試験と実物の共存試験を区別し、
-後者を「未検証」と明記して追跡する。公開前の検証で代用したとは扱わない。
+A successful build alone is insufficient. Check actual EXE display, signatures, and config loading. Record fresh install, upgrade, and removal outcomes separately in this single pre-release pass. The repository owner performs real-machine operations and records the tested version, install method, outcomes, and leftovers. Acceptance is incomplete until this is done. Package creation follows the authorization in effect at that time. If the official app is unavailable, distinguish a simulated coexistence precheck from testing with its actual release, and track the latter as unverified.
 
-## 7. 更新ルール
+## 7. Update Rules
 
-名称・互換方針を変更したら、#31の決定事項、この計画、
-[ロードマップ](windows-roadmap.md)の優先順位と検証欄を同時に見直す。
-実装時には [Windows利用ガイド](windows.md)、
-[バージョン更新チェックリスト](version-update-checklist.md)、
-[changelog](windows-changelog.md)を更新する。
-過去のrelease notesとchangelogは当時の製品名の記録として残す。
+When naming or compatibility policy changes, update #31, this plan, and the priorities and verification entries in the [roadmap](windows-roadmap.md) together. During implementation, update the [Windows user guide](windows.md), [version update checklist](version-update-checklist.md), and [changelog](windows-changelog.md). Keep past release notes and changelogs as records of the product name used at the time.

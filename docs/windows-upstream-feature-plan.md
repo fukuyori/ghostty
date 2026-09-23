@@ -1,272 +1,210 @@
-# Windows版 Ghostty 共通機能の開発計画
+# Windows Upstream Feature Development Plan
 
-- 作成・更新日: 2026-09-23
-- 対象: `fukuyori/ghostty` の `windows` ブランチ
-- 状態: 計画作成・Issue登録済み。各機能の実装・受け入れ検証は未着手
-- 関連: [Windowsロードマップ](windows-roadmap.md)、[利用ガイド](windows.md)
-- 進捗・優先順位・Issueの正本: [ロードマップのPhase 7](windows-roadmap.md#phase-7-upstream-feature-coverage-on-windows)。本書は機能別の設計事項と受け入れ条件を記録する。
+- Created and updated: 2026-09-23
+- Scope: the `windows` branch of `fukuyori/ghostty`
+- Status: Plan written and issues registered; implementation and acceptance verification have not started
+- Related: [Windows roadmap](windows-roadmap.md), [user guide](windows.md)
+- Source of truth for progress, priority, and issues: [roadmap Phase 7](windows-roadmap.md#phase-7-upstream-feature-coverage-on-windows). This document records feature-specific design questions and acceptance criteria.
 
-## 1. 目的と採用基準
+## 1. Purpose and Selection Criteria
 
-upstream Ghosttyとnocttyの両方に存在し、このフォークのWindows版では
-未実装の機能を開発する。日常操作への効果と、Ghostty互換性を保ちながら
-実装・検証できる範囲を重視する。
+Develop features present in both upstream Ghostty and noctty but missing from this fork's Windows build. Prioritize daily-use value and the scope that can be implemented and verified while preserving Ghostty compatibility.
 
-仕様の基準はupstream Ghosttyとする。nocttyは共通機能の存在とWindows上の
-制約を調査する比較対象であり、独自コード・独自機能・独自設定は採用しない。
-機能名や設定名が同じでも、挙動が互換であるとは判断しない。
+Upstream Ghostty defines the specification. Noctty is a comparison point for shared features and Windows constraints; do not adopt its original code, features, or settings. Matching feature or setting names do not establish behavioral compatibility.
 
-この計画の作成は機能実装の開始を意味しない。実装は個別の依頼を受けて進める。
-機能ごとの未決定事項は着手前に解決し、推測で仕様を補わない。
+Writing this plan does not start implementation. Each feature requires a separate request. Resolve open design questions before starting rather than filling specifications with assumptions.
 
-### 互換性の原則
+### Compatibility Principles
 
-- upstreamの設定名、値、既定値、アクション、対象ペインの意味を維持する。
-- UIの見た目はWindows APIに適合させる。操作の意味と設定の挙動を優先する。
-- 既存の共有コアを利用し、OS依存処理を原則として`src/apprt/win32/`に置く。
-- 共有コアの変更が必要な場合は理由を示し、Windows以外への影響を確認する。
-- upstreamのmacOSとGTKで挙動が異なる場合は、採用する基準を機能ごとに記録する。
-- OS固有機能を同じ意味で実現できない場合、黙って別の動作へ置き換えない。
-  非対応範囲とWindowsでの扱いを明記する。
-- upstreamのコードを利用するときは著作権・ライセンス表示を保持する。
+- Preserve upstream setting names, values, defaults, actions, and target-pane semantics.
+- Adapt UI appearance to Windows APIs while preserving the meaning of operations and settings.
+- Use the existing shared core and keep OS-specific code primarily under `src/apprt/win32/`.
+- Explain necessary shared-core changes and check their effects on other platforms.
+- Where upstream macOS and GTK differ, record the behavior chosen for each feature.
+- If an OS-specific feature cannot have the same meaning on Windows, document the unsupported scope and Windows behavior rather than silently substituting another behavior.
+- Preserve copyright and license notices when using upstream code.
 
-## 2. 調査基準と証拠の範囲
+## 2. Investigation Baseline and Evidence
 
-| 対象 | 調査時点 |
+| Target | Investigated state |
 |---|---|
-| このフォーク | `19472c866b92114f2b61909de66a26f6be10e220`、公開版`1.3.2-windows.11`に関する記録を含む |
-| 取り込み済みupstream | `bd1c82bc5306da32b16b5055ceff023d7ebc9edc`。共有コア・macOS・GTK実装を参照 |
-| ローカルnoctty | `../noctty`、`14652e3a95abb0f85320600f3dd80b2835233423`、`1.3.127`相当 |
+| This fork | `19472c866b92114f2b61909de66a26f6be10e220`, with records for published `1.3.2-windows.11` |
+| Integrated upstream | `bd1c82bc5306da32b16b5055ceff023d7ebc9edc`; shared core, macOS, and GTK implementations inspected |
+| Local noctty | `../noctty` at `14652e3a95abb0f85320600f3dd80b2835233423`, approximately `1.3.127` |
 
-公開noctty `1.3.130`の情報と、ローカル`1.3.127`のコードは区別する。
-本計画の実装比較は上表のローカルコードを基準とする。実装着手時は
-Gitの状態とupstreamの変更を再確認する。
+Distinguish information about public noctty `1.3.130` from code in the local `1.3.127` checkout. Implementation comparisons here use the local code above. Recheck Git state and upstream changes before implementing.
 
-調査では機能の入口、主要な処理、状態管理、関連するテストコードの一部を
-確認した。全コードの監査、ビルド、テスト実行、実機比較は行っていない。
-テストが存在することを、そのテストや実機動作が成功した証拠にはしない。
-以下の効果・負担はコード調査に基づく評価であり、計測値や工期の確約ではない。
+The investigation covered feature entry points, main logic, state management, and parts of related tests. It did not audit all code, build or run tests, or compare behavior on a real machine. A test's presence is not evidence that it passes or that real behavior works. Value and effort below are code-review estimates, not measurements or schedule commitments.
 
-既存ロードマップのPhase 1〜6は従来の到達点を示す。本計画はその後の
-機能拡充であり、過去の完了記録を変更しない。また、既存のリブランディング
-優先事項（#31）や未完了の実機検証を置き換えるものではない。
+Roadmap Phases 1-6 record earlier milestones. This plan expands feature coverage afterward without changing their historical completion records. It does not replace the rebranding priority (#31) or pending hardware checks.
 
-## 3. 優先順位と開発単位
+## 3. Priority and Development Units
 
-| ID | 機能 | 効果 | 相対的な負担 | 初期状態 | Issue |
+| ID | Feature | Value | Relative effort | Initial state | Issue |
 |---|---|---|---|---|---|
-| F1 | コマンドパレット | 既存の多数の操作を検索・実行できる | 中 | 未着手 | [#17](https://github.com/fukuyori/ghostty/issues/17) |
-| F2 | スクロールバー | 長い履歴の位置確認と移動を容易にする | 中 | 未着手 | [#23](https://github.com/fukuyori/ghostty/issues/23) |
-| F3 | ファイルのドラッグ＆ドロップ | Explorerから長いパス・複数ファイルを入力できる | 中〜大 | 未着手・パス仕様の決定が必要 | [#32](https://github.com/fukuyori/ghostty/issues/32) |
-| F4 | タスクバー進捗表示 | 対応アプリの処理状態を端末外から確認できる | 小〜中 | 未着手 | [#33](https://github.com/fukuyori/ghostty/issues/33) |
-| F5 | HTML形式のコピー | 端末出力を書式付きで文書へ貼り付けられる | 小〜中 | 未着手 | [#34](https://github.com/fukuyori/ghostty/issues/34) |
-| F6 | セッション保存・復元 | タブ・分割・作業場所の組み直しを減らす | 大 | 設計待ち | [#35](https://github.com/fukuyori/ghostty/issues/35) |
-| F7 | クイックターミナルとグローバルキー | 別アプリから端末を呼び出せる | 大 | 設計待ち | [#24](https://github.com/fukuyori/ghostty/issues/24) |
-| F8 | デスクトップ通知・コマンド完了通知 | 長時間処理の完了を知らせる | 中〜大、シェル側の通知に依存 | 設計待ち | [#21](https://github.com/fukuyori/ghostty/issues/21) |
+| F1 | Command palette | Search and run many existing actions | Medium | Not started | [#17](https://github.com/fukuyori/ghostty/issues/17) |
+| F2 | Scrollbar | Locate and navigate long scrollback | Medium | Not started | [#23](https://github.com/fukuyori/ghostty/issues/23) |
+| F3 | File drag and drop | Enter long or multiple paths from Explorer | Medium to high | Not started; path behavior needs a decision | [#32](https://github.com/fukuyori/ghostty/issues/32) |
+| F4 | Taskbar progress | See supported applications' progress outside the terminal | Low to medium | Not started | [#33](https://github.com/fukuyori/ghostty/issues/33) |
+| F5 | HTML clipboard output | Paste formatted terminal output into documents | Low to medium | Not started | [#34](https://github.com/fukuyori/ghostty/issues/34) |
+| F6 | Session save and restore | Reduce rebuilding tabs, splits, and working locations | High | Awaiting design | [#35](https://github.com/fukuyori/ghostty/issues/35) |
+| F7 | Quick terminal and global bindings | Invoke the terminal from another app | High | Awaiting design | [#24](https://github.com/fukuyori/ghostty/issues/24) |
+| F8 | Desktop and command-finish notifications | Report long-running command completion | Medium to high; depends on shell reporting | Awaiting design | [#21](https://github.com/fukuyori/ghostty/issues/21) |
 
-2026-09-23に既存の#17・#23・#24・#21へ計画を追記し、#32〜#35を新規登録した。
-進捗とコマンド完了通知は包括Issue #25にも記載があるため、#33・#21から関連付けた。
-クイックターミナルのCLI/IPC経路は既存の#15で別途追跡する。
+On 2026-09-23, the plan was added to existing #17, #23, #24, and #21, and #32-#35 were created. Broader issue #25 also covers progress and command-finish notifications, so #33 and #21 link to it. Existing #15 separately tracks the quick-terminal CLI/IPC path.
 
-基本順序はF1 → F2 → F3とする。F4・F5は小さな独立した開発単位として、
-必要に応じて途中へ組み込める。F6〜F8は初期機能の検証後に仕様を具体化する。
-この順序は実装上の必須依存関係ではなく、効果と負担からの推奨順序である。
+The recommended order is F1 → F2 → F3. F4 and F5 can be inserted as smaller independent increments. Design F6-F8 after validating the initial features. This is a value-and-effort order, not a strict implementation dependency.
 
-## 4. 初期開発の範囲と完了条件
+## 4. Initial Features: Scope and Completion Criteria
 
-### F1: コマンドパレット
+### F1: Command Palette
 
-共有部分に`toggle_command_palette`と`command-palette-entry`が存在するが、
-Win32の`App.performAction`では未処理。upstreamのGTK実装は設定から
-コマンドを収集し、GTKで未対応の操作を除外している。
+The shared code has `toggle_command_palette` and `command-palette-entry`, but Win32 `App.performAction` does not handle them. Upstream GTK collects commands from config and filters operations unsupported by GTK.
 
-初期範囲:
+Initial scope:
 
-- upstream定義のコマンド名・説明・アクションを使った一覧と検索。
-- キーバインドの表示、選択した操作の実行、Escapeによる取消。
-- 呼び出し元ペインへのフォーカス復帰と設定再読み込みへの追従。
-- Windows未対応の操作はupstreamの方針に沿って扱い、実行可能であるかのように表示しない。
-- noctty独自のプロファイル、名前付きレイアウト、最近のコマンド履歴は含めない。
+- List and search commands using upstream-defined names, descriptions, and actions.
+- Show bindings, execute the selected action, and cancel with Escape.
+- Restore focus to the invoking pane and follow config reloads.
+- Follow upstream policy for Windows-unsupported actions; do not present them as executable.
+- Exclude noctty-specific profiles, named layouts, and recent-command history.
 
-着手前に、macOS/GTKの検索・並び順と動的な移動先一覧の差を確認し、
-初期実装で採用する挙動と未対応範囲を記録する。新しい独自の検索仕様は作らない。
+Before implementation, compare macOS and GTK search, ordering, and dynamic destination lists. Record the chosen behavior and unsupported scope; do not invent a separate search specification.
 
-完了条件:
+Completion criteria:
 
-- 設定した標準・利用者定義コマンドが適切なペインに対して実行される。
-- IME確定Enterでコマンドまで誤実行されず、取消後の入力が端末へ戻る。
-- 設定再読み込み、タブ切り替え、対象ペインの閉鎖で参照切れや誤実行が起きない。
-- 小さいウィンドウ、混在DPI、ハイコントラストで操作可能な表示を確認する。
+- Standard and user-defined configured commands run against the correct pane.
+- IME confirmation Enter does not also execute a command; input returns to the terminal after canceling.
+- Config reload, tab changes, and target-pane closure do not cause stale references or wrong execution.
+- Inspect usable display in small windows, mixed DPI, and high contrast.
 
-### F2: スクロールバー
+### F2: Scrollbar
 
-共有コアの`Surface.updateScrollbar`から履歴位置が通知される。
-`scroll_to_row`も存在するため、履歴モデルの再実装ではなくWin32の表示と入力を追加する。
+The shared core reports scrollback position through `Surface.updateScrollbar`. `scroll_to_row` also exists, so add Win32 presentation and input rather than rebuilding history.
 
-初期範囲:
+Initial scope:
 
-- `scrollbar = system / never`に従うペイン単位のスクロールバー。
-- つまみの位置・大きさを履歴全体と表示範囲から計算し、マウス操作を既存の行移動へ接続。
-- 検索、ホイール、キー操作、新規出力による履歴位置の変化を表示へ反映。
-- noctty独自の検索一致マーカーや装飾は含めない。
+- Per-pane scrollbars following `scrollbar = system / never`.
+- Compute thumb position and size from full history and the visible range; connect mouse input to existing row navigation.
+- Reflect position changes from search, wheel, keys, and new output.
+- Exclude noctty-specific match markers and decoration.
 
-着手前に、Windowsのシステム設定への追従方法、表示領域の占有方法、
-ドラッグ中の新規出力への追従をupstreamの挙動と照合して決める。
+Before implementation, compare upstream behavior and decide how to follow Windows system settings, consume layout space, and handle new output during dragging.
 
-完了条件:
+Completion criteria:
 
-- 履歴なし、大量履歴、履歴上限到達、リサイズで位置と大きさが正しい。
-- 分割ごとの位置が独立し、検索や代替画面への切り替えでも状態が破綻しない。
-- ドラッグ中の出力追加・ペイン閉鎖を処理でき、通常の端末マウス入力を妨げない。
-- DPI変更、ハイコントラスト、`never`への再読み込みを実表示で確認する。
+- Correct position and size with empty or extensive history, a reached history limit, and resize.
+- Independent split positions and stable state across search and alternate-screen transitions.
+- Handle new output or pane closure during drag without obstructing normal terminal mouse input.
+- Inspect actual display for DPI changes, high contrast, and config reload to `never`.
 
-### F3: ファイルのドラッグ＆ドロップ
+### F3: File Drag and Drop
 
-upstreamにはファイル一覧をパスへ変換して貼り付ける処理があり、
-nocttyにはOLEドロップ受付がある。このフォークのWin32には受付処理がない。
+Upstream converts a file list into paths for pasting; noctty has an OLE drop receiver. This fork's Win32 app has no receiver. Initially support file and directory paths from Explorer, excluding arbitrary HTML/URL formats and noctty-specific modifier behavior. Route insertion through the existing input and paste-protection path.
 
-初期範囲はExplorerからのファイル・ディレクトリのパス入力とする。
-任意のHTML/URL形式やnoctty独自の修飾キー操作は含めない。
-貼り付けは既存の入力・貼り付け保護の経路へ接続する。
+Required decisions before implementation:
 
-着手前の必須決定事項:
+- Supported shells, such as PowerShell, cmd, and Git Bash.
+- Quoting and separators for multiple paths and paths with spaces, quotes, or shell metacharacters.
+- Whether to handle WSL/MSYS path conversion; do not convert implicitly.
+- Target pane and focus when dropping onto a split.
 
-- PowerShell、cmd、Git Bashなど、対応を保証するシェルの範囲。
-- 空白・引用符・シェル特殊文字を含むパスの表現と複数パスの区切り。
-- WSL/MSYSのパス変換を扱うかどうか。暗黙の変換はしない。
-- 分割へのドロップ時の対象ペインとフォーカスの扱い。
+Do not assume POSIX escaping or noctty quoting works across all Windows shells. Do not implement before these decisions are made.
 
-POSIX向けのエスケープやnocttyの引用処理を、全Windowsシェルに共通して
-正しいものとして使用しない。仕様が未決定のまま実装を開始しない。
+Completion criteria:
 
-完了条件:
+- Paths with spaces, Japanese characters, and symbols, and multiple files produce intended input in the chosen shells.
+- Actual Explorer drops reach the intended pane without running a command unexpectedly.
+- Check cancelation, target-window closure, paste protection, and OS restrictions for normal/elevated users.
 
-- 空白、日本語、記号を含むパスと複数ファイルが、決定したシェルで意図した入力になる。
-- 実際のExplorer操作で目的のペインに入り、勝手にコマンドを実行しない。
-- 取消、対象ウィンドウの閉鎖、貼り付け保護、通常ユーザー/昇格時のOS制約を確認する。
+## 5. Independent Features
 
-## 5. 独立して進められる機能
+### F4: Taskbar Progress
 
-### F4: タスクバー進捗表示
+The shared core passes `progress_report` to Win32, which currently does not handle it. Reflect upstream `progress-style` states in the Windows taskbar.
 
-共有コアは`progress_report`をWin32へ渡しているが、現在は未処理。
-upstreamの`progress-style`に従い、Windowsのタスクバーへ状態を反映する。
+- Handle normal, paused, error, indeterminate, and cleared states.
+- Determine which pane's state represents a multi-pane window using upstream policy.
+- Verify value range, active-pane changes, cleanup after exit, and API failure.
+- Test both a controlled progress sequence and a real supporting app. Do not claim automatic support for apps that emit no progress.
 
-- 通常、停止、エラー、不定、解除を扱う。
-- 複数ペインのうちどの状態をウィンドウに表示するかはupstreamの方針を確認して決める。
-- 表示値の範囲、アクティブペイン切り替え、終了後の表示消去、API失敗を検証する。
-- 制御した進捗シーケンスと実際の対応アプリを分けて検証する。
-  進捗を送らないアプリにも自動で対応するとは説明しない。
+### F5: HTML Clipboard Output
 
-### F5: HTML形式のコピー
+The shared core generates HTML for `copy_to_clipboard:html` and mixed output. Current Win32 writes only `CF_UNICODETEXT` and does not register HTML.
 
-共有コアは`copy_to_clipboard:html`やmixed形式のHTMLを生成している。
-現在のWin32書き込みは`CF_UNICODETEXT`のみで、HTML表現を登録していない。
+- Connect upstream-generated HTML to Windows `HTML Format` (CF_HTML).
+- Compare plain, mixed, and HTML behavior with upstream. Decide any plain-text fallback instead of guessing its content.
+- Validate CF_HTML headers with UTF-8 byte offsets, Japanese text, newlines, and special characters.
+- Inspect actual paste results in rich-text and plain-text destinations.
+- Preserve existing copy and OSC 52 behavior.
 
-- upstreamが生成したHTMLをWindowsの`HTML Format`（CF_HTML）へ接続する。
-- plain/mixed/htmlそれぞれの扱いをupstreamと照合する。plain表現の補完が
-  必要な場合も、内容を推測で生成せず方針を決める。
-- UTF-8バイト位置を用いるCF_HTMLヘッダー、日本語、改行、特殊文字を検証する。
-- 書式対応アプリとプレーンテキストの貼り付け先で、実際の貼り付け結果を確認する。
-- 既存のコピーとOSC 52の動作を維持する。
+## 6. Later Design Work
 
-## 6. 後段の設計対象
+### F6: Session Save and Restore
 
-### F6: セッション保存・復元
+Upstream depends on the macOS restoration mechanism. Noctty uses its own JSON format and profile management; do not adopt that implementation.
 
-upstreamではmacOSの復元機構に依存する。nocttyでは独自JSON形式と
-プロファイル管理を利用しており、その実装は採用しない。
+First design Windows defaults for `window-save-state`, save timing, format and migration, and restoration scope for windows, tabs, splits, titles, and working directories. Consider precedence against `-e` and an explicit startup directory, corruption and interrupted writes, missing directories, and changed monitor layouts.
 
-`window-save-state`のWindowsでの既定動作、保存タイミング、形式と移行、
-ウィンドウ・タブ・分割・タイトル・作業場所の復元範囲を先に設計する。
-`-e`や明示した起動ディレクトリとの優先関係、破損・途中書き込み、
-存在しないディレクトリ、モニター構成変更も検討する。
+Do not present this as resuming running processes. Current PowerShell integration does not automatically report the working directory, so the exit-time directory may be unavailable. Exclude noctty-specific history snapshots and named layouts.
 
-実行中のプロセスを再開する機能とは扱わない。現在のPowerShellには
-作業場所の自動通知がないため、終了時のディレクトリを常に保存できるとは限らない。
-noctty独自の履歴スナップショットや名前付きレイアウトは追加しない。
+### F7: Quick Terminal and Global Bindings
 
-### F7: クイックターミナルとグローバルキー
+Use `toggle_quick_terminal`, `quick-terminal-*`, and `global:` as the contract. Design hotkey registration/removal and config reload, conflicts, multiple monitors, foreground display and auto-hide, focus return to the previous app, and process cleanup on exit.
 
-`toggle_quick_terminal`、`quick-terminal-*`、`global:`を基準にする。
-キー登録・解除と設定再読み込み、競合、複数モニター、前面表示・自動非表示、
-元のアプリへのフォーカス復帰、終了時のプロセス管理を設計する。
+Noctty substitutes ordinary focus acquisition for exclusive-input requests in one implementation. Loading the same setting is insufficient for compatibility; determine its achievable Windows meaning per setting. Verify with real keys while another app is active.
 
-nocttyでは排他的入力指定を通常のフォーカス取得に置き換える実装がある。
-同じ設定を読み込めるだけで互換とは見なさず、Windowsで実現できる意味を
-設定ごとに確認する。検証は他アプリを操作している状態からの実キー入力を含む。
+### F8: Desktop and Command-Finish Notifications
 
-### F8: デスクトップ通知・コマンド完了通知
+Treat `desktop_notification` and `command_finished` separately. Preserve upstream enable/disable, focus conditions, elapsed-time thresholds, and notification actions. Decide Windows notification API use, install-state requirements, click destinations, and unavailable-notification behavior first.
 
-`desktop_notification`と`command_finished`を区別して扱う。
-upstreamの有効/無効、フォーカス条件、経過時間、通知アクションを尊重する。
-Windows通知API、インストール状態、通知のクリック先、通知が利用できない
-環境での扱いを先に確認する。
+Command-finish notifications require shell integration or OSC 133 start/end data. Adding notification UI alone cannot detect arbitrary PowerShell command completion. Do not add noctty-specific automatic PowerShell integration under this plan.
 
-コマンド完了通知にはシェル連携またはOSC 133の開始・終了情報が必要。
-通知UIを追加するだけではPowerShellの任意のコマンドを自動検出できない。
-この計画ではnoctty独自のPowerShell自動連携を追加しない。
+## 7. Other Candidates and Exclusions
 
-## 7. その他の候補と除外範囲
+Reassess these shared features after the initial work:
 
-次の共通機能は初期開発の後に再評価する。
+- Tab overview: compare its value with existing tab operations and the palette.
+- Undo/Redo: upstream and noctty cover different operations. Design closed-pane lifetime, process preservation, `undo-timeout`, and history disposal.
+- Background-opacity toggle: a smaller `toggle_background_opacity` compatibility candidate. Opacity settings already exist. Preserve D3D11 background-opacity semantics rather than adopting noctty's whole-window alpha.
 
-- タブ一覧表示: 既存のタブ操作やパレットとの効果の重複を評価する。
-- Undo/Redo: upstreamとnocttyで対象操作が異なる。閉じたペインの寿命、
-  プロセス維持、`undo-timeout`と履歴破棄まで設計が必要。
-- 背景透過の切り替え: `toggle_background_opacity`の小さな互換性改善候補。
-  透過設定自体は実装済み。nocttyのウィンドウ全体へのアルファ適用を採用せず、
-  既存のD3D11背景透過の意味を維持する。
+Out of scope:
 
-対象外:
+- Noctty-specific automatic PowerShell/cmd integration, shell profile selection, and named layouts.
+- Noctty-specific config GUI, control API, update mechanism, and palette extensions.
+- Rebuilding already implemented tabs, splits, or terminal search as missing features.
+- Replacing D3D11 with noctty's OpenGL renderer.
 
-- noctty独自のPowerShell/cmd自動連携、シェルプロファイル選択、名前付きレイアウト。
-- noctty独自の設定GUI、操作API、更新機構、パレット拡張。
-- すでに実装済みのタブ・分割・端末検索を未実装機能として作り直すこと。
-- D3D11からnocttyのOpenGL描画方式への置き換え。
+## 8. Shared Completion Criteria and Evidence
 
-## 8. 共通の完了条件と検証記録
+Track each feature through Not started → Specified → Implementing → Automated checks passed → Real-machine checks passed. Record distributed-build verification separately. Neither a successful build nor automated tests alone complete a GUI feature.
 
-機能の状態は「未着手 → 仕様確定 → 実装中 → 自動検証済み → 実機確認済み」とし、
-配布版での検証は別に記録する。自動テストやビルド成功だけでGUI機能を完了としない。
+Select relevant checks per feature under the [roadmap verification criteria](windows-roadmap.md#9-verification-for-each-change):
 
-各機能で必要な範囲を選び、[ロードマップの検証基準](windows-roadmap.md#9-verification-for-each-change)
-に従う。
+- Format changed files; run `git diff --check`, meaningful targeted unit tests, and a build.
+- Use `test-windows-window-state.ps1` for input, split, reload, and exit regression checks.
+- Inspect actual display or images for GUI changes, and real key, mouse, and IME input for input changes.
+- For window or process lifecycle changes, inspect exit codes and leftover processes; run `test-windows-soak.ps1` when needed.
+- Record coverage of DPI, multiple displays, and high contrast. Check keyboard access and accessibility for new UI.
+- Add GPU-recovery and power-resume checks only when the rendering lifecycle changes.
 
-- 対象ファイルの整形、`git diff --check`、意味のある対象ユニットテスト、ビルド。
-- 既存の`test-windows-window-state.ps1`を用いた入力・分割・再読み込み・終了の回帰確認。
-- GUIは実表示または画像、入力は実キー・マウス・IME操作で確認する。
-- ウィンドウやプロセスの寿命を変える機能は終了コード・残留プロセスを確認し、
-  必要に応じて`test-windows-soak.ps1`を実行する。
-- DPI・複数画面・ハイコントラストの確認範囲を記録する。
-  UIを追加する機能はキーボード操作とアクセシビリティも確認する。
-- 描画ライフサイクルを変更した場合のみ、必要なGPU復旧・電源復帰試験を追加する。
+Record the commit, build configuration, executable, OS, DPI, shell, distinction between automated and manual checks, results, logs/images, and unknowns. Do not conflate controlled, real-machine, and distributed-artifact evidence.
 
-記録には対象コミット、ビルド構成、実行ファイル、OS・DPI・シェル、
-自動試験と手動操作の区別、結果、ログ/画像、未確認事項を含める。
-制御した試験・実機試験・配布物の試験結果を混同しない。
+Update this plan, `windows.md`, `windows-roadmap.md`, and `windows-changelog.md` with implementation. Roadmap Phase 7 is authoritative for F1-F8 priority, status, and issues; update the corresponding sections here at the same time. On publication, record actually included features, checks, and limitations in `windows-release-notes.md`. Do not append unpublished changes to an old release. Version changes, commits, tags, pushes, and packaging require separate requests.
 
-実装に合わせて本計画、`windows.md`、`windows-roadmap.md`、
-`windows-changelog.md`を更新する。F1〜F8の優先順位・状態・Issueは
-ロードマップのPhase 7を正本とし、本書の対応箇所も同時に更新する。公開時に`windows-release-notes.md`へ
-実際に含まれる機能・検証・制限を記録し、未公開の変更を既存リリースへ追記しない。
-バージョン変更、コミット、タグ、プッシュ、パッケージ作成は別途の依頼に従う。
+## 9. Code References
 
-## 9. コード参照
+Local references use the commits in Section 2.
 
-ローカル参照は第2節のコミット時点を基準とする。
-
-| 対象 | 参照箇所 |
+| Target | Reference |
 |---|---|
-| upstreamの設定・アクション | [`Config.zig`](../src/config/Config.zig)、[`action.zig`](../src/apprt/action.zig)、[`Binding.zig`](../src/input/Binding.zig) |
-| 現在のWin32アクション受付 | [`App.zig`](../src/apprt/win32/App.zig) の`performAction` |
-| upstream由来のパレット | [`GTK command_palette.zig`](../src/apprt/gtk/class/command_palette.zig) の`collectRegularCommands`、`isActionSupportedOnGtk` |
-| upstream由来のファイルドロップ | [`GTK surface.zig`](../src/apprt/gtk/class/surface.zig) の`dtDrop` |
-| 共有コアの履歴・進捗・HTML | [`Surface.zig`](../src/Surface.zig) の`updateScrollbar`、`progress_report`、クリップボード形式生成 |
-| 現在のWin32クリップボード | [`win32/Surface.zig`](../src/apprt/win32/Surface.zig) の`setClipboard` |
-| nocttyの主要処理 | `../noctty/src/apprt/win32.zig` の`invokePaletteRow`、`setScrollbar`、`setProgressReport`、`restoreSessionPane`、`toggleQuickTerminal` |
-| nocttyの補助処理 | `win32_surface_drop_target.zig`、`win32_surface_drop.zig`、`win32_clipboard_html.zig`、`win32_taskbar_progress.zig`、`win32_session_persistence.zig`（いずれも同リポジトリの`src/apprt/`） |
+| Upstream config and actions | [`Config.zig`](../src/config/Config.zig), [`action.zig`](../src/apprt/action.zig), [`Binding.zig`](../src/input/Binding.zig) |
+| Current Win32 action handling | [`App.zig`](../src/apprt/win32/App.zig) `performAction` |
+| Upstream palette | [GTK `command_palette.zig`](../src/apprt/gtk/class/command_palette.zig) `collectRegularCommands`, `isActionSupportedOnGtk` |
+| Upstream file drop | [GTK `surface.zig`](../src/apprt/gtk/class/surface.zig) `dtDrop` |
+| Shared-core history, progress, HTML | [`Surface.zig`](../src/Surface.zig) `updateScrollbar`, `progress_report`, clipboard-format generation |
+| Current Win32 clipboard | [`win32/Surface.zig`](../src/apprt/win32/Surface.zig) `setClipboard` |
+| Main noctty implementation | `../noctty/src/apprt/win32.zig`: `invokePaletteRow`, `setScrollbar`, `setProgressReport`, `restoreSessionPane`, `toggleQuickTerminal` |
+| Noctty helpers | `win32_surface_drop_target.zig`, `win32_surface_drop.zig`, `win32_clipboard_html.zig`, `win32_taskbar_progress.zig`, `win32_session_persistence.zig` (all under that repository's `src/apprt/`) |
 
-upstream公開ソースの固定参照:
-[設定](https://github.com/ghostty-org/ghostty/blob/bd1c82bc5306da32b16b5055ceff023d7ebc9edc/src/config/Config.zig)、
-[アクション](https://github.com/ghostty-org/ghostty/blob/bd1c82bc5306da32b16b5055ceff023d7ebc9edc/src/apprt/action.zig)。
+Pinned upstream sources: [config](https://github.com/ghostty-org/ghostty/blob/bd1c82bc5306da32b16b5055ceff023d7ebc9edc/src/config/Config.zig), [actions](https://github.com/ghostty-org/ghostty/blob/bd1c82bc5306da32b16b5055ceff023d7ebc9edc/src/apprt/action.zig).

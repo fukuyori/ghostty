@@ -11,6 +11,10 @@ known issues, and known limitations of each version; the
 
 ### Documentation
 
+- Translate the rebranding plan, upstream feature plan, technical comparison,
+  and the roadmap's repository-operation section into English. Keep the
+  documented decisions, issue links, and historical release records intact.
+
 - Add the [Windows upstream feature development plan](windows-upstream-feature-plan.md)
   with priorities, compatibility boundaries, dependencies, and acceptance
   checks for features shared by upstream Ghostty and noctty but missing from
