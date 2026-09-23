@@ -7,6 +7,20 @@ known issues, and known limitations of each version; the
 [version update checklist](version-update-checklist.md) describes the
 `X.Y.Z-windows.N` numbering.
 
+## Unreleased
+
+### Documentation
+
+- Add the [Windows upstream feature development plan](windows-upstream-feature-plan.md)
+  with priorities, compatibility boundaries, dependencies, and acceptance
+  checks for features shared by upstream Ghostty and noctty but missing from
+  this fork's Windows runtime. Link it from the roadmap. No runtime changes.
+- Track F1-F8 in fork issues: extend #17, #23, #24, and #21 with the plan,
+  create #32-#35, and record the issue links in the development plan.
+- Integrate the feature plan into the roadmap as Phase 7. Keep the original
+  six phases' completion history, current rebranding priority, and open
+  hardware verification distinct from the unstarted F1-F8 work.
+
 ## 1.3.2-windows.11
 
 Windows preview published 2026-09-22. Includes the upstream merge

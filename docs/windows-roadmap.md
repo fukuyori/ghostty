@@ -1,9 +1,10 @@
 # Ghostty Windows Production-Readiness Roadmap
 
-- Last updated: 2026-09-22
+- Last updated: 2026-09-23
 - Target branch: `windows`
 - Baseline commit: `132a5d078` (`docs: add Windows implementation roadmap`)
 - Phase breakdown basis: the six phases agreed in the conversation as of 2026-09-14
+- Phase 7 basis: the 2026-09-23 [upstream feature development plan](windows-upstream-feature-plan.md)
 
 ## 1. Purpose
 
@@ -16,6 +17,13 @@ On this branch, implementation proceeds without waiting for the mattn build
 to be merged upstream. Even if features later overlap with upstream or the
 mattn build, production readiness takes priority, and differences will be
 reconciled at merge time.
+
+Phases 1-6 record the original Windows production-readiness work. Phase 7
+tracks subsequent feature coverage. This roadmap is the source of truth for
+phase priorities, status, and issue tracking; the
+[feature development plan](windows-upstream-feature-plan.md) contains the
+feature-level design questions and acceptance checks. Update both when scope,
+order, or status changes.
 
 ## 2. Repository Operation
 
@@ -82,8 +90,11 @@ work in this document at the same time.
 | 4 | Split panes | Done | 100% |
 | 5 | Windows GUI polish | Done | 100% |
 | 6 | Release quality | Done | 100% |
+| 7 | Upstream feature coverage on Windows (F1-F8) | Not started | Not estimated |
 
-All six phases are done. On 2026-09-15 the first preview build
+The original six production-readiness phases are done. Phase 7 is new and
+has no completed feature or percentage estimate. Its scope does not change
+the historical completion status of Phases 1-6. On 2026-09-15 the first preview build
 `1.3.2-windows.1` (tag `v1.3.2-windows.1`) was finalized after passing
 Release verification, and later previews followed. The preceding Windows
 preview, `1.3.2-windows.10` (tag `v1.3.2-windows.10`), makes programs
@@ -1159,72 +1170,81 @@ Completion criteria:
   documentation.
 - When creating packages, verify the artifacts after an explicit request.
 
+### Phase 7: Upstream Feature Coverage on Windows
+
+Status: **Not started**. All F1-F8 issues are registered; implementation and
+acceptance verification have not begun. This is a new phase after the six
+completed production-readiness phases. It is not part of the historical
+`1.3.2-windows.11` distribution evidence.
+
+Use upstream Ghostty settings, actions, defaults, and behavior as the
+compatibility contract. The local noctty checkout is a reference for Windows
+constraints, not a source of new product requirements or code to adopt.
+Keep shared-core changes minimal and Windows-specific behavior in the Win32
+runtime. The [feature development plan](windows-upstream-feature-plan.md)
+records the detailed scope, open questions, code references, and acceptance
+checks; this roadmap owns ordering and status.
+
+| Order | ID | Feature and upstream contract | Issue | Status | Entry and acceptance gate |
+|---|---|---|---|---|---|
+| 1 | F1 | Command palette: `toggle_command_palette`, `command-palette-entry` | [#17](https://github.com/fukuyori/ghostty/issues/17) | Not started | Settle macOS/GTK behavior differences; verify standard and custom actions, focus, IME Enter, config reload, DPI, and high contrast |
+| 2 | F2 | Per-pane scrollbar: `scrollbar = system / never`, `scroll_to_row` | [#23](https://github.com/fukuyori/ghostty/issues/23) | Not started | Settle system visibility and layout; verify long history, pane independence, mouse drag, search, resize, and DPI |
+| 3 | F3 | Explorer file/directory drop into a pane | [#32](https://github.com/fukuyori/ghostty/issues/32) | Not started | First decide supported shells, quoting, multiple paths, WSL/MSYS handling, and target pane; verify real Explorer drops and paste protection |
+| Independent | F4 | Taskbar progress from `progress_report` and `progress-style` | [#33](https://github.com/fukuyori/ghostty/issues/33) | Not started | Decide active-pane policy; verify normal, paused, error, indeterminate, and cleared states with a controlled sequence and a real emitting app |
+| Independent | F5 | HTML and mixed clipboard output | [#34](https://github.com/fukuyori/ghostty/issues/34) | Not started | Settle plain fallback for HTML-only copies; verify CF_HTML offsets, Japanese text, rich/plain paste, and existing OSC 52 behavior |
+| Later design | F6 | Session save/restore: `window-save-state` | [#35](https://github.com/fukuyori/ghostty/issues/35) | Not started | Decide Windows defaults, saved scope, format, startup precedence, invalid state, and working-directory limits before implementation |
+| Later design | F7 | Quick terminal and `global:` bindings | [#24](https://github.com/fukuyori/ghostty/issues/24) | Not started | Decide Win32 semantics for each setting; verify hotkey conflicts, focus, reload, multiple monitors, and clean exit |
+| Later design | F8 | Desktop and command-finish notifications | [#21](https://github.com/fukuyori/ghostty/issues/21) | Not started | Separate OSC notifications from shell-dependent command completion; verify policy, delivery, activation, and unavailable notifications |
+
+F1 -> F2 -> F3 is the recommended feature order. F4 and F5 can be delivered
+as independent increments. Design F6-F8 after the initial features are
+verified. This ordering is not a hard technical dependency. Rebranding [#31](https://github.com/fukuyori/ghostty/issues/31) remains the highest priority
+for the next release; feature order applies within Phase 7.
+
+Each feature moves through scope/design decision, implementation, focused
+tests, GUI or actual-output inspection, and relevant real input/device
+verification. A passing build alone does not mark a feature Done. Record
+tested executable, commit, OS, DPI, shell, logs/images, exit code, and
+remaining gaps. Release-build evidence is separate from Debug/controlled
+tests. Section 9 gives the common verification floor. Phase 7 is Done only
+when F1-F8 each pass their acceptance gate and the verification matrix and
+feature plan reflect the results.
+
+Other shared capabilities remain candidates: tab overview, structural
+undo/redo, and the background-opacity toggle. Their value and compatibility
+scope must be reassessed after F1-F8; they are not part of Phase 7 completion.
+
 ## 7. Next Steps
 
-All six phases are done. `1.3.2-windows.3` is released with the split focus,
-terminfo, and installer fixes, `1.3.2-windows.4` with the image fixes,
-`1.3.2-windows.5` with the split pane fix, and `1.3.2-windows.6` with the
-right-click context menu, which resolves
-[#4](https://github.com/fukuyori/ghostty/issues/4). What remains is tracked as
-GitHub issues. `1.3.2-windows.7` fixes the IOCP notification hang; its
-distribution-build, signing, and installer verification is complete,
-as confirmed by the repository owner.
+Rebranding [#31](https://github.com/fukuyori/ghostty/issues/31) is the
+highest priority for the release after `1.3.2-windows.11`. Phase 7 then
+follows the F1-F8 order in Section 6; its issues are tracked there.
+Search-bar focus restoration and message-loop routing remain review items.
+Physical search IME input and mixed-DPI presentation remain unverified.
 
-`1.3.2-windows.8` includes the Shift character input fix. Unit tests, a Debug
-build, and actual input in antigravity passed as reported by the owner.
-The ReleaseFast executable, version metadata, and signatures on the staged
-executable and installer were subsequently verified locally.
+Real-hardware verification in the user's environment:
 
-`1.3.2-windows.9` includes the numpad double-input fix. Win32 tests,
-the window-state regression, and numpad input recorded from a terminal program
-passed on a Debug build; the owner confirmed actual numpad input; and the
-ReleaseFast executable reports `1.3.2-windows.9`. On the ReleaseFast builds,
-the window-state regression passed on the distribution build and on the
-test-hook build with 2 controlled GPU recovery failures and power resume, and
-a 20-iteration soak run completed 20 of 20 in 135.4 seconds. The owner built
-the signed installer, which reports `1.3.2-windows.9` with a Valid signature.
+- [#5](https://github.com/fukuyori/ghostty/issues/5): GUI at 144 and 192 DPI
+- [#6](https://github.com/fukuyori/ghostty/issues/6): high contrast
+- [#7](https://github.com/fukuyori/ghostty/issues/7): tab accessibility with a screen reader
+- [#8](https://github.com/fukuyori/ghostty/issues/8): real sleep and resume
+- [#9](https://github.com/fukuyori/ghostty/issues/9): multi-hour soak
+- [#10](https://github.com/fukuyori/ghostty/issues/10): real GPU device loss or driver failure
 
-`1.3.2-windows.10` registers the compiled terminfo entry in the running
-user's `%USERPROFILE%\.terminfo\78` at startup, so that programs reading
-terminfo resolve `xterm-ghostty` from a working directory on any drive. On a
-Debug build, `zig build test` passed 3840 of 3902 with 62 skipped, and the
-registration was exercised from `D:` against an empty destination, one
-holding the user's own entry, and one holding a temporary file from an
-interrupted run. On the ReleaseFast builds, the window-state regression
-passed on the distribution build and a 20-iteration soak run completed 20 of
-20 in 115.4 seconds with no failures and no leftover temporary files. The
-owner built the signed installer, which reports `1.3.2-windows.10` with a
-Valid signature. GPU resource re-creation and power resume were not included,
-because they need a `-Dwin32-test-hooks=true` build.
+Open product decisions:
 
-`1.3.2-windows.11` has a locally verified ReleaseFast build and signed
-installer, published with source tag `v1.3.2-windows.11` (`969d637e3`).
-Preserve the earlier cursor/startup-row timeout observations separately
-from successful reruns.
-Rebranding is the highest priority starting with the following release (#31).
-Search-bar focus restoration and message-loop routing remain review items;
-physical IME search input and mixed-DPI presentation remain unverified.
-
-Real-hardware verification, performed in the user's environment:
-
-- [#5](https://github.com/fukuyori/ghostty/issues/5): verify the GUI at 144 and 192 DPI on real hardware
-- [#6](https://github.com/fukuyori/ghostty/issues/6): verify the GUI with high contrast enabled
-- [#7](https://github.com/fukuyori/ghostty/issues/7): verify tab accessibility with a screen reader
-- [#8](https://github.com/fukuyori/ghostty/issues/8): verify rendering and input after a real sleep and resume
-- [#9](https://github.com/fukuyori/ghostty/issues/9): run a soak test lasting several hours
-- [#10](https://github.com/fukuyori/ghostty/issues/10): verify recovery from a real GPU device loss or driver failure
-
-Decisions:
-
-- [#1](https://github.com/fukuyori/ghostty/issues/1): a font-family that matches no installed family is replaced silently
-- [#2](https://github.com/fukuyori/ghostty/issues/2): font fallback picks the first file that contains the codepoint
-- [#3](https://github.com/fukuyori/ghostty/issues/3): font size adjustment applies to fallback faces but not to configured families
-- [#11](https://github.com/fukuyori/ghostty/issues/11): decide whether background-blur is supported or a limitation
+- [#1](https://github.com/fukuyori/ghostty/issues/1): unmatched font family handling
+- [#2](https://github.com/fukuyori/ghostty/issues/2): fallback font selection
+- [#3](https://github.com/fukuyori/ghostty/issues/3): configured/fallback font size adjustment
+- [#11](https://github.com/fukuyori/ghostty/issues/11): background blur support or limitation
 
 Deferred refactoring:
 
 - [#12](https://github.com/fukuyori/ghostty/issues/12): split `src/apprt/win32/App.zig` by responsibility
 - [#13](https://github.com/fukuyori/ghostty/issues/13): render directly to the back buffer when no custom shader is used
+
+Release history and evidence for already distributed builds remain in
+[release notes](windows-release-notes.md) and Section 8 of this roadmap.
 
 ## 8. Verification Matrix
 
@@ -1233,6 +1253,7 @@ the code exists.
 
 | Category | Test item | Current |
 |---|---|---|
+| Feature expansion | Phase 7, F1-F8 | Not started; no implementation or acceptance verification. See Section 6 and the feature development plan |
 | Startup | Debug build startup | Verified |
 | Startup | Release build startup | PE, resources, CLI, and a dedicated GUI process verified |
 | Release | `1.3.2-windows.1` | Regression, 20-iteration soak, and CLI verified with the distribution and regression Release builds. Signing at distribution time |
@@ -1339,11 +1360,12 @@ failure.
 When each step is completed, update the following in the same change or in
 an immediately following documentation change.
 
-1. Phase status and estimated percentage
+1. Phase status; record an estimated percentage only when one has been established
 2. Implemented items and remaining work
 3. Verification matrix
 4. Supporting commits
 5. Newly discovered limitations and risks
+6. For Phase 7, F1-F8 status, priority, issue links, and the corresponding feature-plan details
 
 When adding or removing steps, also review the completion criteria and
 overall progress at the same time.
