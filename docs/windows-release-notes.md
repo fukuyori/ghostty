@@ -7,6 +7,75 @@ versions with their commits, the
 numbering rules, the [User Guide](windows.md) for configuration and known
 limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 
+## 1.3.2-windows.12
+
+- Prepared: 2026-09-26
+- Published: 2026-09-26 ([GitHub Release](https://github.com/fukuyori/ghostty/releases/tag/v1.3.2-windows.12))
+- Source tag: `v1.3.2-windows.12`
+- Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
+- Status: preview. This release adds the first three Phase 7 features to the
+  native Windows runtime.
+
+### Changes Since 1.3.2-windows.11
+
+- Add a native command palette opened with `Ctrl+Shift+P`, including configured
+  commands, live pane destinations, search, shortcut labels, IME-safe Enter,
+  focus restoration, and config-reload and owner-window lifecycle handling.
+- Add slim per-pane overlay scrollbars for `scrollbar = system`, with
+  `scrollbar = never` disabling them. The bars follow key, wheel, search, and
+  alternate-screen state, support real-pointer dragging, and remain independent
+  across splits.
+- Accept Explorer file and directory drops on terminal panes. PowerShell paths
+  use single-quote escaping, cmd paths use double quotes, and unsafe cmd `%` or
+  `!` paths are rejected. Drops insert text without pressing Enter.
+- Extend the native regression with palette, scrollbar, drag-race,
+  history-boundary, DPI, high-contrast, and lifecycle coverage. Make the soak
+  preserve pre-existing manual test-state evidence while detecting new leaks.
+
+### Verification
+
+Before the version bump, the current source passed the full Debug test suite
+(3874 passed, 62 skipped), the Win32 test-hook suite (149 passed, 1 skipped),
+the combined native F1/F2 regression, physical Japanese IME confirmation,
+real-pointer scrollbar dragging, high-contrast display, 100%/125% mixed-DPI
+display, real Explorer drop quoting and pane targeting, and target-window
+closure during an Explorer drag. A baseline-CPU ReleaseFast verification build
+also passed the combined F1/F2 regression and a 20/20 soak. These results are
+source verification and remain distinct from the `.12` distribution checks
+recorded below.
+
+The final baseline-CPU ReleaseFast distribution completed all 128 build steps.
+Its unsigned `ghostty.exe` is 26,484,736 bytes, reports
+`1.3.2-windows.12` / numeric `1.3.2.12`, and has SHA-256
+`53F5443CBFBA60EF8E325D0D07A80D456CA92EE10030499851D6EC7B0E130F68`.
+The final executable passed the combined command-palette and overlay-scrollbar
+native regression with exit code 0 and no forced termination; its three
+screenshots were inspected. It then passed 20/20 soak iterations with no
+failures in 119.596 seconds.
+
+The signed x64 installer is 17,826,288 bytes with SHA-256
+`2C76382B9E5B0FD85D9C79EB0388A5C6AF7F71E46EAB7EB33DDF803726C5AC20`.
+The installer, staged executable, and generated uninstaller have Valid
+Authenticode signatures; the installer and executable are timestamped. An
+installed-device check upgraded `1.3.2-windows.11` to `.12`, verified the
+registered and executable versions, bundled ConPTY files, and signatures, and
+then ran the combined native regression. Its first history-limit scrollbar
+measurement timed out; an unchanged rerun passed with exit code 0, no forced
+termination, and normal inspected screenshots. Silent uninstallation returned
+0 and removed the installation directory and registry entry while preserving
+the user configuration directory. Reinstallation returned 0 and left the
+signed `.12` executable installed with no Ghostty process remaining.
+
+### Known Limitations
+
+- A normal Explorer process cannot drop into an elevated Ghostty window due to
+  Windows integrity-level isolation. Use a non-elevated Ghostty window.
+- File-drop quoting follows the pane's configured startup shell. Switching to
+  another shell inside an existing terminal is not detected; WSL/MSYS path
+  translation is not included.
+- This preview retains the Ghostty product name and shared configuration path.
+  The separate rebranding plan remains future work.
+
 ## 1.3.2-windows.11
 
 - Prepared: 2026-09-22

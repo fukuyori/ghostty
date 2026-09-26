@@ -9,6 +9,14 @@ known issues, and known limitations of each version; the
 
 ## Unreleased
 
+No changes yet.
+
+## 1.3.2-windows.12
+
+Released 2026-09-26. This preview adds the native command palette, per-pane
+overlay scrollbars, and Explorer file and directory drop support. It also
+extends the Windows native regression and soak coverage for those features.
+
 ### Windows features in development
 
 - Record the 2026-09-26 F1-F3 verification checkpoint: F1 controlled palette
