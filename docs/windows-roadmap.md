@@ -121,12 +121,14 @@ owner built the signed installer, which reports `1.3.2-windows.10` with a
 Valid signature. The earlier preview, `1.3.2-windows.9`, fixes numpad digits
 and operators being entered twice.
 
-The current Windows preview is `1.3.2-windows.12`, prepared for publication on
-2026-09-26. It adds the native command palette, per-pane overlay scrollbars,
-and Explorer file and directory drops. Debug, real-input, high-contrast,
-mixed-DPI, ReleaseFast regression, soak, signed installer, upgrade,
-uninstallation, and reinstallation evidence is recorded in Phase 7 and the
-release notes. This preview retains the current product name;
+The current Windows preview is `1.3.2-windows.12`, published on 2026-09-26
+from source commit `0327dbce1`. It adds the native command palette, per-pane
+overlay scrollbars, and Explorer file and directory drops. Debug, real-input,
+high-contrast, mixed-DPI, ReleaseFast regression, soak, signed installer,
+upgrade, uninstallation, and reinstallation evidence is recorded in Phase 7
+and the release notes. The signed installer is available on
+[GitHub Releases](https://github.com/fukuyori/ghostty/releases/tag/v1.3.2-windows.12).
+This preview retains the current product name;
 rebranding remains tracked separately in [#31](https://github.com/fukuyori/ghostty/issues/31).
 
 Remaining real-hardware verification, open decisions, and
@@ -825,6 +827,13 @@ Recent verification:
   the installation directory and registry entry, preserved the user config,
   and left no Ghostty process. Reinstallation returned 0 and restored the
   signed `.12` executable.
+- 2026-09-26: Published `v1.3.2-windows.12`, source commit `0327dbce1`,
+  as the latest GitHub Release with the signed x64 installer. Re-downloaded
+  the published asset and verified its 17,826,288-byte size and SHA-256
+  `2C76382B9E5B0FD85D9C79EB0388A5C6AF7F71E46EAB7EB33DDF803726C5AC20`
+  match the local artifact and its timestamped Authenticode signature remains
+  Valid. The source tag stays on the release commit; this publication record
+  is a subsequent documentation-only update.
 - 2026-09-22: Prepared the `1.3.2-windows.11` ReleaseFast/baseline build
   (128/128 build steps, version `1.3.2-windows.11`, numeric `1.3.2.11`,
   Win32/D3D11/IOCP, `IsDebug` False). Win32-filtered Debug tests with hooks
@@ -1416,7 +1425,7 @@ the code exists.
 | Release | `1.3.2-windows.10` | Terminfo registration in the user's home. Unit tests (3840/3902, 62 skipped) and registration against an empty, an occupied, and a leftover-temporary-file destination passed on a Debug build launched from `D:`; `tput longname` and `tput colors` then resolved from `D:`. ReleaseFast version metadata verified, window-state regression and 20-iteration soak (20/20, 115.4 s) passed on the distribution build. Signed installer built by the owner; installer and staged executable signatures Valid. GPU recovery and power resume not run (needs a test-hook build) |
 | Release | `1.3.2-windows.9` | Numpad double-input fix. Win32 tests with hooks, window-state regression, and recorded numpad input passed on a Debug build; actual numpad input confirmed by the owner; ReleaseFast CLI and version metadata verified; regression on the distribution and test-hook ReleaseFast builds and 20-iteration soak (20/20) passed. Signed installer built by the owner; installer and staged executable signatures Valid |
 | Release | `1.3.2-windows.11` | Published 2026-09-22, source `969d637e3`. ReleaseFast metadata/runtime and native regressions passed; final soak 20/20 (119.3 s), no process or temporary-state leftovers. Signed installer and staged executable signatures Valid. Earlier cursor/startup-row timeouts remain unexplained; physical IME/mixed DPI and installation/upgrade/uninstallation remain unverified |
-| Release | `1.3.2-windows.12` | ReleaseFast metadata and combined F1/F2 regression passed; final soak 20/20 (119.596 s). Signed installer, staged executable, and uninstaller signatures Valid and upgrade from `.11`, installed runtime, uninstallation cleanup, config preservation, and reinstallation verified. The first installed scrollbar-history measurement timed out; an unchanged rerun passed |
+| Release | `1.3.2-windows.12` | Published 2026-09-26, source `0327dbce1`. ReleaseFast metadata and combined F1/F2 regression passed; final soak 20/20 (119.596 s). Signed installer, staged executable, and uninstaller signatures Valid and upgrade from `.11`, installed runtime, uninstallation cleanup, config preservation, and reinstallation verified. The published installer was re-downloaded with matching size/hash and a Valid timestamped signature. The first installed scrollbar-history measurement timed out; an unchanged rerun passed |
 | Fonts | Family matching and fallback | Measured: a configured family that matches nothing is replaced silently, and the automatic fallback takes the first file containing the codepoint. Tracked as issues 1, 2, and 3 |
 | Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature |
 | Version info | CLI version display | Verified with the Release build |

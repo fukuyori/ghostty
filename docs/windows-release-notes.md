@@ -11,7 +11,7 @@ limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 
 - Prepared: 2026-09-26
 - Published: 2026-09-26 ([GitHub Release](https://github.com/fukuyori/ghostty/releases/tag/v1.3.2-windows.12))
-- Source tag: `v1.3.2-windows.12`
+- Source tag: `v1.3.2-windows.12` (`0327dbce1`)
 - Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
 - Status: preview. This release adds the first three Phase 7 features to the
   native Windows runtime.
@@ -65,6 +65,11 @@ termination, and normal inspected screenshots. Silent uninstallation returned
 0 and removed the installation directory and registry entry while preserving
 the user configuration directory. Reinstallation returned 0 and left the
 signed `.12` executable installed with no Ghostty process remaining.
+
+After publication, the GitHub Release asset was downloaded again. Its size and
+SHA-256 matched the locally verified installer, and its timestamped
+Authenticode signature remained Valid. This publication record is a
+documentation-only change after the source tag.
 
 ### Known Limitations
 
