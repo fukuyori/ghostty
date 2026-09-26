@@ -769,6 +769,31 @@ action can be obtained.
 API-level inspection and automated regression tests are complete, but speech
 output with Narrator and NVDA is still under acceptance verification.
 
+## Command Palette, Scrollbars, and File Drop (Unreleased)
+
+Press `Ctrl+Shift+P` to open the command palette. It lists configured
+`command-palette-entry` actions and the open terminal panes. Type to filter
+the list, select an item, and press Enter to run it; Escape closes the dialog.
+Actions unavailable in the Windows runtime are omitted. The list is rebuilt
+when opened, so a configuration reload is reflected the next time it opens.
+
+With `scrollbar = system` (the default), each pane uses a slim translucent
+overlay scrollbar. It appears while scrolling or when the pointer moves to
+the pane's right edge, then hides after the pointer leaves. It does not reduce
+terminal width. Set `scrollbar = never` to disable it. The thumb follows the
+same scrollback position as wheel, keyboard, and search navigation.
+
+Drag files or directories from Explorer onto a terminal pane to insert their
+quoted paths. The pane's configured startup shell determines quoting for
+PowerShell or cmd; the drop does not press Enter. A cmd drop containing `%` or
+`!` is rejected with a warning. Unsupported startup shells also show a
+warning. A shell switched after startup is not detected by this setting.
+In a real Explorer check, an elevated Ghostty window did not accept a drop
+from normal Explorer. Use a non-elevated Ghostty window for Explorer drops.
+
+These controls are under development. The [feature plan](windows-upstream-feature-plan.md)
+records their remaining input, DPI, and accessibility checks.
+
 ## Known Limitations
 
 - Basic operation has been verified on Windows 11, but Windows 10 is not

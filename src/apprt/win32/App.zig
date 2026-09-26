@@ -29,6 +29,9 @@ const TabBarAccessibility = @import("TabBarAccessibility.zig");
 const Titlebar = @import("Titlebar.zig");
 const Window = @import("Window.zig");
 const SearchBar = @import("SearchBar.zig");
+const CommandPalette = @import("CommandPalette.zig");
+const Scrollbar = @import("Scrollbar.zig");
+const FileDrop = @import("FileDrop.zig");
 const Mouse = @import("Mouse.zig");
 
 const log = std.log.scoped(.win32);
@@ -78,6 +81,11 @@ const WM_CLOSE_SURFACE = win32.WM_USER + 2;
 const WM_TEST_RECOVER_RENDERER = win32.WM_USER + 3;
 const WM_TEST_RECOVERY_STATUS = win32.WM_USER + 4;
 
+/// Opening a modal dialog directly from a core key callback lets the modal
+/// message loop destroy that callback's surface before the callback returns.
+/// Post the request so the key callback unwinds before the dialog is shown.
+const WM_SHOW_COMMAND_PALETTE = win32.WM_USER + 5;
+
 /// VK_PROCESSKEY. Windows substitutes this virtual key in keyboard messages
 /// for every keystroke an active IME consumes, leaving the physical scan
 /// code untouched.
@@ -99,6 +107,7 @@ high_contrast: bool = false,
 test_device_recovery: bool = false,
 test_device_recovery_failures: u32 = 0,
 power_suspended: bool = false,
+command_palette_owner: ?*Surface = null,
 
 pub fn init(
     self: *App,
@@ -537,6 +546,11 @@ pub fn performAction(
             }
             return true;
         },
+        .scrollbar => {
+            const surface = targetSurface(target) orelse return false;
+            if (surface.scrollbar) |bar| bar.update(value);
+            return true;
+        },
         .mouse_shape => {
             const surface = targetSurface(target) orelse return false;
             surface.mouse_shape = value;
@@ -550,6 +564,16 @@ pub fn performAction(
             return true;
         },
         .prompt_title => return try self.promptTitle(target, value),
+        .toggle_command_palette => {
+            const surface = targetSurface(target) orelse return false;
+            if (win32.PostMessageW(surface.hwnd, WM_SHOW_COMMAND_PALETTE, 0, 0) == 0) {
+                log.warn("PostMessage(WM_SHOW_COMMAND_PALETTE) failed: err={d}", .{
+                    @intFromEnum(win32.GetLastError()),
+                });
+                return false;
+            }
+            return true;
+        },
         .new_window => {
             try self.createWindow(.{});
             return true;
@@ -591,6 +615,7 @@ pub fn performAction(
                     }
                     Titlebar.apply(state.windowHwnd(), value.config, self.high_contrast);
                     updateWindowBackgroundBlur(state, value.config);
+                    try self.configureScrollbar(core.rt_surface, value.config);
                     if (self.windowForSurface(state)) |window| self.layoutWindow(window);
                 },
                 .app => {
@@ -603,6 +628,73 @@ pub fn performAction(
             return true;
         },
         else => return false,
+    }
+}
+
+fn configureScrollbar(self: *App, surface: *Surface, config: *const Config) !void {
+    const enabled = config.scrollbar != .never;
+    if (enabled) {
+        if (surface.scrollbar) |bar| {
+            bar.setAppearance(config.background, self.high_contrast);
+            return;
+        }
+        const bar = try self.alloc.create(Scrollbar);
+        errdefer self.alloc.destroy(bar);
+        try bar.init(surface, config.background, self.high_contrast);
+        surface.scrollbar = bar;
+    } else if (surface.scrollbar) |bar| {
+        bar.deinit();
+        self.alloc.destroy(bar);
+        surface.scrollbar = null;
+    }
+}
+
+fn showCommandPalette(self: *App, source: *Surface) anyerror!void {
+    if (self.command_palette_owner != null) return;
+    const owner = self.windowForSurface(source) orelse return;
+    const source_id = (source.core_surface orelse return).id;
+    self.command_palette_owner = source;
+    defer self.command_palette_owner = null;
+
+    var jumps: std.ArrayListUnmanaged(CommandPalette.Jump) = .empty;
+    defer jumps.deinit(self.alloc);
+    for (self.windows.items) |window| {
+        var surfaces = window.surfaceIterator();
+        while (surfaces.next()) |surface| {
+            const core = surface.core_surface orelse continue;
+            const title = window.titleForSurface(surface) orelse "Untitled";
+            try jumps.append(self.alloc, .{ .surface = surface, .id = core.id, .title = title });
+        }
+    }
+
+    var palette = try CommandPalette.init(self.alloc, self.config, jumps.items);
+    defer palette.deinit();
+    const selected_opt = palette.show(owner.hwnd);
+    if (self.windowForSurface(source)) |window| {
+        if (source.core_surface) |core| {
+            if (core.id == source_id and window.focusedSurface() == source) {
+                _ = win32.SetFocus(source.hwnd);
+            }
+        }
+    }
+    const selected = selected_opt orelse return;
+    const entry = palette.entries.items[selected];
+    switch (entry.kind) {
+        .action => |action| {
+            // A shell can close its pane while the modal dialog pumps messages.
+            if (self.windowForSurface(source) == null) return;
+            const core = source.core_surface orelse return;
+            if (core.id != source_id) return;
+            _ = try core.performBindingAction(action);
+        },
+        .jump => |jump| {
+            const window = self.windowForSurface(jump.surface) orelse return;
+            const core = jump.surface.core_surface orelse return;
+            if (core.id != jump.id) return;
+            _ = window.setFocusedSurface(jump.surface);
+            activateWindowTab(self, window);
+            _ = presentSurface(jump.surface);
+        },
     }
 }
 
@@ -1990,6 +2082,10 @@ fn initCoreSurface(
     if (opts.title) |title| {
         config.title = try config.arenaAlloc().dupeZ(u8, title);
     }
+    surface.file_drop_shell = try FileDrop.classify(
+        config.arenaAlloc(),
+        if (self.core_app.first) config.@"initial-command" orelse config.command else config.command,
+    );
     if (context == .window) {
         surface.default_maximized = config.maximize;
         surface.default_fullscreen = config.fullscreen != .false;
@@ -2026,6 +2122,8 @@ fn initCoreSurface(
     }) catch |err| {
         log.warn("failed to sync the initial surface size: {}", .{err});
     };
+
+    try self.configureScrollbar(surface, &config);
 
     updateWindowBackgroundBlur(surface, &config);
     log.info("core surface initialized successfully", .{});
@@ -2468,6 +2566,9 @@ fn layoutWindow(self: *App, window: *Window) void {
         ) == 0) {
             log.warn("SetWindowPos(surface layout) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         }
+        if (entry.view.scrollbar) |bar| {
+            bar.layout(entry.rect.x, entry.rect.y + search_height, entry.rect.width, entry.rect.height - search_height, true);
+        }
     }
 
     var surfaces = window.surfaceIterator();
@@ -2485,6 +2586,9 @@ fn layoutWindow(self: *App, window: *Window) void {
         );
         if (surface.search_bar) |bar| {
             _ = win32.ShowWindow(bar.hwnd.?, if (visible and bar.active) win32.SW_SHOWNA else win32.SW_HIDE);
+        }
+        if (!visible) {
+            if (surface.scrollbar) |bar| bar.hide();
         }
     }
 
@@ -4343,6 +4447,7 @@ fn handleMouseWheel(
     const core = surface.core_surface orelse return;
     const delta: i32 = wheelDelta(wparam);
     if (msg == win32.WM_MOUSEWHEEL) {
+        if (surface.scrollbar) |bar| bar.reveal();
         const ticks = @as(f64, @floatFromInt(delta)) /
             @as(f64, @floatFromInt(win32.WHEEL_DELTA));
         core.scrollCallback(0, ticks, .{}) catch |err| {
@@ -4584,6 +4689,51 @@ fn tabBarWndProc(
     }
 }
 
+fn handleFileDrop(surface: *Surface, drop: win32.HDROP) !void {
+    const core = surface.core_surface orelse return;
+    const alloc = surface.rtApp().alloc;
+    var arena = std.heap.ArenaAllocator.init(alloc);
+    defer arena.deinit();
+    const temp = arena.allocator();
+
+    const count = win32.DragQueryFileW(drop, 0xffffffff, null, 0);
+    if (count == 0) return;
+    var paths: std.ArrayListUnmanaged([]const u8) = .empty;
+    for (0..count) |index| {
+        const length = win32.DragQueryFileW(drop, @intCast(index), null, 0);
+        if (length == 0) return error.InvalidPath;
+        const wide = try temp.allocSentinel(u16, length, 0);
+        const copied = win32.DragQueryFileW(drop, @intCast(index), wide.ptr, length + 1);
+        if (copied != length) return error.InvalidPath;
+        try paths.append(temp, try std.unicode.utf16LeToUtf8Alloc(temp, wide[0..length]));
+    }
+    const formatted = try FileDrop.formatPaths(temp, surface.file_drop_shell, paths.items);
+    core.pasteExternalText(formatted, false) catch |err| switch (err) {
+        error.UnsafePaste => {
+            const caption = std.unicode.utf8ToUtf16LeStringLiteral("Ghostty File Drop");
+            const message = std.unicode.utf8ToUtf16LeStringLiteral(
+                "The dropped paths may contain unsafe text. Paste them into the terminal?",
+            );
+            const style: win32.MESSAGEBOX_STYLE = .{
+                .YESNO = 1,
+                .ICONQUESTION = 1,
+                .DEFBUTTON2 = 1,
+            };
+            if (win32.MessageBoxW(surface.windowHwnd(), message, caption, style) != win32.IDYES) return;
+            try core.pasteExternalText(formatted, true);
+        },
+        else => return err,
+    };
+}
+
+fn showFileDropWarning(surface: *Surface, message: []const u8) void {
+    const wide = std.unicode.utf8ToUtf16LeAllocZ(surface.rtApp().alloc, message) catch return;
+    defer surface.rtApp().alloc.free(wide);
+    const caption = std.unicode.utf8ToUtf16LeStringLiteral("Ghostty File Drop");
+    const style: win32.MESSAGEBOX_STYLE = .{ .ICONHAND = 1 };
+    _ = win32.MessageBoxW(surface.windowHwnd(), wide, caption, style);
+}
+
 fn wndProc(
     hwnd: win32.HWND,
     msg: u32,
@@ -4591,6 +4741,23 @@ fn wndProc(
     lparam: win32.LPARAM,
 ) callconv(.winapi) win32.LRESULT {
     switch (msg) {
+        win32.WM_DROPFILES => {
+            const drop: win32.HDROP = @ptrFromInt(wparam);
+            defer win32.DragFinish(drop);
+            if (getSurface(hwnd)) |surface| {
+                if (hwnd == surface.hwnd) {
+                    handleFileDrop(surface, drop) catch |err| {
+                        log.warn("file drop failed: {}", .{err});
+                        showFileDropWarning(surface, switch (err) {
+                            error.CmdExpansion => "cmd expands % and ! in paths. This file drop was rejected.",
+                            error.UnsupportedShell => "File drop supports PowerShell and cmd startup shells.",
+                            else => "The dropped files could not be pasted.",
+                        });
+                    };
+                }
+            }
+            return 0;
+        },
         win32.WM_CLOSE => {
             if (getSurface(hwnd)) |surface| {
                 if (hwnd == surface.windowHwnd()) {
@@ -4624,6 +4791,16 @@ fn wndProc(
                 // confirmation dialog.
                 surface.close_requested = false;
                 app.closeSurface(surface, wparam != 0);
+            }
+            return 0;
+        },
+        WM_SHOW_COMMAND_PALETTE => {
+            if (getSurface(hwnd)) |surface| {
+                if (hwnd == surface.hwnd) {
+                    surface.rtApp().showCommandPalette(surface) catch |err| {
+                        log.warn("command palette failed: {}", .{err});
+                    };
+                }
             }
             return 0;
         },
@@ -4787,6 +4964,10 @@ fn wndProc(
                     if (app.windowForHwnd(hwnd)) |window| {
                         app.high_contrast = highContrastEnabled();
                         Titlebar.apply(hwnd, app.config, app.high_contrast);
+                        var bars = window.surfaceIterator();
+                        while (bars.next()) |candidate| {
+                            if (candidate.scrollbar) |bar| bar.setAppearance(app.config.background, app.high_contrast);
+                        }
                         app.layoutWindow(window);
                         invalidateTabBar(window);
                         invalidateSplitDividers(window);
@@ -4827,6 +5008,7 @@ fn wndProc(
             if (getSurface(hwnd)) |surface| {
                 if (hwnd == surface.hwnd) {
                     trackMouseLeave(surface, hwnd);
+                    if (surface.scrollbar) |bar| bar.hoverAt(@intFromFloat(mousePoint(lparam).x));
                     if (updateSplitDividerPointer(surface, hwnd, lparam)) return 0;
                     updateCursorPosition(surface, mousePoint(lparam), getModifiers(), false);
                 } else if (hwnd == surface.windowHwnd()) {

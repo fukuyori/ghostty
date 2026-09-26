@@ -46,6 +46,19 @@ focus, and close the new pane. This catches copied IOCP notifications that
 leave the renderer asleep until its 64-message mailbox fills. Saves a PNG
 of the dedicated test window for visual inspection.
 
+.PARAMETER TestCommandPalette
+Open the command palette, verify that native controls contain commands, save a
+PNG, dismiss it, verify terminal focus returns, suppress an IME process Enter,
+reload config while a second palette is open, then close its owning window and
+verify that the original window survives.
+
+.PARAMETER TestOverlayScrollbar
+Produce scrollback, reveal the overlay scrollbar, capture it, check that it
+hides, verify `never` removes it and `system` restores it on config reload,
+then check key, wheel, and search position updates, split-pane independence,
+alternate-screen transitions, exact drag positioning, output and pane closure
+during drag, empty and reached-limit history, and resize tracking.
+
 .EXAMPLE
 ./scripts/test-windows-window-state.ps1
 
@@ -70,6 +83,8 @@ param(
     [int]$GpuRecoveryFailures = 0,
     [switch]$TestPowerResume,
     [switch]$TestRendererWakeup,
+    [switch]$TestCommandPalette,
+    [switch]$TestOverlayScrollbar,
     [switch]$KeepOpenOnFailure
 )
 
@@ -120,6 +135,8 @@ $powerResumeMarkerPath = Join-Path $sessionDirectory "power-resume.txt"
 $rendererOutputScript = Join-Path $sessionDirectory "renderer-output.ps1"
 $rendererOutputMarker = Join-Path $sessionDirectory "renderer-output.txt"
 $rendererScreenshot = Join-Path $logDirectory "$sessionName.renderer.png"
+$scrollbarScreenshot = Join-Path $logDirectory "$sessionName.scrollbar.png"
+$splitScrollbarScreenshot = Join-Path $logDirectory "$sessionName.scrollbar-split.png"
 
 if (-not ("GhosttyWindowStateNative" -as [type])) {
     Add-Type -TypeDefinition @"
@@ -224,6 +241,17 @@ public static class GhosttyWindowStateNative
     );
 
     [DllImport("user32.dll")]
+    public static extern IntPtr GetDlgItem(IntPtr hWnd, int id);
+
+    public static bool IsGhosttySurface(IntPtr hWnd)
+    {
+        StringBuilder className = new StringBuilder(256);
+        if (GetClassNameW(hWnd, className, className.Capacity) == 0)
+            return false;
+        return String.Equals(className.ToString(), "GhosttyWindow", StringComparison.Ordinal);
+    }
+
+    [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(
         IntPtr hWnd,
         out uint processId
@@ -300,6 +328,17 @@ public static class GhosttyWindowStateNative
         if (threadId == 0 || !GetGUIThreadInfo(threadId, ref info))
             return IntPtr.Zero;
         return info.hwndFocus;
+    }
+
+    public static IntPtr GetCaptureWindow(IntPtr hWnd)
+    {
+        uint processId;
+        uint threadId = GetWindowThreadProcessId(hWnd, out processId);
+        GUITHREADINFO info = new GUITHREADINFO();
+        info.cbSize = Marshal.SizeOf(typeof(GUITHREADINFO));
+        if (threadId == 0 || !GetGUIThreadInfo(threadId, ref info))
+            return IntPtr.Zero;
+        return info.hwndCapture;
     }
 
     [DllImport("user32.dll")]
@@ -402,6 +441,7 @@ $wmClose = 0x0010
 $wmKeyDown = 0x0100
 $wmKeyUp = 0x0101
 $wmChar = 0x0102
+$wmMouseWheel = 0x020A
 $wmPowerBroadcast = 0x0218
 $wmTestRecoverRenderer = 0x0403
 $wmTestRecoveryStatus = 0x0404
@@ -413,7 +453,19 @@ $vkF7 = 0x76
 $vkF8 = 0x77
 $vkF9 = 0x78
 $vkF10 = 0x79
+$vkF12 = 0x7B
+$vkF1 = 0x70
+$vkF2 = 0x71
+$vkF3 = 0x72
+$vkF4 = 0x73
+$vkF13 = 0x7C
+$vkF14 = 0x7D
 $vkReturn = 0x0D
+$vkUp = 0x26
+$vkDown = 0x28
+$wmCommand = 0x0111
+$lbGetCount = 0x018B
+$lbGetCurSel = 0x0188
 # Windows substitutes VK_PROCESSKEY for keys an active IME consumes and keeps
 # the physical scan code, which is what makes those messages dangerous to
 # dispatch.
@@ -450,7 +502,9 @@ function Get-ChildWindowHandles {
     $result = [System.Collections.Generic.List[IntPtr]]::new()
     $child = [GhosttyWindowStateNative]::GetWindow($ParentHandle, $gwChild)
     while ($child -ne [IntPtr]::Zero) {
-        $result.Add($child)
+        if ([GhosttyWindowStateNative]::IsGhosttySurface($child)) {
+            $result.Add($child)
+        }
         $child = [GhosttyWindowStateNative]::GetWindow($child, $gwHwndNext)
     }
     return $result.ToArray()
@@ -481,11 +535,14 @@ function Set-TestConfig {
         [string]$Path,
         [Parameter(Mandatory)]
         [ValidateSet("always", "never")]
-        [string]$TabBarMode
+        [string]$TabBarMode,
+        [ValidateSet("system", "never")]
+        [string]$ScrollbarMode = "system"
     )
 
     $lines = @(
         "window-show-tab-bar = $TabBarMode"
+        "scrollbar = $ScrollbarMode"
         "command = direct:cmd.exe /D /Q"
         # An explicit initial size makes the core request initial_size while
         # it is still initializing, which is the path that once left the
@@ -577,7 +634,7 @@ function Test-InitialGrid {
         $gridWindow = [GhosttyWindowStateNative]::FindWindow($gridProcess.Id, "GhosttyWindow")
         $null = [GhosttyWindowStateNative]::ShowWindow($gridWindow, $swRestore)
         $gridWindow = Wait-ForMainWindow -Process $gridProcess
-        $gridSurface = [GhosttyWindowStateNative]::GetWindow($gridWindow, $gwChild)
+        $gridSurface = @(Get-ChildWindowHandles -ParentHandle $gridWindow)[0]
         if ($gridSurface -eq [IntPtr]::Zero) {
             throw "Ghostty surface child window was not found for the grid test."
         }
@@ -1091,6 +1148,530 @@ function Wait-ForSplitDividerLayout {
     throw "Timed out waiting for the split divider layout: $lastError"
 }
 
+function Test-ScrollbarHistoryBoundaries {
+    $historyConfigPath = Join-Path $sessionDirectory "scrollbar-history-config.ghostty"
+    $historyMarkerPath = Join-Path $sessionDirectory "scrollbar-history-complete.txt"
+    $historyCommandPath = Join-Path $sessionDirectory "scrollbar-history-output.cmd"
+    $historyStdoutPath = Join-Path $logDirectory "$sessionName.scrollbar-history.stdout.log"
+    $historyStderrPath = Join-Path $logDirectory "$sessionName.scrollbar-history.stderr.log"
+    $historyEvidencePath = Join-Path $logDirectory "$sessionName.scrollbar-history.txt"
+    $historyProcess = $null
+    $historyForcedTermination = $false
+    $historySnapshotDirectory = $null
+
+    $configLines = @(
+        "window-show-tab-bar = never"
+        "scrollbar = system"
+        "scrollback-limit-bytes = unlimited"
+        "scrollback-limit-lines = 64"
+        "command = direct:cmd.exe /D /Q"
+        "window-width = 120"
+        "window-height = 45"
+    )
+    [System.IO.File]::WriteAllText(
+        $historyConfigPath,
+        ($configLines -join [System.Environment]::NewLine) + [System.Environment]::NewLine,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+    $commandLines = @(
+        "@echo off"
+        "echo history-boundary-FIRST"
+        "for /L %%i in (1,1,2000) do echo history-boundary-row-%%i"
+        "echo history-boundary-LAST"
+        ">`"$historyMarkerPath`" echo complete"
+    )
+    [System.IO.File]::WriteAllText(
+        $historyCommandPath,
+        ($commandLines -join [System.Environment]::NewLine) + [System.Environment]::NewLine,
+        [System.Text.ASCIIEncoding]::new()
+    )
+
+    try {
+        $historyProcess = Start-Process `
+            -FilePath $executablePath `
+            -ArgumentList @(
+                "--config-default-files=false"
+                "--config-file=`"$historyConfigPath`""
+                "--keybind=f1=write_scrollback_file:paste"
+                "--quit-after-last-window-closed=true"
+                "--confirm-close-surface=false"
+                "--title=Ghostty-scrollbar-history-test"
+            ) `
+            -RedirectStandardOutput $historyStdoutPath `
+            -RedirectStandardError $historyStderrPath `
+            -PassThru
+        $historyWindow = Wait-ForMainWindow -Process $historyProcess
+        $historySurface = @(Get-ChildWindowHandles -ParentHandle $historyWindow)[0]
+        if ($historySurface -eq [IntPtr]::Zero) {
+            throw "The scrollbar history test surface was not created."
+        }
+        $historyBar = [GhosttyWindowStateNative]::FindWindow(
+            $historyProcess.Id,
+            "GhosttyOverlayScrollbar"
+        )
+        if ($historyBar -eq [IntPtr]::Zero) {
+            throw "The scrollbar history test overlay was not created."
+        }
+
+        $emptyClient = [GhosttyWindowStateNative+RECT]::new()
+        if (-not [GhosttyWindowStateNative]::GetClientRect($historySurface, [ref]$emptyClient)) {
+            throw "Could not read the empty-history surface size."
+        }
+        $emptyHover = [IntPtr]::new(
+            (([int]($emptyClient.Bottom / 2)) -shl 16) -bor ($emptyClient.Right - 3)
+        )
+        for ($attempt = 0; $attempt -lt 5; $attempt++) {
+            $null = [GhosttyWindowStateNative]::PostMessageW(
+                $historySurface,
+                0x0200,
+                [UIntPtr]::Zero,
+                $emptyHover
+            )
+            Start-Sleep -Milliseconds 100
+            if ([GhosttyWindowStateNative]::IsWindowVisible($historyBar)) {
+                throw "The overlay scrollbar became visible with empty history."
+            }
+        }
+
+        Send-TestText -Handle $historySurface -Text "`"$historyCommandPath`""
+        Send-TestKey -Handle $historySurface -VirtualKey $vkReturn -Description "history-limit output"
+        Wait-ForCondition -Description "history-limit output completion" -Condition {
+            Test-MarkerContent -Path $historyMarkerPath -Expected "complete"
+        }
+        # The shell can create the marker before the renderer has consumed the
+        # final ConPTY output batch and published its last scrollbar state.
+        Start-Sleep -Milliseconds 750
+        $historyThumb = Wait-ForOverlayScrollbarThumb `
+            -PaneHandle $historySurface `
+            -BarHandle $historyBar `
+            -Condition {
+                param($thumb)
+                $thumb.Height -ge 10 -and $thumb.Height -lt $thumb.TrackHeight
+            } `
+            -Description "the reached-history-limit scrollbar thumb"
+
+        $tempRoot = [System.IO.Path]::GetFullPath(
+            [System.IO.Path]::GetTempPath()
+        ).TrimEnd([System.IO.Path]::DirectorySeparatorChar)
+        $tempDirectoriesBefore = @{}
+        foreach ($directory in Get-ChildItem -LiteralPath $tempRoot -Directory) {
+            $tempDirectoriesBefore[$directory.FullName] = $true
+        }
+        Send-TestKey `
+            -Handle $historySurface `
+            -VirtualKey $vkF1 `
+            -Description "paste scrollback snapshot path"
+        $historySnapshotPath = $null
+        $snapshotWait = [System.Diagnostics.Stopwatch]::StartNew()
+        while ($snapshotWait.ElapsedMilliseconds -lt $timeoutMilliseconds -and
+            $null -eq $historySnapshotPath) {
+            foreach ($directory in Get-ChildItem -LiteralPath $tempRoot -Directory) {
+                if ($tempDirectoriesBefore.ContainsKey($directory.FullName)) {
+                    continue
+                }
+                $candidate = Join-Path $directory.FullName "history.txt"
+                if ([System.IO.File]::Exists($candidate)) {
+                    $historySnapshotDirectory = $directory.FullName
+                    $historySnapshotPath = $candidate
+                    break
+                }
+            }
+            if ($null -eq $historySnapshotPath) {
+                Start-Sleep -Milliseconds 50
+            }
+        }
+        if ($null -eq $historySnapshotPath) {
+            throw "Timed out waiting for the exported history-limit scrollback."
+        }
+        $stableLength = -1L
+        $stableSamples = 0
+        $stableWait = [System.Diagnostics.Stopwatch]::StartNew()
+        while ($stableWait.ElapsedMilliseconds -lt $timeoutMilliseconds -and
+            $stableSamples -lt 3) {
+            try {
+                $currentLength = [System.IO.FileInfo]::new(
+                    $historySnapshotPath
+                ).Length
+                if ($currentLength -gt 0 -and $currentLength -eq $stableLength) {
+                    $stableSamples++
+                } else {
+                    $stableLength = $currentLength
+                    $stableSamples = 0
+                }
+            } catch [System.IO.IOException] {
+                $stableSamples = 0
+            }
+            Start-Sleep -Milliseconds 100
+        }
+        if ($stableSamples -lt 3) {
+            throw "The exported history-limit scrollback did not become stable."
+        }
+        $historyDump = [System.IO.File]::ReadAllText($historySnapshotPath)
+        [System.IO.File]::WriteAllText(
+            $historyEvidencePath,
+            $historyDump,
+            [System.Text.UTF8Encoding]::new($false)
+        )
+        if ($historyDump.Contains("history-boundary-FIRST")) {
+            throw "The oldest history marker remained after exceeding the configured line limit."
+        }
+        $retainedMatches = [regex]::Matches(
+            $historyDump,
+            "(?m)^history-boundary-row-(\d+)\s*$"
+        )
+        $retainedRows = $retainedMatches.Count
+        if ($retainedRows -le 0 -or $retainedRows -ge 2000) {
+            throw "Expected a trimmed but non-empty history; retained $retainedRows of 2000 rows."
+        }
+        $retainedNumbers = @(
+            $retainedMatches | ForEach-Object {
+                [int]$_.Groups[1].Value
+            }
+        )
+        $oldestRetainedRow = ($retainedNumbers | Measure-Object -Minimum).Minimum
+        $newestRetainedRow = ($retainedNumbers | Measure-Object -Maximum).Maximum
+        if ($oldestRetainedRow -le 1 -or $newestRetainedRow -lt 1900) {
+            throw "History trimming retained an unexpected row range: $oldestRetainedRow..$newestRetainedRow."
+        }
+
+        $null = [GhosttyWindowStateNative]::PostMessageW(
+            $historyWindow,
+            $wmClose,
+            [UIntPtr]::Zero,
+            [IntPtr]::Zero
+        )
+        if (-not $historyProcess.WaitForExit($timeoutMilliseconds)) {
+            throw "The scrollbar history process did not exit."
+        }
+        if ($historyProcess.ExitCode -ne 0) {
+            throw "The scrollbar history process exited with code $($historyProcess.ExitCode)."
+        }
+
+        return [pscustomobject]@{
+            EmptyHistoryHidden = $true
+            ConfiguredLineLimit = 64
+            ProducedRows = 2000
+            RetainedRows = $retainedRows
+            OldestRetainedRow = $oldestRetainedRow
+            NewestRetainedRow = $newestRetainedRow
+            OldestDiscarded = $true
+            RecentHistoryRetained = $true
+            Thumb = $historyThumb
+            ExitCode = $historyProcess.ExitCode
+            ForcedTermination = $historyForcedTermination
+            StdoutLog = $historyStdoutPath
+            StderrLog = $historyStderrPath
+            HistoryEvidence = $historyEvidencePath
+        }
+    } finally {
+        if ($null -ne $historyProcess -and -not $historyProcess.HasExited) {
+            $historyProcess.Kill()
+            $historyForcedTermination = $true
+            $null = $historyProcess.WaitForExit($timeoutMilliseconds)
+        }
+        foreach ($path in @(
+            $historyConfigPath,
+            $historyMarkerPath,
+            $historyCommandPath
+        )) {
+            if ([System.IO.File]::Exists($path)) {
+                [System.IO.File]::Delete($path)
+            }
+        }
+        if ($null -ne $historySnapshotDirectory -and
+            [System.IO.Directory]::Exists($historySnapshotDirectory)) {
+            $resolvedSnapshotDirectory = [System.IO.Path]::GetFullPath(
+                $historySnapshotDirectory
+            ).TrimEnd([System.IO.Path]::DirectorySeparatorChar)
+            $resolvedTempRoot = [System.IO.Path]::GetFullPath(
+                [System.IO.Path]::GetTempPath()
+            ).TrimEnd([System.IO.Path]::DirectorySeparatorChar)
+            $snapshotParent = [System.IO.Directory]::GetParent(
+                $resolvedSnapshotDirectory
+            )
+            if ($null -eq $snapshotParent -or
+                $snapshotParent.FullName.TrimEnd(
+                    [System.IO.Path]::DirectorySeparatorChar
+                ) -ne $resolvedTempRoot) {
+                throw "Refusing to remove unexpected history snapshot directory: $resolvedSnapshotDirectory"
+            }
+            [System.IO.Directory]::Delete($resolvedSnapshotDirectory, $true)
+        }
+    }
+}
+
+function Get-OverlayScrollbarLayouts {
+    param(
+        [Parameter(Mandatory)]
+        [IntPtr]$ParentHandle,
+        [Parameter(Mandatory)]
+        [IntPtr[]]$PaneHandles,
+        [Parameter(Mandatory)]
+        [IntPtr[]]$BarHandles
+    )
+
+    if ($PaneHandles.Count -ne $BarHandles.Count) {
+        throw "Expected one overlay scrollbar per pane; found $($PaneHandles.Count) panes and $($BarHandles.Count) bars."
+    }
+
+    $remaining = [System.Collections.Generic.List[IntPtr]]::new()
+    foreach ($barHandle in $BarHandles) {
+        $remaining.Add($barHandle)
+    }
+    $layouts = @()
+    foreach ($paneHandle in $PaneHandles) {
+        $pane = Get-WindowRectangle -Handle $paneHandle
+        $match = $null
+        foreach ($barHandle in @($remaining)) {
+            $bar = Get-WindowRectangle -Handle $barHandle
+            if ($bar.X + $bar.Width -eq $pane.X + $pane.Width -and
+                $bar.Y -eq $pane.Y -and
+                $bar.Height -eq $pane.Height) {
+                $match = [pscustomobject]@{
+                    PaneHandle = $paneHandle
+                    BarHandle = $barHandle
+                    Pane = $pane
+                    Bar = $bar
+                }
+                break
+            }
+        }
+        if ($null -eq $match) {
+            throw "No overlay scrollbar matches pane $paneHandle at $($pane.X),$($pane.Y) $($pane.Width)x$($pane.Height)."
+        }
+
+        $owner = [GhosttyWindowStateNative]::GetWindow($match.BarHandle, $gwOwner)
+        if ($owner -ne $ParentHandle) {
+            throw "Overlay scrollbar owner $owner does not match parent $ParentHandle."
+        }
+        $dpi = [GhosttyWindowStateNative]::GetDpiForWindow($ParentHandle)
+        $expectedWidth = [Math]::Max(1, [Math]::Truncate(14 * $dpi / 96))
+        if ($match.Bar.Width -ne $expectedWidth) {
+            throw "Overlay scrollbar width $($match.Bar.Width) does not match expected width $expectedWidth at DPI $dpi."
+        }
+        $layouts += $match
+        $null = $remaining.Remove($match.BarHandle)
+    }
+    return $layouts
+}
+
+function Wait-ForOverlayScrollbarLayouts {
+    param(
+        [Parameter(Mandatory)]
+        [IntPtr]$ParentHandle,
+        [Parameter(Mandatory)]
+        [IntPtr[]]$PaneHandles,
+        [Parameter(Mandatory)]
+        [IntPtr[]]$BarHandles
+    )
+
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $lastError = $null
+    while ($stopwatch.ElapsedMilliseconds -lt $timeoutMilliseconds) {
+        try {
+            return @(
+                Get-OverlayScrollbarLayouts `
+                    -ParentHandle $ParentHandle `
+                    -PaneHandles $PaneHandles `
+                    -BarHandles $BarHandles
+            )
+        } catch {
+            $lastError = $_.Exception.Message
+        }
+        Start-Sleep -Milliseconds 50
+    }
+
+    throw "Timed out waiting for overlay scrollbar layouts: $lastError"
+}
+
+function Show-OnlyPaneScrollbar {
+    param(
+        [Parameter(Mandatory)]
+        [IntPtr]$PaneHandle,
+        [Parameter(Mandatory)]
+        [IntPtr]$BarHandle,
+        [Parameter(Mandatory)]
+        [IntPtr[]]$OtherBarHandles,
+        [Parameter(Mandatory)]
+        [string]$Description
+    )
+
+    $client = [GhosttyWindowStateNative+RECT]::new()
+    if (-not [GhosttyWindowStateNative]::GetClientRect($PaneHandle, [ref]$client)) {
+        throw "Could not read the pane size for $Description."
+    }
+    $x = $client.Right - 3
+    $y = [int]($client.Bottom / 2)
+    $hoverParam = [IntPtr]::new(($y -shl 16) -bor $x)
+    Wait-ForCondition -Description $Description -Condition {
+        if (-not [GhosttyWindowStateNative]::PostMessageW(
+            $PaneHandle,
+            0x0200,
+            [UIntPtr]::Zero,
+            $hoverParam
+        )) {
+            throw "Could not hover the pane for $Description."
+        }
+        if (-not [GhosttyWindowStateNative]::IsWindowVisible($BarHandle)) {
+            return $false
+        }
+        foreach ($other in $OtherBarHandles) {
+            if ([GhosttyWindowStateNative]::IsWindowVisible($other)) {
+                return $false
+            }
+        }
+        return $true
+    }
+}
+
+function Get-OverlayScrollbarThumb {
+    param(
+        [Parameter(Mandatory)]
+        [IntPtr]$BarHandle
+    )
+
+    $rect = Get-WindowRectangle -Handle $BarHandle
+    $bitmap = [System.Drawing.Bitmap]::new($rect.Width, $rect.Height)
+    try {
+        $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+        try {
+            $graphics.CopyFromScreen($rect.X, $rect.Y, 0, 0, $bitmap.Size)
+        } finally { $graphics.Dispose() }
+
+        $sampleX = [Math]::Min($rect.Width - 1, [int]($rect.Width / 2))
+        $bestTop = -1
+        $bestHeight = 0
+        $runTop = -1
+        for ($y = 0; $y -lt $rect.Height; $y++) {
+            $pixel = $bitmap.GetPixel($sampleX, $y)
+            $bright = $pixel.R -gt 100 -and $pixel.G -gt 100 -and $pixel.B -gt 100
+            if ($bright -and $runTop -lt 0) {
+                $runTop = $y
+            }
+            if ((-not $bright -or $y -eq $rect.Height - 1) -and $runTop -ge 0) {
+                $runEnd = if ($bright) { $y + 1 } else { $y }
+                $runHeight = $runEnd - $runTop
+                if ($runHeight -gt $bestHeight) {
+                    $bestTop = $runTop
+                    $bestHeight = $runHeight
+                }
+                $runTop = -1
+            }
+        }
+        if ($bestHeight -lt 10) {
+            throw "Could not locate the overlay scrollbar thumb for handle $BarHandle."
+        }
+        return [pscustomobject]@{
+            Top = $bestTop
+            Height = $bestHeight
+            Bottom = $bestTop + $bestHeight
+            TrackHeight = $rect.Height
+        }
+    } finally { $bitmap.Dispose() }
+}
+
+function Wait-ForOverlayScrollbarThumb {
+    param(
+        [Parameter(Mandatory)]
+        [IntPtr]$PaneHandle,
+        [Parameter(Mandatory)]
+        [IntPtr]$BarHandle,
+        [Parameter(Mandatory)]
+        [scriptblock]$Condition,
+        [Parameter(Mandatory)]
+        [string]$Description
+    )
+
+    $client = [GhosttyWindowStateNative+RECT]::new()
+    if (-not [GhosttyWindowStateNative]::GetClientRect($PaneHandle, [ref]$client)) {
+        throw "Could not read the pane size for $Description."
+    }
+    $hoverParam = [IntPtr]::new(
+        (([int]($client.Bottom / 2)) -shl 16) -bor ($client.Right - 3)
+    )
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $lastError = $null
+    while ($stopwatch.ElapsedMilliseconds -lt $timeoutMilliseconds) {
+        $null = [GhosttyWindowStateNative]::PostMessageW(
+            $PaneHandle,
+            0x0200,
+            [UIntPtr]::Zero,
+            $hoverParam
+        )
+        if ([GhosttyWindowStateNative]::IsWindowVisible($BarHandle)) {
+            try {
+                $thumb = Get-OverlayScrollbarThumb -BarHandle $BarHandle
+                if (& $Condition $thumb) {
+                    return $thumb
+                }
+                $lastError = "top=$($thumb.Top), height=$($thumb.Height), bottom=$($thumb.Bottom), track=$($thumb.TrackHeight)"
+            } catch {
+                $lastError = $_.Exception.Message
+            }
+        }
+        Start-Sleep -Milliseconds 50
+    }
+
+    throw "Timed out waiting for $Description. Last measurement error: $lastError"
+}
+
+function Start-OverlayScrollbarDrag {
+    param(
+        [Parameter(Mandatory)]
+        [IntPtr]$BarHandle,
+        [Parameter(Mandatory)]
+        [int]$Y
+    )
+
+    $rect = Get-WindowRectangle -Handle $BarHandle
+    $x = [int]($rect.Width / 2)
+    $mouse = [IntPtr]::new(($Y -shl 16) -bor $x)
+    $null = [GhosttyWindowStateNative]::SendMessageW(
+        $BarHandle,
+        $wmLButtonDown,
+        [UIntPtr]::new(1),
+        $mouse
+    )
+}
+
+function Move-OverlayScrollbarDrag {
+    param(
+        [Parameter(Mandatory)]
+        [IntPtr]$BarHandle,
+        [Parameter(Mandatory)]
+        [int]$Y
+    )
+
+    $rect = Get-WindowRectangle -Handle $BarHandle
+    $x = [int]($rect.Width / 2)
+    $mouse = [IntPtr]::new(($Y -shl 16) -bor $x)
+    $null = [GhosttyWindowStateNative]::SendMessageW(
+        $BarHandle,
+        0x0200,
+        [UIntPtr]::new(1),
+        $mouse
+    )
+}
+
+function Stop-OverlayScrollbarDrag {
+    param(
+        [Parameter(Mandatory)]
+        [IntPtr]$BarHandle,
+        [Parameter(Mandatory)]
+        [int]$Y
+    )
+
+    $rect = Get-WindowRectangle -Handle $BarHandle
+    $x = [int]($rect.Width / 2)
+    $mouse = [IntPtr]::new(($Y -shl 16) -bor $x)
+    $null = [GhosttyWindowStateNative]::SendMessageW(
+        $BarHandle,
+        $wmLButtonUp,
+        [UIntPtr]::Zero,
+        $mouse
+    )
+}
+
 function Test-RestoredRectangle {
     param(
         [Parameter(Mandatory)]
@@ -1224,6 +1805,19 @@ try {
         "--keybind=f10=toggle_visibility"
         "--keybind=f11=close_surface"
     )
+    if ($TestCommandPalette) {
+        $arguments += "--keybind=f12=toggle_command_palette"
+    }
+    if ($TestOverlayScrollbar) {
+        $arguments += @(
+            "--keybind=f1=scroll_to_top"
+            "--keybind=f2=scroll_to_bottom"
+            "--keybind=f3=scroll_page_up"
+            "--keybind=f4=search:overlay-row-73"
+            "--keybind=f13=end_search"
+            "--keybind=f14=navigate_search:previous"
+        )
+    }
     $previousGhosttyLog = [System.Environment]::GetEnvironmentVariable(
         "GHOSTTY_LOG",
         [System.EnvironmentVariableTarget]::Process
@@ -1302,10 +1896,7 @@ try {
         -TabBarHandle $tabBarHandle
 
     Add-Type -AssemblyName System.Windows.Forms
-    $surfaceHandle = [GhosttyWindowStateNative]::GetWindow(
-        $windowHandle,
-        $gwChild
-    )
+    $surfaceHandle = @(Get-ChildWindowHandles -ParentHandle $windowHandle)[0]
     if ($surfaceHandle -eq [IntPtr]::Zero) {
         throw "Ghostty surface child window was not found."
     }
@@ -1383,7 +1974,350 @@ try {
     }
     Write-Verbose "Validated that IME process keys do not reach the terminal."
 
+    $commandPalette = $null
+    if ($TestCommandPalette) {
+        Send-TestKey -Handle $surfaceHandle -VirtualKey $vkF12 -Description "command palette"
+        Wait-ForCondition -Description "command palette dialog" -Condition {
+            @( [GhosttyWindowStateNative]::FindWindows($process.Id, "#32770") ).Count -gt 0
+        }
+        $paletteHandle = @( [GhosttyWindowStateNative]::FindWindows($process.Id, "#32770") )[0]
+        Wait-ForCondition -Description "command palette controls" -Condition {
+            [GhosttyWindowStateNative]::GetDlgItem($paletteHandle, 1201) -ne [IntPtr]::Zero -and
+                [GhosttyWindowStateNative]::GetDlgItem($paletteHandle, 1202) -ne [IntPtr]::Zero
+        }
+        $listHandle = [GhosttyWindowStateNative]::GetDlgItem($paletteHandle, 1202)
+        $commandCount = [GhosttyWindowStateNative]::SendMessageW(
+            $listHandle, $lbGetCount, [UIntPtr]::Zero, [IntPtr]::Zero
+        ).ToInt64()
+        if ($commandCount -le 0) {
+            throw "Command palette contains no commands."
+        }
+        $editHandle = [GhosttyWindowStateNative]::GetDlgItem($paletteHandle, 1201)
+        if ($editHandle -eq [IntPtr]::Zero -or $commandCount -lt 2) {
+            throw "Command palette cannot test keyboard selection."
+        }
+        $initialSelection = [GhosttyWindowStateNative]::SendMessageW(
+            $listHandle, $lbGetCurSel, [UIntPtr]::Zero, [IntPtr]::Zero
+        ).ToInt64()
+        Send-TestKey -Handle $editHandle -VirtualKey $vkDown -Description "command palette Down"
+        Wait-ForCondition -Description "command palette Down selection" -Condition {
+            [GhosttyWindowStateNative]::SendMessageW(
+                $listHandle, $lbGetCurSel, [UIntPtr]::Zero, [IntPtr]::Zero
+            ).ToInt64() -eq ($initialSelection + 1)
+        }
+        Send-TestKey -Handle $editHandle -VirtualKey $vkUp -Description "command palette Up"
+        Wait-ForCondition -Description "command palette Up selection" -Condition {
+            [GhosttyWindowStateNative]::SendMessageW(
+                $listHandle, $lbGetCurSel, [UIntPtr]::Zero, [IntPtr]::Zero
+            ).ToInt64() -eq $initialSelection
+        }
+        Add-Type -AssemblyName System.Drawing
+        Start-Sleep -Milliseconds 200
+        $captureRect = Get-WindowRectangle -Handle $paletteHandle
+        $paletteScreenshot = Join-Path $logDirectory "$sessionName.palette.png"
+        $bitmap = [System.Drawing.Bitmap]::new($captureRect.Width, $captureRect.Height)
+        try {
+            $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+            try {
+                $graphics.CopyFromScreen($captureRect.X, $captureRect.Y, 0, 0, $bitmap.Size)
+            } finally { $graphics.Dispose() }
+            $bitmap.Save($paletteScreenshot, [System.Drawing.Imaging.ImageFormat]::Png)
+        } finally { $bitmap.Dispose() }
+        $null = [GhosttyWindowStateNative]::PostMessageW(
+            $paletteHandle, $wmCommand, [UIntPtr]::new(2), [IntPtr]::Zero
+        )
+        Wait-ForCondition -Description "command palette close" -Condition {
+            -not [GhosttyWindowStateNative]::IsWindow($paletteHandle)
+        }
+        Wait-ForCondition -Description "terminal focus after command palette" -Condition {
+            [GhosttyWindowStateNative]::GetFocusedWindow($windowHandle) -eq $surfaceHandle
+        }
+        $commandPalette = [pscustomobject]@{
+            Entries = $commandCount
+            ArrowSelection = $true
+            Closed = $true
+            FocusRestored = $true
+            ImeProcessEnterSuppressed = $false
+            ConfigReloadSafe = $false
+            OwnerCloseSafe = $false
+            Screenshot = $paletteScreenshot
+        }
+    }
+
     $rendererWakeup = $null
+    $overlayScrollbar = $null
+    if ($TestOverlayScrollbar) {
+        $barHandle = [GhosttyWindowStateNative]::FindWindow($process.Id, "GhosttyOverlayScrollbar")
+        if ($barHandle -eq [IntPtr]::Zero) {
+            throw "Overlay scrollbar child was not created."
+        }
+        Send-TestText -Handle $surfaceHandle -Text 'for /L %i in (1,1,180) do @echo overlay-row-%i'
+        Send-TestKey -Handle $surfaceHandle -VirtualKey $vkReturn -Description "overlay scrollback output"
+        Start-Sleep -Milliseconds 750
+        $null = [GhosttyWindowStateNative]::SetForegroundWindow($windowHandle)
+        $surfaceRect = [GhosttyWindowStateNative+RECT]::new()
+        if (-not [GhosttyWindowStateNative]::GetClientRect($surfaceHandle, [ref]$surfaceRect)) {
+            throw "Could not read the terminal size for overlay scrollbar hover."
+        }
+        $x = $surfaceRect.Right - 3
+        $y = [int]($surfaceRect.Bottom / 2)
+        $hoverParam = [IntPtr]::new(($y -shl 16) -bor $x)
+        Wait-ForCondition -Description "overlay scrollbar reveal" -Condition {
+            if (-not [GhosttyWindowStateNative]::PostMessageW(
+                $surfaceHandle, 0x0200, [UIntPtr]::Zero, $hoverParam
+            )) {
+                throw "Could not hover the overlay scrollbar."
+            }
+            [GhosttyWindowStateNative]::IsWindowVisible($barHandle)
+        }
+        $barRect = Get-WindowRectangle -Handle $barHandle
+        Add-Type -AssemblyName System.Drawing
+        $captureRect = Get-WindowRectangle -Handle $windowHandle
+        $bitmap = [System.Drawing.Bitmap]::new($captureRect.Width, $captureRect.Height)
+        $thumbPixels = 0
+        try {
+            $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+            try {
+                $graphics.CopyFromScreen($captureRect.X, $captureRect.Y, 0, 0, $bitmap.Size)
+            } finally { $graphics.Dispose() }
+            $bitmap.Save($scrollbarScreenshot, [System.Drawing.Imaging.ImageFormat]::Png)
+            $sampleX = [int]($barRect.X - $captureRect.X + ($barRect.Width / 2))
+            for ($sampleY = [Math]::Max(0, $barRect.Y - $captureRect.Y);
+                $sampleY -lt [Math]::Min($bitmap.Height, $barRect.Y - $captureRect.Y + $barRect.Height);
+                $sampleY++) {
+                $pixel = $bitmap.GetPixel($sampleX, $sampleY)
+                if ($pixel.R -gt 100 -and $pixel.G -gt 100 -and $pixel.B -gt 100) {
+                    $thumbPixels++
+                }
+            }
+        } finally { $bitmap.Dispose() }
+        if ($thumbPixels -lt 10) {
+            throw "Overlay scrollbar was visible by HWND state but the captured image has no thumb pixels: $scrollbarScreenshot"
+        }
+        $bottomThumb = Wait-ForOverlayScrollbarThumb `
+            -PaneHandle $surfaceHandle `
+            -BarHandle $barHandle `
+            -Condition {
+                param($thumb)
+                $thumb.Bottom -ge $thumb.TrackHeight - 5
+            } `
+            -Description "the bottom scrollbar position"
+
+        Send-TestKey -Handle $surfaceHandle -VirtualKey $vkF1 -Description "scroll to top"
+        $topThumb = Wait-ForOverlayScrollbarThumb `
+            -PaneHandle $surfaceHandle `
+            -BarHandle $barHandle `
+            -Condition {
+                param($thumb)
+                $thumb.Top -le 5 -and $thumb.Top -lt $bottomThumb.Top
+            } `
+            -Description "the top scrollbar position"
+
+        Send-TestKey -Handle $surfaceHandle -VirtualKey $vkF2 -Description "scroll to bottom"
+        $null = Wait-ForOverlayScrollbarThumb `
+            -PaneHandle $surfaceHandle `
+            -BarHandle $barHandle `
+            -Condition {
+                param($thumb)
+                $thumb.Bottom -ge $thumb.TrackHeight - 5
+            } `
+            -Description "the restored bottom scrollbar position"
+        Send-TestKey -Handle $surfaceHandle -VirtualKey $vkF3 -Description "scroll one page up"
+        $pageUpThumb = Wait-ForOverlayScrollbarThumb `
+            -PaneHandle $surfaceHandle `
+            -BarHandle $barHandle `
+            -Condition {
+                param($thumb)
+                $thumb.Top -gt $topThumb.Top -and $thumb.Top -lt $bottomThumb.Top
+            } `
+            -Description "the page-up scrollbar position"
+
+        Send-TestKey -Handle $surfaceHandle -VirtualKey $vkF2 -Description "scroll to bottom before wheel"
+        $null = Wait-ForOverlayScrollbarThumb `
+            -PaneHandle $surfaceHandle `
+            -BarHandle $barHandle `
+            -Condition {
+                param($thumb)
+                $thumb.Bottom -ge $thumb.TrackHeight - 5
+            } `
+            -Description "the bottom scrollbar position before wheel"
+        $wheelUpWParam = [UIntPtr]::new(([uint64]120) -shl 16)
+        if (-not [GhosttyWindowStateNative]::PostMessageW(
+            $surfaceHandle,
+            $wmMouseWheel,
+            $wheelUpWParam,
+            [IntPtr]::Zero
+        )) {
+            throw "Could not send the overlay scrollbar wheel input."
+        }
+        $wheelThumb = Wait-ForOverlayScrollbarThumb `
+            -PaneHandle $surfaceHandle `
+            -BarHandle $barHandle `
+            -Condition {
+                param($thumb)
+                $thumb.Top -lt $bottomThumb.Top
+            } `
+            -Description "the wheel-up scrollbar position"
+
+        Send-TestKey -Handle $surfaceHandle -VirtualKey $vkF2 -Description "scroll to bottom before search"
+        $null = Wait-ForOverlayScrollbarThumb `
+            -PaneHandle $surfaceHandle `
+            -BarHandle $barHandle `
+            -Condition {
+                param($thumb)
+                $thumb.Bottom -ge $thumb.TrackHeight - 5
+            } `
+            -Description "the bottom scrollbar position before search"
+        Send-TestKey -Handle $surfaceHandle -VirtualKey $vkF4 -Description "scrollbar search result"
+        Start-Sleep -Milliseconds 500
+        Send-TestKey `
+            -Handle $surfaceHandle `
+            -VirtualKey $vkF14 `
+            -Description "previous scrollbar search result"
+        $searchThumb = Wait-ForOverlayScrollbarThumb `
+            -PaneHandle $surfaceHandle `
+            -BarHandle $barHandle `
+            -Condition {
+                param($thumb)
+                $thumb.Top -lt $bottomThumb.Top
+            } `
+            -Description "the search-result scrollbar position"
+        Send-TestKey -Handle $surfaceHandle -VirtualKey $vkF13 -Description "end scrollbar search"
+        Send-TestKey -Handle $surfaceHandle -VirtualKey $vkF2 -Description "restore bottom after scrollbar position checks"
+        $dragBottomThumb = Wait-ForOverlayScrollbarThumb `
+            -PaneHandle $surfaceHandle `
+            -BarHandle $barHandle `
+            -Condition {
+                param($thumb)
+                $thumb.Bottom -ge $thumb.TrackHeight - 5
+            } `
+            -Description "the bottom scrollbar position before exact drag"
+        $expectedDragTop = $topThumb.Top + [Math]::Truncate(
+            ($dragBottomThumb.Top - $topThumb.Top) / 2
+        )
+        $dragStartY = $dragBottomThumb.Top + [Math]::Truncate($dragBottomThumb.Height / 2)
+        $dragTargetY = $expectedDragTop + [Math]::Truncate($dragBottomThumb.Height / 2)
+        Start-OverlayScrollbarDrag -BarHandle $barHandle -Y $dragStartY
+        Move-OverlayScrollbarDrag -BarHandle $barHandle -Y $dragTargetY
+        Stop-OverlayScrollbarDrag -BarHandle $barHandle -Y $dragTargetY
+        $dragThumb = Wait-ForOverlayScrollbarThumb `
+            -PaneHandle $surfaceHandle `
+            -BarHandle $barHandle `
+            -Condition {
+                param($thumb)
+                # Drag input converts pixels to a terminal row and the updated
+                # row back to pixels, with integer truncation in both steps.
+                [Math]::Abs($thumb.Top - $expectedDragTop) -le 4
+            } `
+            -Description "the exact post-drag scrollbar position"
+
+        Send-TestKey -Handle $surfaceHandle -VirtualKey $vkF2 -Description "scroll to bottom before output-during-drag"
+        $outputDragStart = Wait-ForOverlayScrollbarThumb `
+            -PaneHandle $surfaceHandle `
+            -BarHandle $barHandle `
+            -Condition {
+                param($thumb)
+                $thumb.Bottom -ge $thumb.TrackHeight - 5
+            } `
+            -Description "the bottom scrollbar position before output-during-drag"
+        $outputDragStartY = $outputDragStart.Top + [Math]::Truncate($outputDragStart.Height / 2)
+        $outputDragTargetY = $expectedDragTop + [Math]::Truncate($outputDragStart.Height / 2)
+        Start-OverlayScrollbarDrag -BarHandle $barHandle -Y $outputDragStartY
+        Move-OverlayScrollbarDrag -BarHandle $barHandle -Y $outputDragTargetY
+        Send-TestText -Handle $surfaceHandle -Text 'for /L %i in (1,1,40) do @echo drag-output-row-%i'
+        Send-TestKey -Handle $surfaceHandle -VirtualKey $vkReturn -Description "new output during scrollbar drag"
+        Start-Sleep -Milliseconds 500
+        if ($process.HasExited -or -not [GhosttyWindowStateNative]::IsWindow($barHandle)) {
+            throw "Ghostty or its overlay scrollbar closed during output while dragging."
+        }
+        Stop-OverlayScrollbarDrag -BarHandle $barHandle -Y $outputDragTargetY
+        $outputDragThumb = Wait-ForOverlayScrollbarThumb `
+            -PaneHandle $surfaceHandle `
+            -BarHandle $barHandle `
+            -Condition {
+                param($thumb)
+                $thumb.Height -ge 10
+            } `
+            -Description "a valid scrollbar after output during drag"
+
+        $enterAlternateScreen = `
+            "powershell.exe -NoLogo -NoProfile -Command `"[Console]::Write([char]27 + '[?1049h')`""
+        Send-TestText -Handle $surfaceHandle -Text $enterAlternateScreen
+        Send-TestKey -Handle $surfaceHandle -VirtualKey $vkReturn -Description "enter alternate screen"
+        Wait-ForCondition -Description "the overlay scrollbar to hide in alternate screen" -Condition {
+            -not [GhosttyWindowStateNative]::IsWindowVisible($barHandle)
+        }
+        $client = [GhosttyWindowStateNative+RECT]::new()
+        if (-not [GhosttyWindowStateNative]::GetClientRect($surfaceHandle, [ref]$client)) {
+            throw "Could not read the terminal size for the alternate-screen scrollbar check."
+        }
+        $alternateHover = [IntPtr]::new(
+            (([int]($client.Bottom / 2)) -shl 16) -bor ($client.Right - 3)
+        )
+        for ($attempt = 0; $attempt -lt 5; $attempt++) {
+            $null = [GhosttyWindowStateNative]::PostMessageW(
+                $surfaceHandle,
+                0x0200,
+                [UIntPtr]::Zero,
+                $alternateHover
+            )
+            Start-Sleep -Milliseconds 100
+            if ([GhosttyWindowStateNative]::IsWindowVisible($barHandle)) {
+                throw "The overlay scrollbar became visible in alternate screen."
+            }
+        }
+
+        $leaveAlternateScreen = `
+            "powershell.exe -NoLogo -NoProfile -Command `"[Console]::Write([char]27 + '[?1049l')`""
+        Send-TestText -Handle $surfaceHandle -Text $leaveAlternateScreen
+        Send-TestKey -Handle $surfaceHandle -VirtualKey $vkReturn -Description "leave alternate screen"
+        $null = Wait-ForOverlayScrollbarThumb `
+            -PaneHandle $surfaceHandle `
+            -BarHandle $barHandle `
+            -Condition {
+                param($thumb)
+                $thumb.Height -ge 10
+            } `
+            -Description "the restored normal-screen scrollbar"
+        Wait-ForCondition -Description "overlay scrollbar auto-hide" -Condition {
+            -not [GhosttyWindowStateNative]::IsWindowVisible($barHandle)
+        }
+        $overlayScrollbar = [pscustomobject]@{
+            Revealed = $true
+            HiddenAfterDelay = $true
+            ConfigReloadNever = $false
+            ConfigReloadRestored = $false
+            SplitIndependent = $false
+            ResizeTracked = $false
+            AlternateScreenHidden = $true
+            NormalScreenRestored = $true
+            ExactDrag = [pscustomobject]@{
+                ExpectedTop = $expectedDragTop
+                ActualTop = $dragThumb.Top
+                Delta = $dragThumb.Top - $expectedDragTop
+                Tolerance = 4
+            }
+            OutputDuringDrag = [pscustomobject]@{
+                Survived = $true
+                Thumb = $outputDragThumb
+            }
+            PaneCloseDuringDrag = $false
+            PositionSync = [pscustomobject]@{
+                KeyTop = $topThumb
+                KeyBottom = $bottomThumb
+                KeyPageUp = $pageUpThumb
+                WheelUp = $wheelThumb
+                Search = $searchThumb
+            }
+            InitialSplitLayouts = $null
+            MaximizedSplitLayouts = $null
+            RestoredSplitLayouts = $null
+            BarRect = $barRect
+            ThumbPixels = $thumbPixels
+            Screenshot = $scrollbarScreenshot
+            SplitScreenshot = $splitScrollbarScreenshot
+        }
+    }
     if ($TestRendererWakeup) {
         $outputScript = @'
 param([string]$Marker)
@@ -1568,7 +2502,8 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
 
     Set-TestConfig `
         -Path $configPath `
-        -TabBarMode "never"
+        -TabBarMode "never" `
+        -ScrollbarMode $(if ($TestOverlayScrollbar) { "never" } else { "system" })
     Send-TestKey `
         -Handle $surfaceHandle `
         -VirtualKey $vkF6 `
@@ -1576,16 +2511,35 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
     Wait-ForCondition -Description "the tab bar to hide after config reload" -Condition {
         -not [GhosttyWindowStateNative]::IsWindowVisible($tabBarHandle)
     }
+    if ($TestOverlayScrollbar) {
+        Wait-ForCondition -Description "the overlay scrollbar to be removed after config reload" -Condition {
+            [GhosttyWindowStateNative]::FindWindow(
+                $process.Id,
+                "GhosttyOverlayScrollbar"
+            ) -eq [IntPtr]::Zero
+        }
+        $overlayScrollbar.ConfigReloadNever = $true
+    }
 
     Set-TestConfig `
         -Path $configPath `
-        -TabBarMode "always"
+        -TabBarMode "always" `
+        -ScrollbarMode "system"
     Send-TestKey `
         -Handle $surfaceHandle `
         -VirtualKey $vkF6 `
         -Description "config reload"
     Wait-ForCondition -Description "the tab bar to return after config reload" -Condition {
         [GhosttyWindowStateNative]::IsWindowVisible($tabBarHandle)
+    }
+    if ($TestOverlayScrollbar) {
+        Wait-ForCondition -Description "the overlay scrollbar to return after config reload" -Condition {
+            [GhosttyWindowStateNative]::FindWindow(
+                $process.Id,
+                "GhosttyOverlayScrollbar"
+            ) -ne [IntPtr]::Zero
+        }
+        $overlayScrollbar.ConfigReloadRestored = $true
     }
     $reloadedTabBar = Wait-ForTabBarLayout `
         -ParentHandle $windowHandle `
@@ -1634,6 +2588,91 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
         ClickMovesFocus = $true
     }
     Write-Verbose "Validated that clicking a pane moves keyboard focus."
+
+    $overlayBarHandles = @()
+    if ($TestOverlayScrollbar) {
+        # The never -> system reload recreates each native scrollbar with an
+        # empty state. Produce fresh output in both panes so each recreated
+        # bar receives a post-reload scrollbar update from its own terminal.
+        Send-TestClick -Handle $surfaceHandle -Description "original pane scrollbar setup"
+        Send-TestText -Handle $surfaceHandle -Text 'for /L %i in (1,1,180) do @echo original-split-overlay-row-%i'
+        Send-TestKey -Handle $surfaceHandle -VirtualKey $vkReturn -Description "original pane post-reload scrollback output"
+        Send-TestClick -Handle $splitPane -Description "split pane scrollbar setup"
+        Send-TestText -Handle $splitPane -Text 'for /L %i in (1,1,180) do @echo split-overlay-row-%i'
+        Send-TestKey -Handle $splitPane -VirtualKey $vkReturn -Description "split pane scrollback output"
+        Start-Sleep -Milliseconds 750
+        Wait-ForCondition -Description "one overlay scrollbar per split pane" -Condition {
+            @(
+                [GhosttyWindowStateNative]::FindWindows(
+                    $process.Id,
+                    "GhosttyOverlayScrollbar"
+                )
+            ).Count -eq 2
+        }
+        $overlayBarHandles = @(
+            [GhosttyWindowStateNative]::FindWindows(
+                $process.Id,
+                "GhosttyOverlayScrollbar"
+            )
+        )
+        $initialOverlayLayouts = @(
+            Wait-ForOverlayScrollbarLayouts `
+                -ParentHandle $windowHandle `
+                -PaneHandles $panes `
+                -BarHandles $overlayBarHandles
+        )
+        $originalOverlay = @(
+            $initialOverlayLayouts |
+                Where-Object { $_.PaneHandle -eq $surfaceHandle }
+        )[0]
+        $splitOverlay = @(
+            $initialOverlayLayouts |
+                Where-Object { $_.PaneHandle -eq $splitPane }
+        )[0]
+
+        Show-OnlyPaneScrollbar `
+            -PaneHandle $surfaceHandle `
+            -BarHandle $originalOverlay.BarHandle `
+            -OtherBarHandles @($splitOverlay.BarHandle) `
+            -Description "only the original pane overlay scrollbar"
+        $splitCaptureRect = Get-WindowRectangle -Handle $windowHandle
+        $splitBitmap = [System.Drawing.Bitmap]::new(
+            $splitCaptureRect.Width,
+            $splitCaptureRect.Height
+        )
+        try {
+            $splitGraphics = [System.Drawing.Graphics]::FromImage($splitBitmap)
+            try {
+                $splitGraphics.CopyFromScreen(
+                    $splitCaptureRect.X,
+                    $splitCaptureRect.Y,
+                    0,
+                    0,
+                    $splitBitmap.Size
+                )
+            } finally { $splitGraphics.Dispose() }
+            $splitBitmap.Save(
+                $splitScrollbarScreenshot,
+                [System.Drawing.Imaging.ImageFormat]::Png
+            )
+        } finally { $splitBitmap.Dispose() }
+        Wait-ForCondition -Description "the original pane overlay scrollbar to hide" -Condition {
+            -not [GhosttyWindowStateNative]::IsWindowVisible($originalOverlay.BarHandle)
+        }
+        Show-OnlyPaneScrollbar `
+            -PaneHandle $splitPane `
+            -BarHandle $splitOverlay.BarHandle `
+            -OtherBarHandles @($originalOverlay.BarHandle) `
+            -Description "only the split pane overlay scrollbar"
+        Wait-ForCondition -Description "the split pane overlay scrollbar to hide" -Condition {
+            -not [GhosttyWindowStateNative]::IsWindowVisible($splitOverlay.BarHandle)
+        }
+
+        $overlayScrollbar.SplitIndependent = $true
+        $overlayScrollbar.InitialSplitLayouts = $initialOverlayLayouts
+        Send-TestClick -Handle $surfaceHandle -Description "original pane after scrollbar split test"
+        Write-Verbose "Validated independent overlay scrollbars for both split panes."
+    }
 
     $monitorLayouts = @()
     foreach ($screen in @([System.Windows.Forms.Screen]::AllScreens)) {
@@ -1708,6 +2747,11 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
     # dedicated process with window-show-tab-bar=never so the first
     # `mode con` reflects the untouched startup state.
     $initialGrid = Test-InitialGrid
+    $scrollbarHistory = if ($TestOverlayScrollbar) {
+        Test-ScrollbarHistoryBoundaries
+    } else {
+        $null
+    }
     $null = Wait-ForTabBarLayout `
         -ParentHandle $windowHandle `
         -TabBarHandle $tabBarHandle
@@ -1726,6 +2770,14 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
         -ParentHandle $windowHandle `
         -TabBarHandle $tabBarHandle `
         -DividerHandle $dividerHandle
+    if ($TestOverlayScrollbar) {
+        $overlayScrollbar.MaximizedSplitLayouts = @(
+            Wait-ForOverlayScrollbarLayouts `
+                -ParentHandle $windowHandle `
+                -PaneHandles $panes `
+                -BarHandles $overlayBarHandles
+        )
+    }
     Write-Verbose "Validated the maximized layout."
 
     $null = [GhosttyWindowStateNative]::ShowWindow($windowHandle, $swMinimize)
@@ -1755,7 +2807,90 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
         -ParentHandle $windowHandle `
         -TabBarHandle $tabBarHandle `
         -DividerHandle $dividerHandle
+    if ($TestOverlayScrollbar) {
+        $overlayScrollbar.RestoredSplitLayouts = @(
+            Wait-ForOverlayScrollbarLayouts `
+                -ParentHandle $windowHandle `
+                -PaneHandles $panes `
+                -BarHandles $overlayBarHandles
+        )
+        $overlayScrollbar.ResizeTracked = $true
+    }
     Write-Verbose "Validated the final restored layout."
+
+    if ($TestOverlayScrollbar) {
+        Send-TestKey `
+            -Handle $surfaceHandle `
+            -VirtualKey $vkF5 `
+            -Description "temporary split for close-during-drag"
+        Wait-ForCondition -Description "three panes for close-during-drag" -Condition {
+            @(Get-ChildWindowHandles -ParentHandle $windowHandle).Count -eq 3
+        }
+        $threePanes = @(Get-ChildWindowHandles -ParentHandle $windowHandle)
+        $temporaryPane = @(
+            $threePanes | Where-Object {
+                $_ -ne $surfaceHandle -and $_ -ne $splitPane
+            }
+        )[0]
+        Send-TestText -Handle $temporaryPane -Text 'for /L %i in (1,1,180) do @echo close-drag-row-%i'
+        Send-TestKey -Handle $temporaryPane -VirtualKey $vkReturn -Description "temporary pane scrollback output"
+        Start-Sleep -Milliseconds 750
+        Wait-ForCondition -Description "three overlay scrollbars for close-during-drag" -Condition {
+            @(
+                [GhosttyWindowStateNative]::FindWindows(
+                    $process.Id,
+                    "GhosttyOverlayScrollbar"
+                )
+            ).Count -eq 3
+        }
+        $threeBars = @(
+            [GhosttyWindowStateNative]::FindWindows(
+                $process.Id,
+                "GhosttyOverlayScrollbar"
+            )
+        )
+        $threeLayouts = @(
+            Wait-ForOverlayScrollbarLayouts `
+                -ParentHandle $windowHandle `
+                -PaneHandles $threePanes `
+                -BarHandles $threeBars
+        )
+        $temporaryBar = @(
+            $threeLayouts | Where-Object { $_.PaneHandle -eq $temporaryPane }
+        )[0].BarHandle
+        $temporaryThumb = Wait-ForOverlayScrollbarThumb `
+            -PaneHandle $temporaryPane `
+            -BarHandle $temporaryBar `
+            -Condition {
+                param($thumb)
+                $thumb.Height -ge 10
+            } `
+            -Description "the temporary pane scrollbar before close-during-drag"
+        $temporaryStartY = $temporaryThumb.Top + [Math]::Truncate($temporaryThumb.Height / 2)
+        $temporaryTargetY = [Math]::Max(
+            [Math]::Truncate($temporaryThumb.Height / 2) + 3,
+            [Math]::Truncate($temporaryThumb.TrackHeight / 2)
+        )
+        Start-OverlayScrollbarDrag -BarHandle $temporaryBar -Y $temporaryStartY
+        Move-OverlayScrollbarDrag -BarHandle $temporaryBar -Y $temporaryTargetY
+        Send-TestKey `
+            -Handle $temporaryPane `
+            -VirtualKey 0x7A `
+            -Description "close temporary pane during scrollbar drag"
+        Wait-ForCondition -Description "temporary pane and scrollbar close during drag" -Condition {
+            @(Get-ChildWindowHandles -ParentHandle $windowHandle).Count -eq 2 -and
+                -not [GhosttyWindowStateNative]::IsWindow($temporaryPane) -and
+                -not [GhosttyWindowStateNative]::IsWindow($temporaryBar)
+        }
+        if ([GhosttyWindowStateNative]::GetCaptureWindow($windowHandle) -eq $temporaryBar) {
+            throw "The destroyed overlay scrollbar retained mouse capture."
+        }
+        if ($process.HasExited -or -not [GhosttyWindowStateNative]::IsWindow($windowHandle)) {
+            throw "Closing a pane during scrollbar drag closed Ghostty or its window."
+        }
+        $overlayScrollbar.PaneCloseDuringDrag = $true
+        Write-Verbose "Validated output and pane closure during overlay scrollbar drag."
+    }
 
     Send-TestKey `
         -Handle $surfaceHandle `
@@ -1769,10 +2904,7 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
             Where-Object { $_ -ne $windowHandle }
     )[0]
     $secondShellEligibility = Test-ShellEligibility -Handle $secondWindowHandle
-    $secondSurfaceHandle = [GhosttyWindowStateNative]::GetWindow(
-        $secondWindowHandle,
-        $gwChild
-    )
+    $secondSurfaceHandle = @(Get-ChildWindowHandles -ParentHandle $secondWindowHandle)[0]
     if ($secondSurfaceHandle -eq [IntPtr]::Zero) {
         throw "The second Ghostty surface child window was not found."
     }
@@ -1855,6 +2987,58 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
         Write-Verbose "Validated power-resume recovery across all terminal surfaces."
     }
 
+    if ($TestCommandPalette) {
+        Send-TestKey `
+            -Handle $secondSurfaceHandle `
+            -VirtualKey $vkF12 `
+            -Description "command palette before config reload"
+        Wait-ForCondition -Description "command palette before config reload" -Condition {
+            @( [GhosttyWindowStateNative]::FindWindows($process.Id, "#32770") ).Count -gt 0
+        }
+        $secondPaletteHandle = @(
+            [GhosttyWindowStateNative]::FindWindows($process.Id, "#32770")
+        )[0]
+        Wait-ForCondition -Description "second-window command palette controls" -Condition {
+            [GhosttyWindowStateNative]::GetDlgItem($secondPaletteHandle, 1201) -ne [IntPtr]::Zero -and
+                [GhosttyWindowStateNative]::GetDlgItem($secondPaletteHandle, 1202) -ne [IntPtr]::Zero
+        }
+        $secondPaletteList = [GhosttyWindowStateNative]::GetDlgItem(
+            $secondPaletteHandle,
+            1202
+        )
+        $secondPaletteEdit = [GhosttyWindowStateNative]::GetDlgItem(
+            $secondPaletteHandle,
+            1201
+        )
+        $secondPaletteCount = [GhosttyWindowStateNative]::SendMessageW(
+            $secondPaletteList,
+            $lbGetCount,
+            [UIntPtr]::Zero,
+            [IntPtr]::Zero
+        ).ToInt64()
+        $secondPaletteSelection = [GhosttyWindowStateNative]::SendMessageW(
+            $secondPaletteList,
+            $lbGetCurSel,
+            [UIntPtr]::Zero,
+            [IntPtr]::Zero
+        ).ToInt64()
+        Send-TestProcessKey `
+            -Handle $secondPaletteEdit `
+            -ScanCode $scanReturn `
+            -Description "command palette composition Enter"
+        Start-Sleep -Milliseconds 250
+        if (-not [GhosttyWindowStateNative]::IsWindow($secondPaletteHandle) -or
+            [GhosttyWindowStateNative]::SendMessageW(
+                $secondPaletteList,
+                $lbGetCurSel,
+                [UIntPtr]::Zero,
+                [IntPtr]::Zero
+            ).ToInt64() -ne $secondPaletteSelection) {
+            throw "An Enter consumed by the IME changed or executed the command palette selection."
+        }
+        $commandPalette.ImeProcessEnterSuppressed = $true
+    }
+
     Set-TestConfig `
         -Path $configPath `
         -TabBarMode "never"
@@ -1884,6 +3068,30 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
     $null = Wait-ForTabBarLayout `
         -ParentHandle $secondWindowHandle `
         -TabBarHandle $secondTabBarHandle
+    if ($TestCommandPalette) {
+        if (-not [GhosttyWindowStateNative]::IsWindow($secondPaletteHandle)) {
+            throw "The command palette closed during config reload."
+        }
+        $reloadedPaletteCount = [GhosttyWindowStateNative]::SendMessageW(
+            $secondPaletteList,
+            $lbGetCount,
+            [UIntPtr]::Zero,
+            [IntPtr]::Zero
+        ).ToInt64()
+        if ($reloadedPaletteCount -ne $secondPaletteCount) {
+            throw "The command palette snapshot changed during config reload."
+        }
+        $null = [GhosttyWindowStateNative]::PostMessageW(
+            $secondPaletteHandle,
+            $wmCommand,
+            [UIntPtr]::new(2),
+            [IntPtr]::Zero
+        )
+        Wait-ForCondition -Description "command palette close after config reload" -Condition {
+            -not [GhosttyWindowStateNative]::IsWindow($secondPaletteHandle)
+        }
+        $commandPalette.ConfigReloadSafe = $true
+    }
     Write-Verbose "Validated config reload across both windows."
 
     Send-TestKey `
@@ -1921,6 +3129,16 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
     }
     Write-Verbose "Validated window navigation and visibility toggle."
 
+    if ($TestCommandPalette) {
+        Send-TestKey `
+            -Handle $secondSurfaceHandle `
+            -VirtualKey $vkF12 `
+            -Description "command palette in second window"
+        Wait-ForCondition -Description "second-window command palette dialog" -Condition {
+            @( [GhosttyWindowStateNative]::FindWindows($process.Id, "#32770") ).Count -gt 0
+        }
+    }
+
     if (-not [GhosttyWindowStateNative]::PostMessageW(
         $secondWindowHandle,
         $wmClose,
@@ -1936,6 +3154,12 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
     if ($process.HasExited -or
         -not [GhosttyWindowStateNative]::IsWindow($windowHandle)) {
         throw "Closing the second window also closed the original window or process."
+    }
+    if ($TestCommandPalette) {
+        Wait-ForCondition -Description "second-window command palette close" -Condition {
+            @( [GhosttyWindowStateNative]::FindWindows($process.Id, "#32770") ).Count -eq 0
+        }
+        $commandPalette.OwnerCloseSafe = $true
     }
 
     Send-TestKey `
@@ -1991,6 +3215,9 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
         ImeProcessKeys = $imeProcessKeys
         InitialGrid = $initialGrid
         SplitFocus = $splitFocus
+        CommandPalette = $commandPalette
+        OverlayScrollbar = $overlayScrollbar
+        ScrollbarHistory = $scrollbarHistory
         RendererWakeup = $rendererWakeup
         GpuRecovery = $gpuRecovery
         PowerResume = $powerResume

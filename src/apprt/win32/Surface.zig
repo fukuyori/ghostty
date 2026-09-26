@@ -11,6 +11,7 @@ const CoreSurface = @import("../../Surface.zig");
 const global = @import("../../global.zig");
 const input = @import("../../input.zig");
 const terminal = @import("../../terminal/main.zig");
+const FileDrop = @import("FileDrop.zig");
 
 const log = std.log.scoped(.win32_surface);
 const App = @import("App.zig");
@@ -44,6 +45,8 @@ height: u32 = 600,
 cursor_pos: apprt.CursorPos = .{ .x = 0, .y = 0 },
 title: ?[:0]const u8 = null,
 search_bar: ?*@import("SearchBar.zig") = null,
+scrollbar: ?*@import("Scrollbar.zig") = null,
+file_drop_shell: FileDrop.Shell = .unsupported,
 mouse_shape: terminal.MouseShape = .text,
 mouse_visible: bool = true,
 
@@ -138,10 +141,17 @@ pub fn init(
     };
     errdefer self.deinit();
     self.updateClientSize();
+    win32.DragAcceptFiles(hwnd, 1);
     if (comptime build_config.renderer == .opengl) try self.initOpenGL();
 }
 
 pub fn deinit(self: *Self) void {
+    win32.DragAcceptFiles(self.hwnd, 0);
+    if (self.scrollbar) |bar| {
+        bar.deinit();
+        self.rtApp().alloc.destroy(bar);
+        self.scrollbar = null;
+    }
     if (self.search_bar) |bar| {
         bar.deinit();
         self.rtApp().alloc.destroy(bar);

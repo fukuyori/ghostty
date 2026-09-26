@@ -6161,6 +6161,12 @@ fn startClipboardRequest(
     return try self.rt_surface.clipboardRequest(loc, effective_req);
 }
 
+/// Paste text supplied by the application, using the same safety check as
+/// clipboard paste. A rejected paste may be retried after user confirmation.
+pub fn pasteExternalText(self: *Surface, data: []const u8, confirmed: bool) !void {
+    try self.completeClipboardPaste(data, confirmed);
+}
+
 fn completeClipboardPaste(
     self: *Surface,
     data: []const u8,

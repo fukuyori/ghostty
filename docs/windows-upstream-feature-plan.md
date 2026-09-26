@@ -2,7 +2,7 @@
 
 - Created and updated: 2026-09-23
 - Scope: the `windows` branch of `fukuyori/ghostty`
-- Status: Plan written and issues registered; implementation and acceptance verification have not started
+- Status: F1-F3 implementation and acceptance checks are complete; F4-F8 remain
 - Related: [Windows roadmap](windows-roadmap.md), [user guide](windows.md)
 - Source of truth for progress, priority, and issues: [roadmap Phase 7](windows-roadmap.md#phase-7-upstream-feature-coverage-on-windows). This document records feature-specific design questions and acceptance criteria.
 
@@ -42,9 +42,9 @@ Roadmap Phases 1-6 record earlier milestones. This plan expands feature coverage
 
 | ID | Feature | Value | Relative effort | Initial state | Issue |
 |---|---|---|---|---|---|
-| F1 | Command palette | Search and run many existing actions | Medium | Not started | [#17](https://github.com/fukuyori/ghostty/issues/17) |
-| F2 | Scrollbar | Locate and navigate long scrollback | Medium | Not started | [#23](https://github.com/fukuyori/ghostty/issues/23) |
-| F3 | File drag and drop | Enter long or multiple paths from Explorer | Medium to high | Not started; path behavior needs a decision | [#32](https://github.com/fukuyori/ghostty/issues/32) |
+| F1 | Command palette | Search and run many existing actions | Medium | Implemented; controlled UI, reload safety, owner-confirmed navigation, physical IME confirmation, high contrast, and mixed-DPI display passed | [#17](https://github.com/fukuyori/ghostty/issues/17) |
+| F2 | Scrollbar | Locate and navigate long scrollback | Medium | Implemented; overlay lifecycle, position sync, split and alternate-screen behavior, drag races, history limits, resize tracking, real-pointer drag, high contrast, and mixed-DPI display verified | [#23](https://github.com/fukuyori/ghostty/issues/23) |
+| F3 | File drag and drop | Enter long or multiple paths from Explorer | Medium to high | Implemented; PowerShell/cmd quoting, rejection, pane targeting, elevated-window restriction, and target-window closure checked | [#32](https://github.com/fukuyori/ghostty/issues/32) |
 | F4 | Taskbar progress | See supported applications' progress outside the terminal | Low to medium | Not started | [#33](https://github.com/fukuyori/ghostty/issues/33) |
 | F5 | HTML clipboard output | Paste formatted terminal output into documents | Low to medium | Not started | [#34](https://github.com/fukuyori/ghostty/issues/34) |
 | F6 | Session save and restore | Reduce rebuilding tabs, splits, and working locations | High | Awaiting design | [#35](https://github.com/fukuyori/ghostty/issues/35) |
@@ -71,6 +71,25 @@ Initial scope:
 
 Before implementation, compare macOS and GTK search, ordering, and dynamic destination lists. Record the chosen behavior and unsupported scope; do not invent a separate search specification.
 
+Windows implementation in progress: include both configured entries and live
+terminal destinations, as the owner selected. The native dialog sorts titles
+case-insensitively with the upstream colon ordering, matches ordered query
+characters in titles and descriptions, and snapshots actions while open.
+Unsupported Win32 actions are filtered. The controlled window-state check
+found 76 entries and verified Up/Down selection and focus restoration after
+dismissal; a captured image shows the dialog. The owner also confirmed real
+Up/Down input, new-tab action, and switching to an open tab. A regression check
+also closes a second window while its palette is open and verifies that the
+dialog and window close without a stale surface reference while the original
+window survives. A controlled VK_PROCESSKEY Enter leaves the palette open and
+its selection unchanged, and the palette snapshot remains valid across config
+reload. The owner then used the physical Japanese IME to enter and confirm a
+query; the captured palette remained open with the confirmed text and no
+command executed. A high-contrast capture then confirmed readable input,
+selection, command list, description, and buttons. With monitor 3 temporarily
+set to 125%, another capture confirmed scaled, unclipped input, selection,
+command list, description, and buttons. The monitor was restored to 100%.
+
 Completion criteria:
 
 - Standard and user-defined configured commands run against the correct pane.
@@ -91,6 +110,42 @@ Initial scope:
 
 Before implementation, compare upstream behavior and decide how to follow Windows system settings, consume layout space, and handle new output during dragging.
 
+Windows implementation in progress: the owner revised `system` to use a slim
+translucent overlay that appears on scroll or edge hover and hides afterward;
+`never` disables it. The overlay leaves the terminal grid at full width and
+sends drag navigation through `scroll_to_row`. A controlled check confirmed
+the overlay HWND reveals and hides, and captured pixels confirm the thumb is
+actually drawn. The owner reported OK after the manual long-output, hover,
+drag, and hide sequence; exact scroll position was not recorded. Independent
+split checks now confirm that each pane reveals only its own overlay and that
+both overlays remain aligned to their pane through maximize and restore. The
+check exposed an internal-left-pane conflict where divider hover consumed the
+right-edge pointer before scrollbar hover; Win32 now evaluates scrollbar hover
+first. Search and key/wheel position tracking, alternate-screen behavior,
+exact post-drag position, and mixed-DPI/high-contrast presentation were the
+remaining checks at that point. Later controlled pixel measurements verified
+thumb positions for scroll-to-top, scroll-to-bottom, page-up, wheel-up, and
+search-result navigation. Three controlled runs also verified that the overlay
+cannot reveal in alternate screen and becomes available after returning to the
+normal screen. Exact post-drag position, output or pane closure during drag,
+and mixed-DPI/high-contrast presentation were the remaining checks at that
+point. A later controlled drag requested thumb top 364 and consistently
+measured 361 after the pixel-to-row-to-pixel integer conversion. New output
+during capture and closing a temporary pane while its scrollbar owned capture
+also completed without closing the original window or process. Empty and
+history-limit cases were then checked in a dedicated process: empty history did
+not reveal on edge hover, and a 64-line setting trimmed 2000 generated rows to
+29 exported historical rows numbered 1930 through 1958 while retaining a
+usable overlay. The owner subsequently completed the real-pointer check: edge hover
+revealed the overlay, dragging its thumb moved to older output, and it hid
+after release and pointer departure. High-contrast presentation was then
+checked separately: a capture confirmed that the thumb remains distinguishable
+from the terminal background. With monitor 3 temporarily set to 125%, another
+capture confirmed that the overlay width, position, and thumb scale without
+clipping or displacement. The monitor was restored to 100%. A controlled
+config reload verifies that `never` destroys the
+overlay and restoring `system` recreates it.
+
 Completion criteria:
 
 - Correct position and size with empty or extensive history, a reached history limit, and resize.
@@ -100,22 +155,111 @@ Completion criteria:
 
 ### F3: File Drag and Drop
 
-Upstream converts a file list into paths for pasting; noctty has an OLE drop receiver. This fork's Win32 app has no receiver. Initially support file and directory paths from Explorer, excluding arbitrary HTML/URL formats and noctty-specific modifier behavior. Route insertion through the existing input and paste-protection path.
+Upstream converts a file list into paths for pasting; noctty has an OLE drop receiver. The Win32 app now accepts Explorer file and directory drops on each terminal pane through `WM_DROPFILES`. Arbitrary HTML/URL formats and noctty-specific modifier behavior are outside this scope. The paths enter through the core paste-protection path.
 
-Required decisions before implementation:
+The configured startup command of each pane selects PowerShell or cmd quoting;
+the default shell is cmd. PowerShell paths use single quotes with doubled
+apostrophes. Cmd paths use double quotes; paths containing `%` or `!` are
+rejected with a warning because cmd expands them. Multiple paths are separated
+by spaces. The drop is inserted without Enter, targets the pane under the
+pointer, and does not convert WSL/MSYS paths. An unsupported configured shell
+produces a warning. Shell changes made inside a running terminal are not
+detectable from the startup setting.
 
-- Supported shells, such as PowerShell, cmd, and Git Bash.
-- Quoting and separators for multiple paths and paths with spaces, quotes, or shell metacharacters.
-- Whether to handle WSL/MSYS path conversion; do not convert implicitly.
-- Target pane and focus when dropping onto a split.
+The owner supplied captured Explorer drops into a PowerShell pane: a single
+`README.md` path and two simultaneous paths containing spaces, Japanese text,
+and an apostrophe appeared with the expected single-quote doubling and no
+Enter. A later `%`-path screenshot came from the installed Ghostty with a
+`pwsh.exe` child, so it was excluded from cmd verification. The owner then
+captured the expected `%` rejection warning from the development build
+(PID 26552, `cmd.exe` child), and the `!` rejection warning
+from a relaunched development build (PID 4340, `cmd.exe` child). The owner
+reported that `plain space.txt` was double-quoted without Enter in a later
+development build (PID 12800, `cmd.exe` child), then confirmed that a drop
+onto its right split appeared only in that pane. File-drop formatting rejects
+control characters (including newline and Escape) before calling the core
+paste-protection path. Valid file drops therefore do not trigger the unsafe
+paste prompt. In a real Explorer check, the elevated test window did not
+accept a drop from normal Explorer and no path was inserted. The normal
+development build accepted drops as described above.
 
-Do not assume POSIX escaping or noctty quoting works across all Windows shells. Do not implement before these decisions are made.
+For the final target-window closure check, the owner held a real Explorer drag
+over a normal Debug window while its PowerShell child performed a measured
+20-second wait and exited. The target window closed at the expected time; the
+owner canceled the still-held drag, and Explorer showed no error or abnormal
+behavior. This completes the F3 acceptance criteria.
+
+Later controlled runs verified F1 IME process-key suppression and config reload
+with an open palette, and F2 `never`/`system` overlay recreation. A five-run
+repetition completed with exit code 0 and no forced termination in every run.
+After the split-hover ordering fix, five consecutive controlled runs also
+verified F2 per-pane reveal independence and maximize/restore layout tracking;
+all exited with code 0 without forced termination. These controlled results do
+not complete the remaining real-input or display acceptance checks.
+
+Three consecutive controlled position-sync runs measured the same 949-pixel
+track and 221-pixel thumb: top at 3, bottom at 725, page-up at 503, wheel-up at
+710, and search navigation at 405. Every run also retained split independence
+and resize tracking, exited with code 0, and required no forced termination.
+Three following runs passed the alternate-screen hide and normal-screen restore
+checks with the position, split, and resize results unchanged; all exited with
+code 0 without forced termination.
+
+Three controlled drag runs requested thumb top 364 and measured 361 each time,
+within the four-pixel allowance for two integer conversions. All three survived
+40 lines of new output during drag and destruction of a temporary third pane
+during its own drag, retained the original two panes, exited with code 0, and
+required no forced termination.
+
+Five controlled history-boundary runs all hid the overlay before scrollback
+existed and exported the same 29 retained rows, 1930 through 1958, after 2000
+rows were produced with `scrollback-limit-lines = 64`. After adding a renderer
+settle interval, two final runs both measured a 573-pixel thumb on a 949-pixel
+track. The dedicated processes exited with code 0 without forced termination.
+
+The subsequent full Debug `zig build test --summary all` run completed all
+91 build steps and passed 3874 of 3936 tests, with the remaining 62 skipped.
+An initial run found one incorrect command-palette matcher expectation:
+`rld cfg` does match `Reload Configuration` as an ordered subsequence. The
+focused matcher test and the full suite both passed after correcting that test
+expectation; runtime matching behavior was unchanged.
+
+A final Debug `zig build` and combined command-palette/overlay-scrollbar native
+regression completed with exit code 0 and no forced termination. The saved
+palette, single-pane scrollbar, and split-pane scrollbar captures were
+inspected and showed the expected controls and overlays. The Win32 test-hook
+suite then passed 149 of 150 tests, with one skipped. All four monitors in the
+native run reported 96 DPI, so it does not close the mixed-DPI acceptance gap.
+
+The owner then changed monitor 3 from 96 to 120 DPI (125%). A combined native
+run completed with exit code 0 and no forced termination, reporting 120 DPI
+for the parent window, tab bar, and divider on that monitor while the other
+three remained at 96 DPI. The tab bar scaled from 1204 x 32 to 1507 x 40, and
+the divider layout tracked the 120-DPI pane. Captures taken on monitor 3 showed
+the F1 palette and F2 overlay scrollbar correctly scaled and unclipped. After
+the monitor was restored to 100%, a final native run completed with exit code
+0 and reported all four monitors at 96 DPI.
+
+A separate baseline-CPU ReleaseFast build completed all 128 build steps and
+validated its PE32+ x64 GUI executable, `1.3.2-windows.11` file/product
+versions, numeric version `1.3.2.11`, icons, resources, compiled terminfo, and
+output hash. Its first combined F1/F2 regression exposed a harness timing race:
+the second palette dialog HWND was visible before its edit and list controls
+were available. The script now waits for both controls. The unchanged Release
+executable then passed the combined regression with exit code 0 and no forced
+termination; the palette and single/split scrollbar captures were inspected.
+The initial soak attempt found two pre-existing manual-evidence directories in
+`zig-out/test-state`. The soak harness now preserves a snapshot of existing
+entries and fails only when an iteration adds or removes one. With that check,
+the ReleaseFast executable passed 20 of 20 soak iterations with zero failures
+in 119.803 seconds. A final real Explorer drop into that ReleaseFast executable
+inserted the quoted `README.md` path without Enter or command execution.
 
 Completion criteria:
 
 - Paths with spaces, Japanese characters, and symbols, and multiple files produce intended input in the chosen shells.
 - Actual Explorer drops reach the intended pane without running a command unexpectedly.
-- Check cancelation, target-window closure, paste protection, and OS restrictions for normal/elevated users.
+- Target-window closure passed with a real Explorer drag held over a Debug window until its scheduled shell exit. The elevated-window Explorer restriction was observed; the `%`/`!` warning covers rejection. Malformed control-character paths are covered by unit tests because Explorer cannot supply such filenames.
 
 ## 5. Independent Features
 

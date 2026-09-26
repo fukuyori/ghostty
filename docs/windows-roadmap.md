@@ -104,10 +104,11 @@ work in this document at the same time.
 | 4 | Split panes | Done | 100% |
 | 5 | Windows GUI polish | Done | 100% |
 | 6 | Release quality | Done | 100% |
-| 7 | Upstream feature coverage on Windows (F1-F8) | Not started | Not estimated |
+| 7 | Upstream feature coverage on Windows (F1-F8) | In progress | Not estimated |
 
-The original six production-readiness phases are done. Phase 7 is new and
-has no completed feature or percentage estimate. Its scope does not change
+The original six production-readiness phases are done. Phase 7 has F1-F3
+implementation in progress, with no completed feature or percentage estimate.
+Its scope does not change
 the historical completion status of Phases 1-6. On 2026-09-15 the first preview build
 `1.3.2-windows.1` (tag `v1.3.2-windows.1`) was finalized after passing
 Release verification, and later previews followed. The preceding Windows
@@ -1186,8 +1187,9 @@ Completion criteria:
 
 ### Phase 7: Upstream Feature Coverage on Windows
 
-Status: **Not started**. All F1-F8 issues are registered; implementation and
-acceptance verification have not begun. This is a new phase after the six
+Status: **In progress**. F1-F3 implementation and acceptance checks are
+complete. F4-F8 have not begun.
+This is a new phase after the six
 completed production-readiness phases. It is not part of the historical
 `1.3.2-windows.11` distribution evidence.
 
@@ -1201,14 +1203,130 @@ checks; this roadmap owns ordering and status.
 
 | Order | ID | Feature and upstream contract | Issue | Status | Entry and acceptance gate |
 |---|---|---|---|---|---|
-| 1 | F1 | Command palette: `toggle_command_palette`, `command-palette-entry` | [#17](https://github.com/fukuyori/ghostty/issues/17) | Not started | Settle macOS/GTK behavior differences; verify standard and custom actions, focus, IME Enter, config reload, DPI, and high contrast |
-| 2 | F2 | Per-pane scrollbar: `scrollbar = system / never`, `scroll_to_row` | [#23](https://github.com/fukuyori/ghostty/issues/23) | Not started | Settle system visibility and layout; verify long history, pane independence, mouse drag, search, resize, and DPI |
-| 3 | F3 | Explorer file/directory drop into a pane | [#32](https://github.com/fukuyori/ghostty/issues/32) | Not started | First decide supported shells, quoting, multiple paths, WSL/MSYS handling, and target pane; verify real Explorer drops and paste protection |
+| 1 | F1 | Command palette: `toggle_command_palette`, `command-palette-entry` | [#17](https://github.com/fukuyori/ghostty/issues/17) | Implemented | Controlled display, Up/Down, dismiss/focus, IME process-key suppression, config reload, and owner-window closure checks passed; owner confirmed real Up/Down, new-tab action, open-tab jump, physical Japanese IME conversion Enter without command execution, readable high contrast, and scaled unclipped controls at 125% DPI |
+| 2 | F2 | Per-pane scrollbar: `scrollbar = system / never`, `scroll_to_row` | [#23](https://github.com/fukuyori/ghostty/issues/23) | Implemented | Controlled reveal, captured thumb pixels, auto-hide, `never`/`system` config reload, key/wheel/search position sync, split independence, alternate-screen transitions, exact controlled drag, output/pane-close drag races, empty/reached-limit history, and maximize/restore tracking passed; owner confirmed real-pointer drag and auto-hide, a distinguishable high-contrast thumb, and correctly scaled overlay geometry at 125% DPI |
+| 3 | F3 | Explorer file/directory drop into a pane | [#32](https://github.com/fukuyori/ghostty/issues/32) | Implemented | Owner captured single/multiple PowerShell drops without Enter, `%`/`!` rejection warnings, cmd double quoting without Enter, and right-split-only delivery in development builds. Normal Explorer could not drop into an elevated test window. A real drag held over a Debug target until its scheduled shell exit confirmed clean target-window closure and cancellation without Explorer errors |
 | Independent | F4 | Taskbar progress from `progress_report` and `progress-style` | [#33](https://github.com/fukuyori/ghostty/issues/33) | Not started | Decide active-pane policy; verify normal, paused, error, indeterminate, and cleared states with a controlled sequence and a real emitting app |
 | Independent | F5 | HTML and mixed clipboard output | [#34](https://github.com/fukuyori/ghostty/issues/34) | Not started | Settle plain fallback for HTML-only copies; verify CF_HTML offsets, Japanese text, rich/plain paste, and existing OSC 52 behavior |
 | Later design | F6 | Session save/restore: `window-save-state` | [#35](https://github.com/fukuyori/ghostty/issues/35) | Not started | Decide Windows defaults, saved scope, format, startup precedence, invalid state, and working-directory limits before implementation |
 | Later design | F7 | Quick terminal and `global:` bindings | [#24](https://github.com/fukuyori/ghostty/issues/24) | Not started | Decide Win32 semantics for each setting; verify hotkey conflicts, focus, reload, multiple monitors, and clean exit |
 | Later design | F8 | Desktop and command-finish notifications | [#21](https://github.com/fukuyori/ghostty/issues/21) | Not started | Separate OSC notifications from shell-dependent command completion; verify policy, delivery, activation, and unavailable notifications |
+
+At the 2026-09-26 checkpoint, F3's main normal-window Explorer scenarios had
+real input evidence and the elevated-window limit had been observed. F1 and F2
+still had the acceptance gaps listed above.
+
+Subsequent controlled runs verified F1 IME process-key suppression and config
+reload while a palette remained open, plus F2 removal and recreation of the
+overlay across `never`/`system` reloads. A five-run repetition passed with exit
+code 0 and no forced termination in every run. These do not replace the
+then-pending physical IME, mixed-DPI, high-contrast, and pointer acceptance
+checks. Physical IME and pointer acceptance were completed later as recorded
+below; high contrast and mixed DPI were also completed later.
+
+A later controlled split check found that divider hover intercepted the left
+pane's right edge before its overlay scrollbar could reveal. Evaluating
+scrollbar hover first fixed that conflict without removing divider handling.
+Five consecutive post-fix runs verified that each split pane reveals only its
+own scrollbar and that both bars remain aligned with their pane after maximize
+and restore. Each run exited with code 0 without forced termination; the
+captured thumb and command-palette images were inspected, the Win32-filtered
+tests passed, and no residual Ghostty or Zig process remained.
+
+Three subsequent controlled runs measured scrollbar position changes from the
+same bottom state. On a 949-pixel track with a 221-pixel thumb, scroll-to-top
+placed it at 3, scroll-to-bottom at 725, page-up at 503, wheel-up at 710, and
+search-result navigation at 405. All three runs retained the split and resize
+checks, exited with code 0, and required no forced termination.
+
+Three following controlled runs verified that alternate screen suppresses the
+history overlay even on edge hover and that returning to the normal screen
+restores it. Position synchronization, split independence, and resize tracking
+remained successful; every run exited with code 0 without forced termination.
+
+Three controlled drag runs requested thumb top 364 and measured 361 each time;
+the four-pixel tolerance accounts for integer truncation when converting the
+pointer position to a terminal row and the updated row back to pixels. Each run
+also produced 40 lines during an active drag and closed a temporary third pane
+while its scrollbar owned capture. The original window and two panes survived,
+and all runs exited with code 0 without forced termination.
+
+A dedicated history-boundary process configured
+`scrollback-limit-lines = 64`, first verified that edge hover cannot reveal a
+scrollbar with empty history, then produced 2000 rows and exported the retained
+history. Five runs each retained 29 rows numbered 1930 through 1958, discarded
+the oldest marker, and kept a usable thumb. After allowing the renderer to
+consume the final output batch, two final runs both measured a 573-pixel thumb
+on a 949-pixel track. The dedicated processes exited with code 0 without forced
+termination and their retained-history evidence is stored with the session
+logs.
+
+The subsequent full Debug `zig build test --summary all` run completed all
+91 build steps and passed 3874 of 3936 tests, with 62 skipped. Its initial run
+found one incorrect command-palette matcher expectation: `rld cfg` is an
+ordered subsequence of `Reload Configuration`. After correcting the test
+expectation, both the focused matcher test and the full suite passed; the
+runtime matcher was not changed.
+
+A final Debug `zig build` succeeded, followed by a combined command-palette
+and overlay-scrollbar native regression with exit code 0 and no forced
+termination. The saved palette, single-pane scrollbar, and split-pane
+scrollbar images were inspected and showed the expected controls and overlays.
+The Win32 test-hook suite passed 149 of 150 tests with one skipped. The native
+run exercised four monitors, but each reported 96 DPI, so it is not mixed-DPI
+evidence.
+
+The owner then confirmed physical Japanese IME handling in the Debug build:
+after entering a Japanese query and pressing conversion Enter, the palette
+remained open with the confirmed text and did not execute a command. The
+captured image is stored with the 2026-09-26 session logs.
+
+In the same Debug process, the owner produced 500 lines and completed the F2
+real-pointer acceptance sequence. Moving to the pane edge revealed the
+overlay, dragging the thumb upward reached older output, and the bar hid after
+release and pointer departure.
+
+The owner then enabled Windows high contrast and captured both features. The
+command palette retained readable input, selection, command list, description,
+and buttons; the scrollbar thumb remained distinguishable from the black
+terminal background. Normal display was restored afterward. The evidence
+images are stored with the 2026-09-26 session logs. All connected monitors
+still reported 96 DPI, so mixed-DPI acceptance remains open.
+
+For F3 target-window closure, the owner held a real Explorer drag over a normal
+Debug window while its PowerShell child performed a measured 20-second wait
+and exited. The window closed at the expected time; canceling the drag caused
+no Explorer error or abnormal behavior. Together with the earlier quoting,
+rejection, and pane-targeting evidence, this completes F3 acceptance.
+
+For mixed-DPI acceptance, the owner changed monitor 3 from 96 to 120 DPI
+(125%). The combined F1/F2 native regression completed with exit code 0 and no
+forced termination; the parent, tab bar, and divider all reported 120 DPI on
+that monitor while the other three remained at 96 DPI. The tab bar scaled from
+1204 x 32 to 1507 x 40, and the divider tracked the scaled pane. Captures on
+monitor 3 showed the command palette and overlay scrollbar scaled and
+unclipped. After restoring monitor 3 to 100%, a final native regression passed
+and reported all four monitors at 96 DPI.
+
+A separate baseline-CPU ReleaseFast verification build completed all 128
+steps. The build script validated PE32+ x64 WindowsGui metadata, version
+`1.3.2-windows.11` / numeric `1.3.2.11`, icon resources, shell integration,
+compiled terminfo, 607 themes, and SHA-256
+`B36DDD5BC0B87153115BA8F4CE110A53C2C334DB7CF7E38E46DB419EB90B93D9`.
+The first combined F1/F2 run exposed a regression-harness race that observed
+the second palette dialog before its edit and list controls existed. After the
+script was changed to wait for both controls, the same Release executable
+passed the combined native regression with exit code 0 and no forced
+termination. The Release palette and single/split scrollbar captures were
+inspected and showed the expected controls and overlays. The first soak attempt
+then found two pre-existing manual-evidence directories in
+`zig-out/test-state`. The soak harness now snapshots and preserves the initial
+entry set while detecting any per-iteration addition or removal. The
+ReleaseFast executable subsequently passed 20 of 20 soak iterations with zero
+failures in 119.803 seconds; its summary is
+`zig-out/logs/windows-soak-20260926-122035-488.json`. The owner then completed
+a real Explorer drop into the ReleaseFast executable: `README.md` was inserted
+as a quoted path without Enter or command execution.
 
 F1 -> F2 -> F3 is the recommended feature order. F4 and F5 can be delivered
 as independent increments. Design F6-F8 after the initial features are
@@ -1274,7 +1392,7 @@ the code exists.
 
 | Category | Test item | Current |
 |---|---|---|
-| Feature expansion | Phase 7, F1-F8 | Not started; no implementation or acceptance verification. See Section 6 and the feature development plan |
+| Feature expansion | Phase 7, F1-F8 | F1-F3 implementation and acceptance checks passed, including physical IME, real-pointer, high-contrast, mixed-DPI, Explorer quoting, pane targeting, and target-window closure. Baseline-CPU ReleaseFast build, combined F1/F2 native regression, 20/20 soak, and real F3 drop passed. F4-F8 remain. See Section 6 and the feature development plan |
 | Startup | Debug build startup | Verified |
 | Startup | Release build startup | PE, resources, CLI, and a dedicated GUI process verified |
 | Release | `1.3.2-windows.1` | Regression, 20-iteration soak, and CLI verified with the distribution and regression Release builds. Signing at distribution time |

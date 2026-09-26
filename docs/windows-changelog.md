@@ -9,6 +9,114 @@ known issues, and known limitations of each version; the
 
 ## Unreleased
 
+### Windows features in development
+
+- Record the 2026-09-26 F1-F3 verification checkpoint: F1 controlled palette
+  checks and owner-confirmed navigation, F2 controlled overlay rendering and
+  owner-reported drag operation, and F3 real Explorer quoting, cmd rejection,
+  pane targeting, and the elevated-window limit. A subsequent controlled run
+  verified that an IME-consumed Enter does not execute a palette entry, that
+  an open palette survives config reload, and that `scrollbar = never` removes
+  the overlay and `system` restores it. A five-run repetition passed all of
+  those controlled checks with clean exits and no forced termination. A later
+  split-pane check found that divider hover consumed the left pane's right-edge
+  hover before its scrollbar could reveal; scrollbar hover now runs first.
+  Five consecutive post-fix runs verified independent per-pane reveal and
+  maximize/restore layout tracking with clean exits. The full Debug test suite
+  then passed all 91 build steps and 3874 tests, with 62 skipped. Its first run
+  exposed an incorrect command-palette matcher assertion: `rld cfg` is an
+  ordered subsequence of `Reload Configuration`, so the expectation was
+  corrected and the focused and full reruns passed. A final Debug build and
+  combined F1/F2 native regression then passed with exit code 0 and no forced
+  termination; the palette and single/split scrollbar captures were inspected.
+  The Win32 test-hook suite also passed 149 of 150 tests with one skipped.
+  All four detected monitors reported 96 DPI, so this is not mixed-DPI
+  evidence. The owner then confirmed with physical Japanese IME input that
+  conversion Enter leaves the palette open without executing a command; the
+  captured palette still contained the confirmed query. High-contrast captures
+  then confirmed readable palette controls and a distinguishable overlay
+  scrollbar thumb before normal display was restored. During a final F3 check,
+  a normal Explorer drag remained stable when its target Ghostty closed after
+  a scheduled 20-second shell exit; canceling the drag left Explorer working
+  normally. Finally, monitor 3 was changed from 96 to 120 DPI: the automated
+  multi-monitor run tracked the new DPI and scaled layout, and captures showed
+  the F1 palette and F2 scrollbar correctly scaled at 125%. The monitor was
+  restored to 100% and a final run confirmed all four monitors at 96 DPI. This
+  completes the F1-F3 acceptance checks for the current Debug implementation.
+  A separate baseline-CPU ReleaseFast verification build then completed all
+  128 steps and passed PE, version, icon, resource, and terminfo validation.
+  Its first F1/F2 regression exposed a test-harness race that observed the
+  second palette dialog before its child controls existed; the script now
+  waits for both controls. The same Release executable then passed the full
+  combined native regression with exit code 0 and no forced termination, and
+  its palette and single/split scrollbar captures were inspected. A subsequent
+  soak initially stopped because two preserved manual-evidence directories
+  already existed under `zig-out/test-state`; the soak script now snapshots
+  that baseline and detects additions or removals instead of requiring an
+  empty root. The ReleaseFast soak then passed 20/20 iterations in 119.803
+  seconds with no failed runs. The owner also dropped `README.md` from Explorer
+  into the ReleaseFast executable and confirmed a quoted path was inserted
+  without Enter or command execution.
+- Add a native Win32 command palette with configured actions, live pane
+  destinations, shortcut labels, search, and focus restoration. Controlled
+  dialog display, arrow selection, dismissal, and closing the owning window
+  while the palette is open are verified. Palette display is deferred until
+  the invoking key callback returns so modal teardown cannot resume through a
+  freed surface. A controlled IME process-key check and config reload with an
+  open palette also pass. The owner confirmed new-tab action and open-tab
+  jump. The owner also confirmed that physical Japanese IME conversion Enter
+  leaves the palette open without executing a command. A high-contrast capture
+  confirmed readable input, selection, command list, description, and buttons.
+  A 125% monitor capture confirmed scaled, unclipped controls and text; a
+  subsequent automated run confirmed restoration to 100%.
+- Add per-pane translucent overlay scrollbars for `scrollbar = system` and
+  disable them for `never`. The thumb appears during scroll or edge hover and
+  hides afterward without reducing terminal width. A controlled check and
+  captured pixels verify display and auto-hide. Config reload to `never`
+  removes the overlay and restoring `system` recreates it. The owner reported
+  OK after a manual drag sequence. Controlled split checks verify that each
+  pane reveals only its own overlay and that both overlays follow pane geometry
+  through maximize and restore. Right-edge hover is evaluated before divider
+  hover so an internal left pane can reveal its overlay. Controlled pixel
+  measurements verify thumb movement for top/bottom/page keys, wheel input,
+  and search-result navigation. Controlled alternate-screen checks verify that
+  the history overlay stays hidden there and becomes available after returning
+  to the normal screen. Controlled drag checks record the requested and actual
+  thumb position and survive both new output and closing a temporary pane while
+  it owns the drag. A dedicated 64-line-limit process confirms that empty
+  history cannot reveal the overlay and that 2000 produced rows trim to a
+  recent 29-row history while keeping a usable thumb. The owner completed the
+  real-pointer acceptance check by revealing the overlay at the pane edge,
+  dragging the thumb to older output, releasing it, and confirming that it
+  hides after pointer departure.
+  A high-contrast capture confirmed that the thumb remains distinguishable
+  from the terminal background. A 125% monitor capture then confirmed that the
+  overlay width, position, and thumb scale without clipping or displacement;
+  a subsequent automated run confirmed restoration to 100%.
+- Accept Explorer file and directory drops on terminal panes. Quote paths for
+  the configured PowerShell or cmd startup shell, reject cmd paths containing
+  `%` or `!` with a warning, and use core paste protection. An Explorer drop
+  into PowerShell was captured for single and multiple files, including
+  apostrophe escaping, without Enter. A subsequent `%`-path screenshot came
+  from installed Ghostty with a `pwsh.exe` child. The owner then captured the
+  `%` and `!` rejection warnings from development builds with `cmd.exe`
+  children. The owner also reported cmd double quoting without Enter in a
+  development build and confirmed right-split-only delivery. Control-character
+  rejection before core paste has a unit regression check. A real check found
+  that an elevated test window did not accept a drop from normal Explorer;
+  the user guide records this limit. In the target-window closure check, the
+  owner held a real Explorer drag over a normal Debug window until its shell
+  exited after 20 seconds. The window closed, the drag was canceled, and
+  Explorer showed no error or abnormal behavior.
+- Update the window-state regression script to identify terminal children by
+  class so other controls do not inflate the pane count. Add optional command
+  palette and overlay-scrollbar display, position-sync, split-independence, and
+  alternate-screen, drag-race, history-boundary, and resize checks. Wait for
+  the palette edit and list controls after the dialog HWND appears so the
+  ReleaseFast build cannot race dialog initialization. Preserve pre-existing
+  manual test-state evidence during soak runs while requiring the entry set to
+  remain unchanged after every iteration.
+
 ### Documentation
 
 - Translate the rebranding plan, upstream feature plan, technical comparison,

@@ -7,6 +7,9 @@ Runs test-windows-window-state.ps1 in separate Ghostty processes and records
 the result of every iteration. This exercises startup, terminal input, config
 reload, split layout, monitor and DPI movement, multiple windows, visibility,
 and graceful shutdown repeatedly without modifying the user's configuration.
+The initial contents of zig-out/test-state are treated as a preserved baseline;
+each iteration must leave that entry set unchanged, so prior manual evidence
+does not mask newly leaked test state or need to be deleted.
 
 The default mode runs a fixed number of iterations. When DurationMinutes is
 greater than zero, the script keeps starting complete iterations until the
@@ -141,6 +144,15 @@ $problemPattern = [regex]::new(
     [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
 )
 $testStateRoot = Join-Path $repositoryRoot "zig-out\test-state"
+$baselineTestStateEntries = if (Test-Path -LiteralPath $testStateRoot) {
+    @(
+        Get-ChildItem -LiteralPath $testStateRoot -Force |
+            ForEach-Object FullName |
+            Sort-Object
+    )
+} else {
+    @()
+}
 
 function Write-SoakSummary {
     param(
@@ -243,13 +255,26 @@ try {
                 throw "Regression log contains '$($problem.Value)'."
             }
 
-            $temporaryEntries = if (Test-Path -LiteralPath $testStateRoot) {
-                @(Get-ChildItem -LiteralPath $testStateRoot -Force).Count
+            $currentTestStateEntries = if (Test-Path -LiteralPath $testStateRoot) {
+                @(
+                    Get-ChildItem -LiteralPath $testStateRoot -Force |
+                        ForEach-Object FullName |
+                        Sort-Object
+                )
             } else {
-                0
+                @()
             }
-            if ($temporaryEntries -ne 0) {
-                throw "Regression left $temporaryEntries temporary test-state entries."
+            $testStateChanges = @(
+                Compare-Object `
+                    -ReferenceObject $baselineTestStateEntries `
+                    -DifferenceObject $currentTestStateEntries
+            )
+            if ($testStateChanges.Count -ne 0) {
+                $changedEntries = @(
+                    $testStateChanges |
+                        ForEach-Object { "$($_.SideIndicator) $($_.InputObject)" }
+                ) -join "; "
+                throw "Regression changed temporary test-state entries: $changedEntries"
             }
 
             $records.Add([pscustomobject][ordered]@{

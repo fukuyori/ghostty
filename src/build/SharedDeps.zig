@@ -693,6 +693,7 @@ pub fn add(
             .gtk => try self.addGtkNg(step),
             .win32 => {
                 step.root_module.linkSystemLibrary("user32", .{});
+                step.root_module.linkSystemLibrary("shell32", .{});
                 step.root_module.linkSystemLibrary("gdi32", .{});
                 step.root_module.linkSystemLibrary("opengl32", .{});
                 step.root_module.linkSystemLibrary("imm32", .{});
