@@ -1,11 +1,14 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const win32 = @import("win32").everything;
+const Protocol = @import("IpcProtocol.zig");
 
 const Allocator = std.mem.Allocator;
 
 const pipe_prefix = "\\\\.\\pipe\\fukuyori.ghostty.win32-ipc";
 const pipe_buffer_size: u32 = 4 + 64 * 1024;
+const accept_retry_limit: u8 = 3;
+const accept_retry_delay_ms: u32 = 50;
 
 pub const WaitResult = union(enum) {
     completed: u32,
@@ -115,6 +118,7 @@ pub const Operation = struct {
 pub const AcceptStart = enum {
     connected,
     pending,
+    disconnected,
 };
 
 /// Begin an overlapped accept. A client can connect between CreateNamedPipeW
@@ -127,9 +131,442 @@ pub fn beginAccept(handle: win32.HANDLE, operation: *Operation) !AcceptStart {
     return switch (win32.GetLastError()) {
         .ERROR_IO_PENDING => .pending,
         .ERROR_PIPE_CONNECTED => .connected,
+        // The client connected and closed before the accept began. The
+        // listener can disconnect this instance and immediately reuse it.
+        .ERROR_NO_DATA => .disconnected,
         else => error.ConnectNamedPipeFailed,
     };
 }
+
+const io_timeout_ms: u32 = 5000;
+const client_response_timeout_ms: u32 = 7000;
+const client_connect_timeout_ms: u32 = 7000;
+
+pub fn clientExchange(alloc: Allocator, payload: []const u8) ![]u8 {
+    return clientExchangeWithChannel(alloc, payload, null);
+}
+
+fn clientExchangeWithChannel(
+    alloc: Allocator,
+    payload: []const u8,
+    channel: ?[]const u8,
+) ![]u8 {
+    var identity = try Identity.init(alloc);
+    defer identity.deinit(alloc);
+    const name = if (channel) |value|
+        try identity.pipeNameWithChannel(alloc, value)
+    else
+        try identity.pipeName(alloc);
+    defer alloc.free(name);
+
+    const pipe = try connectClient(name);
+    defer _ = win32.CloseHandle(pipe);
+    const shutdown_event = win32.CreateEventW(null, 1, 0, null) orelse
+        return error.CreateEventFailed;
+    defer _ = win32.CloseHandle(shutdown_event);
+    var operation = try Operation.init();
+    defer operation.deinit();
+
+    const frame = try Protocol.encodeFrame(alloc, payload);
+    defer alloc.free(frame);
+    try writeExactTimeout(
+        pipe,
+        shutdown_event,
+        &operation,
+        frame,
+        client_response_timeout_ms,
+    );
+
+    var header: [@sizeOf(u32)]u8 = undefined;
+    try readExactTimeout(
+        pipe,
+        shutdown_event,
+        &operation,
+        &header,
+        client_response_timeout_ms,
+    );
+    const response_len = try Protocol.frameLength(&header);
+    const response = try alloc.alloc(u8, response_len);
+    errdefer alloc.free(response);
+    try readExactTimeout(
+        pipe,
+        shutdown_event,
+        &operation,
+        response,
+        client_response_timeout_ms,
+    );
+    return response;
+}
+
+fn connectClient(name: [:0]const u16) !win32.HANDLE {
+    const read_bits: u32 = @bitCast(win32.FILE_GENERIC_READ);
+    const write_bits: u32 = @bitCast(win32.FILE_GENERIC_WRITE);
+    var flags = clientSecurityFlags();
+    flags.FILE_FLAG_OVERLAPPED = 1;
+    const started = win32.GetTickCount64();
+    while (true) {
+        const pipe = win32.CreateFileW(
+            name,
+            @bitCast(read_bits | write_bits),
+            .{},
+            null,
+            .OPEN_EXISTING,
+            flags,
+            null,
+        );
+        if (pipe != win32.INVALID_HANDLE_VALUE) return pipe;
+        switch (win32.GetLastError()) {
+            .ERROR_FILE_NOT_FOUND => return error.ServerUnavailable,
+            .ERROR_ACCESS_DENIED => return error.AccessDenied,
+            .ERROR_PIPE_BUSY => {
+                const elapsed = win32.GetTickCount64() - started;
+                if (elapsed >= client_connect_timeout_ms) return error.ConnectTimeout;
+                const remaining: u32 = @intCast(client_connect_timeout_ms - elapsed);
+                if (win32.WaitNamedPipeW(name, remaining) == 0) {
+                    const wait_error = win32.GetLastError();
+                    if (wait_error == .ERROR_SEM_TIMEOUT) return error.ConnectTimeout;
+                    if (wait_error == .ERROR_FILE_NOT_FOUND) return error.ServerUnavailable;
+                    if (wait_error == .ERROR_ACCESS_DENIED) return error.AccessDenied;
+                    // Another client may have claimed the instance between
+                    // WaitNamedPipeW and CreateFileW. Retry while the shared
+                    // connection deadline still has time remaining.
+                    if (wait_error == .ERROR_PIPE_BUSY) continue;
+                    return error.ConnectFailed;
+                }
+            },
+            else => return error.ConnectFailed,
+        }
+    }
+}
+
+fn readPayload(
+    alloc: Allocator,
+    handle: win32.HANDLE,
+    shutdown_event: win32.HANDLE,
+    operation: *Operation,
+) ![]u8 {
+    var header: [@sizeOf(u32)]u8 = undefined;
+    try readExact(handle, shutdown_event, operation, &header);
+    const payload_len = try Protocol.frameLength(&header);
+    const payload = try alloc.alloc(u8, payload_len);
+    errdefer alloc.free(payload);
+    try readExact(handle, shutdown_event, operation, payload);
+    return payload;
+}
+
+fn writePayload(
+    alloc: Allocator,
+    handle: win32.HANDLE,
+    shutdown_event: win32.HANDLE,
+    operation: *Operation,
+    payload: []const u8,
+) !void {
+    const frame = try Protocol.encodeFrame(alloc, payload);
+    defer alloc.free(frame);
+    try writeExact(handle, shutdown_event, operation, frame);
+}
+
+fn readExact(
+    handle: win32.HANDLE,
+    shutdown_event: win32.HANDLE,
+    operation: *Operation,
+    buffer: []u8,
+) !void {
+    return readExactTimeout(handle, shutdown_event, operation, buffer, io_timeout_ms);
+}
+
+fn readExactTimeout(
+    handle: win32.HANDLE,
+    shutdown_event: win32.HANDLE,
+    operation: *Operation,
+    buffer: []u8,
+    timeout_ms: u32,
+) !void {
+    var offset: usize = 0;
+    while (offset < buffer.len) {
+        try operation.reset();
+        const pending = win32.ReadFile(
+            handle,
+            buffer[offset..].ptr,
+            @intCast(buffer.len - offset),
+            null,
+            &operation.overlapped,
+        ) == 0;
+        const transferred = if (!pending)
+            try operation.collectResult(handle, false)
+        else switch (win32.GetLastError()) {
+            .ERROR_IO_PENDING => switch (try operation.wait(handle, shutdown_event, timeout_ms)) {
+                .completed => |count| count,
+                .shutdown => return error.Shutdown,
+                .timeout => return error.IoTimeout,
+            },
+            .ERROR_BROKEN_PIPE, .ERROR_NO_DATA => return error.Disconnected,
+            else => return error.ReadFailed,
+        };
+        if (transferred == 0) return error.Disconnected;
+        offset += transferred;
+    }
+}
+
+fn writeExact(
+    handle: win32.HANDLE,
+    shutdown_event: win32.HANDLE,
+    operation: *Operation,
+    buffer: []const u8,
+) !void {
+    return writeExactTimeout(handle, shutdown_event, operation, buffer, io_timeout_ms);
+}
+
+fn writeExactTimeout(
+    handle: win32.HANDLE,
+    shutdown_event: win32.HANDLE,
+    operation: *Operation,
+    buffer: []const u8,
+    timeout_ms: u32,
+) !void {
+    var offset: usize = 0;
+    while (offset < buffer.len) {
+        try operation.reset();
+        const pending = win32.WriteFile(
+            handle,
+            @constCast(buffer[offset..].ptr),
+            @intCast(buffer.len - offset),
+            null,
+            &operation.overlapped,
+        ) == 0;
+        const transferred = if (!pending)
+            try operation.collectResult(handle, false)
+        else switch (win32.GetLastError()) {
+            .ERROR_IO_PENDING => switch (try operation.wait(handle, shutdown_event, timeout_ms)) {
+                .completed => |count| count,
+                .shutdown => return error.Shutdown,
+                .timeout => return error.IoTimeout,
+            },
+            .ERROR_BROKEN_PIPE, .ERROR_NO_DATA => return error.Disconnected,
+            else => return error.WriteFailed,
+        };
+        if (transferred == 0) return error.Disconnected;
+        offset += transferred;
+    }
+}
+
+pub const Server = struct {
+    pub const Handler = *const fn (
+        *anyopaque,
+        Allocator,
+        win32.HANDLE,
+        []const u8,
+    ) anyerror![]u8;
+
+    alloc: Allocator,
+    listener: Listener,
+    shutdown_event: win32.HANDLE,
+    handler_context: *anyopaque,
+    handler: Handler,
+    thread: std.Thread,
+
+    pub fn init(
+        alloc: Allocator,
+        handler_context: *anyopaque,
+        handler: Handler,
+    ) !*Server {
+        return initWithChannel(alloc, handler_context, handler, null);
+    }
+
+    fn initWithChannel(
+        alloc: Allocator,
+        handler_context: *anyopaque,
+        handler: Handler,
+        channel: ?[]const u8,
+    ) !*Server {
+        const self = try alloc.create(Server);
+        errdefer alloc.destroy(self);
+        self.* = undefined;
+        self.alloc = alloc;
+        self.listener = if (channel) |value|
+            try Listener.initWithChannel(alloc, value)
+        else
+            try Listener.init(alloc);
+        errdefer self.listener.deinit();
+        self.shutdown_event = win32.CreateEventW(null, 1, 0, null) orelse
+            return error.CreateEventFailed;
+        errdefer _ = win32.CloseHandle(self.shutdown_event);
+        self.handler_context = handler_context;
+        self.handler = handler;
+        self.thread = try std.Thread.spawn(.{}, threadMain, .{self});
+        return self;
+    }
+
+    pub fn deinit(self: *Server) void {
+        _ = win32.SetEvent(self.shutdown_event);
+        self.thread.join();
+        _ = win32.CloseHandle(self.shutdown_event);
+        self.listener.deinit();
+        const alloc = self.alloc;
+        alloc.destroy(self);
+    }
+
+    fn threadMain(self: *Server) void {
+        self.run() catch |err| {
+            std.log.scoped(.win32_ipc).err("IPC listener stopped: {}", .{err});
+        };
+    }
+
+    fn run(self: *Server) !void {
+        var operation = try Operation.init();
+        defer operation.deinit();
+        var accept_failures: u8 = 0;
+        while (true) {
+            const start = beginAccept(self.listener.first, &operation) catch |err| switch (err) {
+                // A client can disappear while its connection is being
+                // accepted. Retry briefly, but do not spin forever if the
+                // pipe handle itself has become unusable.
+                error.ConnectNamedPipeFailed => {
+                    _ = win32.DisconnectNamedPipe(self.listener.first);
+                    accept_failures += 1;
+                    if (accept_failures >= accept_retry_limit) {
+                        std.log.scoped(.win32_ipc).warn(
+                            "stopping IPC listener after {d} consecutive accept failures",
+                            .{accept_failures},
+                        );
+                        return error.RepeatedAcceptFailure;
+                    }
+                    const retry_wait = win32.WaitForSingleObject(
+                        self.shutdown_event,
+                        accept_retry_delay_ms,
+                    );
+                    if (@intFromEnum(retry_wait) == 0) return;
+                    if (retry_wait != .WAIT_TIMEOUT) return error.WaitFailed;
+                    continue;
+                },
+                else => return err,
+            };
+            accept_failures = 0;
+            switch (start) {
+                .disconnected => {
+                    _ = win32.DisconnectNamedPipe(self.listener.first);
+                    continue;
+                },
+                .pending => switch (operation.wait(
+                    self.listener.first,
+                    self.shutdown_event,
+                    win32.INFINITE,
+                ) catch |err| switch (err) {
+                    // A client-side disconnect may complete an accept with an
+                    // I/O error. It invalidates this connection, not the
+                    // listener itself.
+                    error.OverlappedIoFailed => {
+                        _ = win32.DisconnectNamedPipe(self.listener.first);
+                        continue;
+                    },
+                    else => return err,
+                }) {
+                    .completed => {},
+                    .shutdown => return,
+                    .timeout => unreachable,
+                },
+                .connected => {},
+            }
+
+            self.serve(self.listener.first, &operation) catch |err| switch (err) {
+                error.Shutdown => return,
+                error.Disconnected, error.IoTimeout => {},
+                error.PayloadTooLarge => self.writeErrorResponse(
+                    self.listener.first,
+                    &operation,
+                    .invalid_request,
+                    "request exceeds the 64 KiB limit",
+                ) catch {},
+                else => {
+                    std.log.scoped(.win32_ipc).warn("IPC request failed: {}", .{err});
+                    self.writeErrorResponse(
+                        self.listener.first,
+                        &operation,
+                        .internal_error,
+                        "IPC request failed",
+                    ) catch {};
+                },
+            };
+            _ = win32.DisconnectNamedPipe(self.listener.first);
+        }
+    }
+
+    fn serve(self: *Server, handle: win32.HANDLE, operation: *Operation) !void {
+        const request = try readPayload(self.alloc, handle, self.shutdown_event, operation);
+        defer self.alloc.free(request);
+        const response = try self.handler(
+            self.handler_context,
+            self.alloc,
+            self.shutdown_event,
+            request,
+        );
+        defer self.alloc.free(response);
+        // Keep frame construction failures eligible for an internal-error
+        // response. Once the first response write has been attempted, never
+        // append another frame after a possibly partial one.
+        const frame = Protocol.encodeFrame(self.alloc, response) catch |err| switch (err) {
+            error.PayloadTooLarge => return error.ResponseTooLarge,
+            else => return err,
+        };
+        defer self.alloc.free(frame);
+        writeExact(handle, self.shutdown_event, operation, frame) catch |err| switch (err) {
+            error.Shutdown => return err,
+            else => {
+                std.log.scoped(.win32_ipc).warn(
+                    "IPC response write failed: {}",
+                    .{err},
+                );
+                return;
+            },
+        };
+        self.waitForClientClose(handle, operation) catch |err| switch (err) {
+            error.Shutdown => return err,
+            error.Disconnected, error.IoTimeout => return,
+            else => {
+                // A response has already been sent. Log and disconnect this
+                // client without attempting a second protocol response.
+                std.log.scoped(.win32_ipc).warn(
+                    "IPC client failed after response: {}",
+                    .{err},
+                );
+                return;
+            },
+        };
+    }
+
+    fn waitForClientClose(
+        self: *Server,
+        handle: win32.HANDLE,
+        operation: *Operation,
+    ) !void {
+        // DisconnectNamedPipe discards unread buffered data. Wait for the
+        // client to consume the response and close its handle, but keep this
+        // wait cancellable and bounded rather than using FlushFileBuffers,
+        // which can block indefinitely on a client that stops reading.
+        var unexpected: [1]u8 = undefined;
+        readExact(handle, self.shutdown_event, operation, &unexpected) catch |err| switch (err) {
+            error.Disconnected, error.IoTimeout => return,
+            else => return err,
+        };
+        return error.TrailingClientData;
+    }
+
+    fn writeErrorResponse(
+        self: *Server,
+        handle: win32.HANDLE,
+        operation: *Operation,
+        status: Protocol.Status,
+        message: []const u8,
+    ) !void {
+        const response = try Protocol.encodeResponse(self.alloc, .{
+            .status = status,
+            .message = message,
+        });
+        defer self.alloc.free(response);
+        try writePayload(self.alloc, handle, self.shutdown_event, operation, response);
+        try self.waitForClientClose(handle, operation);
+    }
+};
 
 /// Prevent a named-pipe server from impersonating the CLI process. The
 /// generated binding uses file-attribute aliases for these shared bits.
@@ -415,4 +852,161 @@ test "Win32 IPC shutdown cancels and reaps an overlapped accept" {
         WaitResult.shutdown,
         try operation.wait(listener.first, shutdown, 5000),
     );
+}
+
+test "Win32 IPC server accepts repeated framed requests" {
+    if (comptime builtin.os.tag != .windows) return error.SkipZigTest;
+    const testing = std.testing;
+    const Test = struct {
+        fn echo(
+            _: *anyopaque,
+            alloc: Allocator,
+            _: win32.HANDLE,
+            request: []const u8,
+        ) ![]u8 {
+            if (std.mem.eql(u8, request, "handler failure"))
+                return error.TestHandlerFailure;
+            return alloc.dupe(u8, request);
+        }
+
+        fn connect(name: [:0]const u16) !win32.HANDLE {
+            const read_bits: u32 = @bitCast(win32.FILE_GENERIC_READ);
+            const write_bits: u32 = @bitCast(win32.FILE_GENERIC_WRITE);
+            while (true) {
+                const pipe = win32.CreateFileW(
+                    name,
+                    @bitCast(read_bits | write_bits),
+                    .{},
+                    null,
+                    .OPEN_EXISTING,
+                    clientSecurityFlags(),
+                    null,
+                );
+                if (pipe != win32.INVALID_HANDLE_VALUE) return pipe;
+                if (win32.GetLastError() != .ERROR_PIPE_BUSY)
+                    return error.ConnectFailed;
+                if (win32.WaitNamedPipeW(name, 5000) == 0)
+                    return error.ConnectFailed;
+            }
+        }
+
+        fn writeAll(pipe: win32.HANDLE, bytes: []const u8) !void {
+            var offset: usize = 0;
+            while (offset < bytes.len) {
+                var written: u32 = 0;
+                if (win32.WriteFile(
+                    pipe,
+                    @constCast(bytes[offset..].ptr),
+                    @intCast(bytes.len - offset),
+                    &written,
+                    null,
+                ) == 0) return error.WriteFailed;
+                if (written == 0) return error.WriteFailed;
+                offset += written;
+            }
+        }
+
+        fn readAll(pipe: win32.HANDLE, bytes: []u8) !void {
+            var offset: usize = 0;
+            while (offset < bytes.len) {
+                var read: u32 = 0;
+                if (win32.ReadFile(
+                    pipe,
+                    bytes[offset..].ptr,
+                    @intCast(bytes.len - offset),
+                    &read,
+                    null,
+                ) == 0) return error.ReadFailed;
+                if (read == 0) return error.ReadFailed;
+                offset += read;
+            }
+        }
+
+        fn exchange(alloc: Allocator, name: [:0]const u16, payload: []const u8) ![]u8 {
+            const pipe = try connect(name);
+            defer _ = win32.CloseHandle(pipe);
+            const frame = try Protocol.encodeFrame(alloc, payload);
+            defer alloc.free(frame);
+            try writeAll(pipe, frame);
+
+            return readFrame(alloc, pipe);
+        }
+
+        fn exchangeOversizedHeader(alloc: Allocator, name: [:0]const u16) ![]u8 {
+            const pipe = try connect(name);
+            defer _ = win32.CloseHandle(pipe);
+            var header: [4]u8 = undefined;
+            std.mem.writeInt(
+                u32,
+                &header,
+                @intCast(Protocol.max_payload_size + 1),
+                .little,
+            );
+            try writeAll(pipe, &header);
+            return readFrame(alloc, pipe);
+        }
+
+        fn readFrame(alloc: Allocator, pipe: win32.HANDLE) ![]u8 {
+            var header: [4]u8 = undefined;
+            try readAll(pipe, &header);
+            const response_len = try Protocol.frameLength(&header);
+            const response = try alloc.alloc(u8, response_len);
+            errdefer alloc.free(response);
+            try readAll(pipe, response);
+            return response;
+        }
+    };
+
+    var channel_buf: [64]u8 = undefined;
+    const channel = try std.fmt.bufPrint(
+        &channel_buf,
+        "test-server-{d}",
+        .{win32.GetCurrentProcessId()},
+    );
+    var context: u8 = 0;
+    const server = try Server.initWithChannel(
+        testing.allocator,
+        &context,
+        Test.echo,
+        channel,
+    );
+    defer server.deinit();
+
+    for ([_][]const u8{ "first request", "second request" }) |expected| {
+        const response = try Test.exchange(testing.allocator, server.listener.name, expected);
+        defer testing.allocator.free(response);
+        try testing.expectEqualStrings(expected, response);
+    }
+
+    const failure = try Test.exchange(
+        testing.allocator,
+        server.listener.name,
+        "handler failure",
+    );
+    defer testing.allocator.free(failure);
+    const decoded = try Protocol.decodeResponse(failure);
+    try testing.expectEqual(Protocol.Status.internal_error, decoded.status);
+    try testing.expectEqualStrings("IPC request failed", decoded.message);
+
+    const oversized = try Test.exchangeOversizedHeader(
+        testing.allocator,
+        server.listener.name,
+    );
+    defer testing.allocator.free(oversized);
+    const oversized_response = try Protocol.decodeResponse(oversized);
+    try testing.expectEqual(Protocol.Status.invalid_request, oversized_response.status);
+
+    const client_payload = try Protocol.encodeRequest(testing.allocator, .{
+        .action = .new_tab,
+        .surface_id = 42,
+        .arguments = &.{"--title=client exchange"},
+    });
+    defer testing.allocator.free(client_payload);
+    const client_response = try clientExchangeWithChannel(
+        testing.allocator,
+        client_payload,
+        channel,
+    );
+    defer testing.allocator.free(client_response);
+    try testing.expectEqualSlices(u8, client_payload, client_response);
 }
