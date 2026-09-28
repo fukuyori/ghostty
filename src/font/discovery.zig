@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 const assert = @import("../quirks.zig").inlineAssert;
 const fontconfig = @import("fontconfig");
+const freetype = @import("freetype");
 const macos = @import("macos");
 const opentype = @import("opentype.zig");
 const options = @import("main.zig").options;
@@ -988,6 +989,9 @@ pub const Windows = struct {
             .iter = null,
             .system_path = null,
             .user_path = null,
+            .candidates = null,
+            .candidate_index = 0,
+            .rank_styles = true,
         };
     }
 
@@ -998,7 +1002,9 @@ pub const Windows = struct {
         desc: Descriptor,
     ) !DiscoverIterator {
         _ = collection;
-        return self.discover(alloc, desc);
+        var result = try self.discover(alloc, desc);
+        result.rank_styles = false;
+        return result;
     }
 
     pub const DiscoverIterator = struct {
@@ -1011,19 +1017,78 @@ pub const Windows = struct {
         iter: ?std.Io.Dir.Iterator,
         system_path: ?[:0]const u8,
         user_path: ?[:0]const u8,
+        candidates: ?std.ArrayListUnmanaged(Candidate),
+        candidate_index: usize,
+        rank_styles: bool,
 
         const State = enum { system, user, done };
+
+        const Candidate = struct {
+            face: ?DeferredFace,
+            style_match: bool,
+            exact_style: bool,
+            fuzzy_style: u16,
+            glyph_count: u32,
+
+            fn lessThan(_: void, lhs: Candidate, rhs: Candidate) bool {
+                if (lhs.style_match != rhs.style_match) return lhs.style_match;
+                if (lhs.exact_style != rhs.exact_style) return lhs.exact_style;
+                if (lhs.fuzzy_style != rhs.fuzzy_style)
+                    return lhs.fuzzy_style > rhs.fuzzy_style;
+                return lhs.glyph_count > rhs.glyph_count;
+            }
+        };
 
         pub fn deinit(self: *DiscoverIterator) void {
             if (self.dir) |*d| d.close(global.io());
             if (self.system_path) |p| self.alloc.free(p);
             if (self.user_path) |p| self.alloc.free(p);
+            if (self.candidates) |*candidates| {
+                for (candidates.items) |*candidate| {
+                    if (candidate.face) |*face| face.deinit();
+                }
+                candidates.deinit(self.alloc);
+            }
             self.* = undefined;
         }
 
         pub fn next(self: *DiscoverIterator) !?DeferredFace {
+            if (!self.rank_styles) return self.nextUnranked();
+
+            if (self.candidates == null) {
+                var candidates: std.ArrayListUnmanaged(Candidate) = .empty;
+                errdefer {
+                    for (candidates.items) |*candidate| {
+                        if (candidate.face) |*face| face.deinit();
+                    }
+                    candidates.deinit(self.alloc);
+                }
+
+                try self.collectCandidates(&candidates);
+                const has_style_match = for (candidates.items) |candidate| {
+                    if (candidate.style_match) break true;
+                } else false;
+                if (!has_style_match) {
+                    for (candidates.items) |*candidate| {
+                        if (candidate.face) |*face| face.deinit();
+                    }
+                    candidates.clearRetainingCapacity();
+                }
+                std.mem.sortUnstable(Candidate, candidates.items, {}, Candidate.lessThan);
+                self.candidates = candidates;
+            }
+
+            const candidates = &self.candidates.?;
+            if (self.candidate_index >= candidates.items.len) return null;
+            const candidate = &candidates.items[self.candidate_index];
+            self.candidate_index += 1;
+            const face = candidate.face.?;
+            candidate.face = null;
+            return face;
+        }
+
+        fn nextUnranked(self: *DiscoverIterator) !?DeferredFace {
             while (true) {
-                // Ensure we have a directory iterator for the current state.
                 if (self.iter == null) {
                     switch (self.state) {
                         .system => {
@@ -1063,6 +1128,98 @@ pub const Windows = struct {
                 }
 
                 const entry = (self.iter.?.next(global.io()) catch null) orelse {
+                    if (self.dir) |*d| d.close(global.io());
+                    self.dir = null;
+                    self.iter = null;
+                    self.state = switch (self.state) {
+                        .system => .user,
+                        .user => .done,
+                        .done => .done,
+                    };
+                    continue;
+                };
+
+                if (entry.kind != .file) continue;
+                if (!isFontFile(entry.name)) continue;
+                if (try self.firstMatch(entry.name)) |face| return face;
+            }
+        }
+
+        fn firstMatch(self: *DiscoverIterator, name: []const u8) !?DeferredFace {
+            const dir_path = switch (self.state) {
+                .system => self.system_path.?,
+                .user => self.user_path.?,
+                .done => return null,
+            };
+            var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+            const full_path = std.fmt.bufPrintZ(
+                &path_buf,
+                "{s}\\{s}",
+                .{ dir_path, name },
+            ) catch return null;
+            const is_ttc = std.ascii.endsWithIgnoreCase(name, ".ttc");
+            const max_faces: i32 = if (is_ttc) 16 else 1;
+            var face_index: i32 = 0;
+            while (face_index < max_faces) : (face_index += 1) {
+                var face = Face.initFile(
+                    self.lib,
+                    full_path,
+                    face_index,
+                    .{ .size = .{ .points = 12 } },
+                ) catch break;
+                if (self.matches(&face)) {
+                    return try self.makeDeferred(face, full_path, face_index);
+                }
+                face.deinit();
+            }
+            return null;
+        }
+
+        fn collectCandidates(
+            self: *DiscoverIterator,
+            candidates: *std.ArrayListUnmanaged(Candidate),
+        ) !void {
+            while (true) {
+                // Ensure we have a directory iterator for the current state.
+                if (self.iter == null) {
+                    switch (self.state) {
+                        .system => {
+                            const path = self.systemFontsPath() orelse {
+                                self.state = .user;
+                                continue;
+                            };
+                            self.system_path = path;
+                            self.dir = std.Io.Dir.openDirAbsolute(
+                                global.io(),
+                                path,
+                                .{ .iterate = true },
+                            ) catch {
+                                self.state = .user;
+                                continue;
+                            };
+                            self.iter = self.dir.?.iterate();
+                        },
+                        .user => {
+                            const path = self.userFontsPath() orelse {
+                                self.state = .done;
+                                continue;
+                            };
+                            self.user_path = path;
+                            self.dir = std.Io.Dir.openDirAbsolute(
+                                global.io(),
+                                path,
+                                .{ .iterate = true },
+                            ) catch {
+                                self.state = .done;
+                                continue;
+                            };
+                            self.iter = self.dir.?.iterate();
+                        },
+                        .done => return,
+                    }
+                }
+
+                const entry = (self.iter.?.next(global.io()) catch null) orelse {
                     // Finished this directory; advance state.
                     if (self.dir) |*d| d.close(global.io());
                     self.dir = null;
@@ -1078,7 +1235,7 @@ pub const Windows = struct {
                 if (entry.kind != .file) continue;
                 if (!isFontFile(entry.name)) continue;
 
-                if (try self.tryMatch(entry.name)) |face| return face;
+                try self.addMatches(entry.name, candidates);
             }
         }
 
@@ -1114,14 +1271,15 @@ pub const Windows = struct {
             ) catch null;
         }
 
-        fn tryMatch(
+        fn addMatches(
             self: *DiscoverIterator,
             name: []const u8,
-        ) !?DeferredFace {
+            candidates: *std.ArrayListUnmanaged(Candidate),
+        ) !void {
             const dir_path = switch (self.state) {
                 .system => self.system_path.?,
                 .user => self.user_path.?,
-                .done => return null,
+                .done => return,
             };
 
             var path_buf: [std.fs.max_path_bytes]u8 = undefined;
@@ -1129,7 +1287,7 @@ pub const Windows = struct {
                 &path_buf,
                 "{s}\\{s}",
                 .{ dir_path, name },
-            ) catch return null;
+            ) catch return;
 
             const is_ttc = std.ascii.endsWithIgnoreCase(name, ".ttc");
             const max_faces: i32 = if (is_ttc) 16 else 1;
@@ -1145,13 +1303,38 @@ pub const Windows = struct {
                 ) catch break;
 
                 if (self.matches(&face)) {
-                    return try self.makeDeferred(face, full_path, face_index);
+                    const style_name = faceStyleName(&face);
+                    const desired = desiredStyles(self.desc);
+                    var fuzzy_style: u16 = 0;
+                    for (desired) |style| {
+                        if (std.ascii.indexOfIgnoreCase(style_name, style) != null) {
+                            fuzzy_style +|= @intCast(style.len);
+                        }
+                    }
+
+                    const style_match = styleMatches(&face, self.desc);
+                    const exact_style = desired.len > 0 and
+                        std.ascii.eqlIgnoreCase(style_name, desired[0]);
+                    const glyph_count: u32 = @intCast(@max(
+                        0,
+                        face.face.handle.*.num_glyphs,
+                    ));
+                    var deferred = try self.makeDeferred(face, full_path, face_index);
+                    errdefer deferred.deinit();
+                    try candidates.append(self.alloc, .{
+                        .face = deferred,
+                        .style_match = style_match,
+                        .exact_style = exact_style,
+                        .fuzzy_style = fuzzy_style,
+                        .glyph_count = glyph_count,
+                    });
+                    continue;
                 }
 
                 face.deinit();
             }
 
-            return null;
+            return;
         }
 
         /// Check whether the given face matches the descriptor.
@@ -1207,6 +1390,33 @@ pub const Windows = struct {
         var buf: [256]u8 = undefined;
         const sfnt = face.name(&buf) catch "";
         return sfnt.len > 0 and std.ascii.eqlIgnoreCase(sfnt, family);
+    }
+
+    fn faceStyleName(face: *const Face) []const u8 {
+        const ptr = face.face.handle.*.style_name orelse return "";
+        return std.mem.span(ptr);
+    }
+
+    fn styleMatches(face: *const Face, desc: Descriptor) bool {
+        const style_name = faceStyleName(face);
+        if (desc.style) |style| {
+            return std.ascii.eqlIgnoreCase(style_name, style);
+        }
+
+        const flags = face.face.handle.*.style_flags;
+        const bold = flags & freetype.c.FT_STYLE_FLAG_BOLD != 0;
+        const italic = flags & freetype.c.FT_STYLE_FLAG_ITALIC != 0;
+        return bold == desc.bold and italic == desc.italic;
+    }
+
+    fn desiredStyles(desc: Descriptor) []const [:0]const u8 {
+        if (desc.style) |style| return &.{style};
+        if (desc.bold) {
+            if (desc.italic) return &.{ "bold italic", "bold", "italic", "oblique" };
+            return &.{ "bold", "upright" };
+        }
+        if (desc.italic) return &.{ "italic", "regular", "oblique" };
+        return &.{ "regular", "upright" };
     }
 };
 
@@ -1413,4 +1623,36 @@ test "windows" {
     var face = (try it.next()) orelse return error.TestFontNotFound;
     defer face.deinit();
     try testing.expect(face.hasCodepoint('A', null));
+
+    const cases = [_]struct {
+        bold: bool = false,
+        italic: bool = false,
+        expected_style: []const u8,
+    }{
+        .{ .expected_style = "Regular" },
+        .{ .bold = true, .expected_style = "Bold" },
+        .{ .italic = true, .expected_style = "Italic" },
+        .{ .bold = true, .italic = true, .expected_style = "Bold Italic" },
+    };
+    for (cases) |case| {
+        var style_it = try win.discover(alloc, .{
+            .family = "Arial",
+            .size = 12,
+            .bold = case.bold,
+            .italic = case.italic,
+        });
+        defer style_it.deinit();
+        var style_face = (try style_it.next()) orelse return error.TestFontNotFound;
+        defer style_face.deinit();
+        const style_name = Windows.faceStyleName(&style_face.win.?.peek);
+        try testing.expectEqualStrings(case.expected_style, style_name);
+    }
+
+    var missing_style_it = try win.discover(alloc, .{
+        .family = "Arial",
+        .style = "Ghostty Missing Style",
+        .size = 12,
+    });
+    defer missing_style_it.deinit();
+    try testing.expectEqual(null, try missing_style_it.next());
 }

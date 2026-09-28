@@ -9,7 +9,13 @@ known issues, and known limitations of each version; the
 
 ## Unreleased
 
-No changes yet.
+### Fixes
+
+- Select configured Windows font faces by the requested Regular, Bold, Italic,
+  or Bold Italic traits instead of accepting the first file with a matching
+  family name. Explicit `font-style` values are matched exactly; unavailable
+  styles remain available to the shared synthetic-style completion path.
+  System fallback ordering is unchanged and remains tracked separately.
 
 ## 1.3.2-windows.12
 

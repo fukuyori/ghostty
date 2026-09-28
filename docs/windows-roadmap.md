@@ -1386,8 +1386,9 @@ The ordered implementation queue is:
 2. [#1](https://github.com/fukuyori/ghostty/issues/1): unmatched-family
    diagnostics and family-name matching. Measured and documented on
    2026-09-28; no code change was required and the issue can be closed.
-3. [#2](https://github.com/fukuyori/ghostty/issues/2): correct configured
-   Regular/Bold/Italic/Bold Italic face selection.
+3. [#2](https://github.com/fukuyori/ghostty/issues/2): configured
+   Regular/Bold/Italic/Bold Italic face selection. Implemented and verified on
+   2026-09-28; the issue can be closed after commit.
 4. [#3](https://github.com/fukuyori/ghostty/issues/3): measure the existing
    upstream font-size adjustment and change nothing unless it is broken.
 5. [#42](https://github.com/fukuyori/ghostty/issues/42): decide, implement,
@@ -1483,6 +1484,22 @@ Real-hardware verification in the user's environment:
   selected during implementation must preserve the supported Windows version.
   System fallback after the configured faces do not contain a character is
   not part of #2 and is tracked separately in #42.
+
+  Implemented on 2026-09-28. Win32 `discover()` collects every matching face,
+  requires at least one match for the requested traits or explicit style, and
+  ranks trait matches, exact/fuzzy style names, and glyph count before
+  returning candidates. All faces in a scanned TTC are considered. An absent
+  explicit style returns no discovery result so shared `completeStyles`
+  remains responsible for synthesis. `discoverFallback()` retains its former
+  unranked first-glyph-match path so this change does not pre-empt #42.
+  Targeted Windows tests select Arial Regular, Bold, Italic, and Bold Italic
+  and reject a missing explicit style. `zig build` passed. A configured
+  Moralerspace Neon installation with separate Regular and Bold files selected
+  those faces separately; missing Italic and Bold Italic faces returned no
+  discovery result and were synthesized. Captured Latin and Japanese text
+  showed distinct Regular, Bold, Italic, and Bold Italic rendering without
+  missing glyphs or visible cell overflow. The test exited without a remaining
+  Ghostty process.
 - [#3](https://github.com/fukuyori/ghostty/issues/3): configured/fallback font
   size adjustment. Keep the current upstream `.ic_width` adjustment (upstream
   #7840) unchanged while measuring the existing behavior. No automatic
@@ -1672,6 +1689,7 @@ the code exists.
 | Release | `1.3.2-windows.11` | Published 2026-09-22, source `969d637e3`. ReleaseFast metadata/runtime and native regressions passed; final soak 20/20 (119.3 s), no process or temporary-state leftovers. Signed installer and staged executable signatures Valid. Earlier cursor/startup-row timeouts remain unexplained; physical IME/mixed DPI and installation/upgrade/uninstallation remain unverified |
 | Release | `1.3.2-windows.12` | Published 2026-09-26, source `0327dbce1`. ReleaseFast metadata and combined F1/F2 regression passed; final soak 20/20 (119.596 s). Signed installer, staged executable, and uninstaller signatures Valid and upgrade from `.11`, installed runtime, uninstallation cleanup, config preservation, and reinstallation verified. The published installer was re-downloaded with matching size/hash and a Valid timestamped signature. The first installed scrollbar-history measurement timed out; an unchanged rerun passed |
 | Fonts | Configured family matching (#1) | 2026-09-28: missing-family warnings reached diagnostic stderr; English family names, localized Yu Gothic records, typographic family records, full-name rejection, and agreement between `+list-fonts --family` and configured discovery were measured. The Windows guide documents exact-name checking. No code change was required |
+| Fonts | Configured style selection (#2) | 2026-09-28: targeted Windows tests selected Arial Regular/Bold/Italic/Bold Italic and rejected a missing explicit style; Moralerspace Neon selected separate Regular/Bold files and synthesized missing italic styles. Captured Latin and Japanese output showed the four distinct styles without missing glyphs or visible cell overflow. System fallback remains unchanged |
 | Fonts | Automatic fallback | The current implementation takes the first scanned file containing the codepoint. Further work is tracked separately as #42 |
 | Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature |
 | Version info | CLI version display | Verified with the Release build |
