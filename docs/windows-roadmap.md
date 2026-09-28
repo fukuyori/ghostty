@@ -1380,8 +1380,9 @@ change the issue order below.
 
 The ordered implementation queue is:
 
-1. [#40](https://github.com/fukuyori/ghostty/issues/40): reproduce and fix
-   Ctrl+Space double sending.
+1. [#40](https://github.com/fukuyori/ghostty/issues/40): Ctrl+Space double
+   sending. Implemented and acceptance-verified at `5d3c06231`; the issue can
+   be closed.
 2. [#1](https://github.com/fukuyori/ghostty/issues/1): verify unmatched-family
    diagnostics and family-name matching.
 3. [#2](https://github.com/fukuyori/ghostty/issues/2): correct configured
@@ -1493,6 +1494,11 @@ Real-hardware verification in the user's environment:
 #### Input correctness: #40
 
 - [#40](https://github.com/fukuyori/ghostty/issues/40): Ctrl+Space sent twice.
+  Fixed at `5d3c06231`. The Win32 surface now records a consumed or closed
+  physical key's scan code and extended-key flag and suppresses matching
+  translated character messages. An ignored physical event does not suppress
+  its character input.
+
   The code path is known: `TranslateMessage` runs before dispatch;
   `WM_KEYDOWN` sends Ctrl + text keys as physical events and clears
   `pending_text_key`; a printable `WM_CHAR` can then send a second event.
@@ -1518,7 +1524,8 @@ Real-hardware verification in the user's environment:
   teardown is posted asynchronously; repeated close requests are already
   guarded by `close_requested`.
 
-  Validate this approach with logs before implementation. Win32 does not
+  The design review required the following checks before implementation.
+  Win32 does not
   guarantee a one-to-one relationship between key and character messages, and
   the high word of a character message's `lParam` describes the most recent
   preceding keydown. Verify matching scan codes, extended-key flags, and
@@ -1527,10 +1534,19 @@ Real-hardware verification in the user's environment:
   by another character; and the ordering of `WM_CHAR` and
   `WM_CLOSE_SURFACE`. Also record the existing Alt/`WM_SYSCHAR` path, but do
   not expand #40 to an Alt or dead-key-state fix without reproduced evidence.
-  Acceptance includes one NUL for Ctrl+Space and one `CSI 32;5u` under the
-  kitty protocol, plus US and Japanese layouts,
-  Ctrl+letters/numbers/symbols/numpad, repeat, AltGr, `unconsumed:` bindings,
-  and Japanese IME conversion and commit.
+  Acceptance completed on 2026-09-28 with the Debug executable built from the
+  fix: normal mode produced one NUL for Ctrl+Space; kitty protocol produced one
+  `CSI 32;133u` (Ctrl plus the active lock modifier) and no trailing space;
+  `unconsumed:ctrl+space=scroll_to_bottom` passed one NUL without duplication;
+  and the available Ctrl combinations produced one PTY input each. Microsoft
+  IME converted and committed `日本語`, and the UTF-8 bytes were verified in
+  the captured file. Holding Ctrl+Space produced one kitty sequence and no
+  automatic repeat on this system. Ctrl+[ and Ctrl+- remained owned by other
+  shortcuts and could not be disabled, and AltGr was unavailable with the
+  tested JIS/Microsoft IME layout; these cases were explicitly excluded from
+  this environment's acceptance rather than marked as passed. The test exited
+  without a remaining Ghostty process. Targeted Win32 tests and `zig build`
+  had already passed before the real-input checks.
 
 #### CLI IPC and profiles: #15 and #41
 
@@ -1647,6 +1663,7 @@ the code exists.
 | Config | Config loading from LocalAppData | Verified |
 | Config | Config reload | Tab bar hide/reshow via a temporary config and synchronization across multiple windows automatically verified with the Release build |
 | Input | Keyboard and IME | Character input and Enter automatically verified with the Release build, IME basically verified |
+| Input | Ctrl+Space translated-input suppression (#40) | 2026-09-28: normal and kitty modes, `unconsumed:` passthrough, available Ctrl combinations, and Japanese IME conversion/commit passed with the Debug executable. Ctrl+[ and Ctrl+- were owned by non-disableable shortcuts, Ctrl+Space did not auto-repeat, and AltGr was unavailable on the tested JIS/Microsoft IME layout; those cases were excluded rather than marked as passed |
 | Input | Shift text in Kitty keyboard disambiguation mode | 2026-09-17: consumed-modifier and encoding tests passed; actual `:`, `?`, and `!` input in antigravity confirmed by the owner |
 | Input | Numpad digits and operators | 2026-09-17: `0`, `1`, `.`, and `+` arrive once in normal, Kitty disambiguation, and application keypad modes (before: twice); actual numpad input confirmed by the owner |
 | Input | Mouse and clipboard | `1.3.2-windows.11`: OSC 22 cursor shapes, hide/restore on typing, and blank-row context-menu behavior tested on Debug and ReleaseFast builds. Physical pointer/input regression remains |
