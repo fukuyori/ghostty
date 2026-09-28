@@ -13,7 +13,7 @@ No changes yet.
 
 ## 1.3.2-windows.13
 
-Prepared 2026-09-28. This preview improves Windows font selection and
+Released 2026-09-28. This preview improves Windows font selection and
 fallback, fixes three Win32 correctness issues, and adds the scoped
 `+new-tab -e` IPC implementation.
 

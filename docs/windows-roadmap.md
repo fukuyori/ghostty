@@ -131,15 +131,15 @@ and the release notes. The signed installer is available on
 This preview retains the current product name;
 rebranding remains tracked separately in [#31](https://github.com/fukuyori/ghostty/issues/31).
 
-The working tree has prepared `1.3.2-windows.13`. Its source changes cover
+The current Windows preview is `1.3.2-windows.13`, published from
+`v1.3.2-windows.13` (`9a45da6f7`) on 2026-09-28. Its source changes cover
 configured font styles, DirectWrite system fallback, Ctrl+Space and
 Shift+Insert input fixes, renderer and ConPTY correctness fixes, and scoped
 Win32 `+new-tab -e` IPC. The 128-step ReleaseFast build, version and PE checks,
 CLI checks, signed executable and installer, and real display/basic-input check
 passed on 2026-09-28. The owner subsequently confirmed installation, upgrade
 from `.12`, and uninstallation on real hardware. A separate installed-tree
-inspection, tagging, and publication remain; `1.3.2-windows.12` is still the
-latest published preview.
+inspection remains.
 
 Remaining real-hardware verification, open decisions, and
 deferred refactoring are tracked as GitHub issues, listed in "7. Next Steps".
@@ -1846,7 +1846,7 @@ the code exists.
 | Release | `1.3.2-windows.9` | Numpad double-input fix. Win32 tests with hooks, window-state regression, and recorded numpad input passed on a Debug build; actual numpad input confirmed by the owner; ReleaseFast CLI and version metadata verified; regression on the distribution and test-hook ReleaseFast builds and 20-iteration soak (20/20) passed. Signed installer built by the owner; installer and staged executable signatures Valid |
 | Release | `1.3.2-windows.11` | Published 2026-09-22, source `969d637e3`. ReleaseFast metadata/runtime and native regressions passed; final soak 20/20 (119.3 s), no process or temporary-state leftovers. Signed installer and staged executable signatures Valid. Earlier cursor/startup-row timeouts remain unexplained; physical IME/mixed DPI and installation/upgrade/uninstallation remain unverified |
 | Release | `1.3.2-windows.12` | Published 2026-09-26, source `0327dbce1`. ReleaseFast metadata and combined F1/F2 regression passed; final soak 20/20 (119.596 s). Signed installer, staged executable, and uninstaller signatures Valid and upgrade from `.11`, installed runtime, uninstallation cleanup, config preservation, and reinstallation verified. The published installer was re-downloaded with matching size/hash and a Valid timestamped signature. The first installed scrollbar-history measurement timed out; an unchanged rerun passed |
-| Release | `1.3.2-windows.13` | Prepared 2026-09-28; not tagged or published. ReleaseFast build passed 128/128 steps and reports `1.3.2-windows.13`, numeric `1.3.2.13`, x64 WindowsGui, ReleaseFast. CLI version and default-keybinding checks exited 0. Signed staged executable and installer signatures are Valid and timestamped; the uninstaller was signed during compilation. Owner confirmed real display and basic input plus installation, upgrade from `.12`, and uninstallation on real hardware. A separate installed-tree inspection remains |
+| Release | `1.3.2-windows.13` | Published 2026-09-28 from `v1.3.2-windows.13` (`9a45da6f7`). ReleaseFast build passed 128/128 steps and reports `1.3.2-windows.13`, numeric `1.3.2.13`, x64 WindowsGui, ReleaseFast. CLI version and default-keybinding checks exited 0. Signed staged executable and installer signatures are Valid and timestamped; the uninstaller was signed during compilation. The published installer size and SHA-256 match the local artifact. Owner confirmed real display and basic input plus installation, upgrade from `.12`, and uninstallation on real hardware. A separate installed-tree inspection remains |
 | Fonts | Configured family matching (#1) | 2026-09-28: missing-family warnings reached diagnostic stderr; English family names, localized Yu Gothic records, typographic family records, full-name rejection, and agreement between `+list-fonts --family` and configured discovery were measured. The Windows guide documents exact-name checking. No code change was required |
 | Fonts | Configured style selection (#2) | 2026-09-28: targeted Windows tests selected Arial Regular/Bold/Italic/Bold Italic and rejected a missing explicit style; Moralerspace Neon selected separate Regular/Bold files and synthesized missing italic styles. Captured Latin and Japanese output showed the four distinct styles without missing glyphs or visible cell overflow. System fallback remains unchanged |
 | Fonts | Fallback size adjustment (#3) | 2026-09-28: Cascadia Code NF with automatic/explicit BIZ UDGothic passed at 12/16/24 pt and 96/120/144/192 DPI; Noto Sans JP passed at 16 pt and 96 DPI. Moralerspace Neon supplied the real primary `ic_width` glyph `水` while missing `龘` exercised a separate `微軟正黑體` fallback. Two-cell placement, baseline, and clipping were normal. The configured/fallback size asymmetry remains the upstream `.none`/`.ic_width` behavior, so no code or setting was added |

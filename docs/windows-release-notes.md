@@ -9,11 +9,11 @@ limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 
 ## 1.3.2-windows.13
 
-- Prepared: 2026-09-28
-- Published: not yet published
-- Source tag: not yet created
+- Released: 2026-09-28
+- Published: 2026-09-28
+- Source: `v1.3.2-windows.13` (`9a45da6f7`)
 - Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
-- Status: prepared preview. The ReleaseFast distribution and signed installer
+- Status: published preview. The ReleaseFast distribution and signed installer
   were built and verified locally. This release improves Windows font
   handling, fixes input, renderer, and ConPTY correctness issues, and adds
   scoped `+new-tab -e` IPC.
@@ -64,8 +64,8 @@ matching `conpty.dll` and `OpenConsole.exe`, and Inno Setup included
 
 The owner confirmed installation, upgrade from `.12`, and uninstallation on
 real hardware. A separate inspection of the installed tree has not been run
-for this prepared preview. The source tag and GitHub Release have not been
-created.
+for this preview. The signed installer is published at the
+[GitHub Release](https://github.com/fukuyori/ghostty/releases/tag/v1.3.2-windows.13).
 
 ### Known Limitations
 
