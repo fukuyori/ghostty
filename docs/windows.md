@@ -500,7 +500,8 @@ recovery failures, 0 invalid JSON records, and 0 leftover temporary files.
 
 Set the font with `font-family` in the configuration file. Give the **family
 name**, not a style name. A style suffix does not match, and Ghostty then
-falls back to another font without saying so.
+falls back to another font. The diagnostic stderr log reports
+`font-family <style> not found: <name>` for each missing configured style.
 
 ```
 font-family = "Moralerspace Neon"
@@ -513,6 +514,20 @@ family name. List the installed family names to check:
 ```powershell
 & .\zig-out\release\bin\ghostty.exe +list-fonts | Out-String
 ```
+
+To check the exact name Ghostty will accept, filter the list with the same
+family value. Keep the whole `--family=...` argument quoted when the name
+contains spaces:
+
+```powershell
+& .\zig-out\release\bin\ghostty.exe +list-fonts "--family=Yu Gothic" | Out-String
+```
+
+An empty result means that `font-family` will not match that spelling. The
+Windows FreeType backend can expose an English family name even when the font
+also contains a localized Japanese family name; use the spelling shown by
+`+list-fonts`. Full face names such as `Moralerspace Neon Regular` are not
+accepted in place of their family name.
 
 To see which face actually renders a character:
 

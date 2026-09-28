@@ -1383,8 +1383,9 @@ The ordered implementation queue is:
 1. [#40](https://github.com/fukuyori/ghostty/issues/40): Ctrl+Space double
    sending. Implemented and acceptance-verified at `5d3c06231`; the issue can
    be closed.
-2. [#1](https://github.com/fukuyori/ghostty/issues/1): verify unmatched-family
-   diagnostics and family-name matching.
+2. [#1](https://github.com/fukuyori/ghostty/issues/1): unmatched-family
+   diagnostics and family-name matching. Measured and documented on
+   2026-09-28; no code change was required and the issue can be closed.
 3. [#2](https://github.com/fukuyori/ghostty/issues/2): correct configured
    Regular/Bold/Italic/Bold Italic face selection.
 4. [#3](https://github.com/fukuyori/ghostty/issues/3): measure the existing
@@ -1443,6 +1444,21 @@ Real-hardware verification in the user's environment:
      `font-family`.
   5. Document in the Windows user documentation how to check a family with
      `+list-fonts`.
+
+  Completed on 2026-09-28 with the Debug executable. A deliberately missing
+  family produced the existing warning for Regular, Bold, Italic, and Bold
+  Italic in the diagnostic stderr log, so the log path needed no code change.
+  `+list-fonts "--family=Yu Gothic"` and `font-family = "Yu Gothic"` both
+  matched, as did `Moralerspace Neon`; `游ゴシック` and
+  `Moralerspace Neon Regular` matched neither path. The installed Yu Gothic
+  files contain Japanese and English name ID 1 and ID 16 records. In Yu Gothic
+  Medium, ID 1 is `Yu Gothic Medium` and ID 16 is `Yu Gothic`; the query for
+  `Yu Gothic` included the Medium face through FreeType's `family_name`.
+  The localized Japanese ID 1/16 spelling was not exposed by that path.
+  `+list-fonts` therefore agreed with configured-family discovery for every
+  measured name. The Windows guide now documents the filtered command, its
+  required PowerShell quoting, localized-name behavior, and the family versus
+  full-name distinction.
 
   Out of the initial scope: exact full-name matching, because macOS has a
   measured match for the same string while the current Windows FreeType path
@@ -1655,7 +1671,8 @@ the code exists.
 | Release | `1.3.2-windows.9` | Numpad double-input fix. Win32 tests with hooks, window-state regression, and recorded numpad input passed on a Debug build; actual numpad input confirmed by the owner; ReleaseFast CLI and version metadata verified; regression on the distribution and test-hook ReleaseFast builds and 20-iteration soak (20/20) passed. Signed installer built by the owner; installer and staged executable signatures Valid |
 | Release | `1.3.2-windows.11` | Published 2026-09-22, source `969d637e3`. ReleaseFast metadata/runtime and native regressions passed; final soak 20/20 (119.3 s), no process or temporary-state leftovers. Signed installer and staged executable signatures Valid. Earlier cursor/startup-row timeouts remain unexplained; physical IME/mixed DPI and installation/upgrade/uninstallation remain unverified |
 | Release | `1.3.2-windows.12` | Published 2026-09-26, source `0327dbce1`. ReleaseFast metadata and combined F1/F2 regression passed; final soak 20/20 (119.596 s). Signed installer, staged executable, and uninstaller signatures Valid and upgrade from `.11`, installed runtime, uninstallation cleanup, config preservation, and reinstallation verified. The published installer was re-downloaded with matching size/hash and a Valid timestamped signature. The first installed scrollbar-history measurement timed out; an unchanged rerun passed |
-| Fonts | Family matching and fallback | Measured: a configured family that matches nothing is replaced silently, and the automatic fallback takes the first file containing the codepoint. Tracked as issues 1, 2, and 3 |
+| Fonts | Configured family matching (#1) | 2026-09-28: missing-family warnings reached diagnostic stderr; English family names, localized Yu Gothic records, typographic family records, full-name rejection, and agreement between `+list-fonts --family` and configured discovery were measured. The Windows guide documents exact-name checking. No code change was required |
+| Fonts | Automatic fallback | The current implementation takes the first scanned file containing the codepoint. Further work is tracked separately as #42 |
 | Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature |
 | Version info | CLI version display | Verified with the Release build |
 | Version info | Windows file properties | String version, numeric version, and Debug flag verified for Debug and Release |
