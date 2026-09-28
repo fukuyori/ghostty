@@ -581,13 +581,21 @@ not line up, and there is no setting that rescales a font you named.
 `font-codepoint-map` does not avoid the resizing: faces mapped that way are
 treated like automatic fallbacks.
 
-Three parts of this behavior are tracked as issues: a configured family that
-matches nothing is replaced without a warning
-([1](https://github.com/fukuyori/ghostty/issues/1)), the fallback scan takes
-the first file that contains the character rather than asking Windows
-([2](https://github.com/fukuyori/ghostty/issues/2)), and the resizing applies
-to fallbacks but never to a family you named
-([3](https://github.com/fukuyori/ghostty/issues/3)).
+The current `.ic_width` behavior was measured on Windows with Cascadia Code NF
+as the primary font. BIZ UDGothic at 12, 16, and 24 pt and at 100%, 125%,
+150%, and 200% display scaling kept full-width characters on two cells without
+baseline errors or top/bottom clipping. Automatic BIZ UDGothic appeared larger
+than the same face named explicitly; Noto Sans JP at 16 pt showed little
+visible difference between the two paths. This is the intended upstream
+configured-versus-fallback distinction, so the Windows fork does not add a
+separate adjustment setting.
+
+Related work is tracked separately: unmatched configured names
+([1](https://github.com/fukuyori/ghostty/issues/1)), configured style selection
+([2](https://github.com/fukuyori/ghostty/issues/2)), the measured size
+adjustment behavior ([3](https://github.com/fukuyori/ghostty/issues/3)), and
+Windows system fallback selection
+([42](https://github.com/fukuyori/ghostty/issues/42)).
 
 ## Keyboard Layouts
 

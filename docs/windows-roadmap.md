@@ -1389,8 +1389,9 @@ The ordered implementation queue is:
 3. [#2](https://github.com/fukuyori/ghostty/issues/2): configured
    Regular/Bold/Italic/Bold Italic face selection. Implemented and verified on
    2026-09-28; the issue can be closed after commit.
-4. [#3](https://github.com/fukuyori/ghostty/issues/3): measure the existing
-   upstream font-size adjustment and change nothing unless it is broken.
+4. [#3](https://github.com/fukuyori/ghostty/issues/3): upstream font-size
+   adjustment. Measured on 2026-09-28; no breakage or code change was found,
+   and the issue can be closed after the documentation commit.
 5. [#42](https://github.com/fukuyori/ghostty/issues/42): decide, implement,
    and verify Windows system-font fallback without expanding #1-#3.
 6. [#15](https://github.com/fukuyori/ghostty/issues/15): implement the scoped
@@ -1513,6 +1514,24 @@ Real-hardware verification in the user's environment:
   broken cell width is found, #3 needs no code change. The future system
   fallback implementation must follow the result of #3, but does not block
   completing #3.
+
+  Completed on 2026-09-28 without a code change. With Cascadia Code NF as the
+  primary, automatic and explicitly configured BIZ UDGothic were captured at
+  12, 16, and 24 pt on a 96-DPI display. The 16 pt pair was then captured in
+  windows whose DPI was verified with `GetDpiForWindow` as 96, 120, 144, and
+  192 (100%, 125%, 150%, and 200%). Full-width characters remained on two
+  cells with no baseline failure or top/bottom clipping. At 200%, long lines
+  wrapped because the fixed window contained fewer cells; this was not glyph
+  clipping. Automatic BIZ UDGothic was visibly larger than the same explicitly
+  configured face at every measured size and DPI, confirming the existing
+  `.ic_width` versus `.none` distinction. Noto Sans JP was also compared at
+  16 pt and 100% using `font-codepoint-map` for the adjusted path and a second
+  configured family for the unadjusted path; it showed little visible size
+  difference and no layout failure. `+show-face` confirmed BIZ UDGothic and
+  Noto Sans JP for both paths. HackGen was not installed and was excluded
+  rather than marked as tested. Screen captures were inspected for every
+  reported condition. The evidence does not justify changing the upstream
+  default or adding a fork-specific setting.
 - [#42](https://github.com/fukuyori/ghostty/issues/42): Windows system-font
   fallback after the configured faces do not contain a requested character.
   Its selection method is deliberately not decided in this roadmap. The issue
@@ -1690,6 +1709,7 @@ the code exists.
 | Release | `1.3.2-windows.12` | Published 2026-09-26, source `0327dbce1`. ReleaseFast metadata and combined F1/F2 regression passed; final soak 20/20 (119.596 s). Signed installer, staged executable, and uninstaller signatures Valid and upgrade from `.11`, installed runtime, uninstallation cleanup, config preservation, and reinstallation verified. The published installer was re-downloaded with matching size/hash and a Valid timestamped signature. The first installed scrollbar-history measurement timed out; an unchanged rerun passed |
 | Fonts | Configured family matching (#1) | 2026-09-28: missing-family warnings reached diagnostic stderr; English family names, localized Yu Gothic records, typographic family records, full-name rejection, and agreement between `+list-fonts --family` and configured discovery were measured. The Windows guide documents exact-name checking. No code change was required |
 | Fonts | Configured style selection (#2) | 2026-09-28: targeted Windows tests selected Arial Regular/Bold/Italic/Bold Italic and rejected a missing explicit style; Moralerspace Neon selected separate Regular/Bold files and synthesized missing italic styles. Captured Latin and Japanese output showed the four distinct styles without missing glyphs or visible cell overflow. System fallback remains unchanged |
+| Fonts | Fallback size adjustment (#3) | 2026-09-28: Cascadia Code NF with automatic/explicit BIZ UDGothic passed at 12/16/24 pt and 96/120/144/192 DPI; Noto Sans JP passed at 16 pt and 96 DPI. Two-cell placement, baseline, and clipping were normal. The visible configured/fallback size asymmetry is the existing upstream `.none`/`.ic_width` behavior, so no code or setting was added. HackGen was unavailable and excluded |
 | Fonts | Automatic fallback | The current implementation takes the first scanned file containing the codepoint. Further work is tracked separately as #42 |
 | Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature |
 | Version info | CLI version display | Verified with the Release build |
