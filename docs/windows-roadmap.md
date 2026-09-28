@@ -1392,8 +1392,9 @@ The ordered implementation queue is:
 4. [#3](https://github.com/fukuyori/ghostty/issues/3): upstream font-size
    adjustment. Measured on 2026-09-28; no breakage or code change was found,
    and the issue can be closed after the documentation commit.
-5. [#42](https://github.com/fukuyori/ghostty/issues/42): decide, implement,
-   and verify Windows system-font fallback without expanding #1-#3.
+5. [#42](https://github.com/fukuyori/ghostty/issues/42): Windows
+   system-font fallback. The initial DirectWrite implementation and controlled
+   CLI and visual verification are complete.
 6. [#37](https://github.com/fukuyori/ghostty/issues/37): restore the Windows
    Shift+Insert clipboard-paste default and verify it with real input.
 7. [#38](https://github.com/fukuyori/ghostty/issues/38): prevent renderer
@@ -1554,14 +1555,32 @@ Real-hardware verification in the user's environment:
   justify changing the upstream default or adding a fork-specific setting.
 - [#42](https://github.com/fukuyori/ghostty/issues/42): Windows system-font
   fallback after the configured faces do not contain a requested character.
-  Its selection method is deliberately not decided in this roadmap. The issue
-  separately discusses DirectWrite `MapCharacters`, locale and style inputs,
-  conversion to a local file and face index (including TTC/OTC), non-local
-  fonts, possible `FontLink\SystemLink` use, font-change refresh, emoji,
-  performance, and locking. Prefer upstream resolver semantics and OS ordering;
-  do not add fixed `ja-JP`, fork-specific monospace-first reranking, or fuzzy
-  candidate selection without separate evidence and discussion. #42 must not
-  expand the completion conditions of #1, #2, or #3.
+  The initial implementation uses DirectWrite `MapCharacters` with the system
+  font collection, the user's Windows locale, the primary Regular family, and
+  Regular/Normal/Normal traits. It preserves the upstream order of configured
+  fonts, embedded symbol and Noto emoji faces, then system fallback. It does
+  not reorder the result, hardcode `ja-JP`, use `FontLink\SystemLink`, apply
+  the returned scale, or carry primary-font variation axes to the unrelated
+  fallback face.
+
+  Discovery remains one Unicode scalar at a time, including a UTF-16 surrogate
+  pair for a supplementary scalar, so the upstream resolver and shaper retain
+  responsibility for presentation selectors and ZWJ sequences. The returned
+  DirectWrite face is accepted only when it has exactly one local font file;
+  its local path and `IDWriteFontFace::GetIndex()` are passed to the existing
+  FreeType/`DeferredFace` path, which verifies that the selected face contains
+  the requested glyph. Non-local and multi-file faces are logged and rejected;
+  variable instances and simulated styles are not applied in this initial
+  scope.
+
+  On 2026-09-28, the UTF-16 scalar test, targeted Windows font-discovery test,
+  and Debug build passed. With Consolas as the configured primary,
+  `+show-face` selected `Yu Gothic UI` for U+65E5 and `MingLiU-ExtB` for
+  supplementary U+20000; both diagnostic runs exited 0. Captured terminal
+  output at 12 and 24 pt showed Japanese text, U+9F98, and U+20000 as rendered
+  glyphs rather than replacement boxes. Cell boundaries, baseline, top/bottom
+  clipping, and overlap with following Latin descenders were normal. This work
+  does not expand the completion conditions of #1, #2, or #3.
 
 #### Windows correctness: #37, #38, and #39
 
@@ -1751,7 +1770,7 @@ the code exists.
 | Fonts | Configured family matching (#1) | 2026-09-28: missing-family warnings reached diagnostic stderr; English family names, localized Yu Gothic records, typographic family records, full-name rejection, and agreement between `+list-fonts --family` and configured discovery were measured. The Windows guide documents exact-name checking. No code change was required |
 | Fonts | Configured style selection (#2) | 2026-09-28: targeted Windows tests selected Arial Regular/Bold/Italic/Bold Italic and rejected a missing explicit style; Moralerspace Neon selected separate Regular/Bold files and synthesized missing italic styles. Captured Latin and Japanese output showed the four distinct styles without missing glyphs or visible cell overflow. System fallback remains unchanged |
 | Fonts | Fallback size adjustment (#3) | 2026-09-28: Cascadia Code NF with automatic/explicit BIZ UDGothic passed at 12/16/24 pt and 96/120/144/192 DPI; Noto Sans JP passed at 16 pt and 96 DPI. Moralerspace Neon supplied the real primary `ic_width` glyph `水` while missing `龘` exercised a separate `微軟正黑體` fallback. Two-cell placement, baseline, and clipping were normal. The configured/fallback size asymmetry remains the upstream `.none`/`.ic_width` behavior, so no code or setting was added |
-| Fonts | Automatic fallback | The current implementation takes the first scanned file containing the codepoint. Further work is tracked separately as #42 |
+| Fonts | Automatic fallback (#42) | 2026-09-28: DirectWrite `MapCharacters` implementation, UTF-16 scalar test, targeted Windows discovery test, and Debug build passed. With Consolas primary, `+show-face` selected `Yu Gothic UI` for U+65E5 and `MingLiU-ExtB` for U+20000, both with exit 0. Captured 12/24 pt output showed Japanese, U+9F98, and U+20000 glyphs without replacement boxes, clipping, boundary failure, or overlap |
 | Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature |
 | Version info | CLI version display | Verified with the Release build |
 | Version info | Windows file properties | String version, numeric version, and Debug flag verified for Debug and Release |

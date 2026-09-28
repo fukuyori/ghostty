@@ -701,6 +701,7 @@ pub fn add(
                 step.root_module.linkSystemLibrary("d3dcompiler", .{});
                 step.root_module.linkSystemLibrary("dxgi", .{});
                 step.root_module.linkSystemLibrary("dcomp", .{});
+                step.root_module.linkSystemLibrary("dwrite", .{});
                 step.root_module.linkSystemLibrary("dwmapi", .{});
                 step.root_module.linkSystemLibrary("coremessaging", .{});
                 step.root_module.linkSystemLibrary("runtimeobject", .{});

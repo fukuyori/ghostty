@@ -14,6 +14,7 @@ const Library = @import("main.zig").Library;
 const Presentation = @import("main.zig").Presentation;
 const Variation = @import("main.zig").face.Variation;
 const global = @import("../global.zig");
+const win32 = if (builtin.os.tag == .windows) @import("win32").everything else struct {};
 
 const log = std.log.scoped(.discovery);
 
@@ -965,13 +966,21 @@ pub const CoreText = struct {
 /// probe its CMap.
 pub const Windows = struct {
     lib: Library,
+    dwrite: ?DirectWrite,
 
     pub fn init(lib: Library) Windows {
-        return .{ .lib = lib };
+        return .{
+            .lib = lib,
+            .dwrite = DirectWrite.init() catch |err| unavailable: {
+                log.warn("DirectWrite font fallback unavailable err={}", .{err});
+                break :unavailable null;
+            },
+        };
     }
 
     pub fn deinit(self: *Windows) void {
-        _ = self;
+        if (self.dwrite) |*dwrite| dwrite.deinit();
+        self.* = undefined;
     }
 
     pub fn discover(
@@ -1000,11 +1009,399 @@ pub const Windows = struct {
         alloc: Allocator,
         collection: *Collection,
         desc: Descriptor,
-    ) !DiscoverIterator {
-        _ = collection;
-        var result = try self.discover(alloc, desc);
-        result.rank_styles = false;
-        return result;
+    ) !FallbackIterator {
+        if (desc.codepoint == 0) return .{};
+        const dwrite = self.dwrite orelse return .{};
+
+        var family_buf: [512]u8 = undefined;
+        const primary = primaryFamily(collection, &family_buf) orelse {
+            log.warn("DirectWrite fallback has no primary Regular family", .{});
+            return .{};
+        };
+
+        return .{ .face = dwrite.map(
+            alloc,
+            self.lib,
+            primary,
+            desc,
+        ) catch |err| failed: {
+            log.warn("DirectWrite fallback failed codepoint=0x{X} err={}", .{
+                desc.codepoint,
+                err,
+            });
+            break :failed null;
+        } };
+    }
+
+    pub const FallbackIterator = struct {
+        face: ?DeferredFace = null,
+
+        pub fn deinit(self: *FallbackIterator) void {
+            if (self.face) |*face| face.deinit();
+            self.* = undefined;
+        }
+
+        pub fn next(self: *FallbackIterator) !?DeferredFace {
+            const face = self.face orelse return null;
+            self.face = null;
+            return face;
+        }
+    };
+
+    fn primaryFamily(collection: *Collection, buf: []u8) ?[]const u8 {
+        const face = collection.getFace(.{}) catch return null;
+        return face.name(buf) catch null;
+    }
+
+    const DirectWrite = struct {
+        factory: *win32.IDWriteFactory,
+        factory2: *win32.IDWriteFactory2,
+        fonts: *win32.IDWriteFontCollection,
+        fallback: *win32.IDWriteFontFallback,
+        locale: [locale_name_max_length]u16,
+
+        const locale_name_max_length = 85;
+
+        fn init() !DirectWrite {
+            var unknown: *win32.IUnknown = undefined;
+            try checkHr(win32.DWriteCreateFactory(
+                win32.DWRITE_FACTORY_TYPE_SHARED,
+                win32.IID_IDWriteFactory,
+                &unknown,
+            ));
+            const factory: *win32.IDWriteFactory = @ptrCast(unknown);
+            errdefer _ = factory.IUnknown.Release();
+
+            var factory2_raw: *anyopaque = undefined;
+            try checkHr(factory.IUnknown.QueryInterface(
+                win32.IID_IDWriteFactory2,
+                &factory2_raw,
+            ));
+            const factory2: *win32.IDWriteFactory2 = @ptrCast(@alignCast(factory2_raw));
+            errdefer _ = factory2.IUnknown.Release();
+
+            var fonts: *win32.IDWriteFontCollection = undefined;
+            try checkHr(factory.GetSystemFontCollection(&fonts, win32.FALSE));
+            errdefer _ = fonts.IUnknown.Release();
+
+            var fallback: *win32.IDWriteFontFallback = undefined;
+            try checkHr(factory2.GetSystemFontFallback(&fallback));
+            errdefer _ = fallback.IUnknown.Release();
+
+            var locale: [locale_name_max_length]u16 = @splat(0);
+            if (win32.GetUserDefaultLocaleName(@ptrCast(&locale), locale.len) == 0) {
+                const default = std.unicode.utf8ToUtf16LeStringLiteral("en-US");
+                @memcpy(locale[0..default.len], default);
+            }
+
+            return .{
+                .factory = factory,
+                .factory2 = factory2,
+                .fonts = fonts,
+                .fallback = fallback,
+                .locale = locale,
+            };
+        }
+
+        fn deinit(self: *DirectWrite) void {
+            _ = self.fallback.IUnknown.Release();
+            _ = self.fonts.IUnknown.Release();
+            _ = self.factory2.IUnknown.Release();
+            _ = self.factory.IUnknown.Release();
+            self.* = undefined;
+        }
+
+        fn map(
+            self: DirectWrite,
+            alloc: Allocator,
+            lib: Library,
+            primary_family: []const u8,
+            desc: Descriptor,
+        ) !?DeferredFace {
+            const primary_w = try std.unicode.utf8ToUtf16LeAllocZ(alloc, primary_family);
+            defer alloc.free(primary_w);
+
+            var text_buf: [2]u16 = undefined;
+            const text = try encodeScalarUtf16(desc.codepoint, &text_buf);
+            var source: TextSource = .{
+                .interface = .{ .vtable = &TextSource.vtable },
+                .text = text.ptr,
+                .text_len = @intCast(text.len),
+                .locale = @ptrCast(&self.locale),
+            };
+
+            var mapped_length: u32 = 0;
+            var mapped_font: ?*win32.IDWriteFont = null;
+            var scale: f32 = 1;
+            try checkHr(self.fallback.MapCharacters(
+                &source.interface,
+                0,
+                @intCast(text.len),
+                self.fonts,
+                primary_w.ptr,
+                win32.DWRITE_FONT_WEIGHT_REGULAR,
+                win32.DWRITE_FONT_STYLE_NORMAL,
+                win32.DWRITE_FONT_STRETCH_NORMAL,
+                &mapped_length,
+                @ptrCast(&mapped_font),
+                &scale,
+            ));
+
+            const font = mapped_font orelse return null;
+            defer _ = font.IUnknown.Release();
+            if (mapped_length != text.len) {
+                log.warn("DirectWrite fallback mapped partial scalar codepoint=0x{X} mapped={d} length={d}", .{
+                    desc.codepoint,
+                    mapped_length,
+                    text.len,
+                });
+                return null;
+            }
+            if (scale != 1) {
+                log.info("DirectWrite fallback ignored scale codepoint=0x{X} scale={d}", .{
+                    desc.codepoint,
+                    scale,
+                });
+            }
+
+            const font_simulations = font.GetSimulations();
+            if (@as(u32, @bitCast(font_simulations)) != 0) {
+                log.info("DirectWrite fallback ignored font simulation codepoint=0x{X} simulation={}", .{
+                    desc.codepoint,
+                    font_simulations,
+                });
+            }
+
+            var dwrite_face: *win32.IDWriteFontFace = undefined;
+            try checkHr(font.CreateFontFace(&dwrite_face));
+            defer _ = dwrite_face.IUnknown.Release();
+
+            var file_count: u32 = 0;
+            try checkHr(dwrite_face.GetFiles(&file_count, null));
+            if (file_count != 1) {
+                log.warn("DirectWrite fallback rejected codepoint=0x{X} file_count={d}", .{
+                    desc.codepoint,
+                    file_count,
+                });
+                return null;
+            }
+
+            var file_slot: [1]?*win32.IDWriteFontFile = .{null};
+            try checkHr(dwrite_face.GetFiles(&file_count, &file_slot));
+            const file = file_slot[0] orelse return error.MissingFontFile;
+            defer _ = file.IUnknown.Release();
+
+            var loader: *win32.IDWriteFontFileLoader = undefined;
+            try checkHr(file.GetLoader(&loader));
+            defer _ = loader.IUnknown.Release();
+
+            var local_raw: *anyopaque = undefined;
+            if (loader.IUnknown.QueryInterface(
+                win32.IID_IDWriteLocalFontFileLoader,
+                &local_raw,
+            ) < 0) {
+                log.warn("DirectWrite fallback rejected non-local font codepoint=0x{X}", .{desc.codepoint});
+                return null;
+            }
+            const local: *win32.IDWriteLocalFontFileLoader = @ptrCast(@alignCast(local_raw));
+            defer _ = local.IUnknown.Release();
+
+            var reference_key: ?*anyopaque = null;
+            var reference_key_size: u32 = 0;
+            try checkHr(file.GetReferenceKey(@ptrCast(&reference_key), &reference_key_size));
+
+            var path_len: u32 = 0;
+            try checkHr(local.GetFilePathLengthFromKey(
+                reference_key,
+                reference_key_size,
+                &path_len,
+            ));
+            const path_w = try alloc.allocSentinel(u16, path_len, 0);
+            defer alloc.free(path_w);
+            try checkHr(local.GetFilePathFromKey(
+                reference_key,
+                reference_key_size,
+                path_w.ptr,
+                path_len + 1,
+            ));
+
+            const path_utf8 = try std.unicode.utf16LeToUtf8Alloc(alloc, path_w);
+            defer alloc.free(path_utf8);
+            const path = try alloc.dupeZ(u8, path_utf8);
+            errdefer alloc.free(path);
+
+            const face_index_u32 = dwrite_face.GetIndex();
+            const face_index = std.math.cast(i32, face_index_u32) orelse
+                return error.InvalidFaceIndex;
+            var peek = try Face.initFile(
+                lib,
+                path,
+                face_index,
+                .{ .size = .{ .points = 12 } },
+            );
+            errdefer peek.deinit();
+
+            if (peek.glyphIndex(desc.codepoint) == null) {
+                log.warn("DirectWrite and FreeType disagree on fallback codepoint=0x{X} path={s} index={d}", .{
+                    desc.codepoint,
+                    path,
+                    face_index,
+                });
+                return null;
+            }
+
+            const presentation: Presentation = if (peek.hasColor()) .emoji else .text;
+            return .{
+                .win = .{
+                    .path = path,
+                    .face_index = face_index,
+                    // MapCharacters selected a system fallback face independently
+                    // of the primary font. Primary-font variation settings are not
+                    // valid for that unrelated face.
+                    .variations = &.{},
+                    .peek = peek,
+                    .presentation = presentation,
+                    .alloc = alloc,
+                },
+            };
+        }
+    };
+
+    const TextSource = extern struct {
+        interface: win32.IDWriteTextAnalysisSource,
+        text: [*]const u16,
+        text_len: u32,
+        locale: [*:0]const u16,
+
+        const vtable: win32.IDWriteTextAnalysisSource.VTable = .{
+            .base = .{
+                .QueryInterface = queryInterface,
+                .AddRef = addRef,
+                .Release = release,
+            },
+            .GetTextAtPosition = getTextAtPosition,
+            .GetTextBeforePosition = getTextBeforePosition,
+            .GetParagraphReadingDirection = getParagraphReadingDirection,
+            .GetLocaleName = getLocaleName,
+            .GetNumberSubstitution = getNumberSubstitution,
+        };
+
+        fn fromInterface(value: anytype) *TextSource {
+            const interface: *const win32.IDWriteTextAnalysisSource = @ptrCast(value);
+            return @constCast(@fieldParentPtr("interface", interface));
+        }
+
+        fn queryInterface(
+            value: *const win32.IUnknown,
+            iid: *const win32.Guid,
+            output: **anyopaque,
+        ) callconv(.winapi) win32.HRESULT {
+            const result: *?*anyopaque = @ptrCast(output);
+            result.* = if (guidEqual(iid, win32.IID_IUnknown) or
+                guidEqual(iid, win32.IID_IDWriteTextAnalysisSource))
+                @ptrCast(&fromInterface(value).interface)
+            else
+                null;
+            return if (result.* != null) win32.S_OK else win32.E_NOINTERFACE;
+        }
+
+        fn addRef(_: *const win32.IUnknown) callconv(.winapi) u32 {
+            return 1;
+        }
+
+        fn release(_: *const win32.IUnknown) callconv(.winapi) u32 {
+            return 1;
+        }
+
+        fn getTextAtPosition(
+            value: *const win32.IDWriteTextAnalysisSource,
+            position: u32,
+            output: ?*const ?*u16,
+            length: ?*u32,
+        ) callconv(.winapi) win32.HRESULT {
+            const self = fromInterface(value);
+            const output_mut: ?*?*u16 = @constCast(output);
+            if (position >= self.text_len) {
+                if (output_mut) |ptr| ptr.* = null;
+                if (length) |ptr| ptr.* = 0;
+            } else {
+                if (output_mut) |ptr| ptr.* = @constCast(&self.text[position]);
+                if (length) |ptr| ptr.* = self.text_len - position;
+            }
+            return win32.S_OK;
+        }
+
+        fn getTextBeforePosition(
+            value: *const win32.IDWriteTextAnalysisSource,
+            position: u32,
+            output: ?*const ?*u16,
+            length: ?*u32,
+        ) callconv(.winapi) win32.HRESULT {
+            const self = fromInterface(value);
+            const output_mut: ?*?*u16 = @constCast(output);
+            if (position == 0 or position > self.text_len) {
+                if (output_mut) |ptr| ptr.* = null;
+                if (length) |ptr| ptr.* = 0;
+            } else {
+                if (output_mut) |ptr| ptr.* = @constCast(&self.text[0]);
+                if (length) |ptr| ptr.* = position;
+            }
+            return win32.S_OK;
+        }
+
+        fn getParagraphReadingDirection(
+            _: *const win32.IDWriteTextAnalysisSource,
+        ) callconv(.winapi) win32.DWRITE_READING_DIRECTION {
+            return win32.DWRITE_READING_DIRECTION_LEFT_TO_RIGHT;
+        }
+
+        fn getLocaleName(
+            value: *const win32.IDWriteTextAnalysisSource,
+            position: u32,
+            length: ?*u32,
+            locale: ?*const ?*u16,
+        ) callconv(.winapi) win32.HRESULT {
+            const self = fromInterface(value);
+            if (length) |ptr| ptr.* = self.text_len -| position;
+            const locale_mut: ?*?*u16 = @constCast(locale);
+            if (locale_mut) |ptr| ptr.* = @constCast(&self.locale[0]);
+            return win32.S_OK;
+        }
+
+        fn getNumberSubstitution(
+            value: *const win32.IDWriteTextAnalysisSource,
+            position: u32,
+            length: ?*u32,
+            substitution: **win32.IDWriteNumberSubstitution,
+        ) callconv(.winapi) win32.HRESULT {
+            const self = fromInterface(value);
+            if (length) |ptr| ptr.* = self.text_len -| position;
+            const result: *?*win32.IDWriteNumberSubstitution = @ptrCast(substitution);
+            result.* = null;
+            return win32.S_OK;
+        }
+    };
+
+    fn checkHr(result: win32.HRESULT) !void {
+        if (result < 0) return error.DirectWriteFailure;
+    }
+
+    fn guidEqual(a: *const win32.Guid, b: *const win32.Guid) bool {
+        return std.mem.eql(u8, std.mem.asBytes(a), std.mem.asBytes(b));
+    }
+
+    fn encodeScalarUtf16(cp: u32, buf: *[2]u16) ![]const u16 {
+        if (cp > 0x10FFFF or (cp >= 0xD800 and cp <= 0xDFFF))
+            return error.InvalidCodepoint;
+        if (cp <= 0xFFFF) {
+            buf[0] = @intCast(cp);
+            return buf[0..1];
+        }
+
+        const value = cp - 0x10000;
+        buf[0] = @intCast(0xD800 + (value >> 10));
+        buf[1] = @intCast(0xDC00 + (value & 0x3FF));
+        return buf[0..2];
     }
 
     pub const DiscoverIterator = struct {
@@ -1655,4 +2052,30 @@ test "windows" {
     });
     defer missing_style_it.deinit();
     try testing.expectEqual(null, try missing_style_it.next());
+}
+
+test "Windows DirectWrite UTF-16 scalar encoding" {
+    if (options.backend != .freetype_windows) return error.SkipZigTest;
+
+    const testing = std.testing;
+    var buf: [2]u16 = undefined;
+
+    try testing.expectEqualSlices(
+        u16,
+        &.{0x9F98},
+        try Windows.encodeScalarUtf16(0x9F98, &buf),
+    );
+    try testing.expectEqualSlices(
+        u16,
+        &.{ 0xD840, 0xDC00 },
+        try Windows.encodeScalarUtf16(0x20000, &buf),
+    );
+    try testing.expectError(
+        error.InvalidCodepoint,
+        Windows.encodeScalarUtf16(0xD800, &buf),
+    );
+    try testing.expectError(
+        error.InvalidCodepoint,
+        Windows.encodeScalarUtf16(0x110000, &buf),
+    );
 }
