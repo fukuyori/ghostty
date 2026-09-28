@@ -1352,8 +1352,9 @@ as a quoted path without Enter or command execution.
 
 F1 -> F2 -> F3 is the recommended feature order. F4 and F5 can be delivered
 as independent increments. Design F6-F8 after the initial features are
-verified. This ordering is not a hard technical dependency. Rebranding [#31](https://github.com/fukuyori/ghostty/issues/31) remains the highest priority
-for the next release; feature order applies within Phase 7.
+verified. This ordering is not a hard technical dependency. Rebranding
+[#31](https://github.com/fukuyori/ghostty/issues/31) is a special project
+outside the Phase 7 feature order.
 
 Each feature moves through scope/design decision, implementation, focused
 tests, GUI or actual-output inspection, and relevant real input/device
@@ -1370,16 +1371,45 @@ scope must be reassessed after F1-F8; they are not part of Phase 7 completion.
 
 ## 7. Next Steps
 
-Rebranding as ghoultty [#31](https://github.com/fukuyori/ghostty/issues/31) is the
-highest priority for the release after `1.3.2-windows.11`. The
-[rebranding plan](windows-rebranding-plan.md) records the decisions, compatibility
-boundary, work sequence, and acceptance checks. First establish the branch
-workflow and work on `rebrand/ghoultty` from `windows`. After implementation
-and integration, rename the GitHub repository as the final change before
-release-candidate validation. The destination name remains undecided;
-`fukuyori/ghoultty` is a candidate. Neither the work branch
-nor the repository rename exists yet. Phase 7 then
-follows the F1-F8 order in Section 6; its issues are tracked there.
+Special project outside the ordered implementation queue: rebranding as
+ghoultty [#31](https://github.com/fukuyori/ghostty/issues/31). The
+[rebranding plan](windows-rebranding-plan.md) records its decisions,
+compatibility boundary, work sequence, and acceptance checks. Its branch,
+repository rename, and release timing are managed independently and do not
+change the issue order below.
+
+The ordered implementation queue is:
+
+1. [#40](https://github.com/fukuyori/ghostty/issues/40): reproduce and fix
+   Ctrl+Space double sending.
+2. [#1](https://github.com/fukuyori/ghostty/issues/1): verify unmatched-family
+   diagnostics and family-name matching.
+3. [#2](https://github.com/fukuyori/ghostty/issues/2): correct configured
+   Regular/Bold/Italic/Bold Italic face selection.
+4. [#3](https://github.com/fukuyori/ghostty/issues/3): measure the existing
+   upstream font-size adjustment and change nothing unless it is broken.
+5. [#42](https://github.com/fukuyori/ghostty/issues/42): decide, implement,
+   and verify Windows system-font fallback without expanding #1-#3.
+6. [#15](https://github.com/fukuyori/ghostty/issues/15): implement the scoped
+   Win32 `+new-tab -e` IPC support.
+7. Phase 7 F4 [#33](https://github.com/fukuyori/ghostty/issues/33): taskbar
+   progress.
+8. Phase 7 F5 [#34](https://github.com/fukuyori/ghostty/issues/34): HTML and
+   mixed clipboard output.
+9. Phase 7 F6 [#35](https://github.com/fukuyori/ghostty/issues/35): session
+   save and restore, beginning with its design decisions.
+10. Phase 7 F7 [#24](https://github.com/fukuyori/ghostty/issues/24): quick
+   terminal and `global:` bindings, beginning with its design decisions.
+11. Phase 7 F8 [#21](https://github.com/fukuyori/ghostty/issues/21): desktop
+    and command-finish notifications, beginning with its design decisions.
+
+Close each issue after its implementation and acceptance checks pass. Profile
+selection [#41](https://github.com/fukuyori/ghostty/issues/41) has no separate
+implementation: after #15 passes, record that `+new-tab -e` is the supported
+alternative rather than a profile feature, then close #41. Real-hardware
+verification and background-blur #11 remain separate from this implementation
+order.
+
 Search-bar focus restoration and message-loop routing remain review items.
 Physical search IME input and mixed-DPI presentation remain unverified.
 
@@ -1392,12 +1422,195 @@ Real-hardware verification in the user's environment:
 - [#9](https://github.com/fukuyori/ghostty/issues/9): multi-hour soak
 - [#10](https://github.com/fukuyori/ghostty/issues/10): real GPU device loss or driver failure
 
-Open product decisions:
+### Detailed scopes
 
-- [#1](https://github.com/fukuyori/ghostty/issues/1): unmatched font family handling
-- [#2](https://github.com/fukuyori/ghostty/issues/2): fallback font selection
-- [#3](https://github.com/fukuyori/ghostty/issues/3): configured/fallback font size adjustment
-- [#11](https://github.com/fukuyori/ghostty/issues/11): background blur support or limitation
+#### Font work: #1, #2, #3, and #42
+
+- [#1](https://github.com/fukuyori/ghostty/issues/1): unmatched font family
+  handling. `src/font/SharedGridSet.zig` already logs
+  `font-family <style> not found: <name>`. Initial scope and completion
+  criteria:
+  1. Configure a family that does not exist in a current build.
+  2. Check whether the existing warning reaches stderr and the diagnostic
+     output; if it does not, fix the log path.
+  3. Measure how far family matching reaches with name ID 1 in Japanese and
+     English and with name ID 16. The current Win32 `familyMatches()` checks
+     only FreeType `family_name` and `Face.name()`, and `Face.name()`
+     (`src/font/face/freetype.zig`) returns the first name ID 1 entry it finds
+     without choosing a language.
+  4. Check that `+list-fonts --family=<name>` returns the same result as
+     `font-family`.
+  5. Document in the Windows user documentation how to check a family with
+     `+list-fonts`.
+
+  Out of the initial scope: exact full-name matching, because macOS has a
+  measured match for the same string while the current Windows FreeType path
+  and Linux matching have not been confirmed, so the behavior as a common
+  specification including Windows and Linux is not settled; measure name ID 1
+  in each language and ID 16 first, and do not widen the matching
+  automatically. Showing close candidates is also out of scope. The shared
+  upstream warning text is not changed to mention `+list-fonts`; the Windows
+  documentation carries that guidance instead. A mistyped name is never
+  silently corrected to another face.
+- [#2](https://github.com/fukuyori/ghostty/issues/2): configured face
+  selection. Make Win32 `discover()` select the Regular, Bold, Italic, and
+  Bold Italic faces of a configured family using upstream descriptor/style
+  semantics. Candidates within the same family are ranked, and Regular is
+  preferred over Bold for a Regular request. When an explicitly requested
+  Bold or Italic attribute does not exist, discovery fails and the upstream
+  `completeStyles` synthetic style handling takes over. Named instances are
+  included only as far as normal enumeration returns them;
+  variable-axis-specific handling is out of the initial scope. Honor the
+  `font-style` style string with upstream descriptor semantics. The internal
+  matching API is an implementation detail, not a product decision; any API
+  selected during implementation must preserve the supported Windows version.
+  System fallback after the configured faces do not contain a character is
+  not part of #2 and is tracked separately in #42.
+- [#3](https://github.com/fukuyori/ghostty/issues/3): configured/fallback font
+  size adjustment. Keep the current upstream `.ic_width` adjustment (upstream
+  #7840) unchanged while measuring the existing behavior. No automatic
+  adjustment is added for configured families and no fork-specific setting is
+  added. The measurement checks that the upstream behavior does not break on
+  Windows: primary fonts such as
+  Cascadia Code and HackGen, fallbacks such as BIZ UDGothic and Noto CJK, 12,
+  16, and 24 pt, 100/125/150/200% DPI, two-cell full-width characters,
+  baseline, top/bottom clipping, apparent height, automatic fallback versus
+  an explicitly configured family, and screen captures. Unless clipping or a
+  broken cell width is found, #3 needs no code change. The future system
+  fallback implementation must follow the result of #3, but does not block
+  completing #3.
+- [#42](https://github.com/fukuyori/ghostty/issues/42): Windows system-font
+  fallback after the configured faces do not contain a requested character.
+  Its selection method is deliberately not decided in this roadmap. The issue
+  separately discusses DirectWrite `MapCharacters`, locale and style inputs,
+  conversion to a local file and face index (including TTC/OTC), non-local
+  fonts, possible `FontLink\SystemLink` use, font-change refresh, emoji,
+  performance, and locking. Prefer upstream resolver semantics and OS ordering;
+  do not add fixed `ja-JP`, fork-specific monospace-first reranking, or fuzzy
+  candidate selection without separate evidence and discussion. #42 must not
+  expand the completion conditions of #1, #2, or #3.
+
+#### Input correctness: #40
+
+- [#40](https://github.com/fukuyori/ghostty/issues/40): Ctrl+Space sent twice.
+  The code path is known: `TranslateMessage` runs before dispatch;
+  `WM_KEYDOWN` sends Ctrl + text keys as physical events and clears
+  `pending_text_key`; a printable `WM_CHAR` can then send a second event.
+  `pending_text_key == null` alone is not a safe suppression condition because
+  it covers both a physical event that returned `.consumed` and one that
+  returned `.ignored`, where the character message may be the only input.
+  First capture a reproduction log through `WM_KEYDOWN`, `TranslateMessage`,
+  `WM_CHAR`, the Ghostty key event and result, and the bytes written to the
+  PTY. The fix applies to Ctrl combinations that reproduce this same path, not
+  only Ctrl+Space.
+
+  Implementation approach: after a physical `WM_KEYDOWN` or
+  `WM_SYSKEYDOWN` returns `.consumed` or `.closed`, store its scan code and
+  extended-key flag on the Win32 surface. Suppress every following
+  `WM_CHAR`/`WM_SYSCHAR` with the same values until the next keydown or keyup,
+  rather than suppressing only one UTF-16 code unit. This covers surrogate
+  pairs and layouts that produce multiple character messages. Clear
+  `pending_high_surrogate` when suppressing, but retain the suppression state
+  until the next `WM_KEYDOWN`, `WM_SYSKEYDOWN`, `WM_KEYUP`, or `WM_SYSKEYUP`
+  (including `VK_PROCESSKEY`), or until focus loss. If the physical event
+  returns `.ignored`, do not suppress the character message and clear any
+  previous suppression state. Record `.closed` too because native
+  teardown is posted asynchronously; repeated close requests are already
+  guarded by `close_requested`.
+
+  Validate this approach with logs before implementation. Win32 does not
+  guarantee a one-to-one relationship between key and character messages, and
+  the high word of a character message's `lParam` describes the most recent
+  preceding keydown. Verify matching scan codes, extended-key flags, and
+  repeat counts for Ctrl+Space; repeat sequences and each `keyCallback`
+  result; surrogate and multiple-character output; Ctrl + dead key followed
+  by another character; and the ordering of `WM_CHAR` and
+  `WM_CLOSE_SURFACE`. Also record the existing Alt/`WM_SYSCHAR` path, but do
+  not expand #40 to an Alt or dead-key-state fix without reproduced evidence.
+  Acceptance includes one NUL for Ctrl+Space and one `CSI 32;5u` under the
+  kitty protocol, plus US and Japanese layouts,
+  Ctrl+letters/numbers/symbols/numpad, repeat, AltGr, `unconsumed:` bindings,
+  and Japanese IME conversion and commit.
+
+#### CLI IPC and profiles: #15 and #41
+
+- [#15](https://github.com/fukuyori/ghostty/issues/15): CLI IPC, limited to
+  `+new-tab -e`. `+new-window`, the quick terminal, splits, and profiles are
+  out of scope. Decisions:
+  - Transport: a byte-mode named pipe. Use the stable fork-specific internal
+    namespace
+    `\\.\pipe\fukuyori.ghostty.win32-ipc-<session-id>-<sid-hash>-<channel>`;
+    do not derive it from the display name or product version. `<channel>`
+    separates Debug from release builds so a development process cannot claim
+    the distributed application's endpoint. Protocol versions remain in the
+    request header, not in the pipe name.
+  - Server ownership: the first process owns the endpoint. Use
+    `FILE_FLAG_FIRST_PIPE_INSTANCE` only for the initial pipe instance; any
+    additional concurrent instances omit it. A later process that cannot own
+    the endpoint logs that IPC service is disabled for that process.
+  - Ghostty not running: report an explicit error and exit 1; launching is
+    later work. On `ERROR_PIPE_BUSY`, wait for the pipe for a bounded interval
+    and retry instead of treating it as no server.
+  - Target, following upstream GTK (`src/apprt/gtk/class/application.zig`):
+    `--surface-id` 0 or unset uses the focused surface, an ID that is not
+    found falls back to the focused surface, and with no focused surface a
+    new window is created. Return and log whether the requested ID or a
+    fallback target was used.
+  - Focus: select the newly created tab, matching upstream GTK, but do not use
+    `AllowSetForegroundWindow` and do not force an existing background window
+    to the foreground. A newly created window follows the normal Win32 window
+    creation and display path.
+  - Arguments: carry `surface_id` separately in the request envelope and send
+    the CLI argument array as is. A Win32-specific parser mirrors GTK
+    `Overrides.parse` for `-e`, `--command`, the automatically inserted
+    `--working-directory`, `--shell-integration`, and `--title`; do not move
+    the GTK parser into shared code. An invalid command fails the request, an
+    invalid shell-integration value is warned about and ignored, and every
+    argument after `-e` belongs to the command. Extend Win32 `WindowOptions`
+    and the new-tab/new-window initialization path with working-directory and
+    explicit shell-integration overrides rather than always replacing a
+    supplied value with `detect`.
+  - `--class`: not supported in the initial scope, stated explicitly.
+  - Protocol: versioned, UTF-8, and length-prefixed. A request contains magic,
+    version, action (`new_tab` initially), `surface_id`, and length-prefixed
+    arguments. Responses distinguish success, target fallback, invalid
+    request, unsupported version, and internal error. Limit the complete
+    payload to 64 KiB and the argument count to 1024; reject an oversized
+    request without allocating or reading beyond those limits.
+  - ACL: build a DACL from the server token's logon SID, allow only the same
+    logon session, and use `PIPE_REJECT_REMOTE_CLIENTS`. Do not add a special
+    elevation bypass; verify elevated/non-elevated combinations on real
+    Windows hardware.
+  - Completion and timeout: a pipe worker posts a window message to an
+    app-owned UI window, not the `WM_WAKEUP` thread-message path, then waits
+    for the UI result. Report success only after the UI thread has created and
+    selected the tab. If the UI does not answer within the bounded timeout,
+    print that completion is unknown and the tab may still be created later,
+    then exit 1; do not introduce a fork-specific timeout exit code.
+- [#41](https://github.com/fukuyori/ghostty/issues/41): per-tab profile
+  selection. Decided not to implement: upstream has no profile selection, and
+  a fork-specific profile or launch menu is not added. #15 provides a future
+  way to open a tab with a specific shell, but it is not a profile feature.
+  After #15 implementation and acceptance pass, document that alternative in
+  #41 and close it; there is no separate #41 code change.
+
+#### System-fallback follow-up topics for #42
+
+- Measure fallback search time and `SharedGrid` exclusive-lock hold time before
+  deciding on two-phase lookup or a cross-grid negative cache.
+- Verify emoji in separate stages: selected face, FreeType COLR/CPAL
+  detection, actual color rendering, and a screen capture. VS16, skin tones,
+  and ZWJ sequences may be separate issues.
+
+Out of scope for the font work: a notification UI for unmatched families,
+hardcoding `ja-JP`, and a fork-specific monospace-first reordering of fallback
+candidates.
+
+#### Separate product decision
+
+- [#11](https://github.com/fukuyori/ghostty/issues/11): background blur
+  support or limitation. It is not part of the ordered implementation queue
+  above.
 
 Deferred refactoring:
 
