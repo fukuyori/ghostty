@@ -2102,13 +2102,22 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             self: *Self,
             health: Health,
         ) void {
-            self.setHealth(health);
+            if (comptime builtin.os.tag != .windows) {
+                self.setHealth(health);
+            }
 
             // Always release our semaphore. The swap chain is
             // guaranteed to exist here: it is only torn down after
             // waiting for all in-flight frames to complete, and this
-            // callback is what signals that completion.
+            // callback is what signals that completion. On Windows,
+            // release it before the potentially blocking health update.
+            // Other platforms retain the upstream ordering because their
+            // completion callback may still need the renderer after this.
             self.swap_chain.?.releaseFrame();
+
+            if (comptime builtin.os.tag == .windows) {
+                self.setHealth(health);
+            }
         }
 
         /// Ask the graphics API whether its device is gone after a failed

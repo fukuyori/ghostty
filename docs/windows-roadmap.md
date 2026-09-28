@@ -1401,7 +1401,8 @@ The ordered implementation queue is:
    Shift+Insert clipboard-paste default. Implemented and verified with the
    physical shortcut on 2026-09-28.
 7. [#38](https://github.com/fukuyori/ghostty/issues/38): prevent renderer
-   health publication from retaining a frame permit while blocked.
+   health publication from retaining a frame permit while blocked. Implemented
+   and verified with controlled GPU recovery on 2026-09-28.
 8. [#39](https://github.com/fukuyori/ghostty/issues/39): handle expected
    ConPTY pipe-closure errors and unexpected `ReadFile` failures without
    reaching `unreachable`.
@@ -1625,10 +1626,21 @@ Real-hardware verification in the user's environment:
   exactly once.` on 2026-09-28.
 - [#38](https://github.com/fukuyori/ghostty/issues/38): `frameCompleted`
   publishes a health transition with an indefinitely blocking mailbox push
-  before releasing the frame permit. Confirm the current ordering, release
-  the permit before a potentially blocking notification, and run targeted
-  renderer tests plus the existing GPU-recovery controlled check. The separate
-  custom-shader double-release path remains outside this issue.
+  before releasing the frame permit. On Windows only, fixed by releasing the
+  swap-chain frame before publishing health, so a full surface mailbox cannot
+  retain the frame permit while the D3D11 renderer waits for the UI thread.
+  Non-Windows platforms retain upstream's health-before-release order: Metal
+  invokes completion from a GPU callback, and releasing first could let swap-
+  chain teardown free the renderer before that callback finishes using it.
+  Renderer-targeted tests passed. A test-hook Debug build completed five
+  consecutive controlled GPU recovery cycles, and a separate cycle completed
+  after two injected recovery failures; both checks recreated resources,
+  preserved the terminal session, exited normally, and left no forced
+  termination. The exact full-mailbox stall was not injected. D3D11 can still
+  block in health publication while holding `draw_mutex`; whether the UI thread
+  can acquire the same mutex in an opposing order remains an unverified,
+  separate investigation. The custom-shader double-release path also remains
+  outside this issue.
 - [#39](https://github.com/fukuyori/ghostty/issues/39): the Windows ConPTY read
   loop reaches `unreachable` for every `ReadFile` failure except
   `OPERATION_ABORTED`. Treat pipe-closure errors as normal end of stream, log
@@ -1821,6 +1833,7 @@ the code exists.
 | GUI | Terminal search | `1.3.2-windows.11`: per-pane native bar; scrollback, Unicode, navigation, empty/no matches, tab visibility, and closing a pane during search tested on Debug and ReleaseFast builds. Physical IME and mixed-DPI acceptance remain |
 | Rendering | D3D11 display | Verified |
 | Rendering | Copied IOCP wakeups and full renderer mailbox | 2026-09-17: old preview reproduced a focus hang after 70 spaced output batches; fixed Debug test build passed output, split/focus/close, subsequent input, screenshot inspection, and clean exit. Win32 tests: 144 passed, 1 skipped; ordinary window regression: 20/20 clean exits |
+| Rendering | Frame permit before health publication (#38) | 2026-09-28: Windows/D3D11 `frameCompleted` releases the swap-chain frame before a potentially blocking health notification; non-Windows platforms retain upstream ordering for callback-lifetime safety. Renderer-targeted tests passed. A test-hook Debug build completed five recovery cycles plus one cycle after two injected failures, preserving the terminal session and exiting normally. The exact full-mailbox stall was not injected; a possible `draw_mutex` interaction remains a separate investigation |
 | Rendering | GPU resource recreation | 100 consecutive controlled recreations and finite retries automatically verified with the Release build, real failure not verified |
 | Rendering | Background transparency | Verified |
 | Rendering | Variable blur | On hold |
