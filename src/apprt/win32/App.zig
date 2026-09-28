@@ -35,9 +35,11 @@ const FileDrop = @import("FileDrop.zig");
 const Mouse = @import("Mouse.zig");
 const Overrides = @import("Overrides.zig");
 const IpcProtocol = @import("IpcProtocol.zig");
+const IpcTransport = @import("IpcTransport.zig");
 
 comptime {
     _ = IpcProtocol;
+    _ = IpcTransport;
 }
 
 const log = std.log.scoped(.win32);
