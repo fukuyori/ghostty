@@ -1398,7 +1398,8 @@ The ordered implementation queue is:
    concurrent access to the shared DirectWrite objects are covered by targeted
    tests.
 6. [#37](https://github.com/fukuyori/ghostty/issues/37): restore the Windows
-   Shift+Insert clipboard-paste default and verify it with real input.
+   Shift+Insert clipboard-paste default. Implemented and verified with the
+   physical shortcut on 2026-09-28.
 7. [#38](https://github.com/fukuyori/ghostty/issues/38): prevent renderer
    health publication from retaining a frame permit while blocked.
 8. [#39](https://github.com/fukuyori/ghostty/issues/39): handle expected
@@ -1615,10 +1616,13 @@ Real-hardware verification in the user's environment:
 
 - [#37](https://github.com/fukuyori/ghostty/issues/37): Shift+Insert is first
   bound to `paste_from_clipboard`, then overwritten by
-  `paste_from_selection`, which the Win32 runtime does not support. Confirm the
-  default behavior with real keyboard input, retain the standard clipboard
-  binding on Windows, add a targeted default-keybinding test, and verify one
-  paste with the physical shortcut.
+  `paste_from_selection`, which the Win32 runtime does not support. Fixed by
+  retaining the standard clipboard binding on Windows while preserving the
+  upstream default on every other platform. The targeted
+  Windows default-keybinding test and `zig build` passed. With the clipboard
+  set to `SHIFT_INSERT_37_OK`, one physical Shift+Insert followed by Enter
+  produced the exact token and the test displayed `PASS: clipboard text pasted
+  exactly once.` on 2026-09-28.
 - [#38](https://github.com/fukuyori/ghostty/issues/38): `frameCompleted`
   publishes a health transition with an indefinitely blocking mailbox push
   before releasing the frame permit. Confirm the current ordering, release
@@ -1808,6 +1812,7 @@ the code exists.
 | Config | Config reload | Tab bar hide/reshow via a temporary config and synchronization across multiple windows automatically verified with the Release build |
 | Input | Keyboard and IME | Character input and Enter automatically verified with the Release build, IME basically verified |
 | Input | Ctrl+Space translated-input suppression (#40) | 2026-09-28: normal and kitty modes, `unconsumed:` passthrough, available Ctrl combinations, and Japanese IME conversion/commit passed with the Debug executable. Ctrl+[ and Ctrl+- were owned by non-disableable shortcuts, Ctrl+Space did not auto-repeat, and AltGr was unavailable on the tested JIS/Microsoft IME layout; those cases were excluded rather than marked as passed |
+| Input | Shift+Insert clipboard paste (#37) | 2026-09-28: Windows retains `paste_from_clipboard` instead of replacing it with unsupported selection paste. The targeted default-keybinding test and Debug build passed; physical Shift+Insert pasted `SHIFT_INSERT_37_OK` exactly once and displayed PASS |
 | Input | Shift text in Kitty keyboard disambiguation mode | 2026-09-17: consumed-modifier and encoding tests passed; actual `:`, `?`, and `!` input in antigravity confirmed by the owner |
 | Input | Numpad digits and operators | 2026-09-17: `0`, `1`, `.`, and `+` arrive once in normal, Kitty disambiguation, and application keypad modes (before: twice); actual numpad input confirmed by the owner |
 | Input | Mouse and clipboard | `1.3.2-windows.11`: OSC 22 cursor shapes, hide/restore on typing, and blank-row context-menu behavior tested on Debug and ReleaseFast builds. Physical pointer/input regression remains |

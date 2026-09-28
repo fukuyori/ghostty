@@ -4048,6 +4048,19 @@ test "Windows split traversal defaults use physical bracket keys" {
     );
 }
 
+test "Windows Shift+Insert defaults to clipboard paste" {
+    if (builtin.target.os.tag != .windows) return error.SkipZigTest;
+
+    var config = try Config.default(std.testing.allocator);
+    defer config.deinit();
+
+    const action = config.keybind.set.getEvent(.{
+        .key = .insert,
+        .mods = .{ .shift = true },
+    }).?.value_ptr.*.leaf.action;
+    try std.testing.expect(action == .paste_from_clipboard);
+}
+
 /// Load configuration from an iterator that yields values that look like
 /// command-line arguments, i.e. `--key=value`.
 pub fn loadIter(
@@ -7001,12 +7014,15 @@ pub const Keybinds = struct {
                 .{ .select_all = {} },
             );
 
-            // Selection clipboard paste
-            try self.set.put(
-                alloc,
-                .{ .key = .{ .physical = .insert }, .mods = .{ .shift = true } },
-                .{ .paste_from_selection = {} },
-            );
+            // Selection clipboard paste. Windows has no selection clipboard,
+            // so retain its earlier paste_from_clipboard binding.
+            if (comptime builtin.target.os.tag != .windows) {
+                try self.set.put(
+                    alloc,
+                    .{ .key = .{ .physical = .insert }, .mods = .{ .shift = true } },
+                    .{ .paste_from_selection = {} },
+                );
+            }
         }
         {
             // On macOS we default to super but everywhere else
