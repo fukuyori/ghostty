@@ -586,9 +586,13 @@ as the primary font. BIZ UDGothic at 12, 16, and 24 pt and at 100%, 125%,
 150%, and 200% display scaling kept full-width characters on two cells without
 baseline errors or top/bottom clipping. Automatic BIZ UDGothic appeared larger
 than the same face named explicitly; Noto Sans JP at 16 pt showed little
-visible difference between the two paths. This is the intended upstream
-configured-versus-fallback distinction, so the Windows fork does not add a
-separate adjustment setting.
+visible difference between the two paths. Moralerspace Neon measured the
+primary-with-ideographs branch: Moralerspace supplied the `水` glyph used for
+its real `ic_width`, while missing `龘` fell back to `微軟正黑體`.
+Automatic and explicitly configured `微軟正黑體` had nearly identical apparent
+size, retained two-cell placement, and showed no clipping. This is the intended
+upstream configured-versus-fallback distinction, so the Windows fork does not
+add a separate adjustment setting.
 
 Related work is tracked separately: unmatched configured names
 ([1](https://github.com/fukuyori/ghostty/issues/1)), configured style selection
