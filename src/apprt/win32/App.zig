@@ -33,6 +33,12 @@ const CommandPalette = @import("CommandPalette.zig");
 const Scrollbar = @import("Scrollbar.zig");
 const FileDrop = @import("FileDrop.zig");
 const Mouse = @import("Mouse.zig");
+const Overrides = @import("Overrides.zig");
+const IpcProtocol = @import("IpcProtocol.zig");
+
+comptime {
+    _ = IpcProtocol;
+}
 
 const log = std.log.scoped(.win32);
 const WindowList = std.ArrayListUnmanaged(*Window);
@@ -2049,7 +2055,18 @@ pub fn redrawInspector(_: *App, surface: *Surface) void {
 
 const WindowOptions = struct {
     command: ?configpkg.Command = null,
+    shell_integration: ?configpkg.Config.ShellIntegration = null,
+    working_directory: ?[:0]const u8 = null,
     title: ?[:0]const u8 = null,
+
+    fn fromOverrides(overrides: Overrides) WindowOptions {
+        return .{
+            .command = overrides.command,
+            .shell_integration = overrides.shell_integration,
+            .working_directory = overrides.working_directory,
+            .title = overrides.title,
+        };
+    }
 };
 
 fn initCoreSurface(
@@ -2075,9 +2092,19 @@ fn initCoreSurface(
 
     if (opts.command) |command| {
         config.command = try command.clone(config.arenaAlloc());
-        if (config.@"shell-integration" != .none) {
+        if (opts.shell_integration) |shell_integration| {
+            config.@"shell-integration" = shell_integration;
+        } else if (config.@"shell-integration" != .none) {
             config.@"shell-integration" = .detect;
         }
+    } else if (opts.shell_integration) |shell_integration| {
+        config.@"shell-integration" = shell_integration;
+    }
+    if (opts.working_directory) |working_directory| {
+        config.@"working-directory" = .{
+            .path = try config.arenaAlloc().dupe(u8, working_directory),
+        };
+        try config.@"working-directory".?.finalize(config.arenaAlloc());
     }
     if (opts.title) |title| {
         config.title = try config.arenaAlloc().dupeZ(u8, title);
