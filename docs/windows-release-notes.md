@@ -7,6 +7,75 @@ versions with their commits, the
 numbering rules, the [User Guide](windows.md) for configuration and known
 limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 
+## 1.3.2-windows.13
+
+- Prepared: 2026-09-28
+- Published: not yet published
+- Source tag: not yet created
+- Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
+- Status: prepared preview. The ReleaseFast distribution and signed installer
+  were built and verified locally. This release improves Windows font
+  handling, fixes input, renderer, and ConPTY correctness issues, and adds
+  scoped `+new-tab -e` IPC.
+
+### Changes Since 1.3.2-windows.12
+
+- Select configured Regular, Bold, Italic, and Bold Italic font faces by their
+  requested traits.
+- Use DirectWrite system fallback after configured and embedded fonts, with
+  Unicode-path memory loading when FreeType cannot open the returned path.
+- Suppress duplicate translated Ctrl+Space input and preserve Shift+Insert as
+  clipboard paste on Windows.
+- Release the Windows frame permit before a blocking renderer-health update,
+  and handle expected or unexpected ConPTY read completion without an
+  `unreachable` failure.
+- Add secure same-session named-pipe IPC for
+  `ghostty.exe +new-tab -e <command>`, including title, working-directory,
+  shell-integration, and surface targeting overrides.
+
+### Verification
+
+Before the version bump, targeted and real-hardware checks passed for font
+family diagnostics, configured styles, fallback sizing, DirectWrite fallback,
+Ctrl+Space, Shift+Insert, renderer recovery, ConPTY lifecycle handling, and
+Win32 IPC. IPC acceptance covered explicit, fallback, and implicit surface
+targeting, concurrent requests, dialog and move/resize modal loops, both
+elevation directions, and clean final shutdown.
+
+The baseline-CPU ReleaseFast build completed all 128 steps. Its unsigned
+`ghostty.exe` is 26,568,192 bytes with SHA-256
+`B24F84CB2DC5C71570810E9076F6496CE4A5BDE2A98211D05F244163D454D7FB`.
+It reports `1.3.2-windows.13`, numeric version `1.3.2.13`, ReleaseFast,
+Win32, D3D11, and IOCP; `--version` and `+list-keybinds --default` both exited
+0.
+
+The signed staged executable is 26,579,312 bytes with SHA-256
+`80D4E1882267CE1F4C7E58A8F22228009EDFF76E3848CF60A4B087D046ED741C`.
+Its Authenticode signature is Valid, its CLI version and default-keybinding
+checks exited 0, and the owner confirmed normal terminal display and basic
+input on real hardware.
+
+The signed x64 installer is 17,848,928 bytes with SHA-256
+`7E292843197FBF7C0A24DB8059E6D0A52FCE921D4D7A1BF7EA70568F75FC9168`.
+The installer and staged executable signatures are Valid and timestamped; the
+build also signed the embedded uninstaller. The staged tree contains the
+matching `conpty.dll` and `OpenConsole.exe`, and Inno Setup included
+`THIRD-PARTY-NOTICES.md` directly from `dist/windows`.
+
+The owner confirmed installation, upgrade from `.12`, and uninstallation on
+real hardware. A separate inspection of the installed tree has not been run
+for this prepared preview. The source tag and GitHub Release have not been
+created.
+
+### Known Limitations
+
+- The IPC scope is `+new-tab -e`; `+new-window`, quick terminal, splits, and
+  profile or launch-menu selection are not included.
+- Windows 10, actual device loss, and actual sleep/resume remain outside the
+  real-hardware checks for this preview.
+- This preview retains the Ghostty product name and shared configuration path.
+  Rebranding remains tracked separately in #31.
+
 ## 1.3.2-windows.12
 
 - Prepared: 2026-09-26

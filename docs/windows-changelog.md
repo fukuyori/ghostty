@@ -9,13 +9,54 @@ known issues, and known limitations of each version; the
 
 ## Unreleased
 
+No changes yet.
+
+## 1.3.2-windows.13
+
+Prepared 2026-09-28. This preview improves Windows font selection and
+fallback, fixes three Win32 correctness issues, and adds the scoped
+`+new-tab -e` IPC implementation.
+
 ### Fixes
 
 - Select configured Windows font faces by the requested Regular, Bold, Italic,
   or Bold Italic traits instead of accepting the first file with a matching
   family name. Explicit `font-style` values are matched exactly; unavailable
   styles remain available to the shared synthetic-style completion path.
-  System fallback ordering is unchanged and remains tracked separately.
+  System fallback ordering is unchanged (`5db47657a`).
+- Suppress duplicate translated Ctrl+Space input while preserving unconsumed
+  control-key handling and Japanese IME conversion (`5d3c06231`).
+- Keep the Windows Shift+Insert default bound to clipboard paste instead of
+  replacing it with the unsupported selection clipboard action
+  (`0472bb8f9`).
+- Release the Windows renderer frame permit before publishing a potentially
+  blocking health update, without changing the non-Windows callback ordering
+  (`731dd720b`).
+- Treat expected ConPTY pipe closure as normal completion and report unexpected
+  `ReadFile` failures instead of reaching `unreachable` (`95cb7246b`).
+
+### Added
+
+- Use DirectWrite `MapCharacters` for Windows system font fallback, preserving
+  the configured-font and embedded-emoji priority while following the user's
+  locale for characters not covered there. Convert the selected face to a
+  local path and face index for FreeType, serialize shared DirectWrite access,
+  and fall back to memory loading when FreeType cannot open a Unicode path
+  (`6d08fc9f8`, `16f6ece01`).
+- Add secure Win32 IPC for `ghostty.exe +new-tab -e <command>`. The versioned,
+  bounded protocol runs over a same-logon-session named pipe, rejects remote
+  clients, posts creation to the UI thread, supports GTK-compatible command,
+  title, working-directory, and shell-integration overrides, and reports
+  target fallback and timeout outcomes (`c1330c1f9`, `e575087f9`,
+  `4ce993273`).
+
+### Documentation
+
+- Record Windows font-family diagnostics, configured style selection, fallback
+  sizing, DirectWrite fallback design and acceptance, Ctrl+Space acceptance,
+  the ordered correctness work, and the completed `+new-tab -e` IPC
+  verification in the Windows roadmap and guide (`30b9b0696`, `c93c4e1a1`,
+  `38889b09f`, `4da126dce`, and subsequent roadmap updates).
 
 ## 1.3.2-windows.12
 

@@ -1,6 +1,6 @@
 # Ghostty Windows Production-Readiness Roadmap
 
-- Last updated: 2026-09-26
+- Last updated: 2026-09-28
 - Target branch: `windows`
 - Baseline commit: `132a5d078` (`docs: add Windows implementation roadmap`)
 - Phase breakdown basis: the six phases agreed in the conversation as of 2026-09-14
@@ -130,6 +130,16 @@ and the release notes. The signed installer is available on
 [GitHub Releases](https://github.com/fukuyori/ghostty/releases/tag/v1.3.2-windows.12).
 This preview retains the current product name;
 rebranding remains tracked separately in [#31](https://github.com/fukuyori/ghostty/issues/31).
+
+The working tree has prepared `1.3.2-windows.13`. Its source changes cover
+configured font styles, DirectWrite system fallback, Ctrl+Space and
+Shift+Insert input fixes, renderer and ConPTY correctness fixes, and scoped
+Win32 `+new-tab -e` IPC. The 128-step ReleaseFast build, version and PE checks,
+CLI checks, signed executable and installer, and real display/basic-input check
+passed on 2026-09-28. The owner subsequently confirmed installation, upgrade
+from `.12`, and uninstallation on real hardware. A separate installed-tree
+inspection, tagging, and publication remain; `1.3.2-windows.12` is still the
+latest published preview.
 
 Remaining real-hardware verification, open decisions, and
 deferred refactoring are tracked as GitHub issues, listed in "7. Next Steps".
@@ -1408,7 +1418,8 @@ The ordered implementation queue is:
    reaching `unreachable`. Implemented and verified with controlled process
    lifecycle checks on 2026-09-28.
 9. [#15](https://github.com/fukuyori/ghostty/issues/15): implement the scoped
-   Win32 `+new-tab -e` IPC support.
+   Win32 `+new-tab -e` IPC support. Implemented in `c1330c1f9`, `e575087f9`,
+   and `4ce993273`, and acceptance-verified on 2026-09-28.
 10. Phase 7 F4 [#33](https://github.com/fukuyori/ghostty/issues/33): taskbar
    progress.
 11. Phase 7 F5 [#34](https://github.com/fukuyori/ghostty/issues/34): HTML and
@@ -1426,8 +1437,8 @@ subsystem. #37 comes first because it affects a conventional daily shortcut
 and has a narrow fix. #38 follows because a blocked health notification can
 stall GPU recovery, despite its lower expected frequency. #39 follows #38
 because its release-build failure is serious but requires an unusual ConPTY
-read error. #15 then begins after these bounded fixes and their acceptance
-checks are complete.
+read error. #15 followed these bounded fixes and completed its implementation
+and acceptance checks on 2026-09-28.
 
 Close each issue after its implementation and acceptance checks pass. Profile
 selection [#41](https://github.com/fukuyori/ghostty/issues/41) has no separate
@@ -1718,7 +1729,8 @@ Real-hardware verification in the user's environment:
 
 - [#15](https://github.com/fukuyori/ghostty/issues/15): CLI IPC, limited to
   `+new-tab -e`. `+new-window`, the quick terminal, splits, and profiles are
-  out of scope. Decisions:
+  out of scope. Implemented in `c1330c1f9`, `e575087f9`, and `4ce993273`.
+  Decisions:
   - Transport: a byte-mode named pipe. Use the stable fork-specific internal
     namespace
     `\\.\pipe\fukuyori.ghostty.win32-ipc-<session-id>-<sid-hash>-<channel>`;
@@ -1761,20 +1773,33 @@ Real-hardware verification in the user's environment:
     request without allocating or reading beyond those limits.
   - ACL: build a DACL from the server token's logon SID, allow only the same
     logon session, and use `PIPE_REJECT_REMOTE_CLIENTS`. Do not add a special
-    elevation bypass; verify elevated/non-elevated combinations on real
-    Windows hardware.
+    elevation bypass. Real-hardware checks on 2026-09-28 created and displayed
+    a tab in both directions: an elevated client reached a non-elevated server
+    (`IPC ADMIN TO USER` / `IPC_ADMIN_TO_USER_OK`), and a non-elevated client
+    reached an elevated server (`IPC USER TO ADMIN` /
+    `IPC_USER_TO_ADMIN_OK`). Neither direction returned `AccessDenied`.
   - Completion and timeout: a pipe worker posts a window message to an
     app-owned UI window, not the `WM_WAKEUP` thread-message path, then waits
     for the UI result. Report success only after the UI thread has created and
     selected the tab. If the UI does not answer within the bounded timeout,
     print that completion is unknown and the tab may still be created later,
     then exit 1; do not introduce a fork-specific timeout exit code.
+  - Acceptance on 2026-09-28: the targeted Win32 IPC tests and Debug build
+    passed. A missing server produced the documented error and exit 1. Real
+    requests created and selected tabs with explicit and implicit
+    `GHOSTTY_SURFACE_ID` targeting, target fallback, `-e`, `--title`,
+    `--working-directory`, and `--shell-integration=none`. Requests completed
+    while the tab-title and close-confirmation dialogs were open and while the
+    window was being moved or resized. Two concurrent requests completed, both
+    elevation combinations above succeeded, and final shutdown left no
+    Ghostty or test-command processes.
 - [#41](https://github.com/fukuyori/ghostty/issues/41): per-tab profile
   selection. Decided not to implement: upstream has no profile selection, and
-  a fork-specific profile or launch menu is not added. #15 provides a future
+  a fork-specific profile or launch menu is not added. The completed #15
+  implementation provides `ghostty +new-tab -e <command>` as the supported
   way to open a tab with a specific shell, but it is not a profile feature.
-  After #15 implementation and acceptance pass, document that alternative in
-  #41 and close it; there is no separate #41 code change.
+  Record that alternative in #41 and close it; there is no separate #41 code
+  change.
 
 #### System-fallback follow-up topics for #42
 
@@ -1821,6 +1846,7 @@ the code exists.
 | Release | `1.3.2-windows.9` | Numpad double-input fix. Win32 tests with hooks, window-state regression, and recorded numpad input passed on a Debug build; actual numpad input confirmed by the owner; ReleaseFast CLI and version metadata verified; regression on the distribution and test-hook ReleaseFast builds and 20-iteration soak (20/20) passed. Signed installer built by the owner; installer and staged executable signatures Valid |
 | Release | `1.3.2-windows.11` | Published 2026-09-22, source `969d637e3`. ReleaseFast metadata/runtime and native regressions passed; final soak 20/20 (119.3 s), no process or temporary-state leftovers. Signed installer and staged executable signatures Valid. Earlier cursor/startup-row timeouts remain unexplained; physical IME/mixed DPI and installation/upgrade/uninstallation remain unverified |
 | Release | `1.3.2-windows.12` | Published 2026-09-26, source `0327dbce1`. ReleaseFast metadata and combined F1/F2 regression passed; final soak 20/20 (119.596 s). Signed installer, staged executable, and uninstaller signatures Valid and upgrade from `.11`, installed runtime, uninstallation cleanup, config preservation, and reinstallation verified. The published installer was re-downloaded with matching size/hash and a Valid timestamped signature. The first installed scrollbar-history measurement timed out; an unchanged rerun passed |
+| Release | `1.3.2-windows.13` | Prepared 2026-09-28; not tagged or published. ReleaseFast build passed 128/128 steps and reports `1.3.2-windows.13`, numeric `1.3.2.13`, x64 WindowsGui, ReleaseFast. CLI version and default-keybinding checks exited 0. Signed staged executable and installer signatures are Valid and timestamped; the uninstaller was signed during compilation. Owner confirmed real display and basic input plus installation, upgrade from `.12`, and uninstallation on real hardware. A separate installed-tree inspection remains |
 | Fonts | Configured family matching (#1) | 2026-09-28: missing-family warnings reached diagnostic stderr; English family names, localized Yu Gothic records, typographic family records, full-name rejection, and agreement between `+list-fonts --family` and configured discovery were measured. The Windows guide documents exact-name checking. No code change was required |
 | Fonts | Configured style selection (#2) | 2026-09-28: targeted Windows tests selected Arial Regular/Bold/Italic/Bold Italic and rejected a missing explicit style; Moralerspace Neon selected separate Regular/Bold files and synthesized missing italic styles. Captured Latin and Japanese output showed the four distinct styles without missing glyphs or visible cell overflow. System fallback remains unchanged |
 | Fonts | Fallback size adjustment (#3) | 2026-09-28: Cascadia Code NF with automatic/explicit BIZ UDGothic passed at 12/16/24 pt and 96/120/144/192 DPI; Noto Sans JP passed at 16 pt and 96 DPI. Moralerspace Neon supplied the real primary `ic_width` glyph `水` while missing `龘` exercised a separate `微軟正黑體` fallback. Two-cell placement, baseline, and clipping were normal. The configured/fallback size asymmetry remains the upstream `.none`/`.ic_width` behavior, so no code or setting was added |
@@ -1831,6 +1857,7 @@ the code exists.
 | Startup | Diagnostic log and exit code capture | Verified for both normal and failing CLI |
 | Config | Config loading from LocalAppData | Verified |
 | Config | Config reload | Tab bar hide/reshow via a temporary config and synchronization across multiple windows automatically verified with the Release build |
+| CLI | Win32 `+new-tab -e` IPC (#15) | 2026-09-28: targeted Win32 IPC tests and Debug build passed. Real requests verified explicit, fallback, and implicit `GHOSTTY_SURFACE_ID` targeting; command, title, working-directory, and shell-integration overrides; concurrent requests; tab-title and close-confirmation modal loops; move/resize modal loops; and both elevated/non-elevated directions. Final shutdown left no Ghostty or test-command processes |
 | Input | Keyboard and IME | Character input and Enter automatically verified with the Release build, IME basically verified |
 | Input | Ctrl+Space translated-input suppression (#40) | 2026-09-28: normal and kitty modes, `unconsumed:` passthrough, available Ctrl combinations, and Japanese IME conversion/commit passed with the Debug executable. Ctrl+[ and Ctrl+- were owned by non-disableable shortcuts, Ctrl+Space did not auto-repeat, and AltGr was unavailable on the tested JIS/Microsoft IME layout; those cases were excluded rather than marked as passed |
 | Input | Shift+Insert clipboard paste (#37) | 2026-09-28: Windows retains `paste_from_clipboard` instead of replacing it with unsupported selection paste. The targeted default-keybinding test and Debug build passed; physical Shift+Insert pasted `SHIFT_INSERT_37_OK` exactly once and displayed PASS |
