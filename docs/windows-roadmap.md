@@ -1394,18 +1394,34 @@ The ordered implementation queue is:
    and the issue can be closed after the documentation commit.
 5. [#42](https://github.com/fukuyori/ghostty/issues/42): decide, implement,
    and verify Windows system-font fallback without expanding #1-#3.
-6. [#15](https://github.com/fukuyori/ghostty/issues/15): implement the scoped
+6. [#37](https://github.com/fukuyori/ghostty/issues/37): restore the Windows
+   Shift+Insert clipboard-paste default and verify it with real input.
+7. [#38](https://github.com/fukuyori/ghostty/issues/38): prevent renderer
+   health publication from retaining a frame permit while blocked.
+8. [#39](https://github.com/fukuyori/ghostty/issues/39): handle expected
+   ConPTY pipe-closure errors and unexpected `ReadFile` failures without
+   reaching `unreachable`.
+9. [#15](https://github.com/fukuyori/ghostty/issues/15): implement the scoped
    Win32 `+new-tab -e` IPC support.
-7. Phase 7 F4 [#33](https://github.com/fukuyori/ghostty/issues/33): taskbar
+10. Phase 7 F4 [#33](https://github.com/fukuyori/ghostty/issues/33): taskbar
    progress.
-8. Phase 7 F5 [#34](https://github.com/fukuyori/ghostty/issues/34): HTML and
+11. Phase 7 F5 [#34](https://github.com/fukuyori/ghostty/issues/34): HTML and
    mixed clipboard output.
-9. Phase 7 F6 [#35](https://github.com/fukuyori/ghostty/issues/35): session
+12. Phase 7 F6 [#35](https://github.com/fukuyori/ghostty/issues/35): session
    save and restore, beginning with its design decisions.
-10. Phase 7 F7 [#24](https://github.com/fukuyori/ghostty/issues/24): quick
+13. Phase 7 F7 [#24](https://github.com/fukuyori/ghostty/issues/24): quick
    terminal and `global:` bindings, beginning with its design decisions.
-11. Phase 7 F8 [#21](https://github.com/fukuyori/ghostty/issues/21): desktop
+14. Phase 7 F8 [#21](https://github.com/fukuyori/ghostty/issues/21): desktop
     and command-finish notifications, beginning with its design decisions.
+
+#37-#39 are placed between #42 and the larger #15 IPC feature so known
+correctness and recovery defects are addressed before adding another Win32
+subsystem. #37 comes first because it affects a conventional daily shortcut
+and has a narrow fix. #38 follows because a blocked health notification can
+stall GPU recovery, despite its lower expected frequency. #39 follows #38
+because its release-build failure is serious but requires an unusual ConPTY
+read error. #15 then begins after these bounded fixes and their acceptance
+checks are complete.
 
 Close each issue after its implementation and acceptance checks pass. Profile
 selection [#41](https://github.com/fukuyori/ghostty/issues/41) has no separate
@@ -1546,6 +1562,27 @@ Real-hardware verification in the user's environment:
   do not add fixed `ja-JP`, fork-specific monospace-first reranking, or fuzzy
   candidate selection without separate evidence and discussion. #42 must not
   expand the completion conditions of #1, #2, or #3.
+
+#### Windows correctness: #37, #38, and #39
+
+- [#37](https://github.com/fukuyori/ghostty/issues/37): Shift+Insert is first
+  bound to `paste_from_clipboard`, then overwritten by
+  `paste_from_selection`, which the Win32 runtime does not support. Confirm the
+  default behavior with real keyboard input, retain the standard clipboard
+  binding on Windows, add a targeted default-keybinding test, and verify one
+  paste with the physical shortcut.
+- [#38](https://github.com/fukuyori/ghostty/issues/38): `frameCompleted`
+  publishes a health transition with an indefinitely blocking mailbox push
+  before releasing the frame permit. Confirm the current ordering, release
+  the permit before a potentially blocking notification, and run targeted
+  renderer tests plus the existing GPU-recovery controlled check. The separate
+  custom-shader double-release path remains outside this issue.
+- [#39](https://github.com/fukuyori/ghostty/issues/39): the Windows ConPTY read
+  loop reaches `unreachable` for every `ReadFile` failure except
+  `OPERATION_ABORTED`. Treat pipe-closure errors as normal end of stream, log
+  and exit the reader for other errors, and verify normal shell exit, forced
+  process termination, and clean application shutdown. Do not change the
+  existing shutdown sequence as part of this issue.
 
 #### Input correctness: #40
 
