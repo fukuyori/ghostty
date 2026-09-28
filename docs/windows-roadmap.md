@@ -1405,7 +1405,8 @@ The ordered implementation queue is:
    and verified with controlled GPU recovery on 2026-09-28.
 8. [#39](https://github.com/fukuyori/ghostty/issues/39): handle expected
    ConPTY pipe-closure errors and unexpected `ReadFile` failures without
-   reaching `unreachable`.
+   reaching `unreachable`. Implemented and verified with controlled process
+   lifecycle checks on 2026-09-28.
 9. [#15](https://github.com/fukuyori/ghostty/issues/15): implement the scoped
    Win32 `+new-tab -e` IPC support.
 10. Phase 7 F4 [#33](https://github.com/fukuyori/ghostty/issues/33): taskbar
@@ -1643,10 +1644,18 @@ Real-hardware verification in the user's environment:
   outside this issue.
 - [#39](https://github.com/fukuyori/ghostty/issues/39): the Windows ConPTY read
   loop reaches `unreachable` for every `ReadFile` failure except
-  `OPERATION_ABORTED`. Treat pipe-closure errors as normal end of stream, log
-  and exit the reader for other errors, and verify normal shell exit, forced
-  process termination, and clean application shutdown. Do not change the
-  existing shutdown sequence as part of this issue.
+  `OPERATION_ABORTED`. Fixed by preserving the existing cancellation path,
+  treating `BROKEN_PIPE`, `PIPE_NOT_CONNECTED`, and `INVALID_HANDLE` as normal
+  end of stream, and logging then exiting the reader for every other error.
+  The existing shutdown sequence is unchanged. The error classification has a
+  targeted test. A normal PowerShell child exited with status 0 and Ghostty
+  exited with status 0. After forcibly terminating a sleeping PowerShell child,
+  Ghostty preserved its existing abnormal-exit display; closing that window
+  then stopped the IO thread, closed the surface, exited with status 0, and left
+  neither process running. The standard window-state check also exited with
+  status 0 without forced termination. The three pipe-close error values and an
+  unexpected `ReadFile` failure were verified through the classification test,
+  not injected into a live ConPTY read.
 
 #### Input correctness: #40
 
@@ -1829,6 +1838,7 @@ the code exists.
 | Input | Numpad digits and operators | 2026-09-17: `0`, `1`, `.`, and `+` arrive once in normal, Kitty disambiguation, and application keypad modes (before: twice); actual numpad input confirmed by the owner |
 | Input | Mouse and clipboard | `1.3.2-windows.11`: OSC 22 cursor shapes, hide/restore on typing, and blank-row context-menu behavior tested on Debug and ReleaseFast builds. Physical pointer/input regression remains |
 | Terminal | ConPTY resize | `1.3.2-windows.11`: backend disables scrollback pull; reset/resize unit regression and eight native resize cycles with search/input continuity passed; Debug and ReleaseFast coverage |
+| Terminal | ConPTY read failure handling (#39) | 2026-09-28: targeted error classification and Win32 exec tests passed. A normal child exit and closing the abnormal-exit display after forced child termination both ended Ghostty with status 0 and no leftover processes; the standard window-state check also exited cleanly. Live `ReadFile` error injection was not performed |
 | Shell | OSC 7 cwd inheritance | `1.3.2-windows.11`: native local-drive paths supported for windows, tabs and splits; Unicode/space paths and remote/Unix-path rejection tested on Debug and ReleaseFast builds. WSL/MSYS translation remains unsupported |
 | GUI | Terminal search | `1.3.2-windows.11`: per-pane native bar; scrollback, Unicode, navigation, empty/no matches, tab visibility, and closing a pane during search tested on Debug and ReleaseFast builds. Physical IME and mixed-DPI acceptance remain |
 | Rendering | D3D11 display | Verified |

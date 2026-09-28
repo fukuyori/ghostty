@@ -32,6 +32,20 @@ const compat_fd = @import("../lib/compat/fd.zig");
 
 const log = std.log.scoped(.io_exec);
 
+const WindowsReadErrorAction = enum {
+    check_quit,
+    end_of_stream,
+    fail,
+};
+
+fn windowsReadErrorAction(err: @TypeOf(windows.GetLastError())) WindowsReadErrorAction {
+    return switch (err) {
+        .OPERATION_ABORTED => .check_quit,
+        .BROKEN_PIPE, .PIPE_NOT_CONNECTED, .INVALID_HANDLE => .end_of_stream,
+        else => .fail,
+    };
+}
+
 fn closeReadThreadPipe(fd: posix.fd_t) void {
     if (comptime builtin.os.tag == .windows) {
         _ = windows.exp.kernel32.CloseHandle(fd);
@@ -1851,13 +1865,17 @@ pub const ReadThread = struct {
                 var n: windows.DWORD = 0;
                 if (windows.exp.kernel32.ReadFile(fd, &buf, buf.len, &n, null) == windows.FALSE) {
                     const err = windows.GetLastError();
-                    switch (err) {
-                        // Check for a quit signal
-                        .OPERATION_ABORTED => break,
-
-                        else => {
-                            log.err("io reader error err={}", .{err});
-                            unreachable;
+                    switch (windowsReadErrorAction(err)) {
+                        // The read may have been cancelled by shutdown. Check
+                        // the quit pipe before deciding whether to read again.
+                        .check_quit => break,
+                        .end_of_stream => {
+                            log.debug("io reader reached end of stream err={}", .{err});
+                            return;
+                        },
+                        .fail => {
+                            log.err("io reader exiting after ReadFile error err={}", .{err});
+                            return;
                         },
                     }
                 }
@@ -2145,6 +2163,30 @@ test "Win32 exec configures ConPTY resize and preserves it on reset" {
     try term.printString("1\n2\n3\n4\n5");
     try term.resize(testing.allocator, .{ .cols = 5, .rows = 5 });
     try testing.expectEqual(@as(terminal.size.CellCountInt, 2), term.screens.active.cursor.y);
+}
+
+test "Win32 ConPTY read errors have safe dispositions" {
+    if (comptime builtin.os.tag != .windows) return error.SkipZigTest;
+    const testing = std.testing;
+
+    try testing.expectEqual(
+        WindowsReadErrorAction.check_quit,
+        windowsReadErrorAction(.OPERATION_ABORTED),
+    );
+    inline for (.{
+        .BROKEN_PIPE,
+        .PIPE_NOT_CONNECTED,
+        .INVALID_HANDLE,
+    }) |err| {
+        try testing.expectEqual(
+            WindowsReadErrorAction.end_of_stream,
+            windowsReadErrorAction(err),
+        );
+    }
+    try testing.expectEqual(
+        WindowsReadErrorAction.fail,
+        windowsReadErrorAction(.ACCESS_DENIED),
+    );
 }
 
 test "execCommand darwin: shell command" {
