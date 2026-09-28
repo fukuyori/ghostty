@@ -97,6 +97,13 @@ pending_text_key: ?PendingTextKey = null,
 /// surrogate pair, one message at a time.
 pending_high_surrogate: ?u16 = null,
 
+/// Scan code (including the extended-key marker) for a physical key event
+/// that the core already consumed. TranslateMessage has already queued the
+/// corresponding WM_CHAR/WM_SYSCHAR, so matching character messages must not
+/// be delivered a second time. The value remains set until the next physical
+/// keyboard message so one keydown can suppress multiple UTF-16 code units.
+suppressed_char_keycode: ?u32 = null,
+
 /// Buttons captured by this window. Keeping this separately from WPARAM lets
 /// us release core state when Windows cancels capture unexpectedly.
 mouse_buttons_down: u8 = 0,

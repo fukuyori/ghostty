@@ -3668,6 +3668,20 @@ fn nativeKeycode(lparam: win32.LPARAM) u32 {
     return if (isExtendedKey(lparam)) 0xE000 | scan else scan;
 }
 
+/// Identity shared by a key message and the character messages generated for
+/// it. Repeat and key-state bits deliberately do not participate: one keydown
+/// can produce multiple UTF-16 code units, all carrying the same scan code and
+/// extended-key flag.
+fn characterMessageKey(lparam: win32.LPARAM) ?u32 {
+    const native = nativeKeycode(lparam);
+    return if (native == 0) null else native;
+}
+
+fn shouldSuppressCharacter(expected: ?u32, lparam: win32.LPARAM) bool {
+    const actual = characterMessageKey(lparam) orelse return false;
+    return expected != null and expected.? == actual;
+}
+
 /// Physical key from the scan code. Scan codes identify key positions, so
 /// the key at the US `[` position is `bracket_left` on every layout, which
 /// is what `physical:` bindings and the default split bindings expect.
@@ -3936,7 +3950,17 @@ fn decodeUtf16CodeUnit(pending: *?u16, unit: u16) ?u21 {
     return unit;
 }
 
-fn handleTextInput(surface: *Surface, wparam: win32.WPARAM) win32.LRESULT {
+fn handleTextInput(
+    surface: *Surface,
+    wparam: win32.WPARAM,
+    lparam: win32.LPARAM,
+) win32.LRESULT {
+    if (shouldSuppressCharacter(surface.suppressed_char_keycode, lparam)) {
+        surface.pending_text_key = null;
+        surface.pending_high_surrogate = null;
+        return 0;
+    }
+
     const unit: u16 = @truncate(wparam);
     const codepoint = decodeUtf16CodeUnit(&surface.pending_high_surrogate, unit) orelse
         return 0;
@@ -4494,6 +4518,7 @@ fn handleFocus(surface: *Surface, focused: bool) void {
     if (!focused) {
         surface.pending_text_key = null;
         surface.pending_high_surrogate = null;
+        surface.suppressed_char_keycode = null;
         releaseMouseButtons(surface);
     }
 
@@ -5088,11 +5113,15 @@ fn wndProc(
         },
         win32.WM_CHAR, win32.WM_SYSCHAR => {
             if (getSurface(hwnd)) |surface| {
-                if (hwnd == surface.hwnd) return handleTextInput(surface, wparam);
+                if (hwnd == surface.hwnd) return handleTextInput(surface, wparam, lparam);
             }
             return 0;
         },
         win32.WM_KEYDOWN, win32.WM_SYSKEYDOWN => {
+            if (getSurface(hwnd)) |surface| {
+                if (hwnd == surface.hwnd) surface.suppressed_char_keycode = null;
+            }
+
             // Keystrokes the IME consumes arrive with the virtual key
             // replaced by VK_PROCESSKEY while the scan code still names the
             // physical key. Because keys are resolved from the scan code,
@@ -5135,7 +5164,10 @@ fn wndProc(
                                 log.err("key callback error: {}", .{err});
                                 return 0;
                             };
-                            if (effect == .consumed or effect == .closed) return 0;
+                            if (effect == .consumed or effect == .closed) {
+                                surface.suppressed_char_keycode = characterMessageKey(lparam);
+                                return 0;
+                            }
                         }
                     }
                 }
@@ -5143,6 +5175,10 @@ fn wndProc(
             return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
         },
         win32.WM_KEYUP, win32.WM_SYSKEYUP => {
+            if (getSurface(hwnd)) |surface| {
+                if (hwnd == surface.hwnd) surface.suppressed_char_keycode = null;
+            }
+
             // See the VK_PROCESSKEY note on WM_KEYDOWN.
             if (wparam == vk_processkey) {
                 return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
@@ -5275,6 +5311,40 @@ test "classify Win32 text keys" {
     var left_alt: input.Mods = .{ .alt = true };
     left_alt.sides.alt = .left;
     try std.testing.expect(shouldDispatchKeyPress(0x41, left_alt));
+}
+
+test "match Win32 character messages to consumed physical keys" {
+    const scan = struct {
+        fn lparam(code: usize, extended: bool, repeat: usize) win32.LPARAM {
+            return @bitCast(
+                (repeat & 0xFFFF) |
+                    (code << 16) |
+                    (@as(usize, @intFromBool(extended)) << 24),
+            );
+        }
+    };
+
+    const space = scan.lparam(0x39, false, 1);
+    const expected = characterMessageKey(space);
+    try std.testing.expectEqual(@as(?u32, 0x39), expected);
+    try std.testing.expect(shouldSuppressCharacter(expected, space));
+
+    // Repeat count and other key-state bits do not change the identity.
+    try std.testing.expect(shouldSuppressCharacter(
+        expected,
+        scan.lparam(0x39, false, 3),
+    ));
+
+    try std.testing.expect(!shouldSuppressCharacter(
+        expected,
+        scan.lparam(0x39, true, 1),
+    ));
+    try std.testing.expect(!shouldSuppressCharacter(
+        expected,
+        scan.lparam(0x1E, false, 1),
+    ));
+    try std.testing.expect(!shouldSuppressCharacter(null, space));
+    try std.testing.expect(!shouldSuppressCharacter(expected, 0));
 }
 
 test "Win32 consumed text modifiers" {
