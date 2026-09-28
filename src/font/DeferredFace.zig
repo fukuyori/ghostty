@@ -70,6 +70,10 @@ pub const Windows = struct {
     /// Face index within the file (for .ttc collections).
     face_index: i32,
 
+    /// Font bytes used when FreeType cannot open the UTF-8 path directly.
+    /// Owned here and kept alive for the pre-loaded face.
+    data: ?[]const u8 = null,
+
     /// Variations to apply on load.
     variations: []const font.face.Variation,
 
@@ -86,6 +90,7 @@ pub const Windows = struct {
 
     pub fn deinit(self: *Windows) void {
         self.peek.deinit();
+        if (self.data) |data| self.alloc.free(data);
         self.alloc.free(self.path);
         self.* = undefined;
     }
@@ -245,7 +250,16 @@ fn loadWindows(
 ) !Face {
     const w = self.win.?;
 
-    var face = try Face.initFile(lib, w.path, w.face_index, opts);
+    var face = if (w.data) |data| memory: {
+        const owned = try lib.alloc.dupe(u8, data);
+        errdefer lib.alloc.free(owned);
+        break :memory try Face.initMemoryOwned(
+            lib,
+            owned,
+            w.face_index,
+            opts,
+        );
+    } else try Face.initFile(lib, w.path, w.face_index, opts);
     errdefer face.deinit();
     try face.setVariations(w.variations, opts);
     return face;

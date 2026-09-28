@@ -62,6 +62,9 @@ pub const Face = struct {
     /// The current size this font is set to.
     size: font.face.DesiredSize,
 
+    /// Font bytes owned by this face when it was opened from memory.
+    owned_data: ?[]const u8 = null,
+
     /// Initialize a new font face with the given source in-memory.
     pub fn initFile(
         lib: Library,
@@ -82,11 +85,34 @@ pub const Face = struct {
         source: [:0]const u8,
         opts: font.face.Options,
     ) !Face {
+        return try initMemory(lib, source, 0, opts);
+    }
+
+    /// Initialize a face from memory at a specific collection index. The
+    /// caller must keep source alive for the lifetime of the returned face.
+    pub fn initMemory(
+        lib: Library,
+        source: []const u8,
+        index: i32,
+        opts: font.face.Options,
+    ) !Face {
         lib.mutex.lockUncancelable(global.io());
         defer lib.mutex.unlock(global.io());
-        const face = try lib.lib.initMemoryFace(source, 0);
+        const face = try lib.lib.initMemoryFace(source, index);
         errdefer face.deinit();
         return try initFace(lib, face, opts);
+    }
+
+    /// Initialize a face from memory and take ownership of source on success.
+    pub fn initMemoryOwned(
+        lib: Library,
+        source: []const u8,
+        index: i32,
+        opts: font.face.Options,
+    ) !Face {
+        var result = try initMemory(lib, source, index, opts);
+        result.owned_data = source;
+        return result;
     }
 
     fn initFace(
@@ -149,6 +175,7 @@ pub const Face = struct {
             self.face.deinit();
         }
         self.hb_font.destroy();
+        if (self.owned_data) |data| self.lib.alloc.free(data);
         self.* = undefined;
     }
 

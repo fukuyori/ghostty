@@ -1394,7 +1394,9 @@ The ordered implementation queue is:
    and the issue can be closed after the documentation commit.
 5. [#42](https://github.com/fukuyori/ghostty/issues/42): Windows
    system-font fallback. The initial DirectWrite implementation and controlled
-   CLI and visual verification are complete.
+   CLI and visual verification are complete. Unicode user-font paths and
+   concurrent access to the shared DirectWrite objects are covered by targeted
+   tests.
 6. [#37](https://github.com/fukuyori/ghostty/issues/37): restore the Windows
    Shift+Insert clipboard-paste default and verify it with real input.
 7. [#38](https://github.com/fukuyori/ghostty/issues/38): prevent renderer
@@ -1579,8 +1581,35 @@ Real-hardware verification in the user's environment:
   supplementary U+20000; both diagnostic runs exited 0. Captured terminal
   output at 12 and 24 pt showed Japanese text, U+9F98, and U+20000 as rendered
   glyphs rather than replacement boxes. Cell boundaries, baseline, top/bottom
-  clipping, and overlap with following Latin descenders were normal. This work
-  does not expand the completion conditions of #1, #2, or #3.
+  clipping, and overlap with following Latin descenders were normal. A review
+  then fixed cleanup when DirectWrite and FreeType disagree and made the
+  primary family optional: a missing or non-UTF-8 family name now continues
+  with a null DirectWrite base family instead of disabling system fallback.
+
+  A targeted Windows test copied an embedded font beneath a Japanese directory
+  and filename. `FT_New_Face` could not open that UTF-8 path, so the Windows
+  fallback loader now reads the file through Zig's Unicode-aware filesystem
+  API and opens it from memory when direct path loading fails. The deferred
+  face retains those bytes for its metadata face; the final loaded face gets
+  its own copy and owns it after the deferred face is destroyed. Face indexes
+  are preserved for collections. Separate tests verify Unicode-path usability
+  regardless of the active Windows code page and the memory-backed metadata
+  and independently loaded faces.
+
+  This memory path is limited to DirectWrite system fallback. Configured-family
+  discovery still opens scanned files by path, so a configured user font under
+  a non-ASCII profile path may fail independently of #42 and should be tracked
+  separately if reproduced. The memory path also duplicates the complete font
+  while converting a deferred face to a loaded face. This may temporarily cost
+  tens of megabytes for a large CJK collection, but is accepted for the uncommon
+  Unicode-path fallback case rather than optimized in this issue.
+
+  Access to the shared DirectWrite fallback and font collection is serialized
+  around the complete mapping and conversion operation. The optional
+  `DirectWrite` value is accessed by pointer so its mutex is never copied. A
+  four-thread test concurrently resolved ASCII, Japanese, rare CJK, and a
+  supplementary-plane ideograph through the same DirectWrite objects. This
+  work does not expand the completion conditions of #1, #2, or #3.
 
 #### Windows correctness: #37, #38, and #39
 
@@ -1770,7 +1799,7 @@ the code exists.
 | Fonts | Configured family matching (#1) | 2026-09-28: missing-family warnings reached diagnostic stderr; English family names, localized Yu Gothic records, typographic family records, full-name rejection, and agreement between `+list-fonts --family` and configured discovery were measured. The Windows guide documents exact-name checking. No code change was required |
 | Fonts | Configured style selection (#2) | 2026-09-28: targeted Windows tests selected Arial Regular/Bold/Italic/Bold Italic and rejected a missing explicit style; Moralerspace Neon selected separate Regular/Bold files and synthesized missing italic styles. Captured Latin and Japanese output showed the four distinct styles without missing glyphs or visible cell overflow. System fallback remains unchanged |
 | Fonts | Fallback size adjustment (#3) | 2026-09-28: Cascadia Code NF with automatic/explicit BIZ UDGothic passed at 12/16/24 pt and 96/120/144/192 DPI; Noto Sans JP passed at 16 pt and 96 DPI. Moralerspace Neon supplied the real primary `ic_width` glyph `水` while missing `龘` exercised a separate `微軟正黑體` fallback. Two-cell placement, baseline, and clipping were normal. The configured/fallback size asymmetry remains the upstream `.none`/`.ic_width` behavior, so no code or setting was added |
-| Fonts | Automatic fallback (#42) | 2026-09-28: DirectWrite `MapCharacters` implementation, UTF-16 scalar test, targeted Windows discovery test, and Debug build passed. With Consolas primary, `+show-face` selected `Yu Gothic UI` for U+65E5 and `MingLiU-ExtB` for U+20000, both with exit 0. Captured 12/24 pt output showed Japanese, U+9F98, and U+20000 glyphs without replacement boxes, clipping, boundary failure, or overlap |
+| Fonts | Automatic fallback (#42) | 2026-09-28: DirectWrite `MapCharacters` implementation, UTF-16 scalar test, targeted Windows discovery test, and Debug build passed. With Consolas primary, `+show-face` selected `Yu Gothic UI` for U+65E5 and `MingLiU-ExtB` for U+20000, both with exit 0. Captured 12/24 pt output showed Japanese, U+9F98, and U+20000 glyphs without replacement boxes, clipping, boundary failure, or overlap. A Japanese path reproduced the FreeType path failure and passed through the memory fallback, including deferred-to-loaded ownership. A four-thread test passed through the serialized shared DirectWrite objects |
 | Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature |
 | Version info | CLI version display | Verified with the Release build |
 | Version info | Windows file properties | String version, numeric version, and Debug flag verified for Debug and Release |

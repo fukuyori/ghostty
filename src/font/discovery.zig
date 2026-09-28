@@ -1005,19 +1005,16 @@ pub const Windows = struct {
     }
 
     pub fn discoverFallback(
-        self: *const Windows,
+        self: *Windows,
         alloc: Allocator,
         collection: *Collection,
         desc: Descriptor,
     ) !FallbackIterator {
         if (desc.codepoint == 0) return .{};
-        const dwrite = self.dwrite orelse return .{};
+        const dwrite = if (self.dwrite) |*value| value else return .{};
 
         var family_buf: [512]u8 = undefined;
-        const primary = primaryFamily(collection, &family_buf) orelse {
-            log.warn("DirectWrite fallback has no primary Regular family", .{});
-            return .{};
-        };
+        const primary = primaryFamily(collection, &family_buf);
 
         return .{ .face = dwrite.map(
             alloc,
@@ -1053,12 +1050,45 @@ pub const Windows = struct {
         return face.name(buf) catch null;
     }
 
+    const LoadedFileFace = struct {
+        face: Face,
+        data: ?[]const u8 = null,
+    };
+
+    fn loadFileFace(
+        alloc: Allocator,
+        lib: Library,
+        path: [:0]const u8,
+        face_index: i32,
+    ) !LoadedFileFace {
+        const opts: @import("face.zig").Options = .{ .size = .{ .points = 12 } };
+        var data: ?[]const u8 = null;
+        const face = Face.initFile(lib, path, face_index, opts) catch |err| switch (err) {
+            error.OutOfMemory => return err,
+            else => memory: {
+                const io = global.io();
+                const file = try std.Io.Dir.openFileAbsolute(io, path, .{ .mode = .read_only });
+                defer file.close(io);
+                const size = std.math.cast(usize, (try file.stat(io)).size) orelse
+                    return error.FileTooBig;
+                var reader = file.reader(io, &.{});
+                const bytes = try reader.interface.readAlloc(alloc, size);
+                errdefer alloc.free(bytes);
+                const memory_face = try Face.initMemory(lib, bytes, face_index, opts);
+                data = bytes;
+                break :memory memory_face;
+            },
+        };
+        return .{ .face = face, .data = data };
+    }
+
     const DirectWrite = struct {
         factory: *win32.IDWriteFactory,
         factory2: *win32.IDWriteFactory2,
         fonts: *win32.IDWriteFontCollection,
         fallback: *win32.IDWriteFontFallback,
         locale: [locale_name_max_length]u16,
+        mutex: std.Io.Mutex = .init,
 
         const locale_name_max_length = 85;
 
@@ -1112,14 +1142,28 @@ pub const Windows = struct {
         }
 
         fn map(
-            self: DirectWrite,
+            self: *DirectWrite,
             alloc: Allocator,
             lib: Library,
-            primary_family: []const u8,
+            primary_family: ?[]const u8,
             desc: Descriptor,
         ) !?DeferredFace {
-            const primary_w = try std.unicode.utf8ToUtf16LeAllocZ(alloc, primary_family);
-            defer alloc.free(primary_w);
+            self.mutex.lockUncancelable(global.io());
+            defer self.mutex.unlock(global.io());
+
+            const primary_w: ?[:0]u16 = if (primary_family) |family|
+                std.unicode.utf8ToUtf16LeAllocZ(alloc, family) catch |err| invalid: {
+                    switch (err) {
+                        error.OutOfMemory => return err,
+                        error.InvalidUtf8 => {
+                            log.warn("DirectWrite fallback ignored invalid UTF-8 primary family", .{});
+                            break :invalid null;
+                        },
+                    }
+                }
+            else
+                null;
+            defer if (primary_w) |family| alloc.free(family);
 
             var text_buf: [2]u16 = undefined;
             const text = try encodeScalarUtf16(desc.codepoint, &text_buf);
@@ -1138,7 +1182,7 @@ pub const Windows = struct {
                 0,
                 @intCast(text.len),
                 self.fonts,
-                primary_w.ptr,
+                if (primary_w) |family| family.ptr else null,
                 win32.DWRITE_FONT_WEIGHT_REGULAR,
                 win32.DWRITE_FONT_STYLE_NORMAL,
                 win32.DWRITE_FONT_STRETCH_NORMAL,
@@ -1233,33 +1277,35 @@ pub const Windows = struct {
             const face_index_u32 = dwrite_face.GetIndex();
             const face_index = std.math.cast(i32, face_index_u32) orelse
                 return error.InvalidFaceIndex;
-            var peek = try Face.initFile(
-                lib,
-                path,
-                face_index,
-                .{ .size = .{ .points = 12 } },
-            );
-            errdefer peek.deinit();
+            var loaded = try loadFileFace(alloc, lib, path, face_index);
+            errdefer {
+                loaded.face.deinit();
+                if (loaded.data) |data| alloc.free(data);
+            }
 
-            if (peek.glyphIndex(desc.codepoint) == null) {
+            if (loaded.face.glyphIndex(desc.codepoint) == null) {
                 log.warn("DirectWrite and FreeType disagree on fallback codepoint=0x{X} path={s} index={d}", .{
                     desc.codepoint,
                     path,
                     face_index,
                 });
+                loaded.face.deinit();
+                if (loaded.data) |data| alloc.free(data);
+                alloc.free(path);
                 return null;
             }
 
-            const presentation: Presentation = if (peek.hasColor()) .emoji else .text;
+            const presentation: Presentation = if (loaded.face.hasColor()) .emoji else .text;
             return .{
                 .win = .{
                     .path = path,
                     .face_index = face_index,
+                    .data = loaded.data,
                     // MapCharacters selected a system fallback face independently
                     // of the primary font. Primary-font variation settings are not
                     // valid for that unrelated face.
                     .variations = &.{},
-                    .peek = peek,
+                    .peek = loaded.face,
                     .presentation = presentation,
                     .alloc = alloc,
                 },
@@ -2078,4 +2124,171 @@ test "Windows DirectWrite UTF-16 scalar encoding" {
         error.InvalidCodepoint,
         Windows.encodeScalarUtf16(0x110000, &buf),
     );
+}
+
+test "Windows fallback loads a font from a UTF-8 path" {
+    if (options.backend != .freetype_windows) return error.SkipZigTest;
+
+    const testing = std.testing;
+    const alloc = testing.allocator;
+    const io = testing.io;
+
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.createDir(io, "日本語フォント", .default_dir);
+
+    const cwd = try std.Io.Dir.cwd().realPathFileAlloc(io, ".", alloc);
+    defer alloc.free(cwd);
+    const tmp_path = try tmp.dir.realPathFileAlloc(io, ".", alloc);
+    defer alloc.free(tmp_path);
+    const source = try std.fs.path.join(alloc, &.{
+        cwd,
+        "src",
+        "font",
+        "res",
+        "JetBrainsMonoNoNF-Regular.ttf",
+    });
+    defer alloc.free(source);
+    const destination = try std.fs.path.join(alloc, &.{
+        tmp_path,
+        "日本語フォント",
+        "確認用.ttf",
+    });
+    defer alloc.free(destination);
+    try std.Io.Dir.copyFileAbsolute(source, destination, io, .{});
+
+    const destination_z = try alloc.dupeZ(u8, destination);
+    defer alloc.free(destination_z);
+    var lib = try Library.init(alloc);
+    defer lib.deinit();
+    var loaded = try Windows.loadFileFace(alloc, lib, destination_z, 0);
+    try testing.expect(loaded.face.glyphIndex('A') != null);
+
+    const deferred_path = alloc.dupeZ(u8, destination) catch |err| {
+        loaded.face.deinit();
+        if (loaded.data) |data| alloc.free(data);
+        return err;
+    };
+    var deferred: DeferredFace = .{ .win = .{
+        .path = deferred_path,
+        .face_index = 0,
+        .data = loaded.data,
+        .variations = &.{},
+        .peek = loaded.face,
+        .presentation = .text,
+        .alloc = alloc,
+    } };
+    var face = deferred.load(lib, .{ .size = .{ .points = 12 } }) catch |err| {
+        deferred.deinit();
+        return err;
+    };
+    deferred.deinit();
+    defer face.deinit();
+    try testing.expect(face.glyphIndex('A') != null);
+}
+
+test "Windows memory-backed deferred face owns loaded data" {
+    if (options.backend != .freetype_windows) return error.SkipZigTest;
+
+    const testing = std.testing;
+    const alloc = testing.allocator;
+    const io = testing.io;
+
+    const cwd = try std.Io.Dir.cwd().realPathFileAlloc(io, ".", alloc);
+    defer alloc.free(cwd);
+    const path = try std.fs.path.join(alloc, &.{
+        cwd,
+        "src",
+        "font",
+        "res",
+        "JetBrainsMonoNoNF-Regular.ttf",
+    });
+    defer alloc.free(path);
+    const file = try std.Io.Dir.openFileAbsolute(io, path, .{ .mode = .read_only });
+    defer file.close(io);
+    const size = std.math.cast(usize, (try file.stat(io)).size) orelse
+        return error.FileTooBig;
+    var reader = file.reader(io, &.{});
+    const data = try reader.interface.readAlloc(alloc, size);
+
+    var lib = Library.init(alloc) catch |err| {
+        alloc.free(data);
+        return err;
+    };
+    defer lib.deinit();
+    var peek = Face.initMemory(
+        lib,
+        data,
+        0,
+        .{ .size = .{ .points = 12 } },
+    ) catch |err| {
+        alloc.free(data);
+        return err;
+    };
+    const deferred_path = alloc.dupeZ(u8, path) catch |err| {
+        peek.deinit();
+        alloc.free(data);
+        return err;
+    };
+    var deferred: DeferredFace = .{ .win = .{
+        .path = deferred_path,
+        .face_index = 0,
+        .data = data,
+        .variations = &.{},
+        .peek = peek,
+        .presentation = .text,
+        .alloc = alloc,
+    } };
+    var face = deferred.load(lib, .{ .size = .{ .points = 12 } }) catch |err| {
+        deferred.deinit();
+        return err;
+    };
+    deferred.deinit();
+    defer face.deinit();
+    try testing.expect(face.glyphIndex('A') != null);
+}
+
+test "Windows DirectWrite fallback is serialized across threads" {
+    if (options.backend != .freetype_windows) return error.SkipZigTest;
+
+    const testing = std.testing;
+    const alloc = std.heap.page_allocator;
+    var lib = try Library.init(alloc);
+    defer lib.deinit();
+    var win = Windows.init(lib);
+    defer win.deinit();
+    const dwrite = if (win.dwrite) |*value| value else return error.DirectWriteUnavailable;
+
+    const Context = struct {
+        dwrite: *Windows.DirectWrite,
+        lib: Library,
+        codepoint: u32,
+        ok: bool = false,
+
+        fn run(self: *@This()) void {
+            var deferred = self.dwrite.map(
+                std.heap.page_allocator,
+                self.lib,
+                null,
+                .{ .codepoint = self.codepoint, .size = 12 },
+            ) catch return;
+            if (deferred) |*face| {
+                defer face.deinit();
+                self.ok = face.hasCodepoint(self.codepoint, null);
+            }
+        }
+    };
+
+    var contexts = [_]Context{
+        .{ .dwrite = dwrite, .lib = lib, .codepoint = 'A' },
+        .{ .dwrite = dwrite, .lib = lib, .codepoint = 0x65E5 },
+        .{ .dwrite = dwrite, .lib = lib, .codepoint = 0x9F98 },
+        .{ .dwrite = dwrite, .lib = lib, .codepoint = 0x20000 },
+    };
+    var threads: [contexts.len]std.Thread = undefined;
+    for (&threads, &contexts) |*thread, *context| {
+        thread.* = try .spawn(.{}, Context.run, .{context});
+    }
+    for (&threads) |*thread| thread.join();
+    for (contexts) |context| try testing.expect(context.ok);
 }
