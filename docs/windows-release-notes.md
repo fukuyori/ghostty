@@ -7,6 +7,61 @@ versions with their commits, the
 numbering rules, the [User Guide](windows.md) for configuration and known
 limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 
+## 1.3.2-windows.14
+
+- Prepared: 2026-09-29
+- Source: `v1.3.2-windows.14`
+- Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
+- Status: verified release candidate. The ReleaseFast distribution and signed
+  installer were built and verified locally; publication is pending.
+
+### Changes Since 1.3.2-windows.13
+
+- Add DEC private mode 9001 (Win32 input mode) so ConPTY receives lossless
+  Win32 key records instead of reconstructing physical keys from legacy bytes.
+- Preserve Ctrl+Space as `VK=32`, scan code 57, and Unicode 32 for both press
+  and release. Kitty keyboard encoding remains higher priority, while events
+  without Win32 metadata retain the existing encoder behavior.
+- Carry Win32 metadata through direct `WM_KEYDOWN` input, pending `WM_CHAR`
+  input, modifier-only events, releases, unidentified keys, and committed IME
+  text without changing non-Windows unidentified-key handling.
+
+### Verification
+
+Before the version bump, targeted Win32 and libghostty-vt tests, the Debug
+build, and the full suite passed (3904 passed, 62 skipped). Runtime logs showed
+mode 9001 being enabled by both the bundled OpenConsole and the OS ConPTY
+fallback. Physical left-Ctrl+Space produced matching native press and release
+records in both paths. Bundled OpenConsole also passed ordinary text,
+modifier-only input, consumed-binding suppression, and Microsoft IME commit of
+`あ` as `VK=0`, scan code 0, and Unicode 12354.
+
+The baseline-CPU ReleaseFast build completed all 128 steps. Its unsigned
+`ghostty.exe` is 26,572,288 bytes with SHA-256
+`880FA981E2890ABFE8EFC0D5F2F2061BF40953F0C7DB7B4A5944B1CA4BA17026`.
+It reports `1.3.2-windows.14`, numeric version `1.3.2.14`, ReleaseFast, Win32,
+D3D11, and IOCP; `--version` and `+list-keybinds --default` both exited 0.
+
+The signed staged executable is 26,583,408 bytes with SHA-256
+`A9A30180014856A7EF844CA8C33F1292FD9D2451F0865705128CA9B9ED8D7C3A`.
+Its Authenticode signature is Valid and timestamped, and its CLI version and
+default-keybinding checks both exited 0.
+
+The signed x64 installer is 17,850,784 bytes with SHA-256
+`07CDA1FBC64C17E5AB2628856272E0B0A2E7FF86CE391602517FA7A2764764CA`.
+The installer signature is Valid and timestamped; the embedded uninstaller was
+signed during compilation. The staged tree contains the matching `conpty.dll`
+and `OpenConsole.exe`, and Inno Setup included `THIRD-PARTY-NOTICES.md` from
+`dist/windows`.
+
+### Known Limitations
+
+- IME-consumed presses can be followed by unmatched release records. The input
+  probe continued normally and received committed text, but behavior in other
+  ConPTY applications has not been exhaustively evaluated.
+- A layout with dead keys remains unverified. `WM_DEADCHAR` is not currently
+  included in the Win32 apprt's translated-character path.
+
 ## 1.3.2-windows.13
 
 - Released: 2026-09-28

@@ -11,6 +11,27 @@ known issues, and known limitations of each version; the
 
 No changes yet.
 
+## 1.3.2-windows.14
+
+Released 2026-09-29. This preview preserves native Win32 key identity through
+ConPTY instead of reducing keys such as Ctrl+Space to legacy control bytes.
+
+### Fixed
+
+- Implement DEC private mode 9001 (Win32 input mode), carrying virtual-key,
+  scan-code, Unicode, key-down, control-state, and repeat-count fields through
+  both physical-key and translated-character paths. Kitty keyboard encoding
+  remains higher priority, and non-Windows or metadata-free events retain the
+  existing encoding behavior. This prevents ConPTY from reconstructing a
+  legacy Ctrl+Space NUL as Ctrl+Shift+2 (`e31ffe00d`, #43).
+
+### Documentation
+
+- Record the mode-negotiation design, snapshot compatibility consideration,
+  targeted and full-suite results, bundled and OS ConPTY checks, and physical
+  Ctrl+Space, ordinary text, modifier-only, binding, and Microsoft IME input
+  evidence (`e31ffe00d`).
+
 ## 1.3.2-windows.13
 
 Released 2026-09-28. This preview improves Windows font selection and
