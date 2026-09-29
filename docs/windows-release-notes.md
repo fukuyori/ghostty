@@ -60,8 +60,8 @@ The [published GitHub Release](https://github.com/fukuyori/ghostty/releases/tag/
 is neither a draft nor marked as a prerelease. Its installer was downloaded
 again after publication; its 17,850,784-byte size and SHA-256 match the local
 artifact, and its Authenticode signature remains Valid and timestamped.
-Installation, upgrade, installed-runtime, and uninstallation checks were not
-performed for this release.
+The owner subsequently confirmed installation, upgrade, installed-runtime
+execution, and uninstallation on real hardware.
 
 ### Known Limitations
 
