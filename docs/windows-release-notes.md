@@ -9,11 +9,13 @@ limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 
 ## 1.3.2-windows.14
 
-- Prepared: 2026-09-29
-- Source: `v1.3.2-windows.14`
+- Released: 2026-09-29
+- Published: 2026-09-29
+- Source: `v1.3.2-windows.14` (`cdfeab50c`)
 - Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
-- Status: verified release candidate. The ReleaseFast distribution and signed
-  installer were built and verified locally; publication is pending.
+- Status: published preview. The ReleaseFast distribution and signed installer
+  were built and verified locally, then the published installer was downloaded
+  again and verified.
 
 ### Changes Since 1.3.2-windows.13
 
@@ -53,6 +55,13 @@ The installer signature is Valid and timestamped; the embedded uninstaller was
 signed during compilation. The staged tree contains the matching `conpty.dll`
 and `OpenConsole.exe`, and Inno Setup included `THIRD-PARTY-NOTICES.md` from
 `dist/windows`.
+
+The [published GitHub Release](https://github.com/fukuyori/ghostty/releases/tag/v1.3.2-windows.14)
+is neither a draft nor marked as a prerelease. Its installer was downloaded
+again after publication; its 17,850,784-byte size and SHA-256 match the local
+artifact, and its Authenticode signature remains Valid and timestamped.
+Installation, upgrade, installed-runtime, and uninstallation checks were not
+performed for this release.
 
 ### Known Limitations
 
