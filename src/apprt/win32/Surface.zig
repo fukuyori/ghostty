@@ -124,6 +124,7 @@ pub const PendingTextKey = struct {
     key: input.Key,
     mods: input.Mods,
     unshifted_codepoint: u21,
+    win32: input.KeyEvent.Win32,
 };
 
 pub fn core(self: *Self) *CoreSurface {

@@ -390,6 +390,9 @@ const entries: []const ModeEntry = &.{
         // Kitty clipboard read that a paste event grants.
         .disabled = build_options.artifact != .lib and builtin.os.tag != .macos,
     },
+    // Win32 input mode. ConPTY enables this mode to request lossless
+    // KEY_EVENT_RECORD fields encoded as CSI Vk;Sc;Uc;Kd;Cs;Rc_.
+    .{ .name = "win32_input", .value = 9001 },
 };
 
 test {
@@ -402,6 +405,8 @@ test modeFromInt {
     try testing.expect(modeFromInt(9, true) == null);
     try testing.expect(modeFromInt(9, false).? == .mouse_event_x10);
     try testing.expect(modeFromInt(14, true) == null);
+    try testing.expect(modeFromInt(9001, false).? == .win32_input);
+    try testing.expect(modeFromInt(9001, true) == null);
 
     // Numbers too large for the tag must not be mistaken for an ANSI mode.
     try testing.expect(modeFromInt(4 | 0x8000, false) == null);

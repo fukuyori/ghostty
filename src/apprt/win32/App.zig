@@ -3914,6 +3914,12 @@ fn keyAction(lparam: win32.LPARAM) input.Action {
     return if ((bits & (@as(usize, 1) << 30)) != 0) .repeat else .press;
 }
 
+fn keyRepeatCount(lparam: win32.LPARAM) u16 {
+    const bits: usize = @bitCast(lparam);
+    const count: u16 = @truncate(bits);
+    return if (count == 0) 1 else count;
+}
+
 fn isExtendedKey(lparam: win32.LPARAM) bool {
     const bits: usize = @bitCast(lparam);
     return (bits & (@as(usize, 1) << 24)) != 0;
@@ -4139,6 +4145,120 @@ fn shouldDispatchKeyPress(vk: win32.WPARAM, mods: input.Mods) bool {
     return false;
 }
 
+fn win32ControlKeyState(mods: input.Mods, lparam: win32.LPARAM) u16 {
+    var state: u16 = 0;
+    if (mods.alt) state |= if (mods.sides.alt == .right) 0x0001 else 0x0002;
+    if (mods.ctrl) state |= if (mods.sides.ctrl == .right) 0x0004 else 0x0008;
+    if (mods.shift) state |= 0x0010;
+    if (mods.num_lock) state |= 0x0020;
+    if ((win32.GetKeyState(0x91) & 1) != 0) state |= 0x0040;
+    if (mods.caps_lock) state |= 0x0080;
+    if (isExtendedKey(lparam)) state |= 0x0100;
+    return state;
+}
+
+const Win32Unicode = struct {
+    units: [2]u16 = .{ 0, 0 },
+    len: u2 = 1,
+};
+
+fn unicodeFromCodepoint(codepoint: u21) Win32Unicode {
+    if (codepoint <= 0xFFFF) return .{ .units = .{ @intCast(codepoint), 0 } };
+    const value: u21 = codepoint - 0x10000;
+    return .{
+        .units = .{
+            @intCast(0xD800 + (value >> 10)),
+            @intCast(0xDC00 + (value & 0x3FF)),
+        },
+        .len = 2,
+    };
+}
+
+/// Translate a physical key with its actual modifier state without changing
+/// the thread's dead-key state. This mirrors the character value that conhost
+/// places in a KEY_EVENT_RECORD for Ctrl/Alt-modified key events.
+fn modifiedUnicode(vk: win32.WPARAM, lparam: win32.LPARAM, mods: input.Mods) Win32Unicode {
+    var key_state = [_]u8{0} ** 256;
+    if (mods.shift) {
+        key_state[0x10] = 0x80;
+        key_state[if (mods.sides.shift == .right) 0xA1 else 0xA0] = 0x80;
+    }
+    if (mods.ctrl) {
+        key_state[0x11] = 0x80;
+        key_state[if (mods.sides.ctrl == .right) 0xA3 else 0xA2] = 0x80;
+    }
+    if (mods.alt) {
+        key_state[0x12] = 0x80;
+        key_state[if (mods.sides.alt == .right) 0xA5 else 0xA4] = 0x80;
+    }
+    if (mods.caps_lock) key_state[0x14] = 0x01;
+    if (mods.num_lock) key_state[0x90] = 0x01;
+    if ((win32.GetKeyState(0x91) & 1) != 0) key_state[0x91] = 0x01;
+
+    var buffer: [4:0]u16 = .{ 0, 0, 0, 0 };
+    const written = win32.ToUnicodeEx(
+        @intCast(vk),
+        scanCode(lparam),
+        &key_state,
+        &buffer,
+        buffer.len,
+        0x4,
+        win32.GetKeyboardLayout(0),
+    );
+    if (written <= 0) return .{};
+    return .{
+        .units = .{ buffer[0], if (written > 1) buffer[1] else 0 },
+        .len = if (written > 1) 2 else 1,
+    };
+}
+
+fn win32KeyMetadata(
+    vk: win32.WPARAM,
+    lparam: win32.LPARAM,
+    mods: input.Mods,
+    action: input.Action,
+) input.KeyEvent.Win32 {
+    const unicode = modifiedUnicode(vk, lparam, mods);
+    return .{
+        .virtual_key = @truncate(vk),
+        .scan_code = @intCast(scanCode(lparam)),
+        .unicode = unicode.units,
+        .unicode_len = unicode.len,
+        .key_down = action != .release,
+        .control_key_state = win32ControlKeyState(mods, lparam),
+        .repeat_count = keyRepeatCount(lparam),
+    };
+}
+
+fn virtualKeyForText(lparam: win32.LPARAM, codepoint: u21) u16 {
+    const layout = win32.GetKeyboardLayout(0);
+    if (scanCode(lparam) != 0) {
+        const mapped = win32.MapVirtualKeyExW(nativeKeycode(lparam), 3, layout);
+        if (mapped != 0) return @truncate(mapped);
+    }
+    if (codepoint <= 0xFFFF) {
+        const mapped = win32.VkKeyScanExW(@intCast(codepoint), layout);
+        if (mapped != -1) return @as(u16, @bitCast(mapped)) & 0xFF;
+    }
+    return 0;
+}
+
+fn win32TextMetadata(
+    pending: ?Surface.PendingTextKey,
+    lparam: win32.LPARAM,
+    mods: input.Mods,
+    codepoint: u21,
+) input.KeyEvent.Win32 {
+    var native = if (pending) |value|
+        value.win32
+    else
+        win32KeyMetadata(virtualKeyForText(lparam, codepoint), lparam, mods, .press);
+    const unicode = unicodeFromCodepoint(codepoint);
+    native.unicode = unicode.units;
+    native.unicode_len = unicode.len;
+    return native;
+}
+
 /// Codepoint the key produces with no modifier held in the active keyboard
 /// layout. Bindings written as `ctrl+;` must match the key that types `;`
 /// on the user's layout, not the US position of VK_OEM_1.
@@ -4257,6 +4377,7 @@ fn handleTextInput(
             value.unshifted_codepoint
         else
             0,
+        .win32 = win32TextMetadata(pending, lparam, mods, codepoint),
     };
     _ = core.keyCallback(event) catch |err| {
         log.err("key callback error: {}", .{err});
@@ -5408,32 +5529,34 @@ fn wndProc(
                     if (surface.core_surface) |core| {
                         const mods = getModifiers();
                         const key = mapKey(wparam, lparam);
+                        const action = keyAction(lparam);
+                        const native = win32KeyMetadata(wparam, lparam, mods, action);
 
                         if (!shouldDispatchKeyPress(wparam, mods)) {
                             surface.pending_text_key = .{
-                                .action = keyAction(lparam),
+                                .action = action,
                                 .key = key,
                                 .mods = mods,
                                 .unshifted_codepoint = unshiftedCodepoint(wparam, lparam),
+                                .win32 = native,
                             };
                             return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
                         }
 
                         surface.pending_text_key = null;
-                        if (key != .unidentified) {
-                            const effect = core.keyCallback(.{
-                                .action = keyAction(lparam),
-                                .key = key,
-                                .mods = mods,
-                                .unshifted_codepoint = unshiftedCodepoint(wparam, lparam),
-                            }) catch |err| {
-                                log.err("key callback error: {}", .{err});
-                                return 0;
-                            };
-                            if (effect == .consumed or effect == .closed) {
-                                surface.suppressed_char_keycode = characterMessageKey(lparam);
-                                return 0;
-                            }
+                        const effect = core.keyCallback(.{
+                            .action = action,
+                            .key = key,
+                            .mods = mods,
+                            .unshifted_codepoint = unshiftedCodepoint(wparam, lparam),
+                            .win32 = native,
+                        }) catch |err| {
+                            log.err("key callback error: {}", .{err});
+                            return 0;
+                        };
+                        if (effect == .consumed or effect == .closed) {
+                            surface.suppressed_char_keycode = characterMessageKey(lparam);
+                            return 0;
                         }
                     }
                 }
@@ -5454,16 +5577,16 @@ fn wndProc(
                 if (hwnd == surface.hwnd) {
                     if (surface.core_surface) |core| {
                         const key = mapKey(wparam, lparam);
-                        if (key != .unidentified) {
-                            _ = core.keyCallback(.{
-                                .action = .release,
-                                .key = key,
-                                .mods = getModifiers(),
-                                .unshifted_codepoint = unshiftedCodepoint(wparam, lparam),
-                            }) catch |err| {
-                                log.err("key release callback error: {}", .{err});
-                            };
-                        }
+                        const mods = getModifiers();
+                        _ = core.keyCallback(.{
+                            .action = .release,
+                            .key = key,
+                            .mods = mods,
+                            .unshifted_codepoint = unshiftedCodepoint(wparam, lparam),
+                            .win32 = win32KeyMetadata(wparam, lparam, mods, .release),
+                        }) catch |err| {
+                            log.err("key release callback error: {}", .{err});
+                        };
                     }
                 }
             }
@@ -5577,6 +5700,60 @@ test "classify Win32 text keys" {
     var left_alt: input.Mods = .{ .alt = true };
     left_alt.sides.alt = .left;
     try std.testing.expect(shouldDispatchKeyPress(0x41, left_alt));
+}
+
+test "Win32 input metadata for Ctrl+Space" {
+    const lparam: win32.LPARAM = @bitCast(
+        @as(usize, 1) |
+            (@as(usize, 0x39) << 16),
+    );
+    const mods: input.Mods = .{ .ctrl = true };
+    const native = win32KeyMetadata(0x20, lparam, mods, .press);
+    try std.testing.expectEqual(@as(u16, 0x20), native.virtual_key);
+    try std.testing.expectEqual(@as(u16, 0x39), native.scan_code);
+    try std.testing.expectEqual(@as(u16, 0x20), native.unicode[0]);
+    try std.testing.expectEqual(@as(u2, 1), native.unicode_len);
+    try std.testing.expect(native.key_down);
+    try std.testing.expectEqual(@as(u16, 0x08), native.control_key_state & ~@as(u16, 0x40));
+    try std.testing.expectEqual(@as(u16, 1), native.repeat_count);
+    try std.testing.expectEqual(@as(u16, 0x20), virtualKeyForText(lparam, ' '));
+}
+
+test "Win32 input metadata preserves supplementary Unicode" {
+    const native = unicodeFromCodepoint(0x1F600);
+    try std.testing.expectEqual(@as(u2, 2), native.len);
+    try std.testing.expectEqual(@as(u16, 0xD83D), native.units[0]);
+    try std.testing.expectEqual(@as(u16, 0xDE00), native.units[1]);
+}
+
+test "Win32 text metadata uses the WM_CHAR Unicode value" {
+    const lparam: win32.LPARAM = @bitCast(
+        @as(usize, 1) |
+            (@as(usize, 0x1E) << 16),
+    );
+    const pending: Surface.PendingTextKey = .{
+        .action = .press,
+        .key = .key_a,
+        .mods = .{ .shift = true },
+        .unshifted_codepoint = 'a',
+        .win32 = .{
+            .virtual_key = 0x41,
+            .scan_code = 0x1E,
+            .unicode = .{ 'a', 0 },
+            .control_key_state = 0x10,
+        },
+    };
+    const text = win32TextMetadata(pending, lparam, pending.mods, 'A');
+    try std.testing.expectEqual(@as(u16, 0x41), text.virtual_key);
+    try std.testing.expectEqual(@as(u16, 0x1E), text.scan_code);
+    try std.testing.expectEqual(@as(u16, 'A'), text.unicode[0]);
+    try std.testing.expectEqual(@as(u16, 0x10), text.control_key_state);
+
+    // A committed character without a pending physical key follows the same
+    // path and derives the best available virtual key from the character.
+    const committed = win32TextMetadata(null, 0, .{}, ' ');
+    try std.testing.expectEqual(@as(u16, 0x20), committed.virtual_key);
+    try std.testing.expectEqual(@as(u16, ' '), committed.unicode[0]);
 }
 
 test "match Win32 character messages to consumed physical keys" {

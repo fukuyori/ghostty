@@ -1393,42 +1393,48 @@ The ordered implementation queue is:
 1. [#40](https://github.com/fukuyori/ghostty/issues/40): Ctrl+Space double
    sending. Implemented and acceptance-verified at `5d3c06231`; the issue can
    be closed.
-2. [#1](https://github.com/fukuyori/ghostty/issues/1): unmatched-family
+2. [#43](https://github.com/fukuyori/ghostty/issues/43): implement DEC private
+   mode 9001 (Win32 input mode) so ConPTY receives lossless Win32 key records,
+   including the physical identity of Ctrl+Space. The design is recorded under
+   "Input correctness: #40 and #43" below. Implemented on 2026-09-29; targeted,
+   full-suite, and Ctrl+Space runtime verification passed, while the remaining
+   physical-input acceptance cases are listed below.
+3. [#1](https://github.com/fukuyori/ghostty/issues/1): unmatched-family
    diagnostics and family-name matching. Measured and documented on
    2026-09-28; no code change was required and the issue can be closed.
-3. [#2](https://github.com/fukuyori/ghostty/issues/2): configured
+4. [#2](https://github.com/fukuyori/ghostty/issues/2): configured
    Regular/Bold/Italic/Bold Italic face selection. Implemented and verified on
    2026-09-28; the issue can be closed after commit.
-4. [#3](https://github.com/fukuyori/ghostty/issues/3): upstream font-size
+5. [#3](https://github.com/fukuyori/ghostty/issues/3): upstream font-size
    adjustment. Measured on 2026-09-28; no breakage or code change was found,
    and the issue can be closed after the documentation commit.
-5. [#42](https://github.com/fukuyori/ghostty/issues/42): Windows
+6. [#42](https://github.com/fukuyori/ghostty/issues/42): Windows
    system-font fallback. The initial DirectWrite implementation and controlled
    CLI and visual verification are complete. Unicode user-font paths and
    concurrent access to the shared DirectWrite objects are covered by targeted
    tests.
-6. [#37](https://github.com/fukuyori/ghostty/issues/37): restore the Windows
+7. [#37](https://github.com/fukuyori/ghostty/issues/37): restore the Windows
    Shift+Insert clipboard-paste default. Implemented and verified with the
    physical shortcut on 2026-09-28.
-7. [#38](https://github.com/fukuyori/ghostty/issues/38): prevent renderer
+8. [#38](https://github.com/fukuyori/ghostty/issues/38): prevent renderer
    health publication from retaining a frame permit while blocked. Implemented
    and verified with controlled GPU recovery on 2026-09-28.
-8. [#39](https://github.com/fukuyori/ghostty/issues/39): handle expected
+9. [#39](https://github.com/fukuyori/ghostty/issues/39): handle expected
    ConPTY pipe-closure errors and unexpected `ReadFile` failures without
    reaching `unreachable`. Implemented and verified with controlled process
    lifecycle checks on 2026-09-28.
-9. [#15](https://github.com/fukuyori/ghostty/issues/15): implement the scoped
+10. [#15](https://github.com/fukuyori/ghostty/issues/15): implement the scoped
    Win32 `+new-tab -e` IPC support. Implemented in `c1330c1f9`, `e575087f9`,
    and `4ce993273`, and acceptance-verified on 2026-09-28.
-10. Phase 7 F4 [#33](https://github.com/fukuyori/ghostty/issues/33): taskbar
+11. Phase 7 F4 [#33](https://github.com/fukuyori/ghostty/issues/33): taskbar
    progress.
-11. Phase 7 F5 [#34](https://github.com/fukuyori/ghostty/issues/34): HTML and
+12. Phase 7 F5 [#34](https://github.com/fukuyori/ghostty/issues/34): HTML and
    mixed clipboard output.
-12. Phase 7 F6 [#35](https://github.com/fukuyori/ghostty/issues/35): session
+13. Phase 7 F6 [#35](https://github.com/fukuyori/ghostty/issues/35): session
    save and restore, beginning with its design decisions.
-13. Phase 7 F7 [#24](https://github.com/fukuyori/ghostty/issues/24): quick
+14. Phase 7 F7 [#24](https://github.com/fukuyori/ghostty/issues/24): quick
    terminal and `global:` bindings, beginning with its design decisions.
-14. Phase 7 F8 [#21](https://github.com/fukuyori/ghostty/issues/21): desktop
+15. Phase 7 F8 [#21](https://github.com/fukuyori/ghostty/issues/21): desktop
     and command-finish notifications, beginning with its design decisions.
 
 #37-#39 are placed between #42 and the larger #15 IPC feature so known
@@ -1668,7 +1674,7 @@ Real-hardware verification in the user's environment:
   unexpected `ReadFile` failure were verified through the classification test,
   not injected into a live ConPTY read.
 
-#### Input correctness: #40
+#### Input correctness: #40 and #43
 
 - [#40](https://github.com/fukuyori/ghostty/issues/40): Ctrl+Space sent twice.
   Fixed at `5d3c06231`. The Win32 surface now records a consumed or closed
@@ -1724,6 +1730,125 @@ Real-hardware verification in the user's environment:
   this environment's acceptance rather than marked as passed. The test exited
   without a remaining Ghostty process. Targeted Win32 tests and `zig build`
   had already passed before the real-input checks.
+
+- [#43](https://github.com/fukuyori/ghostty/issues/43): preserve Win32 key
+  identity through ConPTY by implementing DEC private mode 9001. A JIS-layout
+  Ctrl+Space currently reaches ConPTY through the legacy encoder as NUL, from
+  which ConPTY reconstructs Ctrl+Shift+2 (`VK_2`, scan code 3) instead of the
+  original Ctrl+Space. The literal quote reported by the issue was not
+  reproduced locally, but the lossy conversion and incorrect reconstructed
+  Win32 key record were captured directly. The native Win32 input sequence for
+  the tested left-Ctrl+Space is `ESC[32;57;32;1;8;1_` on press and the
+  corresponding sequence with key-down set to zero on release.
+
+  Activation follows the terminal mode only. Parse DECSET/DECRST 9001 into a
+  shared terminal mode and add the required public macro to
+  `include/ghostty/vt/modes.h`; do not enable the mode merely because Ghostty
+  is running on Windows. OpenConsole sends `?9001h` when starting a ConPTY,
+  sends `?9001l` when ending it, and sends the set sequence again after RIS.
+  Kitty keyboard encoding has priority over Win32 input mode, matching Windows
+  Terminal. Otherwise use Win32 encoding only when mode 9001 is set and the
+  `KeyEvent` carries Win32 metadata. A mode-9001 event without that metadata,
+  including an event produced by a non-Windows apprt, retains the existing
+  encoder behavior.
+
+  Add optional Win32 metadata to `KeyEvent` with the fields needed for
+  `KEY_EVENT_RECORD`: virtual-key code, scan code, Unicode value, key-down
+  state, control-key state, and repeat count. Encode them as
+  `CSI Vk;Sc;Uc;Kd;Cs;Rc_`. In this mode the Win32 apprt forwards presses,
+  releases, modifier-only events, and keys that the shared key mapping reports
+  as `.unidentified`; these events must not depend on the legacy encoder
+  producing bytes.
+
+  Character-producing input has two distinct sources. For text keys where
+  `shouldDispatchKeyPress` is false (unmodified, Shift-modified, and AltGr
+  input) and for committed IME text, retain the physical metadata in
+  `pending_text_key` when available and use the Unicode value actually received
+  in `WM_CHAR`/`WM_SYSCHAR`. For keys sent from `WM_KEYDOWN`, including
+  Ctrl-modified keys, left-Alt-modified keys, and non-character keys, compute
+  the Unicode value there with `ToUnicodeEx` using the actual modifier state and
+  flag `0x4`, so the query does not mutate the keyboard's dead-key state; use
+  zero when the key produces no character.
+  Thus Ctrl+Space carries Unicode 32 even though the legacy encoding would have
+  reduced it to NUL. Keep the #40 scan-code suppression: when the keydown is
+  consumed or closes the surface, discard its later translated character
+  message rather than emitting a duplicate.
+
+  Windows Terminal's character path resolves a virtual key from the preceding
+  matching key event, then from the scan code, then from the character, and
+  synthesizes a key-down record. Follow that order where Ghostty has the same
+  information. IME-consumed `VK_PROCESSKEY` events themselves remain excluded;
+  committed IME characters use their actual `WM_CHAR` value and the available
+  scan-code/virtual-key metadata, falling back to virtual key zero only when it
+  cannot be recovered. Do not bypass Win32 input mode by sending committed IME
+  text as plain UTF-8.
+
+  Binding handling remains authoritative. `maybeHandleBinding` already records
+  a consumed press in `last_trigger` and consumes its matching release, so the
+  implementation must preserve that behavior and test that neither event leaks
+  to ConPTY. The `.ignore` action returns `.ignored` before setting
+  `last_trigger`; verify it separately during implementation rather than
+  treating it as a consumed binding.
+
+  Focused tests must cover mode set/reset and Kitty priority; exact Win32
+  formatting; Ctrl+Space press and release; modifier-only and otherwise
+  unidentified events; the `WM_CHAR`/`pending_text_key` path; the
+  `WM_KEYDOWN`/`ToUnicodeEx` path; IME commit; legacy fallback when Win32
+  metadata is absent; suppression of the release after a consumed binding; and
+  preservation of #40's translated-character suppression. Runtime acceptance
+  must capture Ghostty's receipt of `?9001h` and the resulting raw ConPTY input
+  records with both the bundled OpenConsole and the OS-provided ConPTY fallback,
+  then exercise physical Ctrl+Space, ordinary text, release events,
+  modifier-only input, bindings, and Japanese IME composition/commit. Build and
+  unit-test success alone are not acceptance evidence.
+
+  Implemented on 2026-09-29. The shared terminal state now parses and exposes
+  mode 9001, including the public libghostty-vt mode macro and snapshot bit;
+  `KeyEvent` carries optional Win32 metadata; the encoder applies Kitty first,
+  Win32 second when both the mode and metadata are present, and legacy encoding
+  otherwise. The Win32 apprt supplies metadata from both the direct key path and
+  the pending `WM_CHAR` path, including key-up, modifier-only, and unidentified
+  records. Targeted tests, `zig build -Demit-lib-vt`, `zig build`, and the full
+  `zig build test --summary all` passed (3904 passed, 62 skipped). Runtime logs
+  showed receipt of `?9001h` for both the bundled OpenConsole and the OS ConPTY
+  fallback. With IME off, physical left-Ctrl+Space produced matching key-down
+  and key-up records with `VK=32`, scan code 57, Unicode 32, and control state
+  40 in both paths. Control state 40 includes left Ctrl and the enabled NumLock
+  state. A run with IME on showed the IME consuming the Space press; it is not
+  counted as Ctrl+Space terminal-input acceptance. That run also delivered the
+  real Space key-up record without a matching key-down record, confirming that
+  an IME-consumed `VK_PROCESSKEY` press can be followed by a normal release.
+  Physical acceptance with the bundled OpenConsole then verified ordinary `a`
+  as matching key-down/key-up records (`VK=65`, scan code 30, Unicode 97), and
+  left Shift alone as modifier-only press/repeat/release records. A temporary
+  consumed `Ctrl+B` binding allowed the Ctrl records through but suppressed
+  both B press and B release. Microsoft IME composition committed `あ` as a
+  Win32 key-down record with `VK=0`, scan code 0, and Unicode 12354 (`U+3042`),
+  rather than bypassing mode 9001 as plain UTF-8. The IME run also recorded
+  releases for IME-consumed Convert, A, and Enter presses without corresponding
+  key-down records. The `ReadConsoleInputW` probe continued normally and
+  received the committed character, but the effect of unmatched releases on
+  other ConPTY applications remains unevaluated. A layout with dead keys must
+  also verify key-down and key-up records: Win32 currently receives a dead key
+  through `WM_DEADCHAR`, which the apprt does not handle, so a release may
+  otherwise arrive without its press. The tested JIS/Microsoft IME layout does
+  not provide that acceptance case.
+
+  This downstream mode also extends shared snapshot state. It currently owns
+  mode bit 43 and raises the Kaitai schema maximum to 44 bits. If upstream adds
+  another mode at the end of `modes.zig`, its bit assignment can collide with
+  this fork, requiring an explicit ordering decision during the merge and a
+  snapshot-compatibility review. This matters before persistent snapshots are
+  used by work such as #35 session save/restore. The
+  `consumedBindingRelease` extraction in shared `Surface.zig` is behaviorally
+  neutral and exists only to test release suppression, but it is another
+  downstream change to reconcile in future upstream merges.
+
+  This implementation necessarily touches shared upstream files, including
+  `src/terminal/modes.zig`, `src/input/key.zig`, `src/input/key_encode.zig`, and
+  `include/ghostty/vt/modes.h`. Keep those changes minimal and isolated because
+  they add likely conflict points during future upstream merges; the Win32
+  collection and reconstruction logic remains in the Win32 apprt.
 
 #### CLI IPC and profiles: #15 and #41
 
@@ -1860,6 +1985,7 @@ the code exists.
 | CLI | Win32 `+new-tab -e` IPC (#15) | 2026-09-28: targeted Win32 IPC tests and Debug build passed. Real requests verified explicit, fallback, and implicit `GHOSTTY_SURFACE_ID` targeting; command, title, working-directory, and shell-integration overrides; concurrent requests; tab-title and close-confirmation modal loops; move/resize modal loops; and both elevated/non-elevated directions. Final shutdown left no Ghostty or test-command processes |
 | Input | Keyboard and IME | Character input and Enter automatically verified with the Release build, IME basically verified |
 | Input | Ctrl+Space translated-input suppression (#40) | 2026-09-28: normal and kitty modes, `unconsumed:` passthrough, available Ctrl combinations, and Japanese IME conversion/commit passed with the Debug executable. Ctrl+[ and Ctrl+- were owned by non-disableable shortcuts, Ctrl+Space did not auto-repeat, and AltGr was unavailable on the tested JIS/Microsoft IME layout; those cases were excluded rather than marked as passed |
+| Input | Win32 input mode / DEC private mode 9001 (#43) | Implemented 2026-09-29. Targeted/libghostty-vt/full tests and Debug build passed. Runtime logs confirmed `?9001h`; physical left-Ctrl+Space produced matching native press/release records through both bundled OpenConsole and the OS ConPTY fallback with IME off. Bundled OpenConsole also passed ordinary text, modifier-only input, consumed-binding suppression, and Microsoft IME commit of `あ` as `VK=0`, scan code 0, Unicode 12354. IME-consumed presses produced unmatched releases without disrupting the input probe; broader application impact and a layout with dead keys remain unverified |
 | Input | Shift+Insert clipboard paste (#37) | 2026-09-28: Windows retains `paste_from_clipboard` instead of replacing it with unsupported selection paste. The targeted default-keybinding test and Debug build passed; physical Shift+Insert pasted `SHIFT_INSERT_37_OK` exactly once and displayed PASS |
 | Input | Shift text in Kitty keyboard disambiguation mode | 2026-09-17: consumed-modifier and encoding tests passed; actual `:`, `?`, and `!` input in antigravity confirmed by the owner |
 | Input | Numpad digits and operators | 2026-09-17: `0`, `1`, `.`, and `+` arrive once in normal, Kitty disambiguation, and application keypad modes (before: twice); actual numpad input confirmed by the owner |

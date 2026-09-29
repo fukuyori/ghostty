@@ -47,6 +47,20 @@ pub const KeyEvent = struct {
     /// shift+a is "A" in UTF-8 but unshifted would provide 'a'.
     unshifted_codepoint: u21 = 0,
 
+    /// Native Win32 KEY_EVENT_RECORD data. This is optional so non-Windows
+    /// apprts and synthetic events retain the existing encoding behavior.
+    win32: ?Win32 = null,
+
+    pub const Win32 = struct {
+        virtual_key: u16 = 0,
+        scan_code: u16 = 0,
+        unicode: [2]u16 = .{ 0, 0 },
+        unicode_len: u2 = 1,
+        key_down: bool = true,
+        control_key_state: u16 = 0,
+        repeat_count: u16 = 1,
+    };
+
     /// Returns the effective modifiers for this event. The effective
     /// modifiers are the mods that should be considered for keybindings.
     pub fn effectiveMods(self: KeyEvent) Mods {

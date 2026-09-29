@@ -2715,6 +2715,17 @@ pub fn keyCallback(
         event.mods = self.config.key_remaps.apply(event_orig.mods);
     }
 
+    // Win32 input mode needs otherwise-unidentified physical key events so it
+    // can forward their native records. Outside that encoder path, preserve
+    // the previous apprt behavior and ignore them before binding processing;
+    // otherwise they can flush an in-progress leader sequence. Text events
+    // such as an IME commit may also have an unidentified key and must remain.
+    if (event.key == .unidentified and event.utf8.len == 0 and event.win32 != null and
+        ignoreUnidentifiedPhysicalKey(event, self.encodeKeyOpts()))
+    {
+        return .ignored;
+    }
+
     // Crash metadata in case we crash in here
     crash.sentry.thread_state = self.crashThreadState();
     defer crash.sentry.thread_state = null;
@@ -2906,13 +2917,11 @@ fn maybeHandleBinding(
         // Release events never trigger a binding but we need to check if
         // we consumed the press event so we don't encode the release.
         .release => {
-            if (self.keyboard.last_trigger) |last| {
-                if (last == event.bindingHash()) {
-                    // We don't reset the last trigger on release because
-                    // an apprt may send multiple release events for a single
-                    // press event.
-                    return .consumed;
-                }
+            if (consumedBindingRelease(self.keyboard.last_trigger, event)) {
+                // We don't reset the last trigger on release because
+                // an apprt may send multiple release events for a single
+                // press event.
+                return .consumed;
             }
 
             return null;
@@ -3129,6 +3138,66 @@ fn maybeHandleBinding(
     self.endKeySequence(.flush, .retain);
 
     return null;
+}
+
+fn consumedBindingRelease(last_trigger: ?u64, event: input.KeyEvent) bool {
+    return event.action == .release and
+        last_trigger != null and
+        last_trigger.? == event.bindingHash();
+}
+
+fn ignoreUnidentifiedPhysicalKey(
+    event: input.KeyEvent,
+    opts: input.key_encode.Options,
+) bool {
+    if (event.key != .unidentified or event.utf8.len != 0) return false;
+    // Only events from the Win32 apprt are subject to this compatibility
+    // rule. Other apprts keep their existing unidentified-key behavior.
+    if (event.win32 == null) return false;
+    return opts.kitty_flags.int() != 0 or !opts.win32_input_mode;
+}
+
+test "unidentified physical keys reach only the Win32 encoder" {
+    const native_event: input.KeyEvent = .{
+        .key = .unidentified,
+        .win32 = .{ .virtual_key = 0xFF },
+    };
+    try std.testing.expect(ignoreUnidentifiedPhysicalKey(native_event, .{}));
+    try std.testing.expect(ignoreUnidentifiedPhysicalKey(
+        native_event,
+        .{ .win32_input_mode = true, .kitty_flags = .{ .disambiguate = true } },
+    ));
+    try std.testing.expect(!ignoreUnidentifiedPhysicalKey(
+        native_event,
+        .{ .win32_input_mode = true },
+    ));
+
+    const no_metadata: input.KeyEvent = .{ .key = .unidentified };
+    try std.testing.expect(!ignoreUnidentifiedPhysicalKey(
+        no_metadata,
+        .{ .win32_input_mode = true },
+    ));
+
+    const committed_text: input.KeyEvent = .{
+        .key = .unidentified,
+        .utf8 = "\xE3\x81\x82",
+    };
+    try std.testing.expect(!ignoreUnidentifiedPhysicalKey(committed_text, .{}));
+}
+
+test "consumed binding press suppresses its release" {
+    const press: input.KeyEvent = .{
+        .action = .press,
+        .key = .space,
+        .mods = .{ .ctrl = true },
+    };
+    var release = press;
+    release.action = .release;
+    try std.testing.expect(consumedBindingRelease(press.bindingHash(), release));
+
+    release.key = .enter;
+    try std.testing.expect(!consumedBindingRelease(press.bindingHash(), release));
+    try std.testing.expect(!consumedBindingRelease(null, release));
 }
 
 fn deactivateAllKeyTables(self: *Surface) !bool {

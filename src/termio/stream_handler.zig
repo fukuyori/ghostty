@@ -733,6 +733,8 @@ pub const StreamHandler = struct {
                 .focused = self.terminal.flags.focused,
             }),
 
+            .win32_input => log.debug("Win32 input mode enabled={}", .{enabled}),
+
             .mouse_event_x10 => {
                 if (enabled) {
                     self.terminal.flags.mouse_event = .x10;

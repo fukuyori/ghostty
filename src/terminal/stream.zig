@@ -3367,6 +3367,12 @@ test "stream: dec set mode (SM) and reset mode (RM)" {
     s.nextSlice("\x1B[?6l");
     try testing.expectEqual(@as(modes.Mode, @enumFromInt(1)), s.handler.mode);
 
+    s.nextSlice("\x1B[?9001h");
+    try testing.expectEqual(@as(modes.Mode, .win32_input), s.handler.mode);
+
+    s.nextSlice("\x1B[?9001l");
+    try testing.expectEqual(@as(modes.Mode, @enumFromInt(1)), s.handler.mode);
+
     s.handler.mode = @as(modes.Mode, @enumFromInt(1));
     s.nextSlice("\x1B[6 h");
     try testing.expectEqual(@as(modes.Mode, @enumFromInt(1)), s.handler.mode);

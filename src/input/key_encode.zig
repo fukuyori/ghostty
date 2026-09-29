@@ -37,6 +37,10 @@ pub const Options = struct {
     /// Kitty keyboard protocol flags.
     kitty_flags: KittyFlags = .disabled,
 
+    /// Terminal DEC private mode 9001. This is considered only when the
+    /// event also carries native Win32 metadata.
+    win32_input_mode: bool = false,
+
     /// Determines whether the "option" key on macOS is treated
     /// as "alt" or not. See the Ghostty `macos_option-as-alt` config
     /// docs for a more detailed description of why this is needed.
@@ -49,6 +53,7 @@ pub const Options = struct {
         .alt_esc_prefix = false,
         .modify_other_keys_state_2 = false,
         .kitty_flags = .disabled,
+        .win32_input_mode = false,
         .macos_option_as_alt = .false,
     };
 
@@ -65,6 +70,7 @@ pub const Options = struct {
             .ignore_keypad_with_numlock = t.modes.get(.ignore_keypad_with_numlock),
             .modify_other_keys_state_2 = t.flags.modify_other_keys_2,
             .kitty_flags = t.screens.active.kitty_keyboard.current(),
+            .win32_input_mode = t.modes.get(.win32_input),
 
             // These can't be known from the terminal state.
             .macos_option_as_alt = .false,
@@ -89,11 +95,135 @@ pub fn encode(
         writer,
         event,
         opts,
+    ) else if (opts.win32_input_mode and event.win32 != null) try win32(
+        writer,
+        event.win32.?,
     ) else try legacy(
         writer,
         event,
         opts,
     );
+}
+
+/// Encode the lossless KEY_EVENT_RECORD representation requested by DEC
+/// private mode 9001. A supplementary Unicode scalar is carried as the two
+/// UTF-16 records that Win32 would have delivered.
+fn win32(writer: *std.Io.Writer, event: key.KeyEvent.Win32) std.Io.Writer.Error!void {
+    const unicode_len: usize = @min(2, @max(1, event.unicode_len));
+    for (event.unicode[0..unicode_len]) |unicode| {
+        try writer.print("\x1b[{d};{d};{d};{d};{d};{d}_", .{
+            event.virtual_key,
+            event.scan_code,
+            unicode,
+            @intFromBool(event.key_down),
+            event.control_key_state,
+            event.repeat_count,
+        });
+    }
+}
+
+test "Win32 input mode encodes press and release records" {
+    var buf: [128]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&buf);
+    try encode(&writer, .{
+        .key = .space,
+        .mods = .{ .ctrl = true },
+        .win32 = .{
+            .virtual_key = 32,
+            .scan_code = 57,
+            .unicode = .{ 32, 0 },
+            .key_down = true,
+            .control_key_state = 8,
+        },
+    }, .{ .win32_input_mode = true });
+    try testing.expectEqualStrings("\x1b[32;57;32;1;8;1_", writer.buffered());
+
+    writer = .fixed(&buf);
+    try encode(&writer, .{
+        .action = .release,
+        .key = .space,
+        .mods = .{ .ctrl = true },
+        .win32 = .{
+            .virtual_key = 32,
+            .scan_code = 57,
+            .unicode = .{ 32, 0 },
+            .key_down = false,
+            .control_key_state = 8,
+        },
+    }, .{ .win32_input_mode = true });
+    try testing.expectEqualStrings("\x1b[32;57;32;0;8;1_", writer.buffered());
+}
+
+test "Win32 input mode encodes modifier-only and unidentified events" {
+    var buf: [128]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&buf);
+    try encode(&writer, .{
+        .key = .control_left,
+        .mods = .{ .ctrl = true },
+        .win32 = .{
+            .virtual_key = 17,
+            .scan_code = 29,
+            .control_key_state = 8,
+        },
+    }, .{ .win32_input_mode = true });
+    try testing.expectEqualStrings("\x1b[17;29;0;1;8;1_", writer.buffered());
+
+    writer = .fixed(&buf);
+    try encode(&writer, .{
+        .key = .unidentified,
+        .win32 = .{
+            .virtual_key = 255,
+            .scan_code = 0,
+        },
+    }, .{ .win32_input_mode = true });
+    try testing.expectEqualStrings("\x1b[255;0;0;1;0;1_", writer.buffered());
+}
+
+test "Win32 input mode preserves UTF-16 surrogate records" {
+    var buf: [128]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&buf);
+    try encode(&writer, .{
+        .win32 = .{
+            .unicode = .{ 0xD83D, 0xDE00 },
+            .unicode_len = 2,
+        },
+    }, .{ .win32_input_mode = true });
+    try testing.expectEqualStrings(
+        "\x1b[0;0;55357;1;0;1_\x1b[0;0;56832;1;0;1_",
+        writer.buffered(),
+    );
+}
+
+test "Win32 input mode falls back without native metadata" {
+    var buf: [128]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&buf);
+    try encode(&writer, .{
+        .key = .space,
+        .mods = .{ .ctrl = true },
+        .utf8 = " ",
+    }, .{ .win32_input_mode = true });
+    try testing.expectEqualStrings("\x00", writer.buffered());
+}
+
+test "Kitty keyboard protocol takes priority over Win32 input mode" {
+    var buf: [128]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&buf);
+    try encode(&writer, .{
+        .key = .space,
+        .mods = .{ .ctrl = true },
+        .utf8 = " ",
+        .unshifted_codepoint = 32,
+        .win32 = .{
+            .virtual_key = 32,
+            .scan_code = 57,
+            .unicode = .{ 32, 0 },
+            .control_key_state = 8,
+        },
+    }, .{
+        .kitty_flags = .{ .disambiguate = true },
+        .win32_input_mode = true,
+    });
+    try testing.expectEqualStrings("\x1b[32;5u", writer.buffered());
 }
 
 /// Perform Kitty keyboard protocol encoding of the key event.

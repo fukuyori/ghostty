@@ -2433,6 +2433,18 @@ test "modes" {
     try testing.expect(!t.modes.get(.wraparound));
     s.nextSlice("\x1B[?7h"); // Enable wraparound
     try testing.expect(t.modes.get(.wraparound));
+
+    // ConPTY enables Win32 input mode explicitly. RIS resets it, after which
+    // OpenConsole sends the set sequence again.
+    try testing.expect(!t.modes.get(.win32_input));
+    s.nextSlice("\x1B[?9001h");
+    try testing.expect(t.modes.get(.win32_input));
+    s.nextSlice("\x1Bc");
+    try testing.expect(!t.modes.get(.win32_input));
+    s.nextSlice("\x1B[?9001h");
+    try testing.expect(t.modes.get(.win32_input));
+    s.nextSlice("\x1B[?9001l");
+    try testing.expect(!t.modes.get(.win32_input));
 }
 
 test "scrolling regions" {
