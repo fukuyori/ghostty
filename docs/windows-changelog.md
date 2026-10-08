@@ -9,7 +9,12 @@ known issues, and known limitations of each version; the
 
 ## Unreleased
 
-No changes yet.
+### Documentation
+
+- Add [#44](https://github.com/fukuyori/ghostty/issues/44) to the roadmap as
+  an investigation of `kitten icat`, `diff`, `themes`, `hints`, and `transfer`;
+  distinguish existing Ghostty features from unverified kitten compatibility
+  and record the design and verification decisions required before implementation.
 
 ## 1.3.2-windows.14
 

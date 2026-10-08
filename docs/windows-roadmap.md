@@ -1944,6 +1944,37 @@ candidates.
   support or limitation. It is not part of the ordered implementation queue
   above.
 
+#### Kitten compatibility investigation: #44
+
+Status: **Under consideration**; implementation scope and priority have not
+been decided. [#44](https://github.com/fukuyori/ghostty/issues/44) tracks
+`kitten icat`, `diff`, `themes`, `hints`, and `transfer`. This is a research
+and design item outside the ordered implementation queue and Phase 7 F1-F8.
+The existing graphics and keyboard protocols do not establish that the
+individual kittens work in this Windows fork.
+
+| Kitten | Existing foundation | Investigation and remaining work |
+|---|---|---|
+| `icat` | Kitty Graphics rendering is implemented in Phase 2; recorded display verification uses `terminal-browser` only | Verify image display, placement, deletion, and resize with the actual kitten; distinguish stream, file, and memory transfer across Windows, WSL, and SSH. Shared-memory support remains tracked by [#29](https://github.com/fukuyori/ghostty/issues/29) |
+| `diff` | Kitty Keyboard Protocol and image rendering are implemented; Ghostty has no builtin diff viewer | Verify text, directory, and image diffs, search, key input, and mouse operation; identify missing protocol support or execution-environment constraints |
+| `themes` | Ghostty has its own `theme` setting and `+list-themes` listing/preview implementation | Compare existing Ghostty functionality with kitten integration or theme conversion; distinguish temporary OSC color previews from persistent configuration and verify restoration, reload, and restart behavior |
+| `hints` | URL and OSC 8 link opening exist; keyboard selection through text labels is not implemented | Compare kitten integration with a native Ghostty feature; define screen-text acquisition, hint rendering/filtering, open/paste actions, IME, split-pane, scrollback, and cancellation behavior |
+| `transfer` | Kitty File Transfer Protocol (OSC 5113) is not implemented; DnD and clipboard protocols are separate | Decide send/receive scope, user permission prompts, path validation, overwrites, cancellation, size limits, WSL/SSH behavior, and Windows link/attribute/permission handling; consider delta transfer separately |
+
+Investigation completion criteria:
+
+- Record the kitten version and acquisition/execution method; verify native
+  Windows, WSL, and SSH execution separately rather than assuming availability.
+- Test `icat` and `diff` first, recording logs, actual display or captured
+  images, and real input results. Keep unverified cases explicitly unverified.
+- For each kitten, choose existing Ghostty functionality, a compatibility fix,
+  implementation after design, or out of scope, with reasons and acceptance
+  conditions. Review shared-core impact, upstream compatibility, and the
+  licenses of any referenced or reused code and themes.
+- Update this roadmap with the decisions and priority, and create separate
+  implementation issues where needed. This investigation does not commit the
+  project to implementing all five kittens.
+
 Deferred refactoring:
 
 - [#12](https://github.com/fukuyori/ghostty/issues/12): split `src/apprt/win32/App.zig` by responsibility
