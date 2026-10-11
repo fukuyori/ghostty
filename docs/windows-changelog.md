@@ -15,6 +15,17 @@ known issues, and known limitations of each version; the
   an investigation of `kitten icat`, `diff`, `themes`, `hints`, and `transfer`;
   distinguish existing Ghostty features from unverified kitten compatibility
   and record the design and verification decisions required before implementation.
+- Change the chosen product name for [#31](https://github.com/fukuyori/ghostty/issues/31)
+  from ghoultty to gozitty and decide to create a new icon instead of using the
+  ghoultty candidate. Update the rebranding plan and roadmap, and create the
+  `rebrand/gozitty` work branch locally from `windows`. Keep the repository
+  name `fukuyori/ghostty` for now. Decide the install directory
+  `{autopf}\Gozitty` and a new installer AppId, so Gozitty installs beside the
+  old Ghostty instead of upgrading it. Drop the
+  coexistence and shared-configuration requirement with an official Windows
+  Ghostty and plan to remove the `ghostty` name from configuration paths,
+  `TERM` and terminfo, environment variables, resources, and terminal-reported
+  identifiers. The application has not been renamed.
 
 ## 1.3.2-windows.14
 

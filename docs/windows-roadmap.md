@@ -29,7 +29,7 @@ order, or status changes.
 
 | Remote | Purpose | push |
 |---|---|---|
-| `origin` (`fukuyori/ghostty`; future name undecided) | Keep upstream history on `main`; develop and publish the Windows build on `windows` | Enabled |
+| `origin` (`fukuyori/ghostty`; the name is kept for now) | Keep upstream history on `main`; develop and publish the Windows build on `windows` | Enabled |
 | `upstream` (`ghostty-org/ghostty`) | Source for continuous merges from the official build | Disabled |
 | `mattn` (`mattn/ghostty`) | Reference for the earlier Windows implementation | Disabled |
 
@@ -37,18 +37,25 @@ order, or status changes.
 |---|---|---|
 | `main` | Mirror upstream `main` without Windows-specific changes | Exists locally and on `origin`; `origin/main` has not yet been synchronized |
 | `windows` | Develop and publish the Windows build; explicitly integrate upstream updates from `main` | Current working branch |
-| `rebrand/ghoultty` | Develop the name change from `windows`, then integrate it back after verification | Not created |
+| `rebrand/gozitty` | Develop the name change from `windows`, then integrate it back after verification | Provisional local branch from `windows` at `d440594ab`; not pushed; to be recreated from `windows` after the next upstream synchronization |
 
 - Establish this branch workflow first. Check the history and working tree
-  before creating `rebrand/ghoultty` from `windows`. Bring upstream updates
+  before creating `rebrand/gozitty` from `windows`. Bring upstream updates
   into `main` before explicitly integrating them into `windows` as needed.
   Do not force-push. The transition to this workflow is not complete.
-- Rename the GitHub repository only after implementing and integrating the
-  product name change. The destination is undecided; `fukuyori/ghoultty` is a
-  candidate. After the rename, verify `origin`, issues, old and new URLs, and
-  documentation and distribution links before validating the final release
-  candidate. Neither the repository rename nor the work branch has been
-  created. See Section 5 of the [rebranding plan](windows-rebranding-plan.md).
+- Upstream synchronization comes before the rename (decided 2026-10-11).
+  Smooth upstream merges after the rename are the rebrand's top priority;
+  the rules are in Section 1.1 of the
+  [rebranding plan](windows-rebranding-plan.md). As of 2026-10-11 `windows`
+  is 223 commits behind upstream `main` (merge base `bd1c82bc5`), and a
+  trial merge conflicts in `src/renderer.zig`, `src/renderer/OpenGL.zig`, and
+  `src/renderer/backend.zig`. Upstream no longer builds or tests core on
+  Windows ([ghostty-org/ghostty#14608](https://github.com/ghostty-org/ghostty/pull/14608)),
+  so each synchronization must restore the Windows build and tests itself.
+- Keep the GitHub repository named `fukuyori/ghostty` for now (decided
+  2026-10-11); the product name change does not include a repository rename.
+  The work branch exists locally. See Section 5 of the
+  [rebranding plan](windows-rebranding-plan.md).
 - The 2026-09-22 integration targets upstream `bd1c82bc5`, via local `main`.
   It adds 142 upstream commits to the working tree after the distributed
   `1.3.2-windows.10` preview; it does not move that release's tag. The ConPTY
@@ -1382,11 +1389,14 @@ scope must be reassessed after F1-F8; they are not part of Phase 7 completion.
 ## 7. Next Steps
 
 Special project outside the ordered implementation queue: rebranding as
-ghoultty [#31](https://github.com/fukuyori/ghostty/issues/31). The
+Gozitty [#31](https://github.com/fukuyori/ghostty/issues/31). The
 [rebranding plan](windows-rebranding-plan.md) records its decisions,
-compatibility boundary, work sequence, and acceptance checks. Its branch,
-repository rename, and release timing are managed independently and do not
-change the issue order below.
+compatibility boundary, work sequence, and acceptance checks. All naming
+decisions were completed on 2026-10-11. The work order is: synchronize
+`windows` with upstream first (plan Phase 0), then recreate
+`rebrand/gozitty` and implement the rename. Smooth upstream merges after the
+rename take priority over other rebranding goals. Its branch and release
+timing are managed independently and do not change the issue order below.
 
 The ordered implementation queue is:
 
