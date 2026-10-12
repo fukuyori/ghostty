@@ -1856,7 +1856,9 @@ Status: **Implemented** on 2026-10-12.
   dialog) left the window responsive. The Win32 tests and
   `scripts/test-windows-window-state.ps1` pass; the full `zig build test`
   passed on the split commit. The final revision (drain timer, quit check,
-  worker allocator) was checked with the automated tests only.
+  worker allocator) was checked by hand the same way: the web link opened
+  the browser twice (two shell opens in the log) and both dialogs returned
+  to a responsive window.
 - **Remaining:** a closed window's handle reused by a newer Ghostty window
   can parent a queued dialog. The first Ctrl+click on an inactive window
   only activates it and does not open the link (existing behavior). In a

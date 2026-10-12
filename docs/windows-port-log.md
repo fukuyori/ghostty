@@ -38,10 +38,12 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   custom-scheme link with its confirmation dialog, and a `file:` link with
   the blocked dialog; the window stayed responsive and the log showed three
   shell opens without failures.
+- By hand on the final revision (drain timer, quit check, worker
+  allocator), with the same three links: the web link opened the browser
+  twice (shell opens id 1 and 2 in the log), and both dialogs returned to a
+  responsive window.
 - `zig build test -Dtest-filter=Win32` and
-  `scripts/test-windows-window-state.ps1` pass on the final revision; the
-  final revision's timer, quit check, and worker allocator were not checked
-  by hand.
+  `scripts/test-windows-window-state.ps1` pass on the final revision.
 - Separate finding: Ctrl+clicking a plain-text URL panics a Debug build in
   `Surface.resolvePathForOpening` (`OBJECT_NAME_INVALID` treated as a
   programmer bug by Zig's std).
