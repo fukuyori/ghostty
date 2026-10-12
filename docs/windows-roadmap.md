@@ -1,7 +1,7 @@
 # Ghostty Windows Production-Readiness Roadmap
 
-- Last updated: 2026-09-28
-- Target branch: `windows`
+- Last updated: 2026-10-12
+- Target branch: `windows`; this roadmap moves to `gozitty` when that branch is created (see Section 2)
 - Baseline commit: `132a5d078` (`docs: add Windows implementation roadmap`)
 - Phase breakdown basis: the six phases agreed in the conversation as of 2026-09-14
 - Phase 7 basis: the 2026-09-23 [upstream feature development plan](windows-upstream-feature-plan.md)
@@ -29,20 +29,24 @@ order, or status changes.
 
 | Remote | Purpose | push |
 |---|---|---|
-| `origin` (`fukuyori/ghostty`; the name is kept for now) | Keep upstream history on `main`; develop and publish the Windows build on `windows` | Enabled |
+| `origin` (`fukuyori/ghostty`; the name is kept for now) | Keep upstream history on `main`; maintain the Windows port on `windows`; after the cutover, develop and publish Gozitty on `gozitty` (until then, `windows` is also the development and release branch) | Enabled |
 | `upstream` (`ghostty-org/ghostty`) | Source for continuous merges from the official build | Disabled |
 | `mattn` (`mattn/ghostty`) | Reference for the earlier Windows implementation | Disabled |
 
 | Branch | Purpose | Status |
 |---|---|---|
 | `main` | Mirror upstream `main` without Windows-specific changes | Exists locally and on `origin`; `origin/main` has not yet been synchronized |
-| `windows` | Develop and publish the Windows build; explicitly integrate upstream updates from `main` | Current working branch |
-| `rebrand/gozitty` | Develop the name change from `windows`, then integrate it back after verification | Provisional local branch from `windows` at `d440594ab`; not pushed; to be recreated from `windows` after the next upstream synchronization |
+| `windows` | Keep the Windows port in step with upstream: merge `main`, and make the changes needed for upstream code to build and run on Windows. Until `gozitty` exists it is also the development and release branch | Current working branch |
+| `gozitty` | Long-lived branch created from `windows`: the rename, Gozitty's own features, releases, and user-facing documentation | Not yet created; created after the upstream synchronization and the Win32 apprt restructuring |
+| `rebrand/gozitty` | Provisional rename branch, superseded by `gozitty` | Local branch from `windows` at `d440594ab`; not pushed; deleted only on request |
 
-- Establish this branch workflow first. Check the history and working tree
-  before creating `rebrand/gozitty` from `windows`. Bring upstream updates
-  into `main` before explicitly integrating them into `windows` as needed.
-  Do not force-push. The transition to this workflow is not complete.
+- The three-tier structure was decided on 2026-10-12. Changes flow one way:
+  upstream → `main` → `windows` → `gozitty`; `gozitty` is never merged into
+  `windows`. The boundary, fix routing, verification, documentation, and
+  release rules are in Section 1.2 of the
+  [rebranding plan](windows-rebranding-plan.md). Check the history and
+  working tree before creating `gozitty`. Do not force-push. The transition
+  to this workflow is not complete.
 - Upstream synchronization comes before the rename (decided 2026-10-11).
   Smooth upstream merges after the rename are the rebrand's top priority;
   the rules are in Section 1.1 of the
@@ -54,8 +58,7 @@ order, or status changes.
   so each synchronization must restore the Windows build and tests itself.
 - Keep the GitHub repository named `fukuyori/ghostty` for now (decided
   2026-10-11); the product name change does not include a repository rename.
-  The work branch exists locally. See Section 5 of the
-  [rebranding plan](windows-rebranding-plan.md).
+  See Section 5 of the [rebranding plan](windows-rebranding-plan.md).
 - The 2026-09-22 integration targets upstream `bd1c82bc5`, via local `main`.
   It adds 142 upstream commits to the working tree after the distributed
   `1.3.2-windows.10` preview; it does not move that release's tag. The ConPTY
@@ -128,7 +131,7 @@ owner built the signed installer, which reports `1.3.2-windows.10` with a
 Valid signature. The earlier preview, `1.3.2-windows.9`, fixes numpad digits
 and operators being entered twice.
 
-The current Windows preview is `1.3.2-windows.12`, published on 2026-09-26
+The earlier preview `1.3.2-windows.12` was published on 2026-09-26
 from source commit `0327dbce1`. It adds the native command palette, per-pane
 overlay scrollbars, and Explorer file and directory drops. Debug, real-input,
 high-contrast, mixed-DPI, ReleaseFast regression, soak, signed installer,
@@ -1213,7 +1216,7 @@ Follow-up work is tracked as issues:
 
 Deferred refactoring (raised in the 2026-09-15 code review):
 
-- [#12](https://github.com/fukuyori/ghostty/issues/12): split `src/apprt/win32/App.zig` by responsibility
+- [#12](https://github.com/fukuyori/ghostty/issues/12): split `src/apprt/win32/App.zig` by responsibility. On 2026-10-12 this became a required step before `gozitty` is created; see "Win32 apprt restructuring" in Section 7
 - [#13](https://github.com/fukuyori/ghostty/issues/13): render directly to the back buffer when no custom shader is used
 
 Completion criteria:
@@ -1392,11 +1395,70 @@ Special project outside the ordered implementation queue: rebranding as
 Gozitty [#31](https://github.com/fukuyori/ghostty/issues/31). The
 [rebranding plan](windows-rebranding-plan.md) records its decisions,
 compatibility boundary, work sequence, and acceptance checks. All naming
-decisions were completed on 2026-10-11. The work order is: synchronize
-`windows` with upstream first (plan Phase 0), then recreate
-`rebrand/gozitty` and implement the rename. Smooth upstream merges after the
-rename take priority over other rebranding goals. Its branch and release
-timing are managed independently and do not change the issue order below.
+decisions were completed on 2026-10-11. The work order (revised 2026-10-12)
+is: synchronize `windows` with upstream (plan Phase 0), restructure
+`src/apprt/win32` on `windows` incrementally and finish it (plan Phase 1,
+described below), create the long-lived `gozitty` branch from that
+`windows` (plan Phase 2), then implement the rename on `gozitty`. Smooth upstream merges after the rename
+take priority over other rebranding goals.
+
+The ordered queue below continues on `windows` until `gozitty` is created.
+After that, the remaining Phase 7 features (F4-F8: #33, #34, #35, #24, #21)
+are new features and are implemented on `gozitty`. Real-hardware
+verification of existing features (#5-#10) is done with the product build
+from `gozitty`; a defect it finds in an inherited Windows feature is fixed on
+`windows` first and verified there with the relevant regression scripts.
+
+### Win32 apprt restructuring
+
+Done on `windows` and completed before `gozitty` is created (decided
+2026-10-12); tracked as [#12](https://github.com/fukuyori/ghostty/issues/12).
+`src/apprt/win32` is fork-only (upstream has no `win32` apprt), so the
+restructuring causes no upstream conflicts. It must be complete before
+`gozitty` exists, because splitting continued afterwards would move code on
+`windows` that `gozitty` also edits and would conflict at every
+`windows` → `gozitty` merge.
+
+The split is incremental (decided 2026-10-12). Whenever a change on
+`windows` modifies `src/apprt/win32`, the group of code it touches is first
+moved to its own file in a separate behavior-preserving commit, and the
+change follows in its own commit. Splits are never made inside a merge
+commit. Groups that no change has touched are split in a final pass. The
+restructuring is complete when every group listed below lives in its own
+file and `App.zig` keeps only the application lifecycle and the wiring
+between groups; only then is `gozitty` created.
+
+As of 2026-10-12 the directory holds 20 files and 14,515 lines; `App.zig`
+alone is 6,274 lines and combines the application lifecycle and wakeup
+window, the action dispatch (`performAction`), tab and window commands and
+dialogs, window state (fullscreen, decorations, sizing), URL opening and its
+safety checks, configuration reload and editing, IPC handling, split layout,
+window-class registration and native window creation, background blur, tab
+bar painting and input, keyboard and IME translation, mouse and split-divider
+dragging, and the window procedures.
+
+Goals:
+
+1. Isolate the code that calls core APIs (action dispatch, surface creation,
+   configuration updates), so that the `windows` changes needed after an
+   upstream merge stay in few files.
+2. Split the remaining responsibilities into files by the groups above, so
+   that Gozitty's features can be added as new files and registered from
+   existing ones with a small change.
+3. Give Win32 identifiers (window class names, the IPC pipe prefix, window
+   titles) one definition.
+4. Do not change behavior. Verify each split commit on `windows` with the
+   Zig test suite and the regression checks for the moved group. After the
+   final pass, run the Zig test suite,
+   `scripts/test-windows-window-state.ps1`, `scripts/test-windows-parity.ps1`,
+   `scripts/test-windows-context-menu.ps1`, `scripts/test-windows-soak.ps1`,
+   and a GUI check of tabs, splits, IME, DPI, and IPC.
+5. If the name indirection is placed on `windows` (rebranding plan,
+   Section 2), add it during this step with `ghostty` values, so that the
+   baseline exists before `gozitty` is created.
+
+The concrete file split is designed before the first split commit and
+recorded here, so that incremental splits follow one layout.
 
 The ordered implementation queue is:
 
@@ -1987,7 +2049,8 @@ Investigation completion criteria:
 
 Deferred refactoring:
 
-- [#12](https://github.com/fukuyori/ghostty/issues/12): split `src/apprt/win32/App.zig` by responsibility
+- [#12](https://github.com/fukuyori/ghostty/issues/12): no longer deferred;
+  it is the "Win32 apprt restructuring" step above
 - [#13](https://github.com/fukuyori/ghostty/issues/13): render directly to the back buffer when no custom shader is used
 
 Release history and evidence for already distributed builds remain in
@@ -2095,6 +2158,17 @@ git diff --check
 Because the Windows implementation moves ahead, conflicts are possible when
 merging upstream. Keep commits per feature and run the Win32 tests before
 and after merging.
+
+### Divergence between `windows` and `gozitty`
+
+With three tiers, every synchronization needs a second merge from
+`windows` into `gozitty`. Conflicts at that step arise where a port change on
+`windows` overlaps a rename site or a Gozitty feature, most likely in
+`src/apprt/win32`. Keep the boundary in Section 1.2 of the
+[rebranding plan](windows-rebranding-plan.md), add Gozitty features as new
+files, and route Win32 identifiers through one definition. A fix made only
+on `gozitty` for a port defect would leave `windows` behind; fix port
+defects on `windows` first.
 
 ### Duplicate implementation with the mattn build
 
