@@ -27,6 +27,7 @@ pub const path = @import("path.zig");
 pub const passwd = @import("passwd.zig");
 pub const xdg = @import("xdg.zig");
 pub const windows = @import("windows.zig");
+pub const windows_path = @import("windows_path.zig");
 pub const macos = @import("macos.zig");
 pub const shell = @import("shell.zig");
 pub const stderr = @import("stderr.zig");
@@ -73,5 +74,7 @@ test {
     } else if (comptime builtin.os.tag.isDarwin()) {
         _ = mach;
         _ = macos;
+    } else if (comptime builtin.os.tag == .windows) {
+        _ = windows_path;
     }
 }

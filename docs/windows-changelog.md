@@ -41,6 +41,12 @@ known issues, and known limitations of each version; the
   callback returns, and the shell runs on a worker thread with COM
   initialized. Move the URL-opening code from `App.zig` to `ShellOpen.zig`
   first, as part of [#12](https://github.com/fukuyori/ghostty/issues/12).
+- Stop a Debug build from panicking when a plain-text URL is Ctrl+clicked
+  ([#47](https://github.com/fukuyori/ghostty/issues/47)). The link text was
+  joined to the working directory and checked as a file; for a URL that is
+  not a valid Windows path, and Zig's std panics on that error in Debug
+  builds. Such a path is now rejected before the check. Release builds were
+  not affected.
 
 ### Changed
 

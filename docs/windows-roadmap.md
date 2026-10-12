@@ -1515,8 +1515,8 @@ The ordered implementation queue is:
     Reproduced, root-caused, and fixed on 2026-10-12; see "UI-thread shell
     execution: #36" below.
 13. [#47](https://github.com/fukuyori/ghostty/issues/47): stop a Debug build
-    from panicking when a plain-text URL is Ctrl+clicked; see "Debug panic on
-    plain-text URLs: #47" below.
+    from panicking when a plain-text URL is Ctrl+clicked. Fixed on
+    2026-10-12; see "Debug panic on plain-text URLs: #47" below.
 14. Phase 7 F4 [#33](https://github.com/fukuyori/ghostty/issues/33): taskbar
    progress.
 15. Phase 7 F5 [#34](https://github.com/fukuyori/ghostty/issues/34): HTML and
@@ -1878,7 +1878,7 @@ Status: **Implemented** on 2026-10-12.
 
 #### Debug panic on plain-text URLs: #47
 
-Status: **Planned**.
+Status: **Implemented** on 2026-10-12.
 
 - **Defect:** for a link detected in plain text, `Surface.processLinks` calls
   `resolvePathForOpening`, which joins the text to the terminal's pwd and
@@ -1889,12 +1889,25 @@ Status: **Planned**.
   as plain text panicked a Debug build at `4985657fb` (once by automated
   input, once by hand, same stack). A ReleaseFast build of the same commit
   opened the browser and kept running.
-- **Fix direction:** on Windows, skip the pwd resolution for text that starts
-  with a URL scheme, or validate the joined path before `accessAbsolute`.
-  Keep the change in `src/Surface.zig` guarded by `builtin.os.tag == .windows`.
-- **Verification:** the Debug build opens the plain-text URL; a relative
-  file path printed in the terminal still opens relative to the pwd; the
-  Release build is unchanged.
+- **Fix:** the new fork-only `src/os/windows_path.zig` provides
+  `isCheckable`, which rejects a path with `:` after an optional drive or
+  device prefix, the other characters NTFS forbids in names, control
+  characters, a component longer than 255 UTF-16 code units, a path too long
+  for std's fixed conversion buffer, or text that is not valid WTF-8. On
+  Windows, `resolvePathForOpening` returns null for such a joined path, and
+  for one that is still relative (`D:notes.txt` against a pwd on another
+  drive, which `accessAbsolute` asserts against), so the text opens as is.
+  Shared-code changes: a guarded block in `src/Surface.zig` and three lines
+  in `src/os/main.zig` (export and Windows test reference). A Codex review
+  found the component, total-length, and drive-relative cases.
+- **Limitations:** an alternate data stream (`./file.txt:stream`) is no
+  longer resolved against the pwd and opens as typed. A URL with `..`
+  segments (`http://host/../../file`) can still collapse into a file under
+  the pwd; that predates #47 and does not panic.
+- **Verified on 2026-10-12:** by hand on the Debug build, Ctrl+clicking the
+  plain-text `http://127.0.0.1:65530/` opened the browser without a panic,
+  and `./notes.txt` printed in the terminal opened relative to the working
+  directory. Unit tests cover valid and invalid paths.
 
 #### Input correctness: #40 and #43
 

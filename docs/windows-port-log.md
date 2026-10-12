@@ -5,6 +5,32 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gozitty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-12: Debug panic on plain-text URLs (#47)
+
+- **Defect:** `Surface.resolvePathForOpening` joins plain-text link text to
+  the pwd and calls `accessAbsolute`. A joined URL contains `:` past the
+  drive, NT returns `OBJECT_NAME_INVALID`, and Zig's std panics in Debug.
+  Reproduced by automated input and by hand on a Debug build; a ReleaseFast
+  build of the same commit opened the URL without a panic.
+- **Fix:** shared core, Windows only. `src/os/windows_path.zig` (fork-only)
+  adds `isCheckable` (forbidden characters including `:`, components over 255
+  UTF-16 units, paths over 32000 units, invalid WTF-8);
+  `resolvePathForOpening` returns null for a path it rejects or one that
+  stays relative after `resolve`. `src/os/main.zig` exports the module and
+  references it in its Windows test block.
+- **Review:** Codex found that the first version let a 256-unit component
+  (`OBJECT_NAME_INVALID`, checked with an attribute query), a path longer
+  than std's 32767-unit buffer (from source), and a drive-relative path on
+  another drive through; all three are now rejected. Alternate data streams
+  are no longer resolved against the pwd.
+
+### Verification
+
+By hand on the Debug build: the plain-text `http://127.0.0.1:65530/` opened
+the browser and the log has no panic; `./notes.txt` printed in a terminal
+started in its directory opened in Notepad. Unit tests for valid and invalid
+paths pass.
+
 ## 2026-10-12: Link opening deadlock (#36)
 
 - **Split commit:** `openUrl`, the OSC 8 link policy and its dialogs, and

@@ -2184,6 +2184,19 @@ fn resolvePathForOpening(
 
         const resolved = try std.fs.path.resolve(self.alloc, &.{ terminal_pwd, path });
 
+        // A URL joined to the pwd is not a valid Windows path, and checking
+        // it panics in Debug builds; it is opened as is instead. A path on
+        // another drive (`D:notes.txt`) stays relative, which
+        // `accessAbsolute` asserts against.
+        if (comptime builtin.os.tag == .windows) {
+            if (!std.fs.path.isAbsolute(resolved) or
+                !internal_os.windows_path.isCheckable(resolved))
+            {
+                self.alloc.free(resolved);
+                return null;
+            }
+        }
+
         std.Io.Dir.accessAbsolute(global.io(), resolved, .{}) catch {
             self.alloc.free(resolved);
             return null;
