@@ -32,6 +32,15 @@ known issues, and known limitations of each version; the
   requested size. Ghostty now reasserts its actual size to ConPTY after every
   request. The inbox conhost, used only when the bundled files are missing,
   does not pass the request on and is not covered.
+- Stop Ctrl+clicking a link from freezing every window
+  ([#36](https://github.com/fukuyori/ghostty/issues/36)). Opening a link ran
+  `ShellExecuteW`, and the confirmation or blocked-link dialog for OSC 8
+  links, on the UI thread while the core held its renderer lock; a key or
+  focus message dispatched meanwhile re-entered the core and deadlocked the
+  thread. Link requests now run from the message loop after the core
+  callback returns, and the shell runs on a worker thread with COM
+  initialized. Move the URL-opening code from `App.zig` to `ShellOpen.zig`
+  first, as part of [#12](https://github.com/fukuyori/ghostty/issues/12).
 
 ### Changed
 

@@ -123,6 +123,8 @@ test_device_recovery_failures: u32 = 0,
 power_suspended: bool = false,
 command_palette_owner: ?*Surface = null,
 ipc_server: ?*IpcTransport.Server = null,
+/// open_url requests run by the message loop. See ShellOpen.openUrl.
+pending_opens: ShellOpen.Queue = .empty,
 
 pub fn init(
     self: *App,
@@ -255,6 +257,9 @@ pub fn run(self: *App) !void {
     log.info("starting Win32 event loop", .{});
 
     while (self.running) {
+        // Here the core is not inside a callback and holds no lock.
+        ShellOpen.drain(self);
+
         var msg: win32.MSG = std.mem.zeroes(win32.MSG);
         const ret = win32.GetMessageW(&msg, null, 0, 0);
         if (ret == 0) {
@@ -296,6 +301,7 @@ pub fn terminate(self: *App) void {
         server.deinit();
     }
     self.discardPendingIpcRequests();
+    ShellOpen.discardPending(self);
     while (self.windows.pop()) |window| {
         disableWindowBackgroundBlur(window);
         deinitTabBarAccessibility(window);
@@ -1382,7 +1388,7 @@ fn openConfig(
 
     switch (mode) {
         .os_open => {
-            ShellOpen.shellOpen(self, target, path) catch |err| {
+            ShellOpen.shellOpen(self, path) catch |err| {
                 log.warn("failed to open configuration: {}", .{err});
                 return false;
             };

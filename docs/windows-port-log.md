@@ -5,6 +5,47 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gozitty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-12: Link opening deadlock (#36)
+
+- **Split commit:** `openUrl`, the OSC 8 link policy and its dialogs, and
+  `shellOpen` moved from `App.zig` to `ShellOpen.zig` without behavior
+  changes, the second incremental split for #12. Verified with
+  `zig build test` and `scripts/test-windows-window-state.ps1`.
+- **Reproduction:** a fresh Debug instance showing an OSC 8 link to
+  `http://127.0.0.1:9/`; two quick Ctrl+clicks left the window not
+  responding, with the process alive at 0.75 s of CPU time. Reproduced by
+  automated input and by hand. Two `open_config` calls (OpenWith dialog) did
+  not hang in four runs.
+- **Root cause:** `cdb -pv` stack of the UI thread: `mouseButtonCallback` →
+  `processLinks` (renderer state mutex held) → `openUrl` → `shellOpen` →
+  `ShellExecuteW` → USER32 dispatch → `wndProc` → `keyCallback` →
+  `modsChanged` → `lockUncancelable` on the same mutex.
+- **Fix:** `open_url` queues the request and arms a 50 ms timer on the wakeup
+  window; `App.run` drains the queue at the top of its outermost loop, where
+  the UI thread holds no core lock, and stops the timer. The policy dialogs
+  run there; `ShellExecuteW` runs on a detached worker (COM STA with OLE1DDE
+  disabled, no owner window, page allocator, failures logged with a job id
+  and `GetLastError`). Queued requests are dropped once `WM_QUIT` is pending.
+  Two Codex reviews shaped the design: the first found the same deadlock
+  through the `MessageBoxW` dialogs (`WM_KILLFOCUS` → `focusCallback`), the
+  second the worker's allocator lifetime at exit, a wakeup consumed by a
+  modal loop entered from `GetMessageW`, and opens running after a quit
+  request.
+
+### Verification
+
+- By hand on the queue revision: double Ctrl+click on an OSC 8 web link, a
+  custom-scheme link with its confirmation dialog, and a `file:` link with
+  the blocked dialog; the window stayed responsive and the log showed three
+  shell opens without failures.
+- `zig build test -Dtest-filter=Win32` and
+  `scripts/test-windows-window-state.ps1` pass on the final revision; the
+  final revision's timer, quit check, and worker allocator were not checked
+  by hand.
+- Separate finding: Ctrl+clicking a plain-text URL panics a Debug build in
+  `Surface.resolvePathForOpening` (`OBJECT_NAME_INVALID` treated as a
+  programmer bug by Zig's std).
+
 ## 2026-10-12: ConPTY size after `CSI 8 t` (#46)
 
 - **Defect:** the bundled OpenConsole resizes its console for

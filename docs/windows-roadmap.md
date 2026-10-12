@@ -1512,8 +1512,8 @@ The ordered implementation queue is:
     2026-10-12; see "ConPTY size correctness: #46" below.
 12. [#36](https://github.com/fukuyori/ghostty/issues/36): call
     `ShellExecuteW` for URLs and the configuration file off the UI thread.
-    Begins by confirming the current source and trying to reproduce the hang;
-    see "UI-thread shell execution: #36" below.
+    Reproduced, root-caused, and fixed on 2026-10-12; see "UI-thread shell
+    execution: #36" below.
 13. Phase 7 F4 [#33](https://github.com/fukuyori/ghostty/issues/33): taskbar
    progress.
 14. Phase 7 F5 [#34](https://github.com/fukuyori/ghostty/issues/34): HTML and
@@ -1822,28 +1822,47 @@ inbox conhost remains a limitation.
 
 #### UI-thread shell execution: #36
 
-Status: **Planned**; the hang has not been reproduced.
+Status: **Implemented** on 2026-10-12.
 
-- **Defect:** `shellOpen` calls `ShellExecuteW` synchronously on the UI
-  thread, for `open_url` and for opening the configuration file. The Polter
-  fork recorded that two consecutive cold calls from the thread that owns the
-  windows could leave that thread never returning, freezing every window, and
-  fixed it by moving the call to a worker thread. Only that finding carries
-  over; Polter's code is not used. Whether this build hangs the same way is
-  unconfirmed.
-- **Before starting:** the line numbers in the issue predate the Phase 0
-  merge and the `WindowState.zig` split; confirm the current source. Try to
-  reproduce with repeated cold URL and configuration-file opens.
-- **Fix direction:** keep the URL policy check on the UI thread, then run
-  `ShellExecuteW` on a worker thread that initializes COM with
-  `CoInitializeEx`. Decide how failures reach the log or the user once
-  reporting is asynchronous.
-- **Order of commits:** move the URL-opening code (`openUrl`, its safety
-  checks, and `shellOpen`) out of `App.zig` first, without behavior changes,
-  then make the change.
-- **Verification:** URL opening, the untrusted-URL confirmation, and opening
-  the configuration file still work; the UI stays responsive during repeated
-  opens; `scripts/test-windows-window-state.ps1` passes.
+- **Defect:** the Polter fork recorded that two close `ShellExecuteW` calls
+  on the thread that owns the windows, the first one cold, froze every
+  window. Only that finding was used; Polter's code was not.
+- **Reproduction:** Ctrl+clicking an OSC 8 `http://` link twice in a fresh
+  Debug instance hung the UI thread, by automated input and by hand. Opening
+  the configuration file twice did not hang in four runs.
+- **Root cause** (non-invasive `cdb` stack of the hung UI thread):
+  `processLinks` runs with the renderer state mutex held and calls
+  `open_url`; the Win32 handler called `ShellExecuteW` on the UI thread,
+  which dispatched the Ctrl key-up while waiting; the re-entered
+  `keyCallback` → `modsChanged` locked the same non-recursive mutex on the
+  same thread. A Codex review found the same deadlock through the OSC 8
+  confirmation and blocked-link `MessageBoxW` (`WM_KILLFOCUS` →
+  `focusCallback`).
+- **Fix:** `src/apprt/win32/ShellOpen.zig` (split from `App.zig` first
+  without behavior changes). `open_url` only copies the request into a
+  queue and arms a timer on the wakeup window; the outermost message loop
+  runs the queue, outside every core callback, and the timer keeps the loop
+  returning until it has. The URL policy and its dialogs run there, and
+  `ShellExecuteW` runs on a detached worker that initializes COM (STA,
+  OLE1DDE disabled), has no owner window, allocates from the process-lifetime
+  page allocator, and logs failures with a job id and `GetLastError` but
+  never the URL. Queued requests are discarded once `WM_QUIT` is pending.
+- **Behavior changes:** `open_url` reports a queued request as handled, so a
+  later shell failure no longer falls back to the core opener; opening the
+  configuration file reports that the worker started; several opens may reach
+  the shell out of order.
+- **Verified on 2026-10-12:** by hand, double Ctrl+click on an OSC 8 web link,
+  a custom-scheme link (confirmation dialog), and a `file:` link (blocked
+  dialog) left the window responsive. The Win32 tests and
+  `scripts/test-windows-window-state.ps1` pass; the full `zig build test`
+  passed on the split commit. The final revision (drain timer, quit check,
+  worker allocator) was checked with the automated tests only.
+- **Remaining:** a closed window's handle reused by a newer Ghostty window
+  can parent a queued dialog. The first Ctrl+click on an inactive window
+  only activates it and does not open the link (existing behavior). In a
+  Debug build, Ctrl+clicking a plain-text URL panics in
+  `Surface.resolvePathForOpening`, which joins the URL to the pwd and
+  checks it as a file; this is separate from #36.
 
 #### Input correctness: #40 and #43
 
