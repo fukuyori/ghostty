@@ -14,9 +14,12 @@ known issues, and known limitations of each version; the
 - Handle upstream's `resize_window` action (`CSI 8 ; rows ; cols t`) on Win32
   ([#45](https://github.com/fukuyori/ghostty/issues/45)). With
   `vt-window-resize-allowed = true`, a window with a single terminal resizes
-  to the requested grid; an omitted or zero dimension keeps its size. The
-  request is ignored while the window is maximized, minimized, fullscreen, or
-  snapped, and when it has more than one tab or split. Move the Win32 window
+  to the requested grid; an omitted or zero dimension keeps its size, and
+  only the requested dimensions are limited to the work area. The request is
+  ignored while the window is maximized, minimized, fullscreen, or snapped,
+  and when it has more than one tab or split. Snapping is detected with
+  `IsWindowArranged` where Windows provides it, and otherwise by comparing
+  the window size with its restore size. Move the Win32 window
   state handling from `App.zig` to `WindowState.zig` first, as the first step
   of [#12](https://github.com/fukuyori/ghostty/issues/12).
 

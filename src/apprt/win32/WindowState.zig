@@ -343,7 +343,7 @@ fn resizeClientArea(
     return setWindowExtent(hwnd, .{
         .width = rect.right - rect.left,
         .height = rect.bottom - rect.top,
-    });
+    }, .{});
 }
 
 /// Resize the window so that the target surface becomes the requested size,
@@ -380,11 +380,17 @@ pub fn resizeWindow(
     // The requested size is in points of the surface's content scale. Resize
     // the window by the change in device pixels so the title bar, tab bar,
     // and borders keep their size.
+    // A zero dimension keeps its current size, so only the requested
+    // dimensions are limited to the work area.
+    if (value.width == 0 and value.height == 0) return true;
     const scale = surface.getContentScale() catch return false;
     const size = surface.getSize() catch return false;
     return setWindowExtent(hwnd, .{
         .width = current.width + resizeDelta(value.width, scale.x, size.width),
         .height = current.height + resizeDelta(value.height, scale.y, size.height),
+    }, .{
+        .width = value.width != 0,
+        .height = value.height != 0,
     });
 }
 
@@ -399,10 +405,16 @@ fn resizeDelta(requested: u32, scale: f32, current: u32) i32 {
 }
 
 /// Whether the window is snapped to a screen edge or into a snap layout.
-/// A snapped window keeps its restore size in the placement, so its actual
-/// size differs from it. `IsWindowArranged` would answer this directly but
-/// is not available on every supported Windows 10 release.
+/// `IsWindowArranged` answers this directly, but it is not exported by every
+/// supported Windows 10 release, so it is looked up at run time. Without it,
+/// a window whose size differs from the restore size in its placement is
+/// treated as snapped; this misses a window snapped into a zone of exactly
+/// its restore size.
 fn isSnapped(hwnd: win32.HWND, current: WindowExtent) bool {
+    if (isWindowArrangedFn()) |isWindowArranged| {
+        return isWindowArranged(hwnd) != 0;
+    }
+
     var placement: win32.WINDOWPLACEMENT = std.mem.zeroes(win32.WINDOWPLACEMENT);
     placement.length = @sizeOf(win32.WINDOWPLACEMENT);
     if (win32.GetWindowPlacement(hwnd, &placement) == 0) {
@@ -414,9 +426,28 @@ fn isSnapped(hwnd: win32.HWND, current: WindowExtent) bool {
         normal.bottom - normal.top != current.height;
 }
 
-/// Resize the window to the given outer size, limited to the work area of
-/// its monitor, without moving it.
-fn setWindowExtent(hwnd: win32.HWND, extent: WindowExtent) bool {
+const IsWindowArrangedFn = *const fn (?win32.HWND) callconv(.winapi) win32.BOOL;
+
+fn isWindowArrangedFn() ?IsWindowArrangedFn {
+    const user32 = win32.GetModuleHandleW(win32.L("user32.dll")) orelse return null;
+    const proc = win32.GetProcAddress(user32, "IsWindowArranged") orelse return null;
+    return @ptrCast(proc);
+}
+
+/// Which dimensions `setWindowExtent` limits to the monitor's work area.
+const ClampDimensions = struct {
+    width: bool = true,
+    height: bool = true,
+};
+
+/// Resize the window to the given outer size without moving it. The
+/// dimensions selected by `clamp` are limited to the work area of its
+/// monitor.
+fn setWindowExtent(
+    hwnd: win32.HWND,
+    extent: WindowExtent,
+    clamp: ClampDimensions,
+) bool {
     var outer = extent;
     if (win32.MonitorFromWindow(
         hwnd,
@@ -429,7 +460,9 @@ fn setWindowExtent(hwnd: win32.HWND, extent: WindowExtent) bool {
             .dwFlags = 0,
         };
         if (win32.GetMonitorInfoW(monitor, &info) != 0) {
-            outer = clampWindowExtent(outer, info.rcWork);
+            const clamped = clampWindowExtent(outer, info.rcWork);
+            if (clamp.width) outer.width = clamped.width;
+            if (clamp.height) outer.height = clamped.height;
         } else {
             log.warn("GetMonitorInfoW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         }

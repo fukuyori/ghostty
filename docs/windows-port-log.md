@@ -14,12 +14,20 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   `zig build test` (exit 0) and `scripts/test-windows-window-state.ps1`.
 - **Change:** `WindowState.resizeWindow` handles `.resize_window`. It resizes
   the window by the difference between the requested size and the surface's
-  current size in device pixels, keeps the position, and limits the size to
-  the monitor's work area. It ignores the request while the window is
-  maximized, minimized, fullscreen, or snapped, and when the window has more
-  than one surface. Snapping is detected by comparing the window size with
-  the restore size in `GetWindowPlacement`, because `IsWindowArranged` is not
-  available on every supported Windows 10 release.
+  current size in device pixels and keeps the position. Only the requested
+  dimensions are limited to the monitor's work area; an omitted or zero
+  dimension keeps its size even when it exceeds the work area. It ignores the
+  request while the window is maximized, minimized, fullscreen, or snapped,
+  and when the window has more than one surface.
+- **Snap detection:** `IsWindowArranged` is looked up in `user32.dll` at run
+  time, because not every supported Windows 10 release exports it. Without
+  it, a window whose size differs from the restore size in
+  `GetWindowPlacement` is treated as snapped; that fallback misses a window
+  snapped into a zone of exactly its restore size.
+- **Review:** a Codex review found that the first version compared sizes
+  only, missing a window snapped into a zone of its restore size, and limited
+  both dimensions to the work area, shrinking an omitted dimension. Both were
+  fixed before push.
 
 ### Verification
 
@@ -31,10 +39,12 @@ Debug build, cells 10×21 px, padding 2 px, starting at 80×24 (804×508 px):
 | Default config, `CSI 8;30;100 t` | Unchanged; core logs that the request is disabled |
 | Allowed, `CSI 8;20 t` | 804×424 px = 80×20, width kept |
 | Allowed, started maximized | Unchanged, still maximized |
+| Allowed, window widened to 3000 px (work area 2512 px), `CSI 8;20 t` | 2984×424 px: width kept, 20 rows |
 
 `zig build test -Dtest-filter=Win32` and
-`scripts/test-windows-window-state.ps1` pass. The snapped and multi-surface
-cases were not checked on screen.
+`scripts/test-windows-window-state.ps1` pass. `IsWindowArranged` resolves
+on the Windows 11 test machine. The snapped and multi-surface cases were not
+checked on screen.
 
 ConPTY applies `CSI 8 t` to its own buffer as well: `[Console]::WindowWidth`
 and `WindowHeight` inside the shell reported 100×30 in every case, including
