@@ -5,6 +5,43 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gozitty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-12: `resize_window` on Win32 (#45)
+
+- **Split commit:** window state handling (maximize, fullscreen, decorations,
+  always-on-top, sizing) moved from `App.zig` to `WindowState.zig` without
+  behavior changes, the first incremental split for
+  [#12](https://github.com/fukuyori/ghostty/issues/12). Verified with
+  `zig build test` (exit 0) and `scripts/test-windows-window-state.ps1`.
+- **Change:** `WindowState.resizeWindow` handles `.resize_window`. It resizes
+  the window by the difference between the requested size and the surface's
+  current size in device pixels, keeps the position, and limits the size to
+  the monitor's work area. It ignores the request while the window is
+  maximized, minimized, fullscreen, or snapped, and when the window has more
+  than one surface. Snapping is detected by comparing the window size with
+  the restore size in `GetWindowPlacement`, because `IsWindowArranged` is not
+  available on every supported Windows 10 release.
+
+### Verification
+
+Debug build, cells 10×21 px, padding 2 px, starting at 80×24 (804×508 px):
+
+| Case | Surface after the request |
+|---|---|
+| `vt-window-resize-allowed = true`, `CSI 8;30;100 t` | 1004×634 px = 100×30 |
+| Default config, `CSI 8;30;100 t` | Unchanged; core logs that the request is disabled |
+| Allowed, `CSI 8;20 t` | 804×424 px = 80×20, width kept |
+| Allowed, started maximized | Unchanged, still maximized |
+
+`zig build test -Dtest-filter=Win32` and
+`scripts/test-windows-window-state.ps1` pass. The snapped and multi-surface
+cases were not checked on screen.
+
+ConPTY applies `CSI 8 t` to its own buffer as well: `[Console]::WindowWidth`
+and `WindowHeight` inside the shell reported 100×30 in every case, including
+the ones where Ghostty kept its size. When the request is ignored, the
+console size the shell sees can therefore differ from Ghostty's grid until
+the next resize.
+
 ## 2026-10-12: Upstream synchronization (rebranding plan Phase 0)
 
 - **Branch:** `sync/upstream-20261012`, merged into `windows`.

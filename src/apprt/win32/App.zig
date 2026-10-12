@@ -653,6 +653,7 @@ pub fn performAction(
         .float_window => return WindowState.floatWindow(target, value),
         .initial_size => return WindowState.setInitialSize(target, value),
         .reset_window_size => return WindowState.resetWindowSize(target),
+        .resize_window => return WindowState.resizeWindow(target, value),
         .open_url => return self.openUrl(target, value),
         .open_config => return try self.openConfig(target, value),
         .reload_config => {

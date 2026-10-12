@@ -340,10 +340,84 @@ fn resizeClientArea(
         return false;
     }
 
-    var outer = WindowExtent{
+    return setWindowExtent(hwnd, .{
+        .width = rect.right - rect.left,
+        .height = rect.bottom - rect.top,
+    });
+}
+
+/// Resize the window so that the target surface becomes the requested size,
+/// as requested by the running program (CSI 8 t). See
+/// `apprt.action.ResizeWindow`. Like the GTK runtime, this only resizes a
+/// window whose only surface is the target, and only while the window is in
+/// its normal state: not maximized, minimized, fullscreen, or snapped.
+pub fn resizeWindow(
+    target: apprt.Target,
+    value: apprt.action.ResizeWindow,
+) bool {
+    const surface = App.targetSurface(target) orelse {
+        log.warn("resize_window targeted the application", .{});
+        return false;
+    };
+    const window = surface.rtApp().windowForSurface(surface) orelse return false;
+    if (window.totalSurfaceCount() != 1) return false;
+    if (surface.fullscreen) return false;
+
+    const hwnd = surface.windowHwnd();
+    if (win32.IsZoomed(hwnd) != 0 or win32.IsIconic(hwnd) != 0) return false;
+
+    var rect: win32.RECT = undefined;
+    if (win32.GetWindowRect(hwnd, &rect) == 0) {
+        log.warn("GetWindowRect failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return false;
+    }
+    const current: WindowExtent = .{
         .width = rect.right - rect.left,
         .height = rect.bottom - rect.top,
     };
+    if (isSnapped(hwnd, current)) return false;
+
+    // The requested size is in points of the surface's content scale. Resize
+    // the window by the change in device pixels so the title bar, tab bar,
+    // and borders keep their size.
+    const scale = surface.getContentScale() catch return false;
+    const size = surface.getSize() catch return false;
+    return setWindowExtent(hwnd, .{
+        .width = current.width + resizeDelta(value.width, scale.x, size.width),
+        .height = current.height + resizeDelta(value.height, scale.y, size.height),
+    });
+}
+
+/// Returns the change in device pixels from the current size to the
+/// requested size in points, or zero if the requested size is zero.
+fn resizeDelta(requested: u32, scale: f32, current: u32) i32 {
+    if (requested == 0) return 0;
+    const px = @as(f32, @floatFromInt(requested)) * scale;
+    const max: f32 = @floatFromInt(std.math.maxInt(i32) / 2);
+    return @as(i32, @intFromFloat(@round(@min(px, max)))) -
+        @as(i32, @intCast(@min(current, std.math.maxInt(i32) / 2)));
+}
+
+/// Whether the window is snapped to a screen edge or into a snap layout.
+/// A snapped window keeps its restore size in the placement, so its actual
+/// size differs from it. `IsWindowArranged` would answer this directly but
+/// is not available on every supported Windows 10 release.
+fn isSnapped(hwnd: win32.HWND, current: WindowExtent) bool {
+    var placement: win32.WINDOWPLACEMENT = std.mem.zeroes(win32.WINDOWPLACEMENT);
+    placement.length = @sizeOf(win32.WINDOWPLACEMENT);
+    if (win32.GetWindowPlacement(hwnd, &placement) == 0) {
+        log.warn("GetWindowPlacement failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        return true;
+    }
+    const normal = placement.rcNormalPosition;
+    return normal.right - normal.left != current.width or
+        normal.bottom - normal.top != current.height;
+}
+
+/// Resize the window to the given outer size, limited to the work area of
+/// its monitor, without moving it.
+fn setWindowExtent(hwnd: win32.HWND, extent: WindowExtent) bool {
+    var outer = extent;
     if (win32.MonitorFromWindow(
         hwnd,
         win32.MONITOR_DEFAULTTONEAREST,
@@ -370,7 +444,7 @@ fn resizeClientArea(
         outer.height,
         .{ .NOMOVE = 1, .NOZORDER = 1, .NOACTIVATE = 1 },
     ) == 0) {
-        log.warn("SetWindowPos for client size failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("SetWindowPos resizing the window failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         return false;
     }
     return true;
@@ -388,6 +462,13 @@ fn clampWindowExtent(extent: WindowExtent, work_area: win32.RECT) WindowExtent {
         .width = std.math.clamp(extent.width, 1, work_width),
         .height = std.math.clamp(extent.height, 1, work_height),
     };
+}
+
+test "Win32 resize_window delta in device pixels" {
+    try std.testing.expectEqual(@as(i32, 0), resizeDelta(0, 1.5, 900));
+    try std.testing.expectEqual(@as(i32, 100), resizeDelta(800, 1.0, 700));
+    try std.testing.expectEqual(@as(i32, -150), resizeDelta(400, 1.5, 750));
+    try std.testing.expectEqual(@as(i32, 2), resizeDelta(668, 1.5, 1000));
 }
 
 test "clamp Win32 window size to monitor work area" {
