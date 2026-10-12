@@ -13,6 +13,7 @@ const DirectComposition = @import("../apprt/win32/DirectComposition.zig");
 const log = std.log.scoped(.d3d11);
 
 pub const GraphicsAPI = D3D11;
+pub const Device = @import("d3d11/Device.zig");
 pub const Target = @import("d3d11/Target.zig");
 pub const Frame = @import("d3d11/Frame.zig");
 pub const RenderPass = @import("d3d11/RenderPass.zig");
@@ -35,7 +36,7 @@ default_sampler: ?Sampler,
 blending: configpkg.Config.AlphaBlending,
 last_target: ?Target = null,
 
-pub fn init(_: Allocator, opts: rendererpkg.Options) !D3D11 {
+pub fn init(_: Allocator, _: *const Device, opts: rendererpkg.Options) !D3D11 {
     const size = try opts.rt_surface.getSize();
     var presenter = try DirectComposition.init(
         opts.rt_surface.hwnd,

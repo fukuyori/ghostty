@@ -1402,6 +1402,12 @@ described below), create the long-lived `gozitty` branch from that
 `windows` (plan Phase 2), then implement the rename on `gozitty`. Smooth upstream merges after the rename
 take priority over other rebranding goals.
 
+Phase 0 was completed on 2026-10-12: upstream through `6d53bafb1` was merged
+into `windows`, and the build, Zig tests, and window-state regression pass.
+The details are in the [port log](windows-port-log.md). Win32 does not yet
+handle upstream's new `resize_window` action (`CSI 8 t`, off by default
+through `vt-window-resize-allowed`); it is to be implemented on `windows`.
+
 The ordered queue below continues on `windows` until `gozitty` is created.
 After that, the remaining Phase 7 features (F4-F8: #33, #34, #35, #24, #21)
 are new features and are implemented on `gozitty`. Real-hardware

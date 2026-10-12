@@ -548,6 +548,21 @@ pub const TerminalFormatter = struct {
         // cursor last.
         screen_formatter.content = .none;
         screen_formatter.extra = self.extra.screen;
+
+        // In origin mode (DECOM), which the modes above restore, CUP counts
+        // from the top-left of the scrolling region restored above, so the
+        // cursor position is written relative to it.
+        if (self.opts.emit == .vt and
+            self.extra.modes and
+            self.extra.scrolling_region and
+            self.terminal.modes.get(.origin))
+        {
+            screen_formatter.cursor_origin = .{
+                .x = self.terminal.scrolling_region.left,
+                .y = self.terminal.scrolling_region.top,
+            };
+        }
+
         try screen_formatter.format(writer);
     }
 };
@@ -579,6 +594,11 @@ pub const ScreenFormatter = struct {
     /// Warning: there is a significant performance hit to track this
     pin_map: ?PinMap,
 
+    /// The point the emitted cursor position (CUP) counts from. This is the
+    /// top-left of the screen unless the output is replayed in origin mode
+    /// (DECOM), where CUP counts from the top-left of the scrolling region.
+    cursor_origin: CursorOrigin = .{},
+
     pub const Content = union(enum) {
         /// Emit no content, only terminal state such as modes, palette, etc.
         /// via extra.
@@ -587,6 +607,11 @@ pub const ScreenFormatter = struct {
         /// Emit the content specified by the selection. Null for all.
         /// The selection is inclusive on both ends.
         selection: ?Selection,
+    };
+
+    pub const CursorOrigin = struct {
+        x: size.CellCountInt = 0,
+        y: size.CellCountInt = 0,
     };
 
     pub const Extra = packed struct {
@@ -701,10 +726,14 @@ pub const ScreenFormatter = struct {
         // hyperlink, protection, and charset must be restored afterwards.
         if (self.extra.cursor) cursor: {
             const cursor = &self.screen.cursor;
+            const origin = self.cursor_origin;
 
             // If we don't have pending wrap, then we can just use CUP.
             if (!cursor.pending_wrap or cursor.x != self.screen.pages.cols - 1) {
-                try writer.print("\x1b[{d};{d}H", .{ cursor.y + 1, cursor.x + 1 });
+                try writer.print("\x1b[{d};{d}H", .{
+                    (cursor.y -| origin.y) + 1,
+                    (cursor.x -| origin.x) + 1,
+                });
                 break :cursor;
             }
 
@@ -717,7 +746,7 @@ pub const ScreenFormatter = struct {
             // Move cursor to the edge.
             try writer.print(
                 "\x1b[{d};{d}H",
-                .{ cursor.y + 1, start_x + 1 },
+                .{ (cursor.y -| origin.y) + 1, (start_x -| origin.x) + 1 },
             );
 
             // Reformat the cell which sets the proper pending wrap state.
@@ -886,7 +915,15 @@ pub const PageListFormatter = struct {
         writer: *std.Io.Writer,
     ) std.Io.Writer.Error!void {
         const tl: PageList.Pin = self.top_left orelse self.list.getTopLeft(.screen);
-        const br: PageList.Pin = self.bottom_right orelse self.list.getBottomRight(.screen).?;
+        var br: PageList.Pin = self.bottom_right orelse self.list.getBottomRight(.screen).?;
+
+        // If the end is a spacer head, move it onto the wrapped wide char,
+        // which may be on another page.
+        if (self.opts.unwrap and !self.rectangle and
+            br.rowAndCell().cell.wide == .spacer_head)
+        {
+            br = br.rightWrap(1) orelse br;
+        }
 
         var page_state: ?PageFormatter.TrailingState = null;
         var iter = tl.pageIterator(.right_down, br);
@@ -1056,37 +1093,14 @@ pub const PageFormatter = struct {
         const start_x: size.CellCountInt = self.start_x;
         if (start_x >= self.page.size.cols) return .{ .rows = blank_rows, .cells = blank_cells };
         const end_x_unclamped: size.CellCountInt = self.end_x orelse self.page.size.cols - 1;
-        var end_x = @min(end_x_unclamped, self.page.size.cols - 1);
+        const end_x = @min(end_x_unclamped, self.page.size.cols - 1);
 
         // Setup our starting row and perform some validation for overflows.
         const start_y: size.CellCountInt = self.start_y;
         if (start_y >= self.page.size.rows) return .{ .rows = blank_rows, .cells = blank_cells };
         const end_y_unclamped: size.CellCountInt = self.end_y orelse self.page.size.rows - 1;
         if (start_y > end_y_unclamped) return .{ .rows = blank_rows, .cells = blank_cells };
-        var end_y = @min(end_y_unclamped, self.page.size.rows - 1);
-
-        // Edge case: if our end x/y falls on a spacer head AND we're unwrapping,
-        // then we move the x/y to the start of the next row (if available).
-        if (self.opts.unwrap and !self.rectangle) {
-            const final_row = self.page.getRow(end_y);
-            const cells = self.page.getCells(final_row);
-            switch (cells[end_x].wide) {
-                .spacer_head => {
-                    // Move to next row if available
-                    //
-                    // TODO: if unavailable, we should add to our trailing state
-                    //
-                    // so the pagelist formatter can be aware and maybe add
-                    // another page
-                    if (end_y < self.page.size.rows - 1) {
-                        end_y += 1;
-                        end_x = 0;
-                    }
-                },
-
-                else => {},
-            }
-        }
+        const end_y = @min(end_y_unclamped, self.page.size.rows - 1);
 
         // If we only have a single row, validate that start_x <= end_x
         if (start_y == end_y and start_x > end_x) {
@@ -2374,30 +2388,6 @@ test "Page plain single wide char soft-wrapped unwrapped" {
         try testing.expectEqualStrings("1A⚡", output);
         try testing.expectEqual(@as(usize, page.size.rows - 1), state.rows);
         try testing.expectEqual(@as(usize, page.size.cols - 2), state.cells);
-
-        // Verify our point map
-        try testing.expectEqual(output.len, point_map.items.len);
-        for (2..output.len) |i| try testing.expectEqual(
-            Coordinate{ .x = 0, .y = 1 },
-            point_map.items[i],
-        );
-    }
-
-    // Full string (ending on spacer head)
-    {
-        builder.clearRetainingCapacity();
-        point_map.clearRetainingCapacity();
-
-        formatter.end_x = 2;
-        formatter.end_y = 0;
-        defer {
-            formatter.end_x = null;
-            formatter.end_y = null;
-        }
-
-        _ = try formatter.formatWithState(&builder.writer);
-        const output = builder.writer.buffered();
-        try testing.expectEqualStrings("1A⚡", output);
 
         // Verify our point map
         try testing.expectEqual(output.len, point_map.items.len);
@@ -4381,6 +4371,66 @@ test "PageList soft-wrapped line spanning two pages with unwrap" {
     }
 }
 
+test "PageList selection ending on spacer head" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+    const io = testing.io;
+
+    for ([_]bool{ false, true }) |across_pages| {
+        var t = try Terminal.init(io, alloc, .{ .cols = 3, .rows = 3 });
+        defer t.deinit(alloc);
+
+        var s = t.vtStream();
+        defer s.deinit();
+
+        const pages = &t.screens.active.pages;
+        const first_node = pages.pages.first.?;
+        const y = if (across_pages) first_node.capacity().rows - 1 else 0;
+        for (0..y) |_| s.nextSlice("\r\n");
+        s.nextSlice("1A⚡Z");
+
+        const start: Pin = .{ .node = first_node, .x = 0, .y = y };
+        const end: Pin = .{ .node = first_node, .x = 2, .y = y };
+        var glyph = end.down(1).?;
+        glyph.x = 0;
+        try testing.expectEqual(across_pages, glyph.node != first_node);
+
+        var builder: std.Io.Writer.Allocating = .init(alloc);
+        defer builder.deinit();
+        var pin_map: PinMap.Map = .empty;
+        defer pin_map.deinit(alloc);
+
+        var formatter: PageListFormatter = .init(pages, .{ .emit = .plain, .unwrap = true });
+        formatter.bottom_right = end;
+        formatter.pin_map = .{ .alloc = alloc, .map = &pin_map };
+
+        for ([_]bool{ true, false }) |only_glyph| {
+            builder.clearRetainingCapacity();
+            pin_map.clearRetainingCapacity();
+            formatter.top_left = if (only_glyph) end else start;
+            try formatter.format(&builder.writer);
+            const output = builder.writer.buffered();
+            try testing.expectEqualStrings(if (only_glyph) "⚡" else "1A⚡", output);
+            try testing.expectEqual(output.len, pin_map.count());
+            for (output.len - "⚡".len..output.len) |i| {
+                try testing.expectEqual(glyph, pin_map.get(i).?);
+            }
+        }
+
+        // Neither wrapped output nor rectangle selections extend the end.
+        for ([_]struct { unwrap: bool, rectangle: bool }{
+            .{ .unwrap = false, .rectangle = false },
+            .{ .unwrap = true, .rectangle = true },
+        }) |case| {
+            builder.clearRetainingCapacity();
+            formatter.opts.unwrap = case.unwrap;
+            formatter.rectangle = case.rectangle;
+            try formatter.format(&builder.writer);
+            try testing.expectEqualStrings("1A", builder.writer.buffered());
+        }
+    }
+}
+
 test "PageList VT spanning two pages" {
     const testing = std.testing;
     const alloc = testing.allocator;
@@ -5634,6 +5684,73 @@ test "Terminal vt with scrolling region" {
     try testing.expectEqual(t.scrolling_region.bottom, t2.scrolling_region.bottom);
     try testing.expectEqual(t.scrolling_region.left, t2.scrolling_region.left);
     try testing.expectEqual(t.scrolling_region.right, t2.scrolling_region.right);
+}
+
+test "Terminal vt with cursor in origin mode" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+    const io = testing.io;
+
+    // Each stream sets a scrolling region and origin mode, then moves
+    // the cursor within the region; the last one leaves a pending wrap
+    // in the right column, which is restored by printing that cell again.
+    // The left and right margins need mode 69.
+    const streams = [_][]const u8{
+        "\x1b[3;8r\x1b[?6h\x1b[2;5H",
+        "\x1b[?69h\x1b[3;8r\x1b[4;15s\x1b[?6h\x1b[2;3H",
+        "\x1b[3;8r\x1b[?6h\x1b[2;20Hx",
+    };
+    for (streams) |stream| {
+        var builder: std.Io.Writer.Allocating = .init(alloc);
+        defer builder.deinit();
+
+        var t = try Terminal.init(io, alloc, .{ .cols = 20, .rows = 10 });
+        defer t.deinit(alloc);
+        var s = t.vtStream();
+        defer s.deinit();
+        s.nextSlice(stream);
+
+        var formatter: TerminalFormatter = .init(&t, .vt);
+        formatter.extra = .all;
+        try formatter.format(&builder.writer);
+
+        var t2 = try Terminal.init(io, alloc, .{ .cols = 20, .rows = 10 });
+        defer t2.deinit(alloc);
+        var s2 = t2.vtStream();
+        defer s2.deinit();
+        s2.nextSlice(builder.writer.buffered());
+
+        try testing.expect(t2.modes.get(.origin));
+        try testing.expectEqual(t.screens.active.cursor.x, t2.screens.active.cursor.x);
+        try testing.expectEqual(t.screens.active.cursor.y, t2.screens.active.cursor.y);
+        try testing.expectEqual(
+            t.screens.active.cursor.pending_wrap,
+            t2.screens.active.cursor.pending_wrap,
+        );
+    }
+}
+
+test "Terminal vt with cursor in origin mode without the region" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+    const io = testing.io;
+
+    var builder: std.Io.Writer.Allocating = .init(alloc);
+    defer builder.deinit();
+
+    var t = try Terminal.init(io, alloc, .{ .cols = 20, .rows = 10 });
+    defer t.deinit(alloc);
+    var s = t.vtStream();
+    defer s.deinit();
+    s.nextSlice("\x1b[3;8r\x1b[?6h\x1b[2;5H");
+
+    // Without the scrolling region in the output, the replaying terminal
+    // keeps full-screen margins, so the position stays absolute.
+    var formatter: TerminalFormatter = .init(&t, .vt);
+    formatter.extra = .all;
+    formatter.extra.scrolling_region = false;
+    try formatter.format(&builder.writer);
+    try testing.expect(std.mem.indexOf(u8, builder.writer.buffered(), "\x1b[4;5H") != null);
 }
 
 test "Terminal vt with modes" {

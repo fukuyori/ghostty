@@ -92,6 +92,10 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
 
         pub const ExportedFrame = if (@hasDecl(GraphicsAPI, "ExportedFrame")) GraphicsAPI.ExportedFrame else void;
 
+        /// Whether +Y is down in the coordinate space of exported
+        /// frames. Apprts use this to orient frames when presenting.
+        pub const custom_shader_y_is_down = GraphicsAPI.custom_shader_y_is_down;
+
         const Target = GraphicsAPI.Target;
         const Buffer = GraphicsAPI.Buffer;
         const Sampler = GraphicsAPI.Sampler;
@@ -225,6 +229,12 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
 
         /// Health of the most recently completed frame.
         health: std.atomic.Value(Health) = .{ .raw = .healthy },
+
+        /// Health of how well the apprt can present our frames.
+        ///
+        /// This is separate from `health` because a renderer
+        /// can produce healthy frames that the apprt can't present.
+        presentation_health: std.atomic.Value(Health) = .{ .raw = .healthy },
 
         /// True when we have a graphics context that can create GPU
         /// resources. Creating any GPU resource while this is false is invalid.
@@ -690,9 +700,13 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
 
         pub fn init(alloc: Allocator, options: renderer.Options) !Self {
             // Initialize our graphics API wrapper, this will prepare the
-            // surface provided by the apprt and set up any API-specific
-            // GPU resources.
-            var api = try GraphicsAPI.init(alloc, options);
+            // surface provided by the apprt and set up any API- and surface-
+            // specific GPU resources.
+            var api = try GraphicsAPI.init(
+                alloc,
+                options.device,
+                options,
+            );
             errdefer api.deinit();
 
             const supports_custom_shaders = if (@hasDecl(GraphicsAPI, "supports_custom_shaders"))
@@ -918,7 +932,11 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
                 self.draw_mutex.lockUncancelable(global.io());
                 defer self.draw_mutex.unlock(global.io());
 
-                // Release swap chain and shaders.
+                // Release swap chain and shaders. Shaders are only freed
+                // while unrealized and not every apprt unrealizes before
+                // destroying a surface (macOS never does), so mark it
+                // unrealized. This also stops any later draw.
+                self.display_realized = false;
                 self.releaseGpuResources();
                 if (comptime builtin.os.tag == .windows) self.deinitShaders();
 
@@ -1185,6 +1203,17 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             self.custom_shader_focused_changed = true;
 
             self.syncDisplayLink(null, null);
+        }
+
+        /// Called when the apprt reports a change in how well
+        /// frames can be presented.
+        pub fn setPresentationHealth(self: *Self, health: Health) void {
+            self.presentation_health.store(health, .seq_cst);
+        }
+
+        /// Returns how well frames can be presented.
+        pub fn presentationHealth(self: *Self) Health {
+            return self.presentation_health.load(.seq_cst);
         }
 
         /// Callback when the window is visible or occluded.
@@ -1812,8 +1841,8 @@ pub fn Renderer(comptime GraphicsAPI: type) type {
             if (surface_size.width == 0 or surface_size.height == 0) return false;
 
             // If we have no graphics context we can't draw. This is
-            // only the case while unrealized (GTK); displayRealized
-            // rebuilds the swap chain.
+            // only the case while unrealized (GTK) or after the render
+            // thread exits; displayRealized rebuilds the swap chain.
             if (!self.display_realized) return false;
 
             // A device-recoverable API must not submit resources belonging to

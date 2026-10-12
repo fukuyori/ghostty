@@ -1725,7 +1725,7 @@ pub const Windows = struct {
                 .done => return,
             };
 
-            var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+            var path_buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
             const full_path = std.fmt.bufPrintZ(
                 &path_buf,
                 "{s}\\{s}",
