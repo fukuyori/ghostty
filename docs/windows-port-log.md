@@ -60,4 +60,5 @@ preserved.
   `219cca932`, `3175f6733`, `211149dbc`): the Win32 `performAction` does not
   handle it, so the request is ignored. It is gated by
   `vt-window-resize-allowed`, which defaults to `false`, so default behavior
-  is unchanged. To be implemented on `windows`.
+  is unchanged. To be implemented on `windows`
+  ([#45](https://github.com/fukuyori/ghostty/issues/45)).
