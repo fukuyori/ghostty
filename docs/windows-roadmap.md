@@ -1514,16 +1514,26 @@ The ordered implementation queue is:
     `ShellExecuteW` for URLs and the configuration file off the UI thread.
     Reproduced, root-caused, and fixed on 2026-10-12; see "UI-thread shell
     execution: #36" below.
-13. Phase 7 F4 [#33](https://github.com/fukuyori/ghostty/issues/33): taskbar
+13. [#47](https://github.com/fukuyori/ghostty/issues/47): stop a Debug build
+    from panicking when a plain-text URL is Ctrl+clicked; see "Debug panic on
+    plain-text URLs: #47" below.
+14. Phase 7 F4 [#33](https://github.com/fukuyori/ghostty/issues/33): taskbar
    progress.
-14. Phase 7 F5 [#34](https://github.com/fukuyori/ghostty/issues/34): HTML and
+15. Phase 7 F5 [#34](https://github.com/fukuyori/ghostty/issues/34): HTML and
    mixed clipboard output.
-15. Phase 7 F6 [#35](https://github.com/fukuyori/ghostty/issues/35): session
+16. Phase 7 F6 [#35](https://github.com/fukuyori/ghostty/issues/35): session
    save and restore, beginning with its design decisions.
-16. Phase 7 F7 [#24](https://github.com/fukuyori/ghostty/issues/24): quick
+17. Phase 7 F7 [#24](https://github.com/fukuyori/ghostty/issues/24): quick
    terminal and `global:` bindings, beginning with its design decisions.
-17. Phase 7 F8 [#21](https://github.com/fukuyori/ghostty/issues/21): desktop
+18. Phase 7 F8 [#21](https://github.com/fukuyori/ghostty/issues/21): desktop
     and command-finish notifications, beginning with its design decisions.
+
+#47 follows #36 and precedes F4. It does not affect releases (verified with a
+ReleaseFast build), but it crashes the Debug build on an ordinary link click,
+which is the build every Windows check runs on, and it was found while
+verifying #36. It is a defect in how shared code behaves on Windows, so it is
+fixed on `windows` before `gozitty` is created; the fix touches the shared
+`src/Surface.zig` and must stay guarded by `builtin.os.tag == .windows`.
 
 #46 and #36 are placed before F4 for the same reason as #37-#39 below: known
 correctness defects are addressed before another feature is added. Both are
@@ -1865,6 +1875,26 @@ Status: **Implemented** on 2026-10-12.
   Debug build, Ctrl+clicking a plain-text URL panics in
   `Surface.resolvePathForOpening`, which joins the URL to the pwd and
   checks it as a file; this is separate from #36.
+
+#### Debug panic on plain-text URLs: #47
+
+Status: **Planned**.
+
+- **Defect:** for a link detected in plain text, `Surface.processLinks` calls
+  `resolvePathForOpening`, which joins the text to the terminal's pwd and
+  checks the result with `std.Io.Dir.accessAbsolute`. For a URL the joined
+  path contains `:` after the first component; NT returns
+  `OBJECT_NAME_INVALID`, and Zig's std panics on that status in Debug builds.
+- **Measured on 2026-10-12:** Ctrl+clicking `http://127.0.0.1:65530/` printed
+  as plain text panicked a Debug build at `4985657fb` (once by automated
+  input, once by hand, same stack). A ReleaseFast build of the same commit
+  opened the browser and kept running.
+- **Fix direction:** on Windows, skip the pwd resolution for text that starts
+  with a URL scheme, or validate the joined path before `accessAbsolute`.
+  Keep the change in `src/Surface.zig` guarded by `builtin.os.tag == .windows`.
+- **Verification:** the Debug build opens the plain-text URL; a relative
+  file path printed in the terminal still opens relative to the pwd; the
+  Release build is unchanged.
 
 #### Input correctness: #40 and #43
 
