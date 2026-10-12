@@ -1465,8 +1465,75 @@ Goals:
    decided 2026-10-12). Add it during this step with `ghostty` values, so
    that the baseline exists before `gozitty` is created.
 
-The concrete file split is designed before the first split commit and
-recorded here, so that incremental splits follow one layout.
+The concrete file split was recorded on 2026-10-12, after the first two
+splits (`WindowState.zig` for #45 and `ShellOpen.zig` for #36), and revised
+after a Codex review of the call graph and shared state. Later splits follow
+this layout.
+
+| File | Responsibility |
+|---|---|
+| `App.zig` | Initialization, `run`/`terminate`/`wakeup`, the message loop and wakeup window, App state, ownership lookups, and thin apprt entry points that forward to the modules below |
+| `Actions.zig` (new) | The body of `performAction`: dispatch only, forwarding each action to its owning module |
+| `WindowLifecycle.zig` (new) | Window, tab, and split creation (including core surface initialization and rollback), close requests and confirmation, teardown, and tab/window removal |
+| `WindowCommands.zig` (new) | Navigation, reordering, resize/equalize/zoom, and tab activation |
+| `WindowState.zig` (exists) | Maximize, fullscreen, decorations, sizing, `resize_window`, plus window-state transfer, presentation, visibility toggling, and the startup show |
+| `ShellOpen.zig` (exists) | URL and file opening and the OSC 8 policy |
+| `TabTitles.zig` (new) | Title actions, the tab-title dialog, window-title synchronization, and title-change notification |
+| `ConfigActions.zig` (new) | Reload and update, `config_change`, diagnostics, editing the configuration, scrollbar configuration |
+| `IpcHandler.zig` (new) | The CLI IPC entry point, UI request ownership and dispatch, and results; transport stays in `IpcTransport.zig` |
+| `WindowLayout.zig` (new) | Pane, search, and scrollbar placement, content bounds, DPI handling, and relayout |
+| `NativeWindow.zig` (new) | Window-class registration, icons, styles, and raw HWND creation |
+| `WindowAppearance.zig` (new) | Background-blur policy and fallback, and high-contrast and theme refresh; the composition objects stay in `Backdrop.zig` |
+| `SplitDivider.zig` (new) | Divider layout, painting and window procedure, colors, invalidation, hit testing, drag, capture, and cursor |
+| `TabBarController.zig` (new) | Tab-bar paint preparation, pointer, drag, and wheel handling, viewport, invalidation, and the tab-bar window procedure; drawing and geometry stay in `TabBar.zig` |
+| `TabBarAccessibility.zig` (exists) | The provider plus accessible-name synchronization, event notifications, lookup, and detachment |
+| `Keyboard.zig` (new) | Key translation and the complete key, character, and IME-placement handling, including suppression state and its reset on focus loss |
+| `Mouse.zig` (exists) | Cursor shape plus terminal mouse buttons, motion, capture release, wheel, and coordinate helpers |
+| `FileDrop.zig` (exists) | Plus native drop handling and its warning |
+| `CommandPalette.zig` (exists) | Plus showing the palette from the App, keeping its surface-identity checks around the modal loop |
+| `SearchBar.zig` (exists) | Plus the search actions now inline in `performAction` |
+| `Recovery.zig` (new) | GPU recovery budget and power suspend/resume handling, including the test messages |
+| `WndProc.zig` (new) | Parent and surface window-procedure dispatch and userdata lookup, delegating to the modules above |
+
+Rules for each split:
+
+- One group per commit, behavior unchanged; tests move with the code they
+  test and stay discoverable (`src/apprt/win32.zig` and App's comptime
+  block).
+- `Window.zig`, `Tab.zig`, and `SplitTree.zig` stay ownership and layout
+  models; App fields are not reorganized during extraction.
+- Preserve the sequencing the code relies on: ownership before core
+  initialization and its rollback on failure; renderer and core teardown
+  before destroying the child HWND; close requests posted rather than run
+  inside a core callback; IPC requests surviving a timeout and released at
+  shutdown; palette actions revalidating the surface; divider capture
+  cancelled before tab or surface ownership changes.
+- A core adapter that gathers the calls into core APIs (surface
+  initialization, configuration updates, event submission) was suggested but
+  is not part of this pass; whether to add one is decided after the split,
+  from how scattered those calls remain.
+
+Order: the brand source first (below), then the small groups (tab titles,
+configuration actions, recovery, window appearance), the additions to
+existing files, `NativeWindow`, `WindowLayout` and `SplitDivider`,
+`TabBarController`, `WindowLifecycle` and `WindowCommands`, `Keyboard`,
+`Actions`, and `WndProc` last because it reaches every other group.
+
+The name indirection is a fork-owned `src/brand.zig` usable by the runtime and
+the build, holding the current `ghostty` values. Runtime identifiers move to
+it first (window classes, display name and titles, branded dialog text, the
+IPC pipe prefix, the recovery test environment variables, the Gaussian effect
+class string); `IpcProtocol.zig`'s `GHTYIPC1` signature is referenced from it
+without changing its bytes. Build and distribution sites (executable name,
+`ghostty.rc`, resource layout, release and installer scripts, test scripts)
+follow in separate commits. Values do not change in Phase 1.
+
+Verification: every split commit runs the build, the Win32 Zig tests, and
+`scripts/test-windows-window-state.ps1` against the new executable. Manual
+GUI checks are batched by area once its groups are split: input (keyboard,
+IME, mouse, divider and tab-bar dragging), display (DPI, layout, appearance,
+recovery with `-TestGpuRecovery` and `-TestPowerResume`), and IPC (real
+`+new-tab` requests); the final pass runs the checks listed in goal 4.
 
 The ordered implementation queue is:
 
