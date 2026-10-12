@@ -1510,24 +1510,33 @@ The ordered implementation queue is:
     console size in step with Ghostty's grid when a `CSI 8 t` resize request
     is ignored. Begins with the investigation described under "ConPTY size
     correctness: #46" below, after the remaining on-screen checks of #45.
-12. Phase 7 F4 [#33](https://github.com/fukuyori/ghostty/issues/33): taskbar
+12. [#36](https://github.com/fukuyori/ghostty/issues/36): call
+    `ShellExecuteW` for URLs and the configuration file off the UI thread.
+    Begins by confirming the current source and trying to reproduce the hang;
+    see "UI-thread shell execution: #36" below.
+13. Phase 7 F4 [#33](https://github.com/fukuyori/ghostty/issues/33): taskbar
    progress.
-13. Phase 7 F5 [#34](https://github.com/fukuyori/ghostty/issues/34): HTML and
+14. Phase 7 F5 [#34](https://github.com/fukuyori/ghostty/issues/34): HTML and
    mixed clipboard output.
-14. Phase 7 F6 [#35](https://github.com/fukuyori/ghostty/issues/35): session
+15. Phase 7 F6 [#35](https://github.com/fukuyori/ghostty/issues/35): session
    save and restore, beginning with its design decisions.
-15. Phase 7 F7 [#24](https://github.com/fukuyori/ghostty/issues/24): quick
+16. Phase 7 F7 [#24](https://github.com/fukuyori/ghostty/issues/24): quick
    terminal and `global:` bindings, beginning with its design decisions.
-16. Phase 7 F8 [#21](https://github.com/fukuyori/ghostty/issues/21): desktop
+17. Phase 7 F8 [#21](https://github.com/fukuyori/ghostty/issues/21): desktop
     and command-finish notifications, beginning with its design decisions.
 
-#46 is placed before F4 for the same reason as #37-#39 below: a known
-correctness defect is addressed before another feature is added. It is a
-defect in the port, so it is fixed on `windows` (rebranding plan, Section
-1.2), and fixing it before `gozitty` is created avoids carrying it across the
-`windows` → `gozitty` merge. It does not wait for Phase 1: the fix is
-expected in the Windows paths of termio or the pty rather than in
-`src/apprt/win32`, which the investigation will confirm.
+#46 and #36 are placed before F4 for the same reason as #37-#39 below: known
+correctness defects are addressed before another feature is added. Both are
+defects in the port, so they are fixed on `windows` (rebranding plan, Section
+1.2), and fixing them before `gozitty` is created avoids carrying them across
+the `windows` → `gozitty` merge. #46 comes first because its mismatch was
+measured on 2026-10-12 and follows directly from the #45 work; #36 would
+freeze every window if it occurs, but it was found by static comparison and
+has not been reproduced. #46 does not wait for Phase 1: its fix is expected
+in the Windows paths of termio or the pty rather than in `src/apprt/win32`,
+which the investigation will confirm. #36 changes `src/apprt/win32`, so its
+URL-opening code is first moved to its own file in a separate
+behavior-preserving commit (Win32 apprt restructuring above).
 
 #37-#39 are placed between #42 and the larger #15 IPC feature so known
 correctness and recovery defects are addressed before adding another Win32
@@ -1791,6 +1800,31 @@ Status: **Planned**; investigation has not started.
 - **Verification:** repeat the #45 measurement (allowed, disabled, maximized)
   and confirm the shell's console size matches Ghostty's grid in each case;
   run `scripts/test-windows-window-state.ps1`.
+
+#### UI-thread shell execution: #36
+
+Status: **Planned**; the hang has not been reproduced.
+
+- **Defect:** `shellOpen` calls `ShellExecuteW` synchronously on the UI
+  thread, for `open_url` and for opening the configuration file. The Polter
+  fork recorded that two consecutive cold calls from the thread that owns the
+  windows could leave that thread never returning, freezing every window, and
+  fixed it by moving the call to a worker thread. Only that finding carries
+  over; Polter's code is not used. Whether this build hangs the same way is
+  unconfirmed.
+- **Before starting:** the line numbers in the issue predate the Phase 0
+  merge and the `WindowState.zig` split; confirm the current source. Try to
+  reproduce with repeated cold URL and configuration-file opens.
+- **Fix direction:** keep the URL policy check on the UI thread, then run
+  `ShellExecuteW` on a worker thread that initializes COM with
+  `CoInitializeEx`. Decide how failures reach the log or the user once
+  reporting is asynchronous.
+- **Order of commits:** move the URL-opening code (`openUrl`, its safety
+  checks, and `shellOpen`) out of `App.zig` first, without behavior changes,
+  then make the change.
+- **Verification:** URL opening, the untrusted-URL confirmation, and opening
+  the configuration file still work; the UI stays responsive during repeated
+  opens; `scripts/test-windows-window-state.ps1` passes.
 
 #### Input correctness: #40 and #43
 
