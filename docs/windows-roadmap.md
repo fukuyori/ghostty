@@ -1461,9 +1461,9 @@ Goals:
    `scripts/test-windows-window-state.ps1`, `scripts/test-windows-parity.ps1`,
    `scripts/test-windows-context-menu.ps1`, `scripts/test-windows-soak.ps1`,
    and a GUI check of tabs, splits, IME, DPI, and IPC.
-5. If the name indirection is placed on `windows` (rebranding plan,
-   Section 2), add it during this step with `ghostty` values, so that the
-   baseline exists before `gozitty` is created.
+5. The name indirection is placed on `windows` (rebranding plan, Section 2,
+   decided 2026-10-12). Add it during this step with `ghostty` values, so
+   that the baseline exists before `gozitty` is created.
 
 The concrete file split is designed before the first split commit and
 recorded here, so that incremental splits follow one layout.

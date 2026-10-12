@@ -23,7 +23,27 @@ known issues, and known limitations of each version; the
   state handling from `App.zig` to `WindowState.zig` first, as the first step
   of [#12](https://github.com/fukuyori/ghostty/issues/12).
 
+### Changed
+
+- Merge upstream through `6d53bafb1` (238 commits since `bd1c82bc5`), the
+  rebranding plan's Phase 0. Adapt the D3D11 and Win32 OpenGL renderers to
+  upstream's app-scoped `renderer.Device` and drop the removed WebGL backend;
+  each surface still creates its own D3D11 device. Upstream's other changes
+  arrive with it, including the `resize_window` action handled above. The
+  conflicts, resolutions, and verification are recorded in the new
+  [port log](windows-port-log.md).
+
 ### Documentation
+
+- Plan three branch tiers for [#31](https://github.com/fukuyori/ghostty/issues/31):
+  `main` mirrors upstream, `windows` keeps the port in step with upstream, and
+  a long-lived `gozitty` branch carries the rename and Gozitty's own features.
+  Restructure `src/apprt/win32` incrementally on `windows` and finish it
+  before `gozitty` is created
+  ([#12](https://github.com/fukuyori/ghostty/issues/12)). Decide to place the
+  name indirection on `windows` with `ghostty` values. Add
+  `docs/windows-port-log.md` for synchronization results and port-fix
+  evidence on `windows`.
 
 - Add [#44](https://github.com/fukuyori/ghostty/issues/44) to the roadmap as
   an investigation of `kitten icat`, `diff`, `themes`, `hints`, and `transfer`;
