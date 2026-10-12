@@ -123,8 +123,14 @@ Debug build, cells 10×21 px, padding 2 px, starting at 80×24 (804×508 px):
 
 `zig build test -Dtest-filter=Win32` and
 `scripts/test-windows-window-state.ps1` pass. `IsWindowArranged` resolves
-on the Windows 11 test machine. The snapped and multi-surface cases were not
-checked on screen.
+on the Windows 11 test machine.
+
+Checked by hand on 2026-10-12 at `4985657fb` (Debug build, with the #46 resync
+in place), alternating `CSI 8;30;100 t` and `CSI 8;24;80 t`: a single window
+resized; a window snapped with Win+Left kept its snapped size; with two tabs
+and with a split (made from the context menu) the window kept its size; after
+closing the extra tab or pane the window resized again. Every request queued
+one ConPTY resync.
 
 ConPTY applies `CSI 8 t` to its own buffer as well: `[Console]::WindowWidth`
 and `WindowHeight` inside the shell reported 100×30 in every case, including
