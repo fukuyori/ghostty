@@ -1936,6 +1936,13 @@ fn resizeWindow(
     self: *Surface,
     size: terminal.StreamAction.ResizeWindow,
 ) !void {
+    // ConPTY applies the request to its own console before passing it on,
+    // so whatever happens here, set the console back to our actual size.
+    // A resize caused by this request supersedes it in the IO thread.
+    defer if (comptime builtin.os.tag == .windows) {
+        self.queueIo(.conpty_resync, .unlocked);
+    };
+
     if (!self.config.vt_window_resize_allowed) {
         log.info("resize_window requested, but disabled via config", .{});
         return;

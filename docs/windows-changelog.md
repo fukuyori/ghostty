@@ -23,6 +23,16 @@ known issues, and known limitations of each version; the
   state handling from `App.zig` to `WindowState.zig` first, as the first step
   of [#12](https://github.com/fukuyori/ghostty/issues/12).
 
+### Fixed
+
+- Keep the console size the shell sees in step with Ghostty's grid after a
+  `CSI 8 t` resize request ([#46](https://github.com/fukuyori/ghostty/issues/46)).
+  The bundled OpenConsole resizes its console for the request before passing
+  it on, so a request Ghostty disabled or ignored left the shell at the
+  requested size. Ghostty now reasserts its actual size to ConPTY after every
+  request. The inbox conhost, used only when the bundled files are missing,
+  does not pass the request on and is not covered.
+
 ### Changed
 
 - Merge upstream through `6d53bafb1` (238 commits since `bd1c82bc5`), the

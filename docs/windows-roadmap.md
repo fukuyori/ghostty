@@ -1508,8 +1508,8 @@ The ordered implementation queue is:
    and `4ce993273`, and acceptance-verified on 2026-09-28.
 11. [#46](https://github.com/fukuyori/ghostty/issues/46): keep ConPTY's
     console size in step with Ghostty's grid when a `CSI 8 t` resize request
-    is ignored. Begins with the investigation described under "ConPTY size
-    correctness: #46" below, after the remaining on-screen checks of #45.
+    is ignored. Implemented and verified with the bundled OpenConsole on
+    2026-10-12; see "ConPTY size correctness: #46" below.
 12. [#36](https://github.com/fukuyori/ghostty/issues/36): call
     `ShellExecuteW` for URLs and the configuration file off the UI thread.
     Begins by confirming the current source and trying to reproduce the hang;
@@ -1777,10 +1777,11 @@ Real-hardware verification in the user's environment:
 
 #### ConPTY size correctness: #46
 
-Status: **Planned**; investigation has not started.
+Status: **Implemented** on 2026-10-12 for the bundled OpenConsole; the
+inbox conhost remains a limitation.
 
-- **Defect:** ConPTY applies `CSI 8 ; rows ; cols t` to its own console
-  buffer and also passes the sequence to Ghostty. When Ghostty does not
+- **Defect:** the bundled OpenConsole applies `CSI 8 ; rows ; cols t` to its
+  own console buffer and also passes the sequence to Ghostty. When Ghostty does not
   resize (`vt-window-resize-allowed = false`, the default, or a Win32 window
   that is maximized, minimized, fullscreen, snapped, or holds more than one
   surface), the shell sees a console size that differs from Ghostty's grid
@@ -1791,15 +1792,33 @@ Status: **Planned**; investigation has not started.
   `CSI 8;30;100 t` the shell reported 100×30 in every case, while Ghostty
   stayed at 80×24 with the default configuration and at 250×67 while
   maximized.
-- **Investigation:**
-  1. After Ghostty ignores a request, resend `ResizePseudoConsole` with the
-     current grid and check whether ConPTY returns to Ghostty's size, including
-     when ConPTY believes the size is already different.
-  2. Compare the sideloaded `conpty.dll` / OpenConsole with the inbox conhost,
-     and check whether a ConPTY flag changes the behavior.
-- **Verification:** repeat the #45 measurement (allowed, disabled, maximized)
-  and confirm the shell's console size matches Ghostty's grid in each case;
-  run `scripts/test-windows-window-state.ps1`.
+- **Investigation:** resending `ResizePseudoConsole` with Ghostty's
+  unchanged grid (a 1px window nudge) returned the console to Ghostty's size,
+  so ConPTY does not skip a resize to the size it was last given. Filtering
+  the sequence cannot help, because ConPTY has already resized when Ghostty
+  receives it. A ConPTY flag was not investigated.
+- **Fix:** on Windows, `Surface.resizeWindow` always queues a
+  `conpty_resync` IO message when it returns, whether the request was
+  disabled, ignored, accepted, or failed. The IO thread coalesces it with
+  resizes: a pending resize sets the pty size itself, and otherwise only the
+  backend is resized to the current grid, leaving terminal state
+  (synchronized output, size reports) untouched. The design compared
+  resending on receipt (briefly restores the old size before an accepted
+  resize) and resending only when the apprt rejects (misses disabled
+  requests and accepted requests that leave the size unchanged), following a
+  Codex design review.
+- **Verified on 2026-10-12** with the bundled OpenConsole and no window
+  nudge: the shell's console matched Ghostty's grid with the request
+  disabled (80×24), allowed (100×30), while maximized (250×67), for
+  `CSI 8;20 t` (80×20), and for an oversized `CSI 8;200;400 t` clamped to
+  the work area (249×66). Each run queued one resync. `zig build test` and
+  `scripts/test-windows-window-state.ps1` pass.
+- **Limitation:** with the inbox conhost (used only when `conpty.dll` and
+  `OpenConsole.exe` are missing), the console still takes the requested
+  size, but the sequence did not reach Ghostty in three of three runs, so
+  Ghostty cannot detect the change.
+- **Not verified:** real TUIs and Vim's `:set columns=` / `:set lines=`, and
+  a deterministic test of the coalescing order.
 
 #### UI-thread shell execution: #36
 

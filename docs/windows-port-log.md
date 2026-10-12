@@ -5,6 +5,43 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gozitty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-12: ConPTY size after `CSI 8 t` (#46)
+
+- **Defect:** the bundled OpenConsole resizes its console for
+  `CSI 8 ; rows ; cols t` and passes the sequence on. When Ghostty does not
+  resize, the shell keeps the requested size.
+- **Investigation:** nudging the window by 1px (grid unchanged) made termio
+  resend the same grid with `ResizePseudoConsole`, and the console returned
+  to Ghostty's size.
+- **Fix:** shared core, Windows only. `Surface.resizeWindow` queues a
+  `conpty_resync` IO message on every return; `termio/Thread.zig` coalesces
+  it with resizes and, when no resize is pending, resizes only the backend
+  to the current grid.
+
+### Verification
+
+Debug build, PowerShell child writing the sequence and reading
+`[Console]::WindowWidth`/`WindowHeight` and the buffer size 2.5 s later, no
+window nudge:
+
+| Case | Bundled OpenConsole: shell / Ghostty | Inbox conhost: shell |
+|---|---|---|
+| Disabled, `CSI 8;30;100 t` | 80×24 / 80×24 | 100×30 |
+| Allowed, `CSI 8;30;100 t` | 100×30 / 100×30 | 100×30 |
+| Allowed, maximized | 250×67 / 250×67 | 100×30 |
+| Allowed, `CSI 8;20 t` | 80×20 / 80×20 | 80×24 |
+| Allowed, `CSI 8;200;400 t` | 249×66 / 249×66 (work area) | 400×200 |
+
+With the inbox conhost the sequence did not reach Ghostty (no
+`resize_window` in the log, three of three disabled runs), so nothing
+triggers a resync. In the earlier #45 measurement a `resize_window` was
+logged for the inbox host only after the window nudge; where it came from
+was not determined. Releases ship OpenConsole, so the inbox host is used only
+when `conpty.dll` and `OpenConsole.exe` are missing.
+
+`zig build test` and `scripts/test-windows-window-state.ps1` pass. Real TUIs
+and Vim were not checked.
+
 ## 2026-10-12: `resize_window` on Win32 (#45)
 
 - **Split commit:** window state handling (maximize, fullscreen, decorations,

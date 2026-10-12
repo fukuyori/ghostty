@@ -31,6 +31,10 @@ const Coalesce = struct {
     const min_ms = 25;
 
     resize: ?renderer.Size = null,
+
+    /// Windows only: reassert the current size to ConPTY. See
+    /// `termio.Message.conpty_resync`.
+    conpty_resync: bool = false,
 };
 
 /// The number of milliseconds before we reset the synchronized output flag
@@ -325,6 +329,9 @@ fn drainMailbox(
             },
             .inspector => |v| self.flags.has_inspector = v,
             .resize => |v| self.handleResize(cb, v),
+            .conpty_resync => if (comptime builtin.os.tag == .windows) {
+                self.handleConptyResync(cb);
+            },
             .size_report => |v| try io.sizeReport(data, v),
             .clear_screen => |v| try io.clearScreen(data, v.history),
             .scroll_viewport => |v| io.scrollViewport(v),
@@ -406,6 +413,23 @@ fn handleResize(self: *Thread, cb: *CallbackData, resize: renderer.Size) void {
     );
 }
 
+/// Windows only: schedule reasserting the current size to ConPTY with the
+/// coalesced resizes, so that a resize already pending replaces it.
+fn handleConptyResync(self: *Thread, cb: *CallbackData) void {
+    self.coalesce_data.conpty_resync = true;
+    if (self.coalesce_c.state() == .active) return;
+
+    self.coalesce.reset(
+        &self.loop,
+        &self.coalesce_c,
+        &self.coalesce_cancel_c,
+        Coalesce.min_ms,
+        CallbackData,
+        cb,
+        coalesceCallback,
+    );
+}
+
 fn syncResetCallback(
     cb_: ?*CallbackData,
     _: *xev.Loop,
@@ -441,11 +465,27 @@ fn coalesceCallback(
 
     const cb = cb_ orelse return .disarm;
 
+    const resized = cb.self.coalesce_data.resize != null;
     if (cb.self.coalesce_data.resize) |v| {
         cb.self.coalesce_data.resize = null;
         cb.io.resize(&cb.data, v) catch |err| {
             log.warn("error during resize err={}", .{err});
         };
+    }
+
+    // Windows only: a resize above already set the pty size. Otherwise
+    // reassert the current size to the pty alone; a full terminal resize
+    // would also reset synchronized output and send size reports.
+    if (comptime builtin.os.tag == .windows) {
+        if (cb.self.coalesce_data.conpty_resync) {
+            cb.self.coalesce_data.conpty_resync = false;
+            if (!resized) cb.io.backend.resize(
+                cb.io.size.grid(),
+                cb.io.size.terminal(),
+            ) catch |err| {
+                log.warn("error reasserting the ConPTY size err={}", .{err});
+            };
+        }
     }
 
     return .disarm;

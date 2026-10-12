@@ -48,6 +48,12 @@ pub const Message = union(enum) {
     /// Resize the window.
     resize: renderer.Size,
 
+    /// Windows only: reassert the current size to ConPTY. ConPTY applies
+    /// a window resize request (CSI 8 t) to its own console before passing
+    /// it on, so after the surface handles one, the console must be set back
+    /// to the actual grid. A pending `resize` satisfies this.
+    conpty_resync: void,
+
     /// Request a size report is sent to the PTY ([in-band
     /// size report, mode 2048](https://gist.github.com/rockorager/e695fb2924d36b2bcf1fff4a3704bd83) and
     /// [XTWINOPS](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h4-Functions-using-CSI-_-ordered-by-the-final-character-lparen-s-rparen:CSI-Ps;Ps;Ps-t.1EB0)).
