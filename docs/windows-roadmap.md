@@ -1506,16 +1506,28 @@ The ordered implementation queue is:
 10. [#15](https://github.com/fukuyori/ghostty/issues/15): implement the scoped
    Win32 `+new-tab -e` IPC support. Implemented in `c1330c1f9`, `e575087f9`,
    and `4ce993273`, and acceptance-verified on 2026-09-28.
-11. Phase 7 F4 [#33](https://github.com/fukuyori/ghostty/issues/33): taskbar
+11. [#46](https://github.com/fukuyori/ghostty/issues/46): keep ConPTY's
+    console size in step with Ghostty's grid when a `CSI 8 t` resize request
+    is ignored. Begins with the investigation described under "ConPTY size
+    correctness: #46" below, after the remaining on-screen checks of #45.
+12. Phase 7 F4 [#33](https://github.com/fukuyori/ghostty/issues/33): taskbar
    progress.
-12. Phase 7 F5 [#34](https://github.com/fukuyori/ghostty/issues/34): HTML and
+13. Phase 7 F5 [#34](https://github.com/fukuyori/ghostty/issues/34): HTML and
    mixed clipboard output.
-13. Phase 7 F6 [#35](https://github.com/fukuyori/ghostty/issues/35): session
+14. Phase 7 F6 [#35](https://github.com/fukuyori/ghostty/issues/35): session
    save and restore, beginning with its design decisions.
-14. Phase 7 F7 [#24](https://github.com/fukuyori/ghostty/issues/24): quick
+15. Phase 7 F7 [#24](https://github.com/fukuyori/ghostty/issues/24): quick
    terminal and `global:` bindings, beginning with its design decisions.
-15. Phase 7 F8 [#21](https://github.com/fukuyori/ghostty/issues/21): desktop
+16. Phase 7 F8 [#21](https://github.com/fukuyori/ghostty/issues/21): desktop
     and command-finish notifications, beginning with its design decisions.
+
+#46 is placed before F4 for the same reason as #37-#39 below: a known
+correctness defect is addressed before another feature is added. It is a
+defect in the port, so it is fixed on `windows` (rebranding plan, Section
+1.2), and fixing it before `gozitty` is created avoids carrying it across the
+`windows` → `gozitty` merge. It does not wait for Phase 1: the fix is
+expected in the Windows paths of termio or the pty rather than in
+`src/apprt/win32`, which the investigation will confirm.
 
 #37-#39 are placed between #42 and the larger #15 IPC feature so known
 correctness and recovery defects are addressed before adding another Win32
@@ -1753,6 +1765,32 @@ Real-hardware verification in the user's environment:
   status 0 without forced termination. The three pipe-close error values and an
   unexpected `ReadFile` failure were verified through the classification test,
   not injected into a live ConPTY read.
+
+#### ConPTY size correctness: #46
+
+Status: **Planned**; investigation has not started.
+
+- **Defect:** ConPTY applies `CSI 8 ; rows ; cols t` to its own console
+  buffer and also passes the sequence to Ghostty. When Ghostty does not
+  resize (`vt-window-resize-allowed = false`, the default, or a Win32 window
+  that is maximized, minimized, fullscreen, snapped, or holds more than one
+  surface), the shell sees a console size that differs from Ghostty's grid
+  until the next resize. Programs that size their output from the console
+  then draw for the wrong grid.
+- **Measured on 2026-10-12** (recorded in the
+  [port log](windows-port-log.md) for #45): starting at 80×24, after
+  `CSI 8;30;100 t` the shell reported 100×30 in every case, while Ghostty
+  stayed at 80×24 with the default configuration and at 250×67 while
+  maximized.
+- **Investigation:**
+  1. After Ghostty ignores a request, resend `ResizePseudoConsole` with the
+     current grid and check whether ConPTY returns to Ghostty's size, including
+     when ConPTY believes the size is already different.
+  2. Compare the sideloaded `conpty.dll` / OpenConsole with the inbox conhost,
+     and check whether a ConPTY flag changes the behavior.
+- **Verification:** repeat the #45 measurement (allowed, disabled, maximized)
+  and confirm the shell's console size matches Ghostty's grid in each case;
+  run `scripts/test-windows-window-state.ps1`.
 
 #### Input correctness: #40 and #43
 
