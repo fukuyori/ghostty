@@ -50,7 +50,8 @@ ConPTY applies `CSI 8 t` to its own buffer as well: `[Console]::WindowWidth`
 and `WindowHeight` inside the shell reported 100×30 in every case, including
 the ones where Ghostty kept its size. When the request is ignored, the
 console size the shell sees can therefore differ from Ghostty's grid until
-the next resize.
+the next resize. Tracked as
+[#46](https://github.com/fukuyori/ghostty/issues/46).
 
 ## 2026-10-12: Upstream synchronization (rebranding plan Phase 0)
 
