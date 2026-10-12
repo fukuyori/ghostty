@@ -5,6 +5,7 @@ const App = @This();
 const std = @import("std");
 const win32 = @import("win32").everything;
 const build_config = @import("../../build_config.zig");
+const brand = @import("../../brand.zig");
 const Allocator = std.mem.Allocator;
 const apprt = @import("../../apprt.zig");
 const configpkg = @import("../../config.zig");
@@ -44,14 +45,15 @@ comptime {
     _ = IpcTransport;
     _ = WindowState;
     _ = ShellOpen;
+    _ = brand;
 }
 
 const log = std.log.scoped(.win32);
 const WindowList = std.ArrayListUnmanaged(*Window);
-const window_class_name = win32.L("GhosttyWindow");
-const tab_bar_class_name = win32.L("GhosttyTabBar");
-const split_divider_class_name = win32.L("GhosttySplitDivider");
-const wakeup_class_name = win32.L("GhosttyWakeup");
+const window_class_name = win32.L(brand.windows.window_class_prefix ++ "Window");
+const tab_bar_class_name = win32.L(brand.windows.window_class_prefix ++ "TabBar");
+const split_divider_class_name = win32.L(brand.windows.window_class_prefix ++ "SplitDivider");
+const wakeup_class_name = win32.L(brand.windows.window_class_prefix ++ "Wakeup");
 
 /// Parent handle that creates a message-only window. Message-only windows
 /// never appear on screen and exist so that posted messages are delivered
@@ -63,7 +65,7 @@ const hwnd_message: win32.HWND = @ptrFromInt(@as(usize, @bitCast(@as(isize, -3))
 /// series of attempts on the renderer thread. A later power resume resets
 /// the budget.
 const gpu_recovery_max_cycles: u32 = 3;
-const default_window_title = win32.L("Ghostty");
+const default_window_title = win32.L(brand.display_name);
 const icon_resource_id: usize = 1;
 const tab_title_dialog_id: usize = 102;
 const tab_title_edit_id: i32 = 1001;
@@ -143,14 +145,14 @@ pub fn init(
     // The regression hooks exist only in builds made with
     // -Dwin32-test-hooks=true; release builds ignore the environment.
     const test_device_recovery = if (comptime build_config.win32_test_hooks)
-        if (environ.get("GHOSTTY_TEST_DEVICE_RECOVERY")) |value|
+        if (environ.get(brand.env_prefix ++ "TEST_DEVICE_RECOVERY")) |value|
             std.mem.eql(u8, value, "1")
         else
             false
     else
         false;
     const test_device_recovery_failures = if (test_device_recovery)
-        if (environ.get("GHOSTTY_TEST_DEVICE_RECOVERY_FAILURES")) |value|
+        if (environ.get(brand.env_prefix ++ "TEST_DEVICE_RECOVERY_FAILURES")) |value|
             std.fmt.parseUnsigned(u32, value, 10) catch 0
         else
             0
@@ -521,9 +523,9 @@ pub fn tabTitleChanged(self: *App, surface: *const Surface) void {
 
 pub fn syncWindowTitle(self: *App, surface: *Surface) void {
     const value = if (self.windowForSurface(surface)) |window|
-        window.titleForSurface(surface) orelse surface.title orelse "Ghostty"
+        window.titleForSurface(surface) orelse surface.title orelse brand.display_name
     else
-        surface.title orelse "Ghostty";
+        surface.title orelse brand.display_name;
     surface.applyTitle(value) catch |err| {
         log.warn("failed to synchronize focused surface title: {}", .{err});
     };
@@ -964,7 +966,7 @@ fn tabTitleDialogProc(
 
 fn promptTabTitle(self: *App, window: *Window, index: usize) !bool {
     const surface = window.focusedSurfaceAt(index) orelse return false;
-    const initial = window.tabTitleAt(index) orelse "Ghostty";
+    const initial = window.tabTitleAt(index) orelse brand.display_name;
     const initial_wide = try std.unicode.utf8ToUtf16LeAllocZ(self.alloc, initial);
     defer self.alloc.free(initial_wide);
 
@@ -1340,7 +1342,7 @@ fn showConfigDiagnostics(
     defer self.alloc.free(message_wide);
 
     const caption = std.unicode.utf8ToUtf16LeStringLiteral(
-        "Ghostty Configuration Error",
+        brand.display_name ++ " Configuration Error",
     );
     const style: win32.MESSAGEBOX_STYLE = .{ .ICONHAND = 1 };
     _ = win32.MessageBoxW(hwnd, message_wide, caption, style);
@@ -1356,7 +1358,7 @@ fn formatConfigDiagnostics(
     var buffer: std.Io.Writer.Allocating = .init(alloc);
     defer buffer.deinit();
     buffer.writer.writeAll(
-        "Ghostty found errors in the configuration:\r\n\r\n",
+        brand.display_name ++ " found errors in the configuration:\r\n\r\n",
     ) catch return error.OutOfMemory;
     for (diagnostics, 0..) |*diagnostic, i| {
         if (i > 0) buffer.writer.writeAll("\r\n") catch
@@ -1484,43 +1486,43 @@ pub fn performIpc(
     const response_payload = IpcTransport.clientExchange(alloc, payload) catch |err| {
         switch (err) {
             error.ServerUnavailable => std.debug.print(
-                "No running Ghostty instance was found.\n",
+                "No running " ++ brand.display_name ++ " instance was found.\n",
                 .{},
             ),
             error.ConnectTimeout => std.debug.print(
-                "Ghostty is busy processing another request.\n",
+                brand.display_name ++ " is busy processing another request.\n",
                 .{},
             ),
             error.AccessDenied => std.debug.print(
-                "Access to the running Ghostty instance was denied; check whether it is running with different privileges.\n",
+                "Access to the running " ++ brand.display_name ++ " instance was denied; check whether it is running with different privileges.\n",
                 .{},
             ),
             error.IoTimeout => std.debug.print(
-                "Timed out waiting for Ghostty; the tab may still be created.\n",
+                "Timed out waiting for " ++ brand.display_name ++ "; the tab may still be created.\n",
                 .{},
             ),
             error.ConnectFailed => std.debug.print(
-                "Unable to connect to the running Ghostty instance.\n",
+                "Unable to connect to the running " ++ brand.display_name ++ " instance.\n",
                 .{},
             ),
-            else => std.debug.print("Ghostty IPC failed: {}\n", .{err}),
+            else => std.debug.print(brand.display_name ++ " IPC failed: {}\n", .{err}),
         }
         return error.IPCFailed;
     };
     defer alloc.free(response_payload);
     const response = IpcProtocol.decodeResponse(response_payload) catch |err| {
-        std.debug.print("The Ghostty IPC response was invalid: {}\n", .{err});
+        std.debug.print("The " ++ brand.display_name ++ " IPC response was invalid: {}\n", .{err});
         return error.IPCFailed;
     };
 
     return switch (response.status) {
         .success => true,
         .target_fallback => success: {
-            std.debug.print("Ghostty used a fallback window for the new tab.\n", .{});
+            std.debug.print(brand.display_name ++ " used a fallback window for the new tab.\n", .{});
             break :success true;
         },
         else => failure: {
-            std.debug.print("Ghostty could not create the tab: {s}\n", .{response.message});
+            std.debug.print(brand.display_name ++ " could not create the tab: {s}\n", .{response.message});
             break :failure error.IPCFailed;
         },
     };
@@ -2402,7 +2404,7 @@ fn tabBarAccessibleName(
     const tab_word = if (tab_count == 1) "tab" else "tabs";
     return std.fmt.allocPrint(
         alloc,
-        "Ghostty tabs. {d} {s}. Active tab {d}: {s}",
+        brand.display_name ++ " tabs. {d} {s}. Active tab {d}: {s}",
         .{ tab_count, tab_word, active_index + 1, active_title },
     );
 }
@@ -2418,7 +2420,7 @@ fn syncTabBarAccessibility(
     const active_surface = window.focusedSurface();
     const active_title = window.tabTitleAt(active_index) orelse
         active_surface.title orelse
-        "Ghostty";
+        brand.display_name;
     const name = tabBarAccessibleName(
         self.alloc,
         window.tabCount(),
@@ -3024,7 +3026,7 @@ fn paintTabBar(self: *App, window: *Window, hdc: win32.HDC, width: i32, height: 
     for (items, 0..) |*item, index| {
         const surface = window.focusedSurfaceAt(index) orelse unreachable;
         item.* = .{
-            .title = window.tabTitleAt(index) orelse surface.title orelse "Ghostty",
+            .title = window.tabTitleAt(index) orelse surface.title orelse brand.display_name,
             .active = index == active,
         };
     }
@@ -4499,7 +4501,7 @@ fn handleFileDrop(surface: *Surface, drop: win32.HDROP) !void {
     const formatted = try FileDrop.formatPaths(temp, surface.file_drop_shell, paths.items);
     core.pasteExternalText(formatted, false) catch |err| switch (err) {
         error.UnsafePaste => {
-            const caption = std.unicode.utf8ToUtf16LeStringLiteral("Ghostty File Drop");
+            const caption = std.unicode.utf8ToUtf16LeStringLiteral(brand.display_name ++ " File Drop");
             const message = std.unicode.utf8ToUtf16LeStringLiteral(
                 "The dropped paths may contain unsafe text. Paste them into the terminal?",
             );
@@ -4518,7 +4520,7 @@ fn handleFileDrop(surface: *Surface, drop: win32.HDROP) !void {
 fn showFileDropWarning(surface: *Surface, message: []const u8) void {
     const wide = std.unicode.utf8ToUtf16LeAllocZ(surface.rtApp().alloc, message) catch return;
     defer surface.rtApp().alloc.free(wide);
-    const caption = std.unicode.utf8ToUtf16LeStringLiteral("Ghostty File Drop");
+    const caption = std.unicode.utf8ToUtf16LeStringLiteral(brand.display_name ++ " File Drop");
     const style: win32.MESSAGEBOX_STYLE = .{ .ICONHAND = 1 };
     _ = win32.MessageBoxW(surface.windowHwnd(), wide, caption, style);
 }
@@ -5446,7 +5448,7 @@ test "format Win32 config diagnostics for display" {
     defer testing.allocator.free(message);
 
     try testing.expectEqualStrings(
-        "Ghostty found errors in the configuration:\r\n\r\n" ++
+        brand.display_name ++ " found errors in the configuration:\r\n\r\n" ++
             "first error\r\nsecond error",
         message,
     );
@@ -5508,7 +5510,7 @@ test "format Win32 tab bar accessible name" {
     defer std.testing.allocator.free(name);
 
     try std.testing.expectEqualStrings(
-        "Ghostty tabs. 3 tabs. Active tab 2: PowerShell",
+        brand.display_name ++ " tabs. 3 tabs. Active tab 2: PowerShell",
         name,
     );
 
@@ -5520,7 +5522,7 @@ test "format Win32 tab bar accessible name" {
     );
     defer std.testing.allocator.free(singular);
     try std.testing.expectEqualStrings(
-        "Ghostty tabs. 1 tab. Active tab 1: Command Prompt",
+        brand.display_name ++ " tabs. 1 tab. Active tab 1: Command Prompt",
         singular,
     );
 }

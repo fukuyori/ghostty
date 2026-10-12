@@ -1,6 +1,7 @@
 //! GDI drawing and hit testing for the native Win32 tab bar child window.
 
 const std = @import("std");
+const brand = @import("../../brand.zig");
 const win32 = @import("win32").everything;
 const Config = @import("../../config/Config.zig");
 
@@ -216,7 +217,7 @@ pub fn paint(
         drawUtf8(
             alloc,
             hdc,
-            if (item.title.len > 0) item.title else "Ghostty",
+            if (item.title.len > 0) item.title else brand.display_name,
             &label_rect,
             draw_left | draw_vcenter | draw_singleline | draw_end_ellipsis | draw_noprefix,
         );

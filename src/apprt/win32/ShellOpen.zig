@@ -2,6 +2,7 @@
 //! policy for links that come from terminal output (OSC 8).
 
 const std = @import("std");
+const brand = @import("../../brand.zig");
 const win32 = @import("win32").everything;
 const Allocator = std.mem.Allocator;
 const apprt = @import("../../apprt.zig");
@@ -313,7 +314,7 @@ fn showBlockedUrl(
     defer self.alloc.free(message_wide);
 
     const caption = std.unicode.utf8ToUtf16LeStringLiteral(
-        "Ghostty Blocked This Link",
+        brand.display_name ++ " Blocked This Link",
     );
     const style: win32.MESSAGEBOX_STYLE = .{ .ICONHAND = 1 };
     _ = win32.MessageBoxW(

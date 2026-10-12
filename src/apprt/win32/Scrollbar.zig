@@ -2,13 +2,14 @@
 //! this child window draws a translucent thumb and sends scroll_to_row input.
 const Self = @This();
 const std = @import("std");
+const brand = @import("../../brand.zig");
 const win32 = @import("win32").everything;
 const Config = @import("../../config/Config.zig");
 const terminal = @import("../../terminal/main.zig");
 const Surface = @import("Surface.zig");
 const log = std.log.scoped(.win32_scrollbar);
 
-const class_name = win32.L("GhosttyOverlayScrollbar");
+const class_name = win32.L(brand.windows.window_class_prefix ++ "OverlayScrollbar");
 const timer_id = 1;
 const hide_delay_ms = 1400;
 var class_registered = false;

@@ -5,6 +5,7 @@
 //! minimal documented WinRT effect description needed for D2D Gaussian blur.
 
 const std = @import("std");
+const brand = @import("../../brand.zig");
 const win32 = @import("win32").everything;
 
 const log = std.log.scoped(.win32_gaussian_blur);
@@ -238,7 +239,7 @@ fn getRuntimeClassName(
     output: ?*?win32.HSTRING,
 ) callconv(.winapi) win32.HRESULT {
     const result = output orelse return win32.E_POINTER;
-    result.* = createHString("Ghostty.GaussianBlurEffect") catch return win32.E_OUTOFMEMORY;
+    result.* = createHString(brand.windows.gaussian_effect_class) catch return win32.E_OUTOFMEMORY;
     return win32.S_OK;
 }
 

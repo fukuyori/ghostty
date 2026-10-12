@@ -4,6 +4,7 @@
 const Self = @This();
 
 const std = @import("std");
+const brand = @import("../../brand.zig");
 const win32 = @import("win32").everything;
 const build_config = @import("../../build_config.zig");
 const apprt = @import("../../apprt.zig");
@@ -535,7 +536,7 @@ fn completeClipboardRequest(
 }
 
 fn confirmClipboardAccess(self: *Self, access: ClipboardAccess) bool {
-    const caption = std.unicode.utf8ToUtf16LeStringLiteral("Ghostty clipboard access");
+    const caption = std.unicode.utf8ToUtf16LeStringLiteral(brand.display_name ++ " clipboard access");
     const message = switch (access) {
         .read => std.unicode.utf8ToUtf16LeStringLiteral(
             "Clipboard access was requested. Allow clipboard contents to be pasted or read?",

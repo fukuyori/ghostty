@@ -1,7 +1,8 @@
 const std = @import("std");
+const brand = @import("../../brand.zig");
 const Allocator = std.mem.Allocator;
 
-pub const magic = "GHTYIPC1";
+pub const magic = brand.windows.ipc_magic;
 pub const version: u16 = 1;
 pub const max_payload_size: usize = 64 * 1024;
 pub const max_arguments: usize = 1024;

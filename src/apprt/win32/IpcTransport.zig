@@ -1,11 +1,12 @@
 const std = @import("std");
+const brand = @import("../../brand.zig");
 const builtin = @import("builtin");
 const win32 = @import("win32").everything;
 const Protocol = @import("IpcProtocol.zig");
 
 const Allocator = std.mem.Allocator;
 
-const pipe_prefix = "\\\\.\\pipe\\fukuyori.ghostty.win32-ipc";
+const pipe_prefix = brand.windows.ipc_pipe_prefix;
 const pipe_buffer_size: u32 = 4 + 64 * 1024;
 const accept_retry_limit: u8 = 3;
 const accept_retry_delay_ms: u32 = 50;

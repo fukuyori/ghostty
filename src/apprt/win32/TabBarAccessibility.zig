@@ -7,6 +7,7 @@
 const Self = @This();
 
 const std = @import("std");
+const brand = @import("../../brand.zig");
 const win32 = @import("win32").everything;
 const TabBar = @import("TabBar.zig");
 const Window = @import("Window.zig");
@@ -255,7 +256,7 @@ fn getAccName(
     if (isSelf(child)) return self.standard.get_accName(child, name);
     const window = self.currentWindow() orelse return win32.E_FAIL;
     const index = self.childIndex(child) orelse return win32.E_INVALIDARG;
-    return setBstr(name, window.tabTitleAt(index) orelse "Ghostty");
+    return setBstr(name, window.tabTitleAt(index) orelse brand.display_name);
 }
 
 fn getAccValue(
@@ -272,7 +273,7 @@ fn getAccDescription(
     description: ?*?win32.BSTR,
 ) callconv(.winapi) win32.HRESULT {
     const self = interfaceSelf(value);
-    if (isSelf(child)) return setBstr(description, "Ghostty tab bar");
+    if (isSelf(child)) return setBstr(description, brand.display_name ++ " tab bar");
     const window = self.currentWindow() orelse return win32.E_FAIL;
     const index = self.childIndex(child) orelse return win32.E_INVALIDARG;
     const text = std.fmt.allocPrint(

@@ -6,6 +6,7 @@
 const Tab = @This();
 
 const std = @import("std");
+const brand = @import("../../brand.zig");
 const SplitTree = @import("SplitTree.zig").SplitTree;
 const Surface = @import("Surface.zig");
 
@@ -43,7 +44,7 @@ pub fn deinit(self: *Tab, alloc: std.mem.Allocator) void {
 }
 
 pub fn title(self: *const Tab) [:0]const u8 {
-    return self.title_override orelse self.focused_surface.title orelse "Ghostty";
+    return self.title_override orelse self.focused_surface.title orelse brand.display_name;
 }
 
 pub fn setTitleOverride(
