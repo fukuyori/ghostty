@@ -50,6 +50,12 @@ known issues, and known limitations of each version; the
 
 ### Changed
 
+- Extract Win32 configuration reload and update, diagnostics, configuration
+  editor launch, and scrollbar configuration into `ConfigActions.zig` for
+  [#12](https://github.com/fukuyori/ghostty/issues/12). Move the four existing
+  diagnostics and editor-command tests with the implementation, preserving
+  behavior and App's ownership of the active configuration. Verification is
+  recorded in the [port log](windows-port-log.md).
 - Extract Win32 title actions, the tab-title dialog, focused-window title
   synchronization, and title-change notification from `App.zig` into
   `TabTitles.zig`, preserving behavior as part of

@@ -5,6 +5,56 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-14: Configuration-action extraction (#12)
+
+- Move configuration reload and update, `config_change`, startup/reload
+  diagnostics, configuration editor launch, and scrollbar configuration from
+  `App.zig` to `ConfigActions.zig`. App retains configuration ownership and
+  dispatches to the module. Window creation, layout, and background-blur
+  helpers stay in App and are exposed until their planned extraction.
+- Move all four existing diagnostics and editor-command tests unchanged and
+  register the module in the Win32 test imports and App's comptime block.
+  Comparing the extracted bodies with the pre-extraction working-tree snapshot
+  confirmed only module qualification, public entry declarations, and
+  indentation changed. The preceding `TabTitles.zig` extraction is retained.
+- The restructuring remains in progress; `Recovery.zig` is next.
+
+### Verification
+
+- Debug build: 128/128 steps succeeded
+  (`zig-out/logs/config-actions-build.log`). Win32 tests with hooks: 91/91
+  steps succeeded, 174 passed and one skipped
+  (`zig-out/logs/config-actions-win32-tests.log`).
+- Unmodified `scripts/test-windows-window-state.ps1`, using
+  `-Executable zig-out/bin/ghostty.exe`: passed, exit code 0, no forced
+  termination. Summary: `zig-out/logs/config-actions-window-state.json`.
+- The first extended run with `-TestCommandPalette -TestOverlayScrollbar`
+  could not measure the bottom scrollbar position. Its saved screenshot
+  showed another app covering the test window. A temporary copy,
+  `zig-out/test-fixtures/config-actions-split/window-state-topmost.ps1`,
+  adjusts the repository-root lookup and makes the dedicated test window
+  and measured scrollbars topmost. The checks themselves are unchanged.
+  This run passed, including palette reload, scrollbar removal/recreation
+  across `never`/`system`, position synchronization, split independence,
+  and drag races. Exit code 0, no forced termination. Summary:
+  `zig-out/logs/config-actions-window-state-topmost.json`. Palette and
+  single/split scrollbar PNGs under
+  `zig-out/logs/window-state-20261014-135936-521-82269d57` were inspected.
+- Dedicated fixture `zig-out/test-fixtures/config-actions-split/check.ps1`:
+  startup and reload diagnostics were displayed and dismissed; a valid
+  reload showed no diagnostic. `open_config:new_window` used `VISUAL`
+  ahead of an invalid `EDITOR` fallback and passed the exact Japanese,
+  space-containing configuration path to a mock editor. The child process
+  used an isolated `XDG_CONFIG_HOME` inside the fixture. Summary:
+  `zig-out/logs/config-actions-20261014-135906.json`; the startup/reload
+  diagnostic and valid-config captures with that prefix were inspected.
+  Exit code 0, no forced termination. The OS-associated editor route was
+  not exercised. These are controlled checks, not physical input acceptance;
+  the planned grouped manual checks remain due.
+- Tested executable: `zig-out/bin/ghostty.exe`, Debug working tree based on
+  `c4671a659` with both extractions, SHA-256
+  `BE26546A1B935C096A424359CFFFED429F8BFAE0EDCA2220B338FFCFBCDF7617`.
+
 ## 2026-10-14: Tab-title extraction (#12)
 
 - Move title actions, the tab-title dialog and its constants, focused-window

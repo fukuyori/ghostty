@@ -1479,7 +1479,7 @@ this layout.
 | `WindowState.zig` (exists) | Maximize, fullscreen, decorations, sizing, `resize_window`, plus window-state transfer, presentation, visibility toggling, and the startup show |
 | `ShellOpen.zig` (exists) | URL and file opening and the OSC 8 policy |
 | `TabTitles.zig` (exists) | Title actions, the tab-title dialog, window-title synchronization, and title-change notification |
-| `ConfigActions.zig` (new) | Reload and update, `config_change`, diagnostics, editing the configuration, scrollbar configuration |
+| `ConfigActions.zig` (exists) | Reload and update, `config_change`, diagnostics, editing the configuration, scrollbar configuration |
 | `IpcHandler.zig` (new) | The CLI IPC entry point, UI request ownership and dispatch, and results; transport stays in `IpcTransport.zig` |
 | `WindowLayout.zig` (new) | Pane, search, and scrollbar placement, content bounds, DPI handling, and relayout |
 | `NativeWindow.zig` (new) | Window-class registration, icons, styles, and raw HWND creation |
@@ -1528,7 +1528,20 @@ and title restoration when switching tabs; the dialog and renamed window
 captures were inspected. Both GUI checks exited with code 0 without forced
 termination. This is synthetic-input evidence; the grouped manual checks
 remain due. See the [port log](windows-port-log.md) for the executable hash
-and evidence paths. `ConfigActions.zig` is the next group in the split order.
+and evidence paths.
+
+The subsequent `ConfigActions.zig` extraction on 2026-10-14 moved configuration
+reload/update, `config_change`, diagnostics, editor launch, scrollbar
+configuration, and their four existing unit tests. The Debug build, Win32
+tests (174 passed, one skipped), and unmodified window-state regression
+passed. A temporary copy of the extended regression kept test windows above
+other apps for screen-pixel measurements; palette reload and scrollbar
+`never`/`system` switching passed. Dedicated checks verified startup/reload
+diagnostics, valid reload, and `VISUAL` editor invocation with a Japanese,
+space-containing config path. Captures were inspected; all successful GUI
+runs exited 0 without forced termination. The port log records the initial
+occluded capture and the test adjustment. Grouped manual checks remain due.
+`Recovery.zig` is the next group in the split order.
 
 The name indirection is a fork-owned `src/brand.zig` usable by the runtime and
 the build, holding the current `ghostty` values. Runtime identifiers move to
@@ -2304,6 +2317,7 @@ the code exists.
 
 | Category | Test item | Current |
 |---|---|---|
+| Win32 restructuring | `ConfigActions.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), and unmodified window-state regression passed on 2026-10-14. Extended palette/scrollbar checks passed with test-window stacking adjusted for captures; dedicated diagnostics/reload/editor checks passed. Captures inspected; grouped manual checks remain. See the port log for scope and evidence |
 | Win32 restructuring | `TabTitles.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), window-state regression, and controlled title actions/dialog/tab-switch checks passed on 2026-10-14. Dialog and renamed-window captures inspected; both GUI checks exited 0 without forced termination. Grouped manual checks remain; see the port log |
 | Feature expansion | Phase 7, F1-F8 | F1-F3 implementation and acceptance checks passed, including physical IME, real-pointer, high-contrast, mixed-DPI, Explorer quoting, pane targeting, and target-window closure. Baseline-CPU ReleaseFast build, combined F1/F2 native regression, 20/20 soak, and real F3 drop passed. F4-F8 remain. See Section 6 and the feature development plan |
 | Startup | Debug build startup | Verified |
