@@ -60,6 +60,14 @@ known issues, and known limitations of each version; the
 
 ### Documentation
 
+- Select the [ghoultty image](../dist/windows/ghoultty-icon-candidate.png)
+  as the Gooztty application icon
+  ([#31](https://github.com/fukuyori/ghostty/issues/31)) on 2026-10-13.
+  Production icon resource generation and display validation remain part of
+  implementation.
+- Record the final product name **Gooztty** for [#31](https://github.com/fukuyori/ghostty/issues/31),
+  replacing the provisional name Gozitty. Update the rebranding plan, roadmap,
+  and port log to use Gooztty and the planned `gooztty` branch and identifiers.
 - Plan three branch tiers for [#31](https://github.com/fukuyori/ghostty/issues/31):
   `main` mirrors upstream, `windows` keeps the port in step with upstream, and
   a long-lived `gozitty` branch carries the rename and Gozitty's own features.

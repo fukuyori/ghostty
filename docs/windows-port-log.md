@@ -2,7 +2,7 @@
 
 This log records each upstream synchronization into `windows` and the
 evidence for port fixes made on `windows`. Only `windows` edits this file;
-`gozitty` takes it unchanged through merges (see Section 1.2 of the
+`gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
 ## 2026-10-12: Debug panic on plain-text URLs (#47)
