@@ -14,6 +14,7 @@ const Surface = @import("Surface.zig");
 const Scrollbar = @import("Scrollbar.zig");
 const ShellOpen = @import("ShellOpen.zig");
 const Titlebar = @import("Titlebar.zig");
+const WindowAppearance = @import("WindowAppearance.zig");
 const WindowState = @import("WindowState.zig");
 
 const log = std.log.scoped(.win32);
@@ -217,7 +218,7 @@ pub fn configChange(
                 log.warn("failed to apply window-decoration setting", .{});
             }
             Titlebar.apply(state.windowHwnd(), value.config, self.high_contrast);
-            App.updateWindowBackgroundBlur(state, value.config);
+            WindowAppearance.updateWindowBackgroundBlur(state, value.config);
             try configureScrollbar(self, core.rt_surface, value.config);
             if (self.windowForSurface(state)) |window| self.layoutWindow(window);
         },

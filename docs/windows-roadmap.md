@@ -1483,7 +1483,7 @@ this layout.
 | `IpcHandler.zig` (new) | The CLI IPC entry point, UI request ownership and dispatch, and results; transport stays in `IpcTransport.zig` |
 | `WindowLayout.zig` (new) | Pane, search, and scrollbar placement, content bounds, DPI handling, and relayout |
 | `NativeWindow.zig` (new) | Window-class registration, icons, styles, and raw HWND creation |
-| `WindowAppearance.zig` (new) | Background-blur policy and fallback, and high-contrast and theme refresh; the composition objects stay in `Backdrop.zig` |
+| `WindowAppearance.zig` (exists) | Background-blur policy and fallback, and high-contrast and theme refresh; the composition objects stay in `Backdrop.zig` |
 | `SplitDivider.zig` (new) | Divider layout, painting and window procedure, colors, invalidation, hit testing, drag, capture, and cursor |
 | `TabBarController.zig` (new) | Tab-bar paint preparation, pointer, drag, and wheel handling, viewport, invalidation, and the tab-bar window procedure; drawing and geometry stay in `TabBar.zig` |
 | `TabBarAccessibility.zig` (exists) | The provider plus accessible-name synchronization, event notifications, lookup, and detachment |
@@ -1553,8 +1553,22 @@ recovery was inspected. Separate probes returned zero when hooks were
 compiled out or disabled at runtime. All successful GUI runs exited 0
 without forced termination. This is controlled recovery evidence, not real
 device-loss or system-suspend verification; grouped manual checks remain due.
-See the port log for artifacts and executable hashes. `WindowAppearance.zig`
-is the next group in the split order.
+See the port log for artifacts and executable hashes.
+
+The subsequent `WindowAppearance.zig` extraction on 2026-10-14 moved
+background-blur policy, cleanup and fallback, high-contrast detection,
+theme-change refresh, and the existing blur-policy test. Source comparison
+confirmed unchanged function and test bodies; the theme handler differs
+only in module qualification and indentation. Win32 tests (174 passed, one
+skipped), the unmodified window-state regression, and controlled blur/theme/
+high-contrast checks passed. Captures show radius changes, blur removal,
+opaque background, split panes, and high-contrast restoration. The dedicated
+processes exited 0 without forced termination; system contrast flags were
+restored. The Acrylic fallback was not forced and grouped manual checks
+remain due. An earlier fixture with an invalid scrollbar value left modal
+diagnostics open and crashed on close; the stack and reproduction sequence
+are retained in the port log. Investigate that finding before the planned
+additions to existing modules; its cause and regression status are unproven.
 
 The name indirection is a fork-owned `src/brand.zig` usable by the runtime and
 the build, holding the current `ghostty` values. Runtime identifiers move to
@@ -2330,6 +2344,7 @@ the code exists.
 
 | Category | Test item | Current |
 |---|---|---|
+| Win32 restructuring | `WindowAppearance.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), window-state regression, and controlled blur/theme/high-contrast checks passed on 2026-10-14; captures inspected and system contrast restored. Acrylic fallback and grouped manual checks remain. An invalid-config/modal-close run crashed; investigation remains separate from the successful valid-config checks. See the port log |
 | Win32 restructuring | `Recovery.zig` extraction (#12) | Normal and hook-enabled Debug builds, Win32 tests (174 passed, one skipped), normal window regression, three controlled GPU recoveries with two injected failures per surface, and power recovery across three surfaces passed on 2026-10-14. Duplicate resume suppressed; disabled-hook probes returned zero. Post-recovery capture inspected. Actual device loss/system suspend remain unverified; see the port log |
 | Win32 restructuring | `ConfigActions.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), and unmodified window-state regression passed on 2026-10-14. Extended palette/scrollbar checks passed with test-window stacking adjusted for captures; dedicated diagnostics/reload/editor checks passed. Captures inspected; grouped manual checks remain. See the port log for scope and evidence |
 | Win32 restructuring | `TabTitles.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), window-state regression, and controlled title actions/dialog/tab-switch checks passed on 2026-10-14. Dialog and renamed-window captures inspected; both GUI checks exited 0 without forced termination. Grouped manual checks remain; see the port log |

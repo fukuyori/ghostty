@@ -50,6 +50,11 @@ known issues, and known limitations of each version; the
 
 ### Changed
 
+- Extract background-blur policy, cleanup and fallback, high-contrast
+  detection, and theme-change refresh into `WindowAppearance.zig` for
+  [#12](https://github.com/fukuyori/ghostty/issues/12). Move the existing
+  blur-policy test with the code, retaining state ownership and call order.
+  Verification status is recorded in the [port log](windows-port-log.md).
 - Extract Win32 GPU recovery scheduling and its cycle budget, power
   suspend/resume handling, and recovery test-message handlers into
   `Recovery.zig` for [#12](https://github.com/fukuyori/ghostty/issues/12).

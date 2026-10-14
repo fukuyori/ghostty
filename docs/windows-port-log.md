@@ -5,6 +5,85 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-14: Window-appearance extraction (#12)
+
+- Move background-blur policy, cleanup and fallback, high-contrast detection,
+  and the setting/system-color/theme-change handler from App to
+  `WindowAppearance.zig`. App and ConfigActions call the extracted entry
+  points. Composition objects stay in Backdrop, and App/Window/Surface keep
+  their state and teardown order.
+- Expose App's existing window lookup and divider invalidation helpers for
+  the extracted theme handler. Preserve its parent-window guard and refresh
+  order: high-contrast state, titlebar, scrollbars, layout, tab bar, dividers.
+- Move the existing blur-policy test unchanged and register the module in
+  the Win32 test imports and App's comptime block.
+
+### Verification
+
+- Debug `zig build --summary all`: 128/128 steps succeeded. Log:
+  `zig-out/logs/window-appearance-build.log`.
+- Comparison against
+  `zig-out/test-fixtures/window-appearance-split/App.before.zig` confirmed
+  all eight extracted function bodies and the existing test body are
+  unchanged. The theme handler differs only in module qualification and
+  indentation. Formatting and `git diff --check` completed successfully.
+- Win32 tests with hooks: 91/91 steps succeeded, 174 passed and one skipped.
+  Log: `zig-out/logs/window-appearance-win32-tests.log`. The unmodified
+  window-state regression passed on the normal Debug executable, exit 0,
+  no forced termination. Summary:
+  `zig-out/logs/window-appearance-window-state.json`.
+- Dedicated fixture `zig-out/test-fixtures/window-appearance-split/check.ps1`
+  uses an isolated config and a checkerboard window behind the terminal.
+  Valid-config runs passed blur off, radius 12, radius 40, disable, opacity
+  1, re-enable, and split-pane appearance. The larger 160-pixel checkerboard
+  distinguishes the two radii visually. Its text-free sample's red-channel
+  standard deviation was 33.00 without blur, 18.08 at radius 12, and 10.50
+  at radius 40; the disabled sample matched the initial sample exactly.
+  At opacity 1 the sample was uniformly RGB(16, 32, 48), the configured
+  background. Measurements:
+  `zig-out/logs/window-appearance-20261014-142442.pixels.json`.
+- Setting-change, system-color-change, and theme-change messages each
+  restored the configured caption color after a deliberate native-color
+  change on the test window. Enabling Windows high contrast changed divider
+  width from 1 to 2 pixels and changed titlebar, tab-bar, and scrollbar
+  appearance; restoring it returned the divider to 1 pixel and restored the
+  configured appearance. Original and final system contrast flags were both
+  126; settings were not persisted to the user profile.
+- Final run explicitly revealed both overlay scrollbars for capture.
+  Summary: `zig-out/logs/window-appearance-20261014-142542.json`. Inspected
+  split, high-contrast, and restored captures with that prefix show the
+  scrollbars, tab bar, and divider. Blur/opaque captures from the preceding
+  successful runs at `142322` and `142442` were also inspected. Successful
+  fixture runs exited 0 without forced termination; no dedicated test
+  processes remained. The Acrylic fallback was not forced; grouped manual
+  checks remain due.
+- Fixture corrections: DWM attribute reads for host backdrop and caption/text
+  color returned `E_INVALIDARG`, so caption verification uses captured pixels.
+  The pixel helper required integer promotion before RGB shifts, and divider
+  lookup needed owned top-level windows rather than child-window enumeration.
+  These corrections changed only the temporary fixture.
+- Built executable: `zig-out/bin/ghostty.exe`, Debug working tree based on
+  `b115fb108`, SHA-256
+  `60CB4D5C6C7E2489B61960EBAADC1C11D639A86E5E56B76D2DE76F2AF819FA72`.
+
+### Finding requiring investigation
+
+- The initial fixture incorrectly used `scrollbar = always` (supported
+  values are `system` and `never`). It sent repeated reloads, created a split,
+  and sent `close_all_windows` while configuration diagnostics were still
+  open. The run at `20261014-142221` exited 3 with a segmentation fault in
+  `Surface.endKeySequence`; its stack includes nested
+  `ConfigActions.showConfigDiagnostics`/`MessageBoxW` calls. Preserve
+  `zig-out/logs/window-appearance-20261014-142221.stderr.log` and captures
+  with that prefix as the failed-run evidence. The fixture now validates
+  every configuration with `+validate-config`, uses `scrollbar = system`,
+  and rejects an unexpected modal dialog before each capture.
+- Correcting the fixture yielded the successful valid-config runs above;
+  it does not establish that the invalid-config/modal-close crash is fixed.
+  The cause and regression status remain unproven. Investigate this finding
+  before continuing the additions to existing modules, keeping any behavior
+  fix separate from this extraction.
+
 ## 2026-10-14: Recovery extraction (#12)
 
 - Move GPU recovery scheduling and its cycle budget, power suspend/resume

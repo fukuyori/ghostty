@@ -31,6 +31,7 @@ const TabTitles = @import("TabTitles.zig");
 const Titlebar = @import("Titlebar.zig");
 const Window = @import("Window.zig");
 const WindowState = @import("WindowState.zig");
+const WindowAppearance = @import("WindowAppearance.zig");
 const SearchBar = @import("SearchBar.zig");
 const ShellOpen = @import("ShellOpen.zig");
 const CommandPalette = @import("CommandPalette.zig");
@@ -49,6 +50,7 @@ comptime {
     _ = TabTitles;
     _ = ConfigActions;
     _ = Recovery;
+    _ = WindowAppearance;
     _ = brand;
 }
 
@@ -153,7 +155,7 @@ pub fn init(
         .config = config_ptr,
         .alloc = alloc,
         .thread_id = win32.GetCurrentThreadId(),
-        .high_contrast = highContrastEnabled(),
+        .high_contrast = WindowAppearance.highContrastEnabled(),
         .test_device_recovery = test_device_recovery,
         .test_device_recovery_failures = test_device_recovery_failures,
     };
@@ -294,7 +296,7 @@ pub fn terminate(self: *App) void {
     self.discardPendingIpcRequests();
     ShellOpen.discardPending(self);
     while (self.windows.pop()) |window| {
-        disableWindowBackgroundBlur(window);
+        WindowAppearance.disableWindowBackgroundBlur(window);
         deinitTabBarAccessibility(window);
         var surfaces = window.surfaceIterator();
         while (surfaces.next()) |surface| {
@@ -408,7 +410,7 @@ fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
         }
     }
 
-    if (close_window) disableWindowBackgroundBlur(window);
+    if (close_window) WindowAppearance.disableWindowBackgroundBlur(window);
     if (close_window) deinitTabBarAccessibility(window);
 
     // Keep the child HWND and its DC alive until the renderer has stopped and
@@ -511,7 +513,7 @@ pub fn syncWindowTitle(self: *App, surface: *Surface) void {
     TabTitles.syncWindowTitle(self, surface);
 }
 
-fn windowForHwnd(self: *App, hwnd: win32.HWND) ?*Window {
+pub fn windowForHwnd(self: *App, hwnd: win32.HWND) ?*Window {
     for (self.windows.items) |window| {
         if (window.hwnd == hwnd) return window;
     }
@@ -1274,7 +1276,7 @@ fn initCoreSurface(
 
     try ConfigActions.configureScrollbar(self, surface, &config);
 
-    updateWindowBackgroundBlur(surface, &config);
+    WindowAppearance.updateWindowBackgroundBlur(surface, &config);
     log.info("core surface initialized successfully", .{});
 }
 
@@ -1862,21 +1864,6 @@ fn windowDpi(hwnd: win32.HWND) u32 {
     return if (dpi == 0) 96 else dpi;
 }
 
-fn highContrastEnabled() bool {
-    var contrast: win32.HIGHCONTRASTW = .{
-        .cbSize = @sizeOf(win32.HIGHCONTRASTW),
-        .dwFlags = .{},
-        .lpszDefaultScheme = null,
-    };
-    if (win32.SystemParametersInfoW(
-        win32.SPI_GETHIGHCONTRAST,
-        @sizeOf(win32.HIGHCONTRASTW),
-        &contrast,
-        .{},
-    ) == 0) return false;
-    return contrast.dwFlags.HIGHCONTRASTON != 0;
-}
-
 fn splitDividerGapForDpi(dpi: u32, high_contrast: bool) i32 {
     const logical = if (high_contrast)
         split_divider_high_contrast_logical_gap
@@ -1991,7 +1978,7 @@ fn deinitTabBarAccessibility(window: *Window) void {
     accessibility.detach();
 }
 
-fn invalidateSplitDividers(window: *const Window) void {
+pub fn invalidateSplitDividers(window: *const Window) void {
     for (window.split_divider_hwnds.items) |hwnd| {
         if (win32.InvalidateRect(hwnd, null, win32.TRUE) != 0) {
             _ = win32.UpdateWindow(hwnd);
@@ -2298,146 +2285,11 @@ fn nativeWindowExStyle() win32.WINDOW_EX_STYLE {
         .{};
 }
 
-/// Keep the native backdrop synchronized with the renderer's background
-/// opacity and requested blur strength. Native backdrop composition is only
-/// used with D3D11; OpenGL retains its existing transparent behavior.
-pub fn updateWindowBackgroundBlur(surface: *Surface, config: *const Config) void {
-    const radius = windowBackgroundBlurRadius(config);
-    const app = surface.rtApp();
-    const window = app.windowForSurface(surface) orelse {
-        log.warn("background blur targeted an unowned surface", .{});
-        return;
-    };
-
-    const value = radius orelse {
-        disableWindowBackgroundBlur(window);
-        return;
-    };
-
-    // A fixed DWM backdrop has no adjustable radius. It remains the fallback
-    // for this window until blur is disabled and enabled again.
-    if (window.dwm_backdrop_active) return;
-
-    if (!window.host_backdrop_active) {
-        Backdrop.setHostBackdrop(window.hwnd, true) catch |err| {
-            log.warn("failed to enable Win32 host backdrop: {}", .{err});
-            enableFallbackBackdrop(window);
-            return;
-        };
-        window.host_backdrop_active = true;
-    }
-
-    var surfaces = window.surfaceIterator();
-    while (surfaces.next()) |candidate| {
-        if (candidate.background_blur) |*backdrop| {
-            backdrop.setRadius(value) catch |err| {
-                log.warn("failed to update Win32 background blur: {}", .{err});
-                fallbackFromGaussianBackdrop(window);
-                return;
-            };
-            continue;
-        }
-
-        candidate.background_blur = Backdrop.init(
-            candidate.hwnd,
-            value,
-            &app.backdrop_runtime,
-        ) catch |err| {
-            log.warn("failed to apply Win32 background blur: {}", .{err});
-            fallbackFromGaussianBackdrop(window);
-            return;
-        };
-    }
-}
-
-fn releaseSurfaceBackdrops(window: *Window) void {
-    var surfaces = window.surfaceIterator();
-    while (surfaces.next()) |surface| {
-        if (surface.background_blur) |*backdrop| backdrop.deinit();
-        surface.background_blur = null;
-    }
-}
-
-fn disableHostBackdrop(window: *Window) void {
-    if (!window.host_backdrop_active) return;
-    Backdrop.setHostBackdrop(window.hwnd, false) catch |err| {
-        log.warn("failed to disable Win32 host backdrop: {}", .{err});
-        return;
-    };
-    window.host_backdrop_active = false;
-}
-
-fn enableFallbackBackdrop(window: *Window) void {
-    if (window.dwm_backdrop_active) return;
-    Backdrop.setSystemBackdrop(window.hwnd, .transient_window) catch |err| {
-        log.warn("failed to apply fixed Win32 Acrylic fallback: {}", .{err});
-        return;
-    };
-    window.dwm_backdrop_active = true;
-    log.warn("using fixed Win32 Acrylic because Gaussian backdrop is unavailable", .{});
-}
-
-fn fallbackFromGaussianBackdrop(window: *Window) void {
-    releaseSurfaceBackdrops(window);
-    disableHostBackdrop(window);
-    enableFallbackBackdrop(window);
-}
-
-fn disableWindowBackgroundBlur(window: *Window) void {
-    releaseSurfaceBackdrops(window);
-    disableHostBackdrop(window);
-    if (!window.dwm_backdrop_active) return;
-    Backdrop.setSystemBackdrop(window.hwnd, .none) catch |err| {
-        log.warn("failed to remove fixed Win32 Acrylic fallback: {}", .{err});
-        return;
-    };
-    window.dwm_backdrop_active = false;
-}
-
-fn windowBackgroundBlurRadius(config: *const Config) ?u8 {
-    if (build_config.renderer != .d3d11 or
-        config.@"background-opacity" >= 1) return null;
-
-    return switch (config.@"background-blur") {
-        .false => null,
-        .true, .@"macos-glass-regular", .@"macos-glass-clear" => 20,
-        .radius => |value| if (value > 0) value else null,
-    };
-}
-
 test "Win32 D3D11 windows bypass the legacy redirect bitmap" {
     const style = nativeWindowExStyle();
     try std.testing.expectEqual(
         @as(u1, @intFromBool(build_config.renderer == .d3d11)),
         style.NOREDIRECTIONBITMAP,
-    );
-}
-
-test "Win32 background blur requires D3D11 and transparent background" {
-    var config = try Config.default(std.testing.allocator);
-    defer config.deinit();
-
-    config.@"background-opacity" = 0.75;
-    config.@"background-blur" = .true;
-    try std.testing.expectEqual(
-        if (build_config.renderer == .d3d11) @as(?u8, 20) else null,
-        windowBackgroundBlurRadius(&config),
-    );
-
-    config.@"background-opacity" = 1;
-    try std.testing.expectEqual(@as(?u8, null), windowBackgroundBlurRadius(&config));
-
-    config.@"background-opacity" = 0.75;
-    config.@"background-blur" = .false;
-    try std.testing.expectEqual(@as(?u8, null), windowBackgroundBlurRadius(&config));
-
-    config.@"background-blur" = .{ .radius = 0 };
-    try std.testing.expectEqual(@as(?u8, null), windowBackgroundBlurRadius(&config));
-
-    config.@"background-blur" = .{ .radius = 12 };
-    try std.testing.expectEqual(
-        if (build_config.renderer == .d3d11) @as(?u8, 12) else null,
-        windowBackgroundBlurRadius(&config),
     );
 }
 
@@ -4220,25 +4072,7 @@ fn wndProc(
             }
             return 0;
         },
-        win32.WM_SETTINGCHANGE, win32.WM_SYSCOLORCHANGE, win32.WM_THEMECHANGED => {
-            if (getSurface(hwnd)) |surface| {
-                if (hwnd == surface.windowHwnd()) {
-                    const app = surface.rtApp();
-                    if (app.windowForHwnd(hwnd)) |window| {
-                        app.high_contrast = highContrastEnabled();
-                        Titlebar.apply(hwnd, app.config, app.high_contrast);
-                        var bars = window.surfaceIterator();
-                        while (bars.next()) |candidate| {
-                            if (candidate.scrollbar) |bar| bar.setAppearance(app.config.background, app.high_contrast);
-                        }
-                        app.layoutWindow(window);
-                        invalidateTabBar(window);
-                        invalidateSplitDividers(window);
-                    }
-                }
-            }
-            return 0;
-        },
+        win32.WM_SETTINGCHANGE, win32.WM_SYSCOLORCHANGE, win32.WM_THEMECHANGED => return WindowAppearance.refreshTheme(hwnd),
         win32.WM_IME_STARTCOMPOSITION => {
             if (getSurface(hwnd)) |surface| {
                 if (hwnd == surface.hwnd) handleImeStartComposition(surface, hwnd);

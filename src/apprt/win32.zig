@@ -9,6 +9,7 @@ const recovery = @import("win32/Recovery.zig");
 const split_tree = @import("win32/SplitTree.zig");
 const tab_titles = @import("win32/TabTitles.zig");
 const window = @import("win32/Window.zig");
+const window_appearance = @import("win32/WindowAppearance.zig");
 
 test {
     _ = config_actions;
@@ -17,5 +18,6 @@ test {
     _ = split_tree;
     _ = tab_titles;
     _ = window;
+    _ = window_appearance;
     @import("std").testing.refAllDecls(@This());
 }
