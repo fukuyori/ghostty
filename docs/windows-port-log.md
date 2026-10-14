@@ -5,6 +5,69 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-14: Defer configuration diagnostics past core callbacks
+
+- **Reproduction:** start with a valid configuration, change `font-size` to
+  an invalid value, trigger `reload_config`, then close the parent window
+  while its error dialog is open. No split, blur, or high-contrast operation
+  is required. The normal Debug executable used for the WindowAppearance
+  checks exited 3; its log shows the Surface closing before a segmentation
+  fault in `Surface.endKeySequence`.
+- **Cause:** `ConfigActions.reloadConfig` called `MessageBoxW` synchronously
+  inside `Surface.keyCallback`. The modal loop dispatched the owner-close
+  request and freed the Surface, then returned into key processing that
+  still accessed it. The core treats `reload_config` as a non-closing action,
+  so its usual early return for a closing binding could not protect it.
+- **Fix:** queue an owned UTF-16 diagnostic snapshot and its parent HWND.
+  `App.run` drains the queue outside core callbacks; a wakeup-window timer,
+  following the existing ShellOpen pattern, ensures that requests queued
+  in another modal loop reach the outer loop. Repeated reloads append
+  requests instead of nesting message boxes. Closed owners and quit discard
+  pending diagnostics; termination frees remaining text and cancels the
+  timer. No Surface/core pointer is retained and shared core code is unchanged.
+- The saved pre-WindowAppearance recovery-hook executable also failed the
+  minimal regression with exit 3. Thus the diagnostic lifetime defect was
+  present before that extraction. Its hash and run are recorded below.
+
+### Verification
+
+- Baseline normal Debug SHA-256:
+  `60CB4D5C6C7E2489B61960EBAADC1C11D639A86E5E56B76D2DE76F2AF819FA72`.
+  Reproduction summary:
+  `zig-out/logs/config-diagnostics-close-20261014-142931.json`.
+  The corresponding `.stderr.log` contains the crash stack.
+- Saved pre-WindowAppearance Debug with hooks, SHA-256
+  `05A26A6ADDC6BDB77F21E3D22026F4481A8644D0C7B3E52C0568DF8FDD9D8CA5`,
+  failed `ReloadClose` with exit 3 and no forced termination. Summary:
+  `zig-out/logs/config-diagnostics-20261014-143658-121.json`.
+- Final Debug build: 128/128 steps succeeded
+  (`zig-out/logs/config-diagnostics-build.log`). Win32 tests with hooks:
+  91/91 steps succeeded, 178 passed and one skipped
+  (`zig-out/logs/config-diagnostics-win32-tests.log`). Four added unit tests
+  cover owned text/FIFO order, discard and reuse, invalid UTF-8, and every
+  allocation failure when queuing the first diagnostic.
+- Added `scripts/test-windows-config-diagnostics.ps1`. All eight scenarios
+  passed: startup close, reload close, dismissal and valid reload, repeated
+  reloads with distinct diagnostic snapshots, queued-owner close, owner
+  close with a surviving second window, child-shell exit, and reload while
+  the command palette is open. Each exited 0 with no forced termination.
+  Summary: `zig-out/logs/config-diagnostics-20261014-143819-380.json` (also
+  `zig-out/logs/config-diagnostics-regression.json`). Startup, reload, and
+  palette-followup dialog captures with that prefix were inspected.
+- During test development, posting a dialog command or assuming button ID 1
+  failed to dismiss the system message box. The script now enumerates its
+  single native button and posts a button click. These harness failures
+  exited cleanly during cleanup; the final run above uses the corrected
+  dismissal. This is separate from the baseline exit-3 product failure.
+- The unmodified window-state regression also passed, exit 0 and no forced
+  termination (`zig-out/logs/config-diagnostics-window-state.json`). No
+  dedicated Ghostty processes remained. The regression uses synthetic
+  messages and controlled shell exit; it does not establish physical-input
+  or release-build acceptance.
+- Final tested `zig-out/bin/ghostty.exe`, Debug working tree based on
+  `44d5b1059`, SHA-256:
+  `D7E4A6EBDB9973230A741A793ADA0FAFD57289C5BC9197D53B77C6607C3CFD20`.
+
 ## 2026-10-14: Window-appearance extraction (#12)
 
 - Move background-blur policy, cleanup and fallback, high-contrast detection,
@@ -80,9 +143,9 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   and rejects an unexpected modal dialog before each capture.
 - Correcting the fixture yielded the successful valid-config runs above;
   it does not establish that the invalid-config/modal-close crash is fixed.
-  The cause and regression status remain unproven. Investigate this finding
-  before continuing the additions to existing modules, keeping any behavior
-  fix separate from this extraction.
+  The cause and regression status were unproven at this stage. The subsequent
+  investigation and diagnostic queue fix are recorded in the entry above,
+  separately from this extraction.
 
 ## 2026-10-14: Recovery extraction (#12)
 

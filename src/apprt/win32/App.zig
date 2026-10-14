@@ -118,6 +118,8 @@ command_palette_owner: ?*Surface = null,
 ipc_server: ?*IpcTransport.Server = null,
 /// open_url requests run by the message loop. See ShellOpen.openUrl.
 pending_opens: ShellOpen.Queue = .empty,
+/// Owned diagnostic text displayed only after core callbacks have returned.
+pending_config_diagnostics: ConfigActions.DiagnosticQueue = .{},
 
 pub fn init(
     self: *App,
@@ -251,6 +253,7 @@ pub fn run(self: *App) !void {
 
     while (self.running) {
         // Here the core is not inside a callback and holds no lock.
+        ConfigActions.drainDiagnostics(self);
         ShellOpen.drain(self);
 
         var msg: win32.MSG = std.mem.zeroes(win32.MSG);
@@ -295,6 +298,7 @@ pub fn terminate(self: *App) void {
     }
     self.discardPendingIpcRequests();
     ShellOpen.discardPending(self);
+    ConfigActions.discardDiagnostics(self);
     while (self.windows.pop()) |window| {
         WindowAppearance.disableWindowBackgroundBlur(window);
         deinitTabBarAccessibility(window);

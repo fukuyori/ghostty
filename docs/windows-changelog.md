@@ -25,6 +25,14 @@ known issues, and known limitations of each version; the
 
 ### Fixed
 
+- Defer configuration error dialogs until the Win32 main loop has returned
+  from core callbacks. Closing a window or ending its shell while a reload
+  diagnostic was open could free the Surface before the key callback resumed
+  and crash in `Surface.endKeySequence`. Queue owned diagnostic text, show
+  requests sequentially, and discard requests whose owner closed or whose
+  app is quitting. Add unit tests and
+  `scripts/test-windows-config-diagnostics.ps1`; evidence is in the
+  [port log](windows-port-log.md).
 - Keep the console size the shell sees in step with Ghostty's grid after a
   `CSI 8 t` resize request ([#46](https://github.com/fukuyori/ghostty/issues/46)).
   The bundled OpenConsole resizes its console for the request before passing

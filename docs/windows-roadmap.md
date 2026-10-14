@@ -1567,8 +1567,12 @@ processes exited 0 without forced termination; system contrast flags were
 restored. The Acrylic fallback was not forced and grouped manual checks
 remain due. An earlier fixture with an invalid scrollbar value left modal
 diagnostics open and crashed on close; the stack and reproduction sequence
-are retained in the port log. Investigate that finding before the planned
-additions to existing modules; its cause and regression status are unproven.
+are retained in the port log. The subsequent fix queues diagnostic text and
+displays it from the outer message loop after core callbacks return, so a
+modal owner-close cannot free the Surface underneath a reload key callback.
+The defect also reproduced on the saved pre-WindowAppearance executable.
+See the port log for the fix's verification. The next restructuring group is
+the planned additions to existing modules.
 
 The name indirection is a fork-owned `src/brand.zig` usable by the runtime and
 the build, holding the current `ghostty` values. Runtime identifiers move to
@@ -2344,7 +2348,8 @@ the code exists.
 
 | Category | Test item | Current |
 |---|---|---|
-| Win32 restructuring | `WindowAppearance.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), window-state regression, and controlled blur/theme/high-contrast checks passed on 2026-10-14; captures inspected and system contrast restored. Acrylic fallback and grouped manual checks remain. An invalid-config/modal-close run crashed; investigation remains separate from the successful valid-config checks. See the port log |
+| Configuration | Diagnostic dialog lifetime | Fixed by displaying queued diagnostics outside core callbacks on 2026-10-14. Baseline owner-close reproduced exit 3; final Debug build, Win32 tests (178 passed, one skipped), eight diagnostic lifecycle scenarios, and normal window regression passed. Captures inspected; all final GUI cases exited 0 without forced termination and no dedicated processes remained. See the port log |
+| Win32 restructuring | `WindowAppearance.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), window-state regression, and controlled blur/theme/high-contrast checks passed on 2026-10-14; captures inspected and system contrast restored. Acrylic fallback and grouped manual checks remain. The invalid-config/modal-close finding is addressed by the subsequent diagnostic queue fix; see the port log |
 | Win32 restructuring | `Recovery.zig` extraction (#12) | Normal and hook-enabled Debug builds, Win32 tests (174 passed, one skipped), normal window regression, three controlled GPU recoveries with two injected failures per surface, and power recovery across three surfaces passed on 2026-10-14. Duplicate resume suppressed; disabled-hook probes returned zero. Post-recovery capture inspected. Actual device loss/system suspend remain unverified; see the port log |
 | Win32 restructuring | `ConfigActions.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), and unmodified window-state regression passed on 2026-10-14. Extended palette/scrollbar checks passed with test-window stacking adjusted for captures; dedicated diagnostics/reload/editor checks passed. Captures inspected; grouped manual checks remain. See the port log for scope and evidence |
 | Win32 restructuring | `TabTitles.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), window-state regression, and controlled title actions/dialog/tab-switch checks passed on 2026-10-14. Dialog and renamed-window captures inspected; both GUI checks exited 0 without forced termination. Grouped manual checks remain; see the port log |
@@ -2429,6 +2434,11 @@ git diff --check
 - Input changes are verified by real-hardware key, mouse, and IME operation.
 - Window lifecycle changes are verified for leftover processes and exit
   codes.
+- For configuration diagnostics or modal lifetime changes, also run
+  `./scripts/test-windows-config-diagnostics.ps1 -Executable <test-build>`.
+  It checks startup/reload dialogs, repeated reloads, dismissal, owner and
+  shell closure, a surviving second window, and reload during the command
+  palette. Inspect its dialog captures and process exit records.
 - For renderer or IO wakeup changes, also run
   `./scripts/test-windows-window-state.ps1 -Executable <test-build> -TestRendererWakeup`.
   It takes about 40 seconds longer, exercises output beyond the 64-message

@@ -19,6 +19,34 @@ const WindowState = @import("WindowState.zig");
 
 const log = std.log.scoped(.win32);
 
+const DiagnosticRequest = struct {
+    parent: win32.HWND,
+    message: [:0]u16,
+};
+
+/// Each request owns its text, independent of the temporary reload config.
+/// No Surface or core pointer survives until the modal dialog is displayed.
+pub const DiagnosticQueue = struct {
+    pending: std.ArrayListUnmanaged(DiagnosticRequest) = .empty,
+
+    fn add(self: *DiagnosticQueue, alloc: Allocator, parent: win32.HWND, message: []const u8) !void {
+        const wide = try std.unicode.utf8ToUtf16LeAllocZ(alloc, message);
+        errdefer alloc.free(wide);
+        try self.pending.append(alloc, .{ .parent = parent, .message = wide });
+    }
+
+    fn take(self: *DiagnosticQueue) ?DiagnosticRequest {
+        if (self.pending.items.len == 0) return null;
+        return self.pending.orderedRemove(0);
+    }
+
+    fn deinit(self: *DiagnosticQueue, alloc: Allocator) void {
+        for (self.pending.items) |request| alloc.free(request.message);
+        self.pending.deinit(alloc);
+        self.* = .{};
+    }
+};
+
 /// Reload the configuration and apply it to either the complete application or
 /// one surface. A hard reload finishes loading before any live state changes,
 /// so a loading failure leaves the current configuration in place.
@@ -49,9 +77,10 @@ fn updateConfig(
     }
 }
 
-/// Show configuration diagnostics after startup or a reload. Diagnostics do
-/// not prevent valid configuration entries from being applied, matching the
-/// behavior of the other application runtimes.
+/// Queue configuration diagnostics after startup or a reload. Opening a modal
+/// dialog here would let its message loop close the Surface while the calling
+/// key callback still needs it. Only drainDiagnostics may display the dialog.
+/// Valid configuration entries are still applied before diagnostics are queued.
 pub fn showConfigDiagnostics(
     self: *App,
     target: apprt.Target,
@@ -71,20 +100,71 @@ pub fn showConfigDiagnostics(
     } orelse return;
     defer self.alloc.free(message);
 
-    const message_wide = std.unicode.utf8ToUtf16LeAllocZ(
-        self.alloc,
-        message,
-    ) catch |err| {
-        log.warn("failed to convert configuration diagnostics: {}", .{err});
+    self.pending_config_diagnostics.add(self.alloc, hwnd, message) catch |err| {
+        log.warn("failed to queue configuration diagnostics: {}", .{err});
         return;
     };
-    defer self.alloc.free(message_wide);
+    armDiagnosticsTimer(self);
+}
 
+// Like ShellOpen's drain timer, keep waking the outer loop even if a modal
+// loop consumes the initial wakeup. This timer never opens a dialog itself.
+const diagnostics_timer_id: usize = 0x3602;
+
+fn armDiagnosticsTimer(self: *App) void {
+    if (self.wakeup_hwnd) |hwnd| {
+        if (win32.SetTimer(hwnd, diagnostics_timer_id, 50, null) != 0) return;
+        log.warn("SetTimer for configuration diagnostics failed: err={d}", .{
+            @intFromEnum(win32.GetLastError()),
+        });
+    }
+    self.wakeup();
+}
+
+/// Called only by App.run, never by a window procedure or core callback.
+/// Reloads inside a diagnostic dialog append requests without nesting dialogs.
+pub fn drainDiagnostics(self: *App) void {
+    if (self.pending_config_diagnostics.pending.items.len == 0) return;
+    defer if (self.wakeup_hwnd) |hwnd| {
+        _ = win32.KillTimer(hwnd, diagnostics_timer_id);
+    };
+
+    while (self.pending_config_diagnostics.pending.items.len > 0) {
+        var msg: win32.MSG = undefined;
+        if (!self.running or win32.PeekMessageW(
+            &msg,
+            null,
+            win32.WM_QUIT,
+            win32.WM_QUIT,
+            .{},
+        ) != 0) {
+            discardDiagnostics(self);
+            return;
+        }
+
+        const request = self.pending_config_diagnostics.take().?;
+        defer self.alloc.free(request.message);
+        // A shell or close request may have destroyed the owner while this
+        // request waited. Never parent a dialog to another app or keep a dead
+        // window's diagnostics open without an owner.
+        if (self.windowForHwnd(request.parent) == null) continue;
+        displayDiagnostic(request);
+    }
+}
+
+pub fn discardDiagnostics(self: *App) void {
+    if (self.wakeup_hwnd) |hwnd| {
+        _ = win32.KillTimer(hwnd, diagnostics_timer_id);
+    }
+    self.pending_config_diagnostics.deinit(self.alloc);
+}
+
+fn displayDiagnostic(request: DiagnosticRequest) void {
     const caption = std.unicode.utf8ToUtf16LeStringLiteral(
         brand.display_name ++ " Configuration Error",
     );
     const style: win32.MESSAGEBOX_STYLE = .{ .ICONHAND = 1 };
-    _ = win32.MessageBoxW(hwnd, message_wide, caption, style);
+    _ = win32.MessageBoxW(request.parent, request.message, caption, style);
 }
 
 fn formatConfigDiagnostics(
@@ -247,6 +327,70 @@ pub fn configureScrollbar(self: *App, surface: *Surface, config: *const Config) 
         bar.deinit();
         self.alloc.destroy(bar);
         surface.scrollbar = null;
+    }
+}
+
+test "Win32 diagnostic queue owns text and preserves request order" {
+    const alloc = std.testing.allocator;
+    var queue: DiagnosticQueue = .{};
+    defer queue.deinit(alloc);
+    const first_parent: win32.HWND = @ptrFromInt(1);
+    const second_parent: win32.HWND = @ptrFromInt(2);
+    var source = [_]u8{ 'b', 'a', 'd' };
+    try queue.add(alloc, first_parent, &source);
+    @memset(&source, 'x');
+    try queue.add(alloc, second_parent, "設定エラー");
+
+    const first = queue.take().?;
+    defer alloc.free(first.message);
+    try std.testing.expectEqual(first_parent, first.parent);
+    try std.testing.expectEqualSlices(u16, &.{ 'b', 'a', 'd' }, first.message);
+    const second = queue.take().?;
+    defer alloc.free(second.message);
+    try std.testing.expectEqual(second_parent, second.parent);
+    try std.testing.expectEqualSlices(u16, std.unicode.utf8ToUtf16LeStringLiteral("設定エラー"), second.message);
+    try std.testing.expect(queue.take() == null);
+}
+
+test "Win32 diagnostic queue discards pending text and can be reused" {
+    const alloc = std.testing.allocator;
+    var queue: DiagnosticQueue = .{};
+    defer queue.deinit(alloc);
+    const parent: win32.HWND = @ptrFromInt(1);
+    try queue.add(alloc, parent, "first");
+    try queue.add(alloc, parent, "second");
+    queue.deinit(alloc);
+    try std.testing.expect(queue.take() == null);
+    try queue.add(alloc, parent, "third");
+    try std.testing.expectEqual(@as(usize, 1), queue.pending.items.len);
+}
+
+test "Win32 diagnostic queue leaves pending requests intact on invalid UTF-8" {
+    const alloc = std.testing.allocator;
+    var queue: DiagnosticQueue = .{};
+    defer queue.deinit(alloc);
+    const parent: win32.HWND = @ptrFromInt(1);
+    try queue.add(alloc, parent, "valid");
+    try std.testing.expectError(error.InvalidUtf8, queue.add(alloc, parent, "\xff"));
+    try std.testing.expectEqual(@as(usize, 1), queue.pending.items.len);
+}
+
+test "Win32 diagnostic queue frees text when allocation fails" {
+    var fail_index: usize = 0;
+    while (true) : (fail_index += 1) {
+        var failing = std.testing.FailingAllocator.init(std.testing.allocator, .{
+            .fail_index = fail_index,
+        });
+        const alloc = failing.allocator();
+        var queue: DiagnosticQueue = .{};
+        defer queue.deinit(alloc);
+        if (queue.add(alloc, @ptrFromInt(1), "configuration error")) |_| {
+            try std.testing.expect(!failing.has_induced_failure);
+            break;
+        } else |err| {
+            try std.testing.expectEqual(error.OutOfMemory, err);
+            try std.testing.expect(queue.take() == null);
+        }
     }
 }
 
