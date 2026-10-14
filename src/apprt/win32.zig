@@ -5,11 +5,13 @@ pub const resourcesDir = @import("../os/main.zig").resourcesDir;
 
 const context_menu = @import("win32/ContextMenu.zig");
 const split_tree = @import("win32/SplitTree.zig");
+const tab_titles = @import("win32/TabTitles.zig");
 const window = @import("win32/Window.zig");
 
 test {
     _ = context_menu;
     _ = split_tree;
+    _ = tab_titles;
     _ = window;
     @import("std").testing.refAllDecls(@This());
 }

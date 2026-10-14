@@ -1,6 +1,6 @@
 # Ghostty Windows Production-Readiness Roadmap
 
-- Last updated: 2026-10-13
+- Last updated: 2026-10-14
 - Target branch: `windows`; this roadmap moves to `gooztty` when that branch is created (see Section 2)
 - Baseline commit: `132a5d078` (`docs: add Windows implementation roadmap`)
 - Phase breakdown basis: the six phases agreed in the conversation as of 2026-09-14
@@ -1418,8 +1418,9 @@ from `gooztty`; a defect it finds in an inherited Windows feature is fixed on
 
 ### Win32 apprt restructuring
 
-Done on `windows` and completed before `gooztty` is created (decided
-2026-10-12); tracked as [#12](https://github.com/fukuyori/ghostty/issues/12).
+Status: **In progress** on `windows`; must be completed before `gooztty`
+is created (decided 2026-10-12), tracked as
+[#12](https://github.com/fukuyori/ghostty/issues/12).
 `src/apprt/win32` is fork-only (upstream has no `win32` apprt), so the
 restructuring causes no upstream conflicts. It must be complete before
 `gooztty` exists, because splitting continued afterwards would move code on
@@ -1477,7 +1478,7 @@ this layout.
 | `WindowCommands.zig` (new) | Navigation, reordering, resize/equalize/zoom, and tab activation |
 | `WindowState.zig` (exists) | Maximize, fullscreen, decorations, sizing, `resize_window`, plus window-state transfer, presentation, visibility toggling, and the startup show |
 | `ShellOpen.zig` (exists) | URL and file opening and the OSC 8 policy |
-| `TabTitles.zig` (new) | Title actions, the tab-title dialog, window-title synchronization, and title-change notification |
+| `TabTitles.zig` (exists) | Title actions, the tab-title dialog, window-title synchronization, and title-change notification |
 | `ConfigActions.zig` (new) | Reload and update, `config_change`, diagnostics, editing the configuration, scrollbar configuration |
 | `IpcHandler.zig` (new) | The CLI IPC entry point, UI request ownership and dispatch, and results; transport stays in `IpcTransport.zig` |
 | `WindowLayout.zig` (new) | Pane, search, and scrollbar placement, content bounds, DPI handling, and relayout |
@@ -1517,6 +1518,17 @@ configuration actions, recovery, window appearance), the additions to
 existing files, `NativeWindow`, `WindowLayout` and `SplitDivider`,
 `TabBarController`, `WindowLifecycle` and `WindowCommands`, `Keyboard`,
 `Actions`, and `WndProc` last because it reaches every other group.
+
+Progress on 2026-10-14: `TabTitles.zig` now owns the title actions, rename
+dialog, focused-window title synchronization, and title-change notification.
+The Debug build, Win32 Zig tests (174 passed, one skipped), and window-state
+regression passed. A controlled title check verified setting and clearing an
+override, retaining it across OSC title updates, Japanese rename and cancel,
+and title restoration when switching tabs; the dialog and renamed window
+captures were inspected. Both GUI checks exited with code 0 without forced
+termination. This is synthetic-input evidence; the grouped manual checks
+remain due. See the [port log](windows-port-log.md) for the executable hash
+and evidence paths. `ConfigActions.zig` is the next group in the split order.
 
 The name indirection is a fork-owned `src/brand.zig` usable by the runtime and
 the build, holding the current `ghostty` values. Runtime identifiers move to
@@ -2292,6 +2304,7 @@ the code exists.
 
 | Category | Test item | Current |
 |---|---|---|
+| Win32 restructuring | `TabTitles.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), window-state regression, and controlled title actions/dialog/tab-switch checks passed on 2026-10-14. Dialog and renamed-window captures inspected; both GUI checks exited 0 without forced termination. Grouped manual checks remain; see the port log |
 | Feature expansion | Phase 7, F1-F8 | F1-F3 implementation and acceptance checks passed, including physical IME, real-pointer, high-contrast, mixed-DPI, Explorer quoting, pane targeting, and target-window closure. Baseline-CPU ReleaseFast build, combined F1/F2 native regression, 20/20 soak, and real F3 drop passed. F4-F8 remain. See Section 6 and the feature development plan |
 | Startup | Debug build startup | Verified |
 | Startup | Release build startup | PE, resources, CLI, and a dedicated GUI process verified |

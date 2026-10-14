@@ -132,7 +132,7 @@ Workload is a relative estimate based on the number and difficulty of changes, n
 | Phase | Workload | Notes |
 |---|---|---|
 | 0. Upstream synchronization | Done | Completed 2026-10-12: 238 upstream commits through `6d53bafb1`, recorded in `docs/windows-port-log.md`. Estimated as large: about 223 upstream commits as of 2026-10-11; a trial merge conflicts in `src/renderer.zig`, `src/renderer/OpenGL.zig`, and `src/renderer/backend.zig`; upstream no longer builds core on Windows, so build breakage is unpredictable |
-| 1. Restructure `src/apprt/win32` | Large | Started 2026-10-12 with `WindowState.zig`. On `windows`, behavior unchanged; split incrementally as `src/apprt/win32` changes, then a final pass; see the roadmap's "Win32 apprt restructuring" |
+| 1. Restructure `src/apprt/win32` | Large | In progress: started 2026-10-12 with `WindowState.zig`; `TabTitles.zig` extracted and checked on 2026-10-14. `ConfigActions.zig` is next. On `windows`, behavior unchanged; split incrementally as `src/apprt/win32` changes, then a final pass; see the roadmap's "Win32 apprt restructuring" |
 | 2. Branch workflow | Small | Create `gooztty` from the restructured `windows`, perform the cutover (Section 1.2), retire the provisional `rebrand/gozitty` |
 | 3. Resolve specifications | Done | All naming decisions recorded on 2026-10-11; the name indirection lives on `windows` (decided 2026-10-12) |
 | 4. Prepare implementation | Small | The impact inventory already covers most occurrences |

@@ -50,6 +50,13 @@ known issues, and known limitations of each version; the
 
 ### Changed
 
+- Extract Win32 title actions, the tab-title dialog, focused-window title
+  synchronization, and title-change notification from `App.zig` into
+  `TabTitles.zig`, preserving behavior as part of
+  [#12](https://github.com/fukuyori/ghostty/issues/12). Keep the App entry
+  points as forwarding methods and retain the shared tab-bar rendering and
+  accessibility helpers for their later splits. Verification is recorded in
+  the [port log](windows-port-log.md).
 - Merge upstream through `6d53bafb1` (238 commits since `bd1c82bc5`), the
   rebranding plan's Phase 0. Adapt the D3D11 and Win32 OpenGL renderers to
   upstream's app-scoped `renderer.Device` and drop the removed WebGL backend;

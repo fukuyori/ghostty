@@ -5,6 +5,44 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-14: Tab-title extraction (#12)
+
+- Move title actions, the tab-title dialog and its constants, focused-window
+  title synchronization, and title-change notification from `App.zig` into
+  `TabTitles.zig`. App retains forwarding entry points for the surface API;
+  action dispatch and tab-bar double-click handling call the module directly.
+- Preserve allocation, error handling, dialog results, ownership lookups,
+  title precedence, and the order of repaint and accessibility notifications.
+  The shared tab-bar helpers remain in App and are exposed for this module
+  until their planned extraction. Register the new module in App's comptime
+  block and the Win32 test imports. Existing title-model tests remain with
+  `Tab.zig`.
+- The restructuring is still in progress. `ConfigActions.zig` is the next
+  group; the final cross-module and grouped manual checks remain due.
+
+### Verification
+
+- Debug `zig build --summary all`: 128/128 steps succeeded.
+- `zig build test -Dtest-filter=Win32 -Dwin32-test-hooks=true --summary all`:
+  91/91 steps succeeded; 174 tests passed and one skipped. Log:
+  `zig-out/logs/tab-titles-win32-tests.log`.
+- `scripts/test-windows-window-state.ps1 -Executable zig-out/bin/ghostty.exe`:
+  passed, exit code 0, no forced termination. Summary:
+  `zig-out/logs/tab-titles-window-state.json`.
+- A dedicated fixture, `zig-out/test-fixtures/tab-titles-split/check.ps1`,
+  exercised OSC window titles, `set_tab_title`, override retention across OSC
+  updates, clearing an override, the tab-bar double-click dialog, accepting a
+  Japanese title, opening the dialog through `prompt_tab_title` and cancelling,
+  and title restoration across two tabs. It checked the window title and
+  tab-bar accessible name, exited 0, and required no forced termination.
+  Final summary: `zig-out/logs/tab-titles-20261014-135111.json`. The `.dialog.png`
+  and `.renamed.png` captures with the same prefix were inspected and show
+  the Japanese text in the dialog, tab bar, and window title. Input was
+  synthetic; this is not physical keyboard/IME acceptance evidence.
+- Tested executable: `zig-out/bin/ghostty.exe`, Debug working tree based on
+  `c4671a659`, SHA-256
+  `E4545914F48BF9D914039D860EB5D2506F71E341B2FE98DD0D9EA9A23CF09C49`.
+
 ## 2026-10-12: Debug panic on plain-text URLs (#47)
 
 - **Defect:** `Surface.resolvePathForOpening` joins plain-text link text to
