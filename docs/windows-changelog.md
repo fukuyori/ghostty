@@ -63,6 +63,11 @@ known issues, and known limitations of each version; the
 
 ### Changed
 
+- Move Win32 palette requests and App-side presentation into the existing
+  `CommandPalette.zig` for [#12](https://github.com/fukuyori/ghostty/issues/12).
+  Preserve posted opening, snapshot ownership, the single-palette guard,
+  and Surface ownership/ID checks before restoring focus or executing a
+  selected command or jump. Verification is in the [port log](windows-port-log.md).
 - Move Win32 search start/end and result-update actions from `App.zig` into
   the existing `SearchBar.zig` for
   [#12](https://github.com/fukuyori/ghostty/issues/12). Preserve allocation,

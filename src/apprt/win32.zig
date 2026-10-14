@@ -3,6 +3,7 @@ pub const App = @import("win32/App.zig");
 pub const Surface = @import("win32/Surface.zig");
 pub const resourcesDir = @import("../os/main.zig").resourcesDir;
 
+const command_palette = @import("win32/CommandPalette.zig");
 const config_actions = @import("win32/ConfigActions.zig");
 const context_menu = @import("win32/ContextMenu.zig");
 const recovery = @import("win32/Recovery.zig");
@@ -12,6 +13,7 @@ const window = @import("win32/Window.zig");
 const window_appearance = @import("win32/WindowAppearance.zig");
 
 test {
+    _ = command_palette;
     _ = config_actions;
     _ = context_menu;
     _ = recovery;

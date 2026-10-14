@@ -5,6 +5,58 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-14: Command-palette App-side extraction (#12)
+
+- Move the toggle action's posted request and `showCommandPalette` into
+  `CommandPalette.requestShow` and `CommandPalette.showForSurface`.
+  The module owns the unchanged `WM_USER + 5` message constant; App's
+  window procedure forwards that message to it. App retains the palette
+  owner field and the surface/window models.
+- Preserve the single-palette guard, action/title snapshots, source ownership
+  and core ID checks after the modal loop, focus restoration, and the jump
+  ownership/ID check before activation. Make App's existing tab-activation
+  and surface-presentation helpers public for the moved code. Source
+  comparison against `2471c0c19` confirms both extracted bodies are unchanged
+  after qualification, parameter naming, and whitespace normalization.
+- Register the existing palette module/test in the Win32 test imports and
+  App's comptime block. No shared-core or dialog-control behavior changes.
+
+### Verification
+
+- Debug build: 128/128 steps succeeded
+  (`zig-out/logs/palette-extraction-build.log`). Win32 tests with hooks:
+  91/91 steps succeeded, 178 passed and one skipped
+  (`zig-out/logs/palette-extraction-win32-tests.log`). The `palette query`
+  filtered run succeeded with 77/77 tests
+  (`zig-out/logs/palette-extraction-query-tests.log`).
+- The unmodified window-state script with `-TestCommandPalette` passed:
+  76 entries, arrow selection, dismissal/focus restoration, synthetic IME
+  process-Enter suppression, snapshot retention during config reload, and
+  owner closure with another surviving window. Exit 0, no forced termination.
+  Summary: `zig-out/logs/palette-extraction-window-state.json`; underlying
+  logs use `window-state-20261014-151604-398-d7db11c0`. Its palette capture
+  was partly obscured by another window; use the unobscured capture below.
+- The `PaletteReloadClose` diagnostic regression passed with exit 0 and no
+  forced termination (`zig-out/logs/palette-extraction-diagnostics.json`),
+  retaining deferred diagnostics when reload happens inside the modal loop.
+- A dedicated action check passed duplicate-open suppression, filtered
+  command execution creating a tab, a jump back to the original tab,
+  ignoring a snapshot jump after its target closed, reopening the palette,
+  and a selected close-source action. Exit 0, no forced termination.
+  Summary and inspected capture:
+  `zig-out/logs/palette-actions-20261014-151709-225.json` and `.png`.
+  The retained fixture is `zig-out/test-fixtures/palette-extraction/actions.ps1`.
+- Earlier fixture attempts assumed labels omitted shortcut suffixes and
+  split panes had distinct palette labels. The existing UI includes the
+  shortcut and uses the tab title for each split. The check now accepts the
+  shortcut suffix and creates separate tabs for distinct jump labels. Those
+  fixture failures exited 0 during cleanup; no product fix was required.
+- No dedicated Ghostty process remained. Formatting and `git diff --check`
+  passed. These are controlled Debug checks using synthetic input; physical
+  keyboard/IME and grouped manual checks remain due.
+- Tested `zig-out/bin/ghostty.exe`, working tree based on `2471c0c19`, SHA-256:
+  `60F731360CC5B819C06B6FE670A4C3E58B0F6E126F460F2F1D3BEDFCCF0E9E96`.
+
 ## 2026-10-14: Parity fixture key releases and full regression
 
 - Apply the diagnosed fixture correction to `scripts/test-windows-parity.ps1`:

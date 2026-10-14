@@ -49,6 +49,7 @@ comptime {
     _ = ShellOpen;
     _ = TabTitles;
     _ = ConfigActions;
+    _ = CommandPalette;
     _ = Recovery;
     _ = WindowAppearance;
     _ = brand;
@@ -86,10 +87,6 @@ const WM_WAKEUP = win32.WM_USER + 1;
 /// window thread so confirmation and native resource teardown happen there.
 const WM_CLOSE_SURFACE = win32.WM_USER + 2;
 
-/// Opening a modal dialog directly from a core key callback lets the modal
-/// message loop destroy that callback's surface before the callback returns.
-/// Post the request so the key callback unwinds before the dialog is shown.
-const WM_SHOW_COMMAND_PALETTE = win32.WM_USER + 5;
 const WM_IPC_REQUEST = win32.WM_USER + 6;
 const ipc_ui_timeout_ms: u32 = 5000;
 
@@ -581,16 +578,7 @@ pub fn performAction(
             return true;
         },
         .prompt_title => return try TabTitles.promptTitle(self, target, value),
-        .toggle_command_palette => {
-            const surface = targetSurface(target) orelse return false;
-            if (win32.PostMessageW(surface.hwnd, WM_SHOW_COMMAND_PALETTE, 0, 0) == 0) {
-                log.warn("PostMessage(WM_SHOW_COMMAND_PALETTE) failed: err={d}", .{
-                    @intFromEnum(win32.GetLastError()),
-                });
-                return false;
-            }
-            return true;
-        },
+        .toggle_command_palette => return CommandPalette.requestShow(target),
         .new_window => {
             try self.createWindow(.{});
             return true;
@@ -625,55 +613,6 @@ pub fn performAction(
         .renderer_health => return try Recovery.recoverRenderer(target, value),
         .config_change => return try ConfigActions.configChange(self, target, value),
         else => return false,
-    }
-}
-
-fn showCommandPalette(self: *App, source: *Surface) anyerror!void {
-    if (self.command_palette_owner != null) return;
-    const owner = self.windowForSurface(source) orelse return;
-    const source_id = (source.core_surface orelse return).id;
-    self.command_palette_owner = source;
-    defer self.command_palette_owner = null;
-
-    var jumps: std.ArrayListUnmanaged(CommandPalette.Jump) = .empty;
-    defer jumps.deinit(self.alloc);
-    for (self.windows.items) |window| {
-        var surfaces = window.surfaceIterator();
-        while (surfaces.next()) |surface| {
-            const core = surface.core_surface orelse continue;
-            const title = window.titleForSurface(surface) orelse "Untitled";
-            try jumps.append(self.alloc, .{ .surface = surface, .id = core.id, .title = title });
-        }
-    }
-
-    var palette = try CommandPalette.init(self.alloc, self.config, jumps.items);
-    defer palette.deinit();
-    const selected_opt = palette.show(owner.hwnd);
-    if (self.windowForSurface(source)) |window| {
-        if (source.core_surface) |core| {
-            if (core.id == source_id and window.focusedSurface() == source) {
-                _ = win32.SetFocus(source.hwnd);
-            }
-        }
-    }
-    const selected = selected_opt orelse return;
-    const entry = palette.entries.items[selected];
-    switch (entry.kind) {
-        .action => |action| {
-            // A shell can close its pane while the modal dialog pumps messages.
-            if (self.windowForSurface(source) == null) return;
-            const core = source.core_surface orelse return;
-            if (core.id != source_id) return;
-            _ = try core.performBindingAction(action);
-        },
-        .jump => |jump| {
-            const window = self.windowForSurface(jump.surface) orelse return;
-            const core = jump.surface.core_surface orelse return;
-            if (core.id != jump.id) return;
-            _ = window.setFocusedSurface(jump.surface);
-            activateWindowTab(self, window);
-            _ = presentSurface(jump.surface);
-        },
     }
 }
 
@@ -817,7 +756,7 @@ fn presentTerminal(target: apprt.Target) bool {
     return presentSurface(surface);
 }
 
-fn presentSurface(surface: *Surface) bool {
+pub fn presentSurface(surface: *Surface) bool {
     const hwnd = surface.windowHwnd();
     const state = windowStateSurface(surface);
     state.hidden_by_visibility_toggle = false;
@@ -1422,7 +1361,7 @@ fn moveTab(
     return true;
 }
 
-fn activateWindowTab(self: *App, window: *Window) void {
+pub fn activateWindowTab(self: *App, window: *Window) void {
     clearWindowSplitPointer(window);
     const focus = window.focusedSurface();
     _ = win32.SetWindowLongPtrW(
@@ -3924,10 +3863,10 @@ fn wndProc(
             }
             return 0;
         },
-        WM_SHOW_COMMAND_PALETTE => {
+        CommandPalette.WM_SHOW_COMMAND_PALETTE => {
             if (getSurface(hwnd)) |surface| {
                 if (hwnd == surface.hwnd) {
-                    surface.rtApp().showCommandPalette(surface) catch |err| {
+                    CommandPalette.showForSurface(surface.rtApp(), surface) catch |err| {
                         log.warn("command palette failed: {}", .{err});
                     };
                 }

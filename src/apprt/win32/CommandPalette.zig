@@ -3,9 +3,18 @@
 const Self = @This();
 const std = @import("std");
 const win32 = @import("win32").everything;
+const App = @import("App.zig");
+const apprt = @import("../../apprt.zig");
+const log = std.log.scoped(.win32);
+
 const Config = @import("../../config/Config.zig");
 const input = @import("../../input.zig");
 const Surface = @import("Surface.zig");
+
+/// Opening a modal dialog directly from a core key callback lets the modal
+/// message loop destroy that callback's surface before the callback returns.
+/// Post the request so the key callback unwinds before the dialog is shown.
+pub const WM_SHOW_COMMAND_PALETTE = win32.WM_USER + 5;
 
 const edit_id = 1201;
 const list_id = 1202;
@@ -33,6 +42,68 @@ entries: std.ArrayListUnmanaged(Entry) = .empty,
 visible: std.ArrayListUnmanaged(usize) = .empty,
 selected: ?usize = null,
 original_edit_proc: ?win32.WNDPROC = null,
+
+/// Post the dialog request so the originating core callback can return first.
+pub fn requestShow(target: apprt.Target) bool {
+    const surface = App.targetSurface(target) orelse return false;
+    if (win32.PostMessageW(surface.hwnd, WM_SHOW_COMMAND_PALETTE, 0, 0) == 0) {
+        log.warn("PostMessage(WM_SHOW_COMMAND_PALETTE) failed: err={d}", .{
+            @intFromEnum(win32.GetLastError()),
+        });
+        return false;
+    }
+    return true;
+}
+
+/// Show the snapshot and revalidate surface ownership and identity afterward.
+pub fn showForSurface(app: *App, source: *Surface) anyerror!void {
+    if (app.command_palette_owner != null) return;
+    const owner = app.windowForSurface(source) orelse return;
+    const source_id = (source.core_surface orelse return).id;
+    app.command_palette_owner = source;
+    defer app.command_palette_owner = null;
+
+    var jumps: std.ArrayListUnmanaged(Jump) = .empty;
+    defer jumps.deinit(app.alloc);
+    for (app.windows.items) |window| {
+        var surfaces = window.surfaceIterator();
+        while (surfaces.next()) |surface| {
+            const core = surface.core_surface orelse continue;
+            const title = window.titleForSurface(surface) orelse "Untitled";
+            try jumps.append(app.alloc, .{ .surface = surface, .id = core.id, .title = title });
+        }
+    }
+
+    var palette = try Self.init(app.alloc, app.config, jumps.items);
+    defer palette.deinit();
+    const selected_opt = palette.show(owner.hwnd);
+    if (app.windowForSurface(source)) |window| {
+        if (source.core_surface) |core| {
+            if (core.id == source_id and window.focusedSurface() == source) {
+                _ = win32.SetFocus(source.hwnd);
+            }
+        }
+    }
+    const selected = selected_opt orelse return;
+    const entry = palette.entries.items[selected];
+    switch (entry.kind) {
+        .action => |action| {
+            // A shell can close its pane while the modal dialog pumps messages.
+            if (app.windowForSurface(source) == null) return;
+            const core = source.core_surface orelse return;
+            if (core.id != source_id) return;
+            _ = try core.performBindingAction(action);
+        },
+        .jump => |jump| {
+            const window = app.windowForSurface(jump.surface) orelse return;
+            const core = jump.surface.core_surface orelse return;
+            if (core.id != jump.id) return;
+            _ = window.setFocusedSurface(jump.surface);
+            App.activateWindowTab(app, window);
+            _ = App.presentSurface(jump.surface);
+        },
+    }
+}
 
 pub fn init(alloc: std.mem.Allocator, config: *const Config, jumps: []const Jump) !Self {
     var self: Self = .{ .arena = std.heap.ArenaAllocator.init(alloc) };

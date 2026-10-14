@@ -1490,7 +1490,7 @@ this layout.
 | `Keyboard.zig` (new) | Key translation and the complete key, character, and IME-placement handling, including suppression state and its reset on focus loss |
 | `Mouse.zig` (exists) | Cursor shape plus terminal mouse buttons, motion, capture release, wheel, and coordinate helpers |
 | `FileDrop.zig` (exists) | Plus native drop handling and its warning |
-| `CommandPalette.zig` (exists) | Plus showing the palette from the App, keeping its surface-identity checks around the modal loop |
+| `CommandPalette.zig` (exists) | Native palette plus posted display requests, App-side presentation, and surface ownership/identity checks around the modal loop |
 | `SearchBar.zig` (exists) | Native search controls plus search start/end and result-update actions; `App.performAction` forwards to this module |
 | `Recovery.zig` (exists) | GPU recovery budget and power suspend/resume handling, including the test messages |
 | `WndProc.zig` (new) | Parent and surface window-procedure dispatch and userdata lookup, delegating to the modules above |
@@ -1591,8 +1591,21 @@ Full parity passed with cwd inheritance both enabled and disabled, including
 cursor checks; both runs exited 0 without forced termination. Captures were
 inspected after making the test window topmost only during capture. Grouped
 physical input/IME checks remain. Source evidence and logs are recorded in
-the port log. The next extraction is the App-side palette
-handling into `CommandPalette.zig`, preserving its surface-identity checks.
+the port log.
+
+The subsequent `CommandPalette.zig` extraction on 2026-10-14 moved posted
+display requests and App-side presentation into the existing module. Source
+comparison confirmed unchanged bodies after qualification, including the
+surface ownership/ID guards. The Debug build, Win32 tests (178 passed, one
+skipped), palette-query filtered tests (77 passed), and the window-state
+regression with `-TestCommandPalette` passed. Dedicated checks verified
+duplicate-open suppression, filtered command execution, tab jumps, ignoring
+a closed jump target, selected source closure, and deferred reload diagnostics.
+Successful GUI checks exited 0 without forced termination. An unobscured
+filtered-palette capture was inspected; the port log records the partly
+obscured generic capture and fixture corrections. Grouped manual checks
+remain due. The next extraction is native drop handling and its warning
+into the existing `FileDrop.zig`.
 
 The name indirection is a fork-owned `src/brand.zig` usable by the runtime and
 the build, holding the current `ghostty` values. Runtime identifiers move to
@@ -2369,6 +2382,7 @@ the code exists.
 | Category | Test item | Current |
 |---|---|---|
 | Configuration | Diagnostic dialog lifetime | Fixed by displaying queued diagnostics outside core callbacks on 2026-10-14. Baseline owner-close reproduced exit 3; final Debug build, Win32 tests (178 passed, one skipped), eight diagnostic lifecycle scenarios, and normal window regression passed. Captures inspected; all final GUI cases exited 0 without forced termination and no dedicated processes remained. See the port log |
+| Win32 restructuring | `CommandPalette.zig` App-side extraction (#12) | Debug build, Win32 tests (178 passed, one skipped), palette-query filtered tests (77 passed), window-state regression with palette checks, deferred diagnostic regression, and dedicated action/jump/closed-target checks passed on 2026-10-14. GUI exits 0 with no forced termination; filtered palette capture inspected. Grouped manual checks remain; see the port log |
 | Win32 restructuring | `SearchBar.zig` action extraction (#12) | Debug build, Win32 tests (178 passed, one skipped), and unmodified window-state regression passed on 2026-10-14. A paced search-focused regression passed with exit 0; search capture inspected. Unmodified parity failed on repeated synthetic command characters, also reproduced on a saved pre-extraction executable; subsequently isolated to .NET cached-repeat handling. The corrected tracked parity fixture passes all checks without pacing in both cwd inheritance modes, exit 0; final captures inspected. Grouped manual checks remain; see the port log |
 | Win32 restructuring | `WindowAppearance.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), window-state regression, and controlled blur/theme/high-contrast checks passed on 2026-10-14; captures inspected and system contrast restored. Acrylic fallback and grouped manual checks remain. The invalid-config/modal-close finding is addressed by the subsequent diagnostic queue fix; see the port log |
 | Win32 restructuring | `Recovery.zig` extraction (#12) | Normal and hook-enabled Debug builds, Win32 tests (174 passed, one skipped), normal window regression, three controlled GPU recoveries with two injected failures per surface, and power recovery across three surfaces passed on 2026-10-14. Duplicate resume suppressed; disabled-hook probes returned zero. Post-recovery capture inspected. Actual device loss/system suspend remain unverified; see the port log |
