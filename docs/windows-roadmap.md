@@ -1492,7 +1492,7 @@ this layout.
 | `FileDrop.zig` (exists) | Plus native drop handling and its warning |
 | `CommandPalette.zig` (exists) | Plus showing the palette from the App, keeping its surface-identity checks around the modal loop |
 | `SearchBar.zig` (exists) | Plus the search actions now inline in `performAction` |
-| `Recovery.zig` (new) | GPU recovery budget and power suspend/resume handling, including the test messages |
+| `Recovery.zig` (exists) | GPU recovery budget and power suspend/resume handling, including the test messages |
 | `WndProc.zig` (new) | Parent and surface window-procedure dispatch and userdata lookup, delegating to the modules above |
 
 Rules for each split:
@@ -1541,7 +1541,20 @@ diagnostics, valid reload, and `VISUAL` editor invocation with a Japanese,
 space-containing config path. Captures were inspected; all successful GUI
 runs exited 0 without forced termination. The port log records the initial
 occluded capture and the test adjustment. Grouped manual checks remain due.
-`Recovery.zig` is the next group in the split order.
+
+The subsequent `Recovery.zig` extraction on 2026-10-14 moved GPU recovery
+scheduling and its cycle budget, power-event handling, the test messages,
+and the existing power-event classification test. Normal and hook-enabled
+Debug builds passed, as did the Win32 tests (174 passed, one skipped) and
+normal window-state regression. The hook-enabled run completed three GPU
+recoveries with two injected failures per surface, power-resume recovery
+across three surfaces, and duplicate-resume suppression. A capture after
+recovery was inspected. Separate probes returned zero when hooks were
+compiled out or disabled at runtime. All successful GUI runs exited 0
+without forced termination. This is controlled recovery evidence, not real
+device-loss or system-suspend verification; grouped manual checks remain due.
+See the port log for artifacts and executable hashes. `WindowAppearance.zig`
+is the next group in the split order.
 
 The name indirection is a fork-owned `src/brand.zig` usable by the runtime and
 the build, holding the current `ghostty` values. Runtime identifiers move to
@@ -2317,6 +2330,7 @@ the code exists.
 
 | Category | Test item | Current |
 |---|---|---|
+| Win32 restructuring | `Recovery.zig` extraction (#12) | Normal and hook-enabled Debug builds, Win32 tests (174 passed, one skipped), normal window regression, three controlled GPU recoveries with two injected failures per surface, and power recovery across three surfaces passed on 2026-10-14. Duplicate resume suppressed; disabled-hook probes returned zero. Post-recovery capture inspected. Actual device loss/system suspend remain unverified; see the port log |
 | Win32 restructuring | `ConfigActions.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), and unmodified window-state regression passed on 2026-10-14. Extended palette/scrollbar checks passed with test-window stacking adjusted for captures; dedicated diagnostics/reload/editor checks passed. Captures inspected; grouped manual checks remain. See the port log for scope and evidence |
 | Win32 restructuring | `TabTitles.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), window-state regression, and controlled title actions/dialog/tab-switch checks passed on 2026-10-14. Dialog and renamed-window captures inspected; both GUI checks exited 0 without forced termination. Grouped manual checks remain; see the port log |
 | Feature expansion | Phase 7, F1-F8 | F1-F3 implementation and acceptance checks passed, including physical IME, real-pointer, high-contrast, mixed-DPI, Explorer quoting, pane targeting, and target-window closure. Baseline-CPU ReleaseFast build, combined F1/F2 native regression, 20/20 soak, and real F3 drop passed. F4-F8 remain. See Section 6 and the feature development plan |

@@ -5,6 +5,56 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-14: Recovery extraction (#12)
+
+- Move GPU recovery scheduling and its cycle budget, power suspend/resume
+  handling, and the recovery test-message IDs and handlers to `Recovery.zig`.
+  App keeps action/window-message dispatch, startup hook settings, and its
+  state fields; Surface keeps its counters. Expose App's existing HWND lookup
+  for the extracted handlers without changing it.
+- Move the power-event classification test unchanged and register the module
+  in the Win32 test imports and App's comptime block. Comparison against the
+  pre-extraction snapshot confirmed that function and handler bodies differ
+  only in qualification, public declarations, and indentation. Preserve the
+  compile-time hook gate, runtime opt-in, `DefWindowProcW` fallback, and
+  parent-window-only power dispatch.
+- The restructuring remains in progress; `WindowAppearance.zig` is next.
+
+### Verification
+
+- Normal Debug and `-Dwin32-test-hooks=true --prefix zig-out/recovery-hooks`
+  builds each passed 128/128 steps. Logs: `zig-out/logs/recovery-build.log`
+  and `zig-out/logs/recovery-hooks-build.log`.
+- Win32 tests with hooks: 91/91 steps succeeded, 174 passed and one skipped
+  (`zig-out/logs/recovery-win32-tests.log`). The unmodified window-state
+  regression passed on `zig-out/bin/ghostty.exe`, exit code 0, no forced
+  termination (`zig-out/logs/recovery-window-state.json`).
+- The hook build passed window-state regression with `-TestGpuRecovery
+  -GpuRecoveryIterations 3 -GpuRecoveryFailures 2 -TestPowerResume`: three
+  GPU recoveries, terminal continuity, all three surfaces after power
+  resume, and duplicate-resume suppression. Logs show the injected failures
+  retrying after 100 ms and 250 ms. The temporary copy at
+  `zig-out/test-fixtures/recovery-split/window-state-capture.ps1` changes
+  the repository-root lookup and adds a topmost-window capture after the
+  single-surface GPU/power recovery stage; its regression checks are unchanged.
+  Summary: `zig-out/logs/recovery-hooks-window-state.json`; inspected capture:
+  `zig-out/logs/window-state-20261014-140627-756-a68677bb.recovery.png`.
+- Dedicated disabled-hook probes returned zero for both the enable probe
+  and the status after a recovery request: normal build with the environment
+  opt-in set to 1, and hook build with it set to 0. Summaries:
+  `zig-out/logs/recovery-normal-disabled.json` and
+  `zig-out/logs/recovery-hooks-disabled.json`.
+- Every successful GUI run exited 0 without forced termination; no dedicated
+  test processes remained. These are injected GPU failures and synthetic
+  power notifications, not actual device loss or system suspend. Grouped
+  manual checks remain due.
+- Executables are Debug working trees based on `c4671a659` with all three
+  extractions. Normal SHA-256:
+  `10E73BF49F3F5AB839949142FDF800F3EC9F923A7413824B4104C26AA60B0DD1`.
+  Hook-enabled SHA-256:
+  `05A26A6ADDC6BDB77F21E3D22026F4481A8644D0C7B3E52C0568DF8FDD9D8CA5`.
+  The hook-enabled executable is for regression use only.
+
 ## 2026-10-14: Configuration-action extraction (#12)
 
 - Move configuration reload and update, `config_change`, startup/reload

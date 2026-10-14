@@ -50,6 +50,13 @@ known issues, and known limitations of each version; the
 
 ### Changed
 
+- Extract Win32 GPU recovery scheduling and its cycle budget, power
+  suspend/resume handling, and recovery test-message handlers into
+  `Recovery.zig` for [#12](https://github.com/fukuyori/ghostty/issues/12).
+  Move the existing power-event classification test with the code; retain
+  App/Surface state, startup hook settings, message IDs, and compile-time
+  and runtime test gates. Verification is recorded in the
+  [port log](windows-port-log.md).
 - Extract Win32 configuration reload and update, diagnostics, configuration
   editor launch, and scrollbar configuration into `ConfigActions.zig` for
   [#12](https://github.com/fukuyori/ghostty/issues/12). Move the four existing

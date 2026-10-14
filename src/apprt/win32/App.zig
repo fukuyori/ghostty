@@ -15,7 +15,6 @@ const CoreSurface = @import("../../Surface.zig");
 const global = @import("../../global.zig");
 const input = @import("../../input.zig");
 const math = @import("../../math.zig");
-const rendererpkg = @import("../../renderer.zig");
 const d3d11_buffer = @import("../../renderer/d3d11/buffer.zig");
 const D3D11RenderPass = @import("../../renderer/d3d11/RenderPass.zig");
 const D3D11Sampler = @import("../../renderer/d3d11/Sampler.zig");
@@ -37,6 +36,7 @@ const ShellOpen = @import("ShellOpen.zig");
 const CommandPalette = @import("CommandPalette.zig");
 const FileDrop = @import("FileDrop.zig");
 const Mouse = @import("Mouse.zig");
+const Recovery = @import("Recovery.zig");
 const Overrides = @import("Overrides.zig");
 const IpcProtocol = @import("IpcProtocol.zig");
 const IpcTransport = @import("IpcTransport.zig");
@@ -48,6 +48,7 @@ comptime {
     _ = ShellOpen;
     _ = TabTitles;
     _ = ConfigActions;
+    _ = Recovery;
     _ = brand;
 }
 
@@ -63,11 +64,6 @@ const wakeup_class_name = win32.L(brand.windows.window_class_prefix ++ "Wakeup")
 /// through DispatchMessage, including from inside modal loops.
 const hwnd_message: win32.HWND = @ptrFromInt(@as(usize, @bitCast(@as(isize, -3))));
 
-/// Renderer recovery cycles the app schedules for one surface before it
-/// stops and leaves the surface blank. Each cycle is a bounded, backed-off
-/// series of attempts on the renderer thread. A later power resume resets
-/// the budget.
-const gpu_recovery_max_cycles: u32 = 3;
 const default_window_title = win32.L(brand.display_name);
 const icon_resource_id: usize = 1;
 const split_divider_logical_gap: i32 = 1;
@@ -87,11 +83,6 @@ const WM_WAKEUP = win32.WM_USER + 1;
 /// A surface can request closure from a core callback. Route it through the
 /// window thread so confirmation and native resource teardown happen there.
 const WM_CLOSE_SURFACE = win32.WM_USER + 2;
-
-/// Test-only request used by the Windows regression script. It is ignored
-/// unless the process explicitly enables GHOSTTY_TEST_DEVICE_RECOVERY.
-const WM_TEST_RECOVER_RENDERER = win32.WM_USER + 3;
-const WM_TEST_RECOVERY_STATUS = win32.WM_USER + 4;
 
 /// Opening a modal dialog directly from a core key callback lets the modal
 /// message loop destroy that callback's surface before the callback returns.
@@ -650,7 +641,7 @@ pub fn performAction(
             try ConfigActions.reloadConfig(self, target, value);
             return true;
         },
-        .renderer_health => return try recoverRenderer(target, value),
+        .renderer_health => return try Recovery.recoverRenderer(target, value),
         .config_change => return try ConfigActions.configChange(self, target, value),
         else => return false,
     }
@@ -703,82 +694,6 @@ fn showCommandPalette(self: *App, source: *Surface) anyerror!void {
             _ = presentSurface(jump.surface);
         },
     }
-}
-
-fn recoverRenderer(target: apprt.Target, health: rendererpkg.Health) !bool {
-    if (comptime build_config.renderer != .d3d11) return false;
-
-    const surface = targetSurface(target) orelse {
-        log.warn("renderer_health targeted the application", .{});
-        return false;
-    };
-    if (health == .healthy) {
-        surface.gpu_recovery_cycles = 0;
-        log.info("D3D11 renderer recovered", .{});
-        return true;
-    }
-
-    // The renderer thread reports unhealthy both when a frame first detects
-    // device loss and after every attempt of a recovery cycle failed. Bound
-    // the number of cycles so a permanently lost device does not rebuild
-    // forever; a later power resume resets the budget.
-    if (surface.gpu_recovery_cycles >= gpu_recovery_max_cycles) {
-        log.err(
-            "D3D11 renderer recovery exhausted after {d} cycles; rendering stays stopped",
-            .{surface.gpu_recovery_cycles},
-        );
-        return true;
-    }
-    surface.gpu_recovery_cycles += 1;
-    log.warn(
-        "D3D11 renderer is unhealthy; scheduling device recovery cycle={d}/{d}",
-        .{ surface.gpu_recovery_cycles, gpu_recovery_max_cycles },
-    );
-    const core = surface.core_surface orelse return false;
-    try core.recoverRenderer();
-    return true;
-}
-
-fn handlePowerBroadcast(self: *App, event: u32) void {
-    if (event == win32.PBT_APMSUSPEND) {
-        if (!self.power_suspended) log.info("Windows power suspend detected", .{});
-        self.power_suspended = true;
-        return;
-    }
-
-    if (!isPowerResumeEvent(event) or !self.power_suspended) return;
-    self.power_suspended = false;
-
-    if (comptime build_config.renderer != .d3d11) return;
-
-    var scheduled: usize = 0;
-    for (self.windows.items) |window| {
-        var surfaces = window.surfaceIterator();
-        while (surfaces.next()) |surface| {
-            const core = surface.core_surface orelse continue;
-            surface.gpu_recovery_cycles = 0;
-            core.recoverRenderer() catch |err| {
-                log.err("failed to schedule renderer recovery after power resume: {}", .{err});
-                continue;
-            };
-            scheduled += 1;
-        }
-    }
-    log.info(
-        "Windows power resume detected; scheduled renderer recovery surfaces={d}",
-        .{scheduled},
-    );
-}
-
-fn isPowerResumeEvent(event: u32) bool {
-    return switch (event) {
-        win32.PBT_APMRESUMECRITICAL,
-        win32.PBT_APMRESUMESUSPEND,
-        win32.PBT_APMRESUMESTANDBY,
-        win32.PBT_APMRESUMEAUTOMATIC,
-        => true,
-        else => false,
-    };
 }
 
 fn closeWindow(self: *App, target: apprt.Target) bool {
@@ -2569,7 +2484,7 @@ fn showWindow(surface: *Surface) void {
     }
 }
 
-fn getSurface(hwnd: win32.HWND) ?*Surface {
+pub fn getSurface(hwnd: win32.HWND) ?*Surface {
     const ptr = win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA);
     if (ptr == 0) return null;
     return @ptrFromInt(@as(usize, @bitCast(ptr)));
@@ -4188,45 +4103,9 @@ fn wndProc(
             }
             return 0;
         },
-        WM_TEST_RECOVER_RENDERER => {
-            if (comptime !build_config.win32_test_hooks) {
-                return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
-            }
-            if (getSurface(hwnd)) |surface| {
-                const app = surface.rtApp();
-                if (app.test_device_recovery) {
-                    if (surface.core_surface) |core| {
-                        core.recoverRenderer() catch |err| {
-                            log.err("failed to schedule test renderer recovery: {}", .{err});
-                        };
-                    }
-                }
-            }
-            return 0;
-        },
-        WM_TEST_RECOVERY_STATUS => {
-            if (comptime !build_config.win32_test_hooks) {
-                return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
-            }
-            if (getSurface(hwnd)) |surface| {
-                if (surface.rtApp().test_device_recovery) {
-                    // wparam 1 probes whether the hooks are compiled in and
-                    // enabled, so scripts can fail early with a clear message
-                    // instead of timing out against a release executable.
-                    if (wparam == 1) return 1;
-                    return @intCast(surface.gpu_recovery_count.load(.seq_cst));
-                }
-            }
-            return 0;
-        },
-        win32.WM_POWERBROADCAST => {
-            if (getSurface(hwnd)) |surface| {
-                if (hwnd == surface.windowHwnd()) {
-                    surface.rtApp().handlePowerBroadcast(@intCast(wparam));
-                }
-            }
-            return 1;
-        },
+        Recovery.WM_TEST_RECOVER_RENDERER => return Recovery.testRecoverRenderer(hwnd, msg, wparam, lparam),
+        Recovery.WM_TEST_RECOVERY_STATUS => return Recovery.testRecoveryStatus(hwnd, msg, wparam, lparam),
+        win32.WM_POWERBROADCAST => return Recovery.powerBroadcast(hwnd, wparam),
         win32.WM_SIZE => {
             if (getSurface(hwnd)) |surface| {
                 const width: u32 = @intCast(lparam & 0xFFFF);
@@ -4828,15 +4707,6 @@ test "decode Win32 DPI scale" {
         apprt.ContentScale{ .x = 1.5, .y = 2.0 },
         dpiScale(wparam),
     );
-}
-
-test "Win32 power resume event classification" {
-    try std.testing.expect(isPowerResumeEvent(win32.PBT_APMRESUMECRITICAL));
-    try std.testing.expect(isPowerResumeEvent(win32.PBT_APMRESUMESUSPEND));
-    try std.testing.expect(isPowerResumeEvent(win32.PBT_APMRESUMESTANDBY));
-    try std.testing.expect(isPowerResumeEvent(win32.PBT_APMRESUMEAUTOMATIC));
-    try std.testing.expect(!isPowerResumeEvent(win32.PBT_APMSUSPEND));
-    try std.testing.expect(!isPowerResumeEvent(0));
 }
 
 test "Win32 window icons fall back without an embedded resource" {
