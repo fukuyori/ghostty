@@ -25,6 +25,11 @@ known issues, and known limitations of each version; the
 
 ### Fixed
 
+- Pair synthetic text with key-release messages in the Windows parity
+  regression, avoiding .NET's extra character when adjacent key-down records
+  are coalesced. Verify repeated-character payloads without delays, and raise
+  the dedicated window only while capturing its search controls. Both cwd
+  inheritance modes pass the full regression; see the [port log](windows-port-log.md).
 - Defer configuration error dialogs until the Win32 main loop has returned
   from core callbacks. Closing a window or ending its shell while a reload
   diagnostic was open could free the Surface before the key callback resumed
@@ -58,6 +63,11 @@ known issues, and known limitations of each version; the
 
 ### Changed
 
+- Move Win32 search start/end and result-update actions from `App.zig` into
+  the existing `SearchBar.zig` for
+  [#12](https://github.com/fukuyori/ghostty/issues/12). Preserve allocation,
+  pane ownership, layout, focus, and result-update order. Verification is
+  recorded in the [port log](windows-port-log.md).
 - Extract background-blur policy, cleanup and fallback, high-contrast
   detection, and theme-change refresh into `WindowAppearance.zig` for
   [#12](https://github.com/fukuyori/ghostty/issues/12). Move the existing

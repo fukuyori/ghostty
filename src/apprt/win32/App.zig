@@ -560,34 +560,9 @@ pub fn performAction(
         },
         .set_title => return try TabTitles.setTitle(target, value),
         .set_tab_title => return try TabTitles.setTabTitle(self, target, value),
-        .start_search => {
-            const surface = targetSurface(target) orelse return false;
-            if (surface.search_bar == null) {
-                const bar = try self.alloc.create(SearchBar);
-                errdefer self.alloc.destroy(bar);
-                try bar.init(surface);
-                surface.search_bar = bar;
-            }
-            const bar = surface.search_bar.?;
-            try bar.start(value.needle);
-            if (self.windowForSurface(surface)) |window| self.layoutWindow(window);
-            bar.focus();
-            return true;
-        },
-        .end_search => {
-            const surface = targetSurface(target) orelse return false;
-            if (surface.search_bar) |bar| bar.stop();
-            if (self.windowForSurface(surface)) |window| self.layoutWindow(window);
-            return true;
-        },
-        .search_total, .search_selected => {
-            const surface = targetSurface(target) orelse return false;
-            if (surface.search_bar) |bar| {
-                if (action == .search_total) bar.total = value.total else bar.selected = value.selected;
-                bar.updateStatus();
-            }
-            return true;
-        },
+        .start_search => return try SearchBar.startSearch(self, target, value),
+        .end_search => return SearchBar.endSearch(self, target),
+        .search_total, .search_selected => return SearchBar.updateResults(target, action, value),
         .scrollbar => {
             const surface = targetSurface(target) orelse return false;
             if (surface.scrollbar) |bar| bar.update(value);

@@ -1491,7 +1491,7 @@ this layout.
 | `Mouse.zig` (exists) | Cursor shape plus terminal mouse buttons, motion, capture release, wheel, and coordinate helpers |
 | `FileDrop.zig` (exists) | Plus native drop handling and its warning |
 | `CommandPalette.zig` (exists) | Plus showing the palette from the App, keeping its surface-identity checks around the modal loop |
-| `SearchBar.zig` (exists) | Plus the search actions now inline in `performAction` |
+| `SearchBar.zig` (exists) | Native search controls plus search start/end and result-update actions; `App.performAction` forwards to this module |
 | `Recovery.zig` (exists) | GPU recovery budget and power suspend/resume handling, including the test messages |
 | `WndProc.zig` (new) | Parent and surface window-procedure dispatch and userdata lookup, delegating to the modules above |
 
@@ -1571,8 +1571,28 @@ are retained in the port log. The subsequent fix queues diagnostic text and
 displays it from the outer message loop after core callbacks return, so a
 modal owner-close cannot free the Surface underneath a reload key callback.
 The defect also reproduced on the saved pre-WindowAppearance executable.
-See the port log for the fix's verification. The next restructuring group is
-the planned additions to existing modules.
+See the port log for the fix's verification.
+
+The additions to existing modules began with `SearchBar.zig` on 2026-10-14:
+search start/end and result-update actions now live there, with App forwarding
+the calls. Source comparison confirmed unchanged bodies after qualification.
+The Debug build, Win32 tests (178 passed, one skipped), and unmodified
+window-state regression passed. A paced, search-focused copy of the parity
+script passed navigation, Unicode, empty/no-match queries, refocus/reopen,
+resize, post-search input, and tab/split isolation and close, exiting 0.
+The unmodified parity script hit repeated characters in its synthetic
+post-search command, also reproduced on a saved pre-extraction executable;
+the subsequent diagnosis isolated the extra characters to .NET 10.0.12's
+`Console.ReadKey` cached-repeat handling. Raw console records preserve the
+input, and a child-local repeated-record injection reproduces the extra
+character. The tracked parity fixture now pairs character messages with key-up
+messages and verifies an exact repeated-character payload without pacing.
+Full parity passed with cwd inheritance both enabled and disabled, including
+cursor checks; both runs exited 0 without forced termination. Captures were
+inspected after making the test window topmost only during capture. Grouped
+physical input/IME checks remain. Source evidence and logs are recorded in
+the port log. The next extraction is the App-side palette
+handling into `CommandPalette.zig`, preserving its surface-identity checks.
 
 The name indirection is a fork-owned `src/brand.zig` usable by the runtime and
 the build, holding the current `ghostty` values. Runtime identifiers move to
@@ -2349,6 +2369,7 @@ the code exists.
 | Category | Test item | Current |
 |---|---|---|
 | Configuration | Diagnostic dialog lifetime | Fixed by displaying queued diagnostics outside core callbacks on 2026-10-14. Baseline owner-close reproduced exit 3; final Debug build, Win32 tests (178 passed, one skipped), eight diagnostic lifecycle scenarios, and normal window regression passed. Captures inspected; all final GUI cases exited 0 without forced termination and no dedicated processes remained. See the port log |
+| Win32 restructuring | `SearchBar.zig` action extraction (#12) | Debug build, Win32 tests (178 passed, one skipped), and unmodified window-state regression passed on 2026-10-14. A paced search-focused regression passed with exit 0; search capture inspected. Unmodified parity failed on repeated synthetic command characters, also reproduced on a saved pre-extraction executable; subsequently isolated to .NET cached-repeat handling. The corrected tracked parity fixture passes all checks without pacing in both cwd inheritance modes, exit 0; final captures inspected. Grouped manual checks remain; see the port log |
 | Win32 restructuring | `WindowAppearance.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), window-state regression, and controlled blur/theme/high-contrast checks passed on 2026-10-14; captures inspected and system contrast restored. Acrylic fallback and grouped manual checks remain. The invalid-config/modal-close finding is addressed by the subsequent diagnostic queue fix; see the port log |
 | Win32 restructuring | `Recovery.zig` extraction (#12) | Normal and hook-enabled Debug builds, Win32 tests (174 passed, one skipped), normal window regression, three controlled GPU recoveries with two injected failures per surface, and power recovery across three surfaces passed on 2026-10-14. Duplicate resume suppressed; disabled-hook probes returned zero. Post-recovery capture inspected. Actual device loss/system suspend remain unverified; see the port log |
 | Win32 restructuring | `ConfigActions.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), and unmodified window-state regression passed on 2026-10-14. Extended palette/scrollbar checks passed with test-window stacking adjusted for captures; dedicated diagnostics/reload/editor checks passed. Captures inspected; grouped manual checks remain. See the port log for scope and evidence |

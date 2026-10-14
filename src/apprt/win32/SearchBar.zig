@@ -1,8 +1,11 @@
 //! A modeless native search bar owned by one terminal pane. The common core
 //! owns matching, scrollback navigation, and renderer highlights.
+//! This module also handles the runtime's search actions.
 const Self = @This();
 const std = @import("std");
 const win32 = @import("win32").everything;
+const apprt = @import("../../apprt.zig");
+const App = @import("App.zig");
 const Surface = @import("Surface.zig");
 const input = @import("../../input.zig");
 const log = std.log.scoped(.win32_search);
@@ -16,6 +19,41 @@ selected: ?usize = null,
 const edit_id = 1101;
 const status_id = 1102;
 const previous_id = 1103;
+
+pub fn startSearch(app: *App, target: apprt.Target, value: apprt.Action.Value(.start_search)) !bool {
+    const surface = App.targetSurface(target) orelse return false;
+    if (surface.search_bar == null) {
+        const bar = try app.alloc.create(Self);
+        errdefer app.alloc.destroy(bar);
+        try bar.init(surface);
+        surface.search_bar = bar;
+    }
+    const bar = surface.search_bar.?;
+    try bar.start(value.needle);
+    if (app.windowForSurface(surface)) |window| app.layoutWindow(window);
+    bar.focus();
+    return true;
+}
+
+pub fn endSearch(app: *App, target: apprt.Target) bool {
+    const surface = App.targetSurface(target) orelse return false;
+    if (surface.search_bar) |bar| bar.stop();
+    if (app.windowForSurface(surface)) |window| app.layoutWindow(window);
+    return true;
+}
+
+pub fn updateResults(
+    target: apprt.Target,
+    comptime action: apprt.Action.Key,
+    value: apprt.Action.Value(action),
+) bool {
+    const surface = App.targetSurface(target) orelse return false;
+    if (surface.search_bar) |bar| {
+        if (action == .search_total) bar.total = value.total else bar.selected = value.selected;
+        bar.updateStatus();
+    }
+    return true;
+}
 
 pub fn init(self: *Self, surface: *Surface) !void {
     self.* = .{ .surface = surface };

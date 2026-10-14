@@ -5,6 +5,139 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-14: Parity fixture key releases and full regression
+
+- Apply the diagnosed fixture correction to `scripts/test-windows-parity.ps1`:
+  pair every synthetic `WM_CHAR` with a `WM_KEYUP`, mapping the virtual key
+  with the target thread's keyboard layout. Check message-posting failures.
+  No character delay is added. The post-search marker now checks the exact
+  repeated-character payload `ok::All-ghostty-aaa-bbbb-1111`.
+- Keep the .NET diagnosis separate: the fixture avoids coalesced key-down
+  records for synthetic typing; it does not change the managed reader or
+  Ghostty's product input code. Physical auto-repeat and IME remain outside
+  this automated check.
+- Both initial full runs passed, with cwd inheritance enabled and disabled
+  (`parity-20261014-150555-733` and `parity-20261014-150612-089` under
+  `zig-out/logs`). Their captures were partly covered by another window.
+  The script now makes only its dedicated window topmost during capture,
+  without activation, and removes topmost status in `finally`.
+- Final full runs both passed, exit 0, without forced termination:
+  - Inheritance enabled: `zig-out/logs/parity-20261014-150656-413.json`.
+  - Inheritance disabled: `zig-out/logs/parity-20261014-150710-788.json`.
+  - Copies: `zig-out/logs/parity-keyup-enabled.json` and
+    `zig-out/logs/parity-keyup-disabled.json`.
+- The full checks include search navigation, Unicode, empty/no-match queries,
+  refocus/reopen, eight resize cycles, exact post-search terminal input,
+  cursor shape and hide/restore, tab/split search isolation and close, and
+  cwd behavior for new windows/tabs/splits. Both final PNGs were inspected:
+  the search controls and highlighted matches are unobscured. No dedicated
+  Ghostty process remained; the existing installed instance was preserved.
+- PowerShell parsing and `git diff --check` passed. No executable rebuild was
+  needed for this script-only follow-up. Tests used the prior SearchBar
+  extraction's Debug executable, SHA-256
+  `8691C466EDE7DDB65E3B14C02C6C1926BF5C8C4CA9D39FA0B3D62D615322C5E0`.
+  The build/Win32/window-state results for that executable are below. This
+  completes the automated parity checks for the extraction; grouped physical
+  input/IME and release acceptance remain separate.
+
+## 2026-10-14: Synthetic-input duplication diagnosis
+
+- Environment: PowerShell 7.6.6, .NET 10.0.12; the same Debug executable
+  used for the SearchBar extraction below. No search bar is needed for the
+  minimal reproduction. The fixture sends a known string as rapid `WM_CHAR`
+  messages, then lets the child consume the buffered input.
+- `ReadConsoleInputW` receives the exact string when each record is expanded
+  by `RepeatCount`. Adjacent identical key-down records are coalesced (for
+  example, two colons become one record with count 2). `Console.ReadKey`
+  returns one extra character for each coalesced run: `::` becomes `:::`,
+  `All` becomes `Alll`, and `ghostty` becomes `ghosttty`.
+- The .NET source confirms an off-by-one in the cached-repeat path: the
+  zero-count cached event is still returned before the cache is cleared.
+  See [ConsolePal.Windows.cs at v10.0.12, lines 328-401](https://github.com/dotnet/runtime/blob/v10.0.12/src/libraries/System.Console/src/System/ConsolePal.Windows.cs#L328-L401).
+  A child-local `WriteConsoleInputW` injection of one colon record with count
+  2 plus a sentinel also yields three colons through `Console.ReadKey`,
+  without sending any Ghostty input messages. This isolates the extra
+  character to the managed reader in this environment.
+- The parity fixture sends character messages without key releases. A
+  candidate fixture change appends a matching `WM_KEYUP` after each
+  character, using the target thread's keyboard layout to map the virtual
+  key. With no pacing, both raw and managed readers then return the exact
+  string. This avoids the coalesced-repeat case for synthetic typing; it
+  does not fix .NET or establish physical auto-repeat behavior.
+- Evidence is retained under `zig-out/test-fixtures/input-duplication/`:
+  `20261014-145930-857-{Raw,ReadKey}.json` (original comparison),
+  `20261014-150053-066-keyup-True-{Raw,ReadKey}.json` (release-paired input),
+  and `20261014-150207-376-keyup-False-InjectedReadKey.json` (direct injection).
+  The reader, native declarations, and runners are in that directory.
+  All completed comparisons exited 0. The first direct-injection probe
+  timed out because its PowerShell value-type records were not assigned
+  back to the array; the corrected probe above completed.
+- The candidate change also passed the search-focused parity copy, without
+  character delays: `zig-out/test-fixtures/search-actions-search-keyup.ps1`.
+  See `zig-out/logs/search-actions-search-keyup.log` and its referenced JSON
+  for search, resize, post-search command, tab/split isolation, and close.
+  Exit was 0; no dedicated Ghostty process remained. Cursor checks were
+  omitted as in the previous search-focused copy, so this is not a full
+  parity pass. The tracked test script and product input code have not been
+  changed by this investigation. The subsequent entry above records the
+  tracked fixture correction and the completed full parity checks.
+
+## 2026-10-14: Search-action extraction (#12)
+
+- Move `start_search`, `end_search`, `search_total`, and `search_selected`
+  handling from `App.performAction` to the existing `SearchBar.zig`.
+  App forwards to `startSearch`, `endSearch`, and `updateResults`.
+- Preserve lazy allocation and its failure cleanup, Surface ownership,
+  start/layout/focus and stop/layout order, and result/status updates.
+  A source comparison against `02a5816a3` found the three extracted bodies
+  identical after module/type/parameter qualification and whitespace
+  normalization. Existing native controls, message filtering, pane layout,
+  focus helpers, and core search behavior are unchanged.
+
+### Verification
+
+- Debug build: 128/128 steps succeeded
+  (`zig-out/logs/search-actions-build.log`). Win32 tests with hooks:
+  91/91 steps succeeded, 178 passed and one skipped
+  (`zig-out/logs/search-actions-win32-tests.log`).
+- The unmodified window-state regression passed with exit 0 and no forced
+  termination (`zig-out/logs/search-actions-window-state.json`).
+- The unmodified parity regression reached search navigation, Unicode,
+  empty/no-match queries, eight resize cycles, and Escape dismissal, then
+  timed out waiting for the post-search command's output file. Run prefix:
+  `zig-out/logs/parity-20261014-144805-494`. Its search capture was inspected.
+- A diagnostic copy captured the failed command: repeated characters in
+  synthetic terminal input caused a PowerShell ParserError. Increasing the
+  timeout to 30 seconds did not resolve it. Failure capture:
+  `zig-out/logs/parity-20261014-144854-660.failure.png`; cleanup exited 0.
+  The saved pre-extraction recovery-hook executable reproduced the same
+  failure, also exiting 0 during cleanup:
+  `zig-out/logs/parity-20261014-144946-797.failure.png`. That executable's
+  SHA-256 is
+  `05A26A6ADDC6BDB77F21E3D22026F4481A8644D0C7B3E52C0568DF8FDD9D8CA5`.
+  At this stage the cause remained unconfirmed; the subsequent diagnosis
+  above isolates it to .NET's cached repeat handling.
+- A temporary copy with 25 ms between synthetic characters passed the
+  post-search input check, then failed the pointer-hide check. Its diagnostic
+  reported the pointer over `MozillaWindowClass`, outside the test surface;
+  the capture was partly obscured. See
+  `zig-out/logs/search-actions-parity-paced.log`; cleanup exited 0.
+- A search-focused copy retained that pacing and omitted cursor checks and
+  pointer movement. Search navigation, Unicode (two matches), scrollback
+  (three matches), empty/no-match queries, refocusing/reopening, eight
+  resize cycles, post-search terminal input, independent tab/split queries,
+  tab visibility, and closing a searching pane passed. Cwd inheritance for
+  windows/tabs/splits also passed. Summary:
+  `zig-out/logs/parity-20261014-145122-364.json`; the temporary script is
+  `zig-out/test-fixtures/search-actions-search-check.ps1`. The dedicated
+  process exited 0 without forced termination.
+- These are Debug checks using synthetic input. They do not establish a
+  pass for the unmodified full parity script, physical IME/input, or release
+  acceptance. The rapid-input failure is investigated in the later entry
+  above; grouped manual checks remain due.
+- Tested `zig-out/bin/ghostty.exe`, working tree based on `02a5816a3`, SHA-256:
+  `8691C466EDE7DDB65E3B14C02C6C1926BF5C8C4CA9D39FA0B3D62D615322C5E0`.
+
 ## 2026-10-14: Defer configuration diagnostics past core callbacks
 
 - **Reproduction:** start with a valid configuration, change `font-size` to

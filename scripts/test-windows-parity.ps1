@@ -47,6 +47,8 @@ public static class GhosttyParityNative {
     [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc f, IntPtr p);
     [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr h, EnumProc f, IntPtr p);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p);
+    [DllImport("user32.dll")] public static extern IntPtr GetKeyboardLayout(uint thread);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern short VkKeyScanExW(char c, IntPtr layout);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassNameW(IntPtr h, StringBuilder s, int n);
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowTextW(IntPtr h, StringBuilder s, int n);
     [DllImport("user32.dll", CharSet=CharSet.Unicode, EntryPoint="SendMessageW")] private static extern IntPtr ReadTextMessageW(IntPtr h, uint m, UIntPtr w, StringBuilder s);
@@ -105,8 +107,19 @@ function Key([IntPtr]$Handle, [int]$Code) {
     $null = [GhosttyParityNative]::PostMessageW($Handle, 0x101, [UIntPtr]::new($Code), [IntPtr]::new(0xC0000001L))
 }
 function Text([IntPtr]$Handle, [string]$Value) {
+    $ownerPid = [uint32]0
+    $thread = [GhosttyParityNative]::GetWindowThreadProcessId($Handle, [ref]$ownerPid)
+    if ($thread -eq 0) { throw 'Text target has no window thread' }
+    $layout = [GhosttyParityNative]::GetKeyboardLayout($thread)
     foreach ($c in $Value.ToCharArray()) {
-        $null = [GhosttyParityNative]::PostMessageW($Handle, 0x102, [UIntPtr]::new([uint16]$c), [IntPtr]::Zero)
+        if (-not [GhosttyParityNative]::PostMessageW($Handle, 0x102, [UIntPtr]::new([uint16]$c), [IntPtr]::new(1))) { throw 'Failed to post text character' }
+        # Separate typed characters with releases, as a key press/release would.
+        # Bare WM_CHAR bursts coalesce into repeat records; .NET 10.0.12's
+        # Console.ReadKey returns an extra character for those records.
+        # Match Ghostty's virtual-key lookup for text without scan-code metadata.
+        $mapped = [GhosttyParityNative]::VkKeyScanExW($c, $layout)
+        $vk = if ($mapped -eq -1) { 0 } else { $mapped -band 0xFF }
+        if (-not [GhosttyParityNative]::PostMessageW($Handle, 0x101, [UIntPtr]::new($vk), [IntPtr]::new(0xC0000001L))) { throw 'Failed to post text key release' }
     }
 }
 function Command([IntPtr]$Handle, [string]$Value) { Text $Handle $Value; Key $Handle 13 }
@@ -203,18 +216,26 @@ try {
     Add-Type -AssemblyName System.Drawing
     $rect = [GhosttyParityNative+RECT]::new()
     $null = [GhosttyParityNative]::GetWindowRect($window, [ref]$rect)
-    Start-Sleep -Milliseconds 300
-    $bitmap = [Drawing.Bitmap]::new($rect.R - $rect.L, $rect.B - $rect.T)
+    # CopyFromScreen captures occluding windows too. Raise only our dedicated
+    # window for the capture, without activating it, and restore its z-order.
+    if (-not [GhosttyParityNative]::SetWindowPos($window, [IntPtr]::new(-1), 0, 0, 0, 0, 0x13)) { throw 'Failed to raise capture window' }
     try {
-        $graphics = [Drawing.Graphics]::FromImage($bitmap)
-        try { $graphics.CopyFromScreen($rect.L, $rect.T, 0, 0, $bitmap.Size) } finally { $graphics.Dispose() }
-        $bitmap.Save($screenshot, [Drawing.Imaging.ImageFormat]::Png)
-    } finally { $bitmap.Dispose() }
+        Start-Sleep -Milliseconds 300
+        $bitmap = [Drawing.Bitmap]::new($rect.R - $rect.L, $rect.B - $rect.T)
+        try {
+            $graphics = [Drawing.Graphics]::FromImage($bitmap)
+            try { $graphics.CopyFromScreen($rect.L, $rect.T, 0, 0, $bitmap.Size) } finally { $graphics.Dispose() }
+            $bitmap.Save($screenshot, [Drawing.Imaging.ImageFormat]::Png)
+        } finally { $bitmap.Dispose() }
+    } finally {
+        $null = [GhosttyParityNative]::SetWindowPos($window, [IntPtr]::new(-2), 0, 0, 0, 0, 0x13)
+    }
     Key $edit 27
     Wait-State 'Escape closes search' { -not [GhosttyParityNative]::IsWindowVisible($bar) }
     $marker = Join-Path $state 'input-after-search.txt'
-    Command $surface "[IO.File]::WriteAllText('$($marker.Replace("'", "''"))','ok')"
-    Wait-State 'input after search and resize' { (Test-Path -LiteralPath $marker) -and [IO.File]::ReadAllText($marker) -eq 'ok' }
+    $markerText = 'ok::All-ghostty-aaa-bbbb-1111'
+    Command $surface "[IO.File]::WriteAllText('$($marker.Replace("'", "''"))','$markerText')"
+    Wait-State 'input after search and resize' { (Test-Path -LiteralPath $marker) -and [IO.File]::ReadAllText($marker) -ceq $markerText }
     Command $surface '[Console]::Write("$([char]27)]22;pointer$([char]7)")'
     Start-Sleep -Milliseconds 300
     $surfaceRect = [GhosttyParityNative+RECT]::new()
