@@ -3,14 +3,19 @@
 //! The tab bar is custom-drawn so the standard HWND proxy cannot discover its
 //! individual tabs. This provider exposes them as simple MSAA child elements
 //! while keeping the existing drawing and pointer behavior unchanged.
+//! It also owns accessible-name synchronization and window event notifications.
 
 const Self = @This();
 
 const std = @import("std");
 const brand = @import("../../brand.zig");
 const win32 = @import("win32").everything;
+const App = @import("App.zig");
+const Surface = @import("Surface.zig");
 const TabBar = @import("TabBar.zig");
 const Window = @import("Window.zig");
+
+const log = std.log.scoped(.win32);
 
 pub const select_message = win32.WM_USER + 3;
 
@@ -19,6 +24,103 @@ references: std.atomic.Value(u32) = .init(1),
 standard: *win32.IAccessible,
 hwnd: win32.HWND,
 window: ?*Window,
+
+fn accessibleName(
+    alloc: std.mem.Allocator,
+    tab_count: usize,
+    active_index: usize,
+    active_title: []const u8,
+) ![]u8 {
+    const tab_word = if (tab_count == 1) "tab" else "tabs";
+    return std.fmt.allocPrint(
+        alloc,
+        brand.display_name ++ " tabs. {d} {s}. Active tab {d}: {s}",
+        .{ tab_count, tab_word, active_index + 1, active_title },
+    );
+}
+
+pub fn sync(
+    self: *App,
+    window: *const Window,
+    selection_changed: bool,
+    order_changed: bool,
+) void {
+    // A title override applies to every pane in that tab, including hidden
+    // panes that may receive focus later. This also works with no tab bar.
+    var surfaces = window.surfaceIterator();
+    while (surfaces.next()) |surface| {
+        surface.applyAccessibleTitle(window.titleForSurface(surface) orelse
+            surface.title orelse brand.display_name) catch |err| {
+            log.warn("failed to synchronize terminal accessible name: {}", .{err});
+        };
+    }
+    const hwnd = window.tab_bar_hwnd orelse return;
+    const active_index = window.activeTabIndex();
+    const active_surface = window.focusedSurface();
+    const active_title = window.tabTitleAt(active_index) orelse
+        active_surface.title orelse
+        brand.display_name;
+    const name = accessibleName(
+        self.alloc,
+        window.tabCount(),
+        active_index,
+        active_title,
+    ) catch |err| {
+        log.warn("failed to allocate tab bar accessible name: {}", .{err});
+        return;
+    };
+    defer self.alloc.free(name);
+    const wide = std.unicode.utf8ToUtf16LeAllocZ(self.alloc, name) catch |err| {
+        log.warn("failed to encode tab bar accessible name: {}", .{err});
+        return;
+    };
+    defer self.alloc.free(wide);
+
+    if (win32.SetWindowTextW(hwnd, wide) == 0) {
+        log.warn("SetWindowTextW(tab bar accessible name) failed: err={d}", .{
+            @intFromEnum(win32.GetLastError()),
+        });
+        return;
+    }
+    notifyEvent(window, event_object_namechange);
+    if (order_changed) {
+        notifyEvent(window, event_object_reorder);
+    }
+    if (selection_changed) {
+        notifyEvent(window, event_object_selection);
+    }
+}
+
+pub fn notifyEvent(window: *const Window, event: u32) void {
+    const hwnd = window.tab_bar_hwnd orelse return;
+    const child_id: i32 = if (event == event_object_selection)
+        @intCast(window.activeTabIndex() + 1)
+    else
+        childid_self;
+    win32.NotifyWinEvent(event, hwnd, objid_client, child_id);
+}
+
+pub fn notifyChildNameChanged(window: *const Window, surface: *const Surface) void {
+    const hwnd = window.tab_bar_hwnd orelse return;
+    const index = window.tabIndexForSurface(surface) orelse return;
+    win32.NotifyWinEvent(
+        event_object_namechange,
+        hwnd,
+        objid_client,
+        @intCast(index + 1),
+    );
+}
+
+pub fn forWindow(window: *const Window) ?*Self {
+    const raw = window.tab_bar_accessibility orelse return null;
+    return @ptrCast(@alignCast(raw));
+}
+
+pub fn deinitForWindow(window: *Window) void {
+    const accessibility = forWindow(window) orelse return;
+    window.tab_bar_accessibility = null;
+    accessibility.detach();
+}
 
 pub fn create(hwnd: win32.HWND, window: *Window) !*Self {
     var raw: ?*anyopaque = null;
@@ -584,7 +686,11 @@ const vtable: win32.IAccessible.VTable = .{
     .put_accValue = putAccValue,
 };
 
-const objid_client: i32 = -4;
+// WinEvent accessibility event and object identifiers from winuser.h.
+pub const event_object_reorder: u32 = 0x8004;
+const event_object_selection: u32 = 0x8006;
+const event_object_namechange: u32 = 0x800C;
+pub const objid_client: i32 = -4;
 const childid_self: i32 = 0;
 
 fn childVariant(child: i32) win32.VARIANT {
@@ -650,5 +756,32 @@ test "Win32 tab accessibility navigates simple children" {
     try std.testing.expectEqual(
         @as(?usize, null),
         navigationTarget(win32.NAVDIR_FIRSTCHILD, .self, 0),
+    );
+}
+
+test "format Win32 tab bar accessible name" {
+    const name = try accessibleName(
+        std.testing.allocator,
+        3,
+        1,
+        "PowerShell",
+    );
+    defer std.testing.allocator.free(name);
+
+    try std.testing.expectEqualStrings(
+        brand.display_name ++ " tabs. 3 tabs. Active tab 2: PowerShell",
+        name,
+    );
+
+    const singular = try accessibleName(
+        std.testing.allocator,
+        1,
+        0,
+        "Command Prompt",
+    );
+    defer std.testing.allocator.free(singular);
+    try std.testing.expectEqualStrings(
+        brand.display_name ++ " tabs. 1 tab. Active tab 1: Command Prompt",
+        singular,
     );
 }

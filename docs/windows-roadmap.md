@@ -1481,15 +1481,15 @@ this layout.
 | `TabTitles.zig` (exists) | Title actions, the tab-title dialog, window-title synchronization, and title-change notification |
 | `ConfigActions.zig` (exists) | Reload and update, `config_change`, diagnostics, editing the configuration, scrollbar configuration |
 | `IpcHandler.zig` (new) | The CLI IPC entry point, UI request ownership and dispatch, and results; transport stays in `IpcTransport.zig` |
-| `WindowLayout.zig` (new) | Pane, search, and scrollbar placement, content bounds, DPI handling, and relayout |
-| `NativeWindow.zig` (new) | Window-class registration, icons, styles, and raw HWND creation |
+| `WindowLayout.zig` (exists) | Pane, search, scrollbar and tab-bar placement, content bounds, visibility policy, and size/move/DPI handling |
+| `NativeWindow.zig` (exists) | Window-class registration using supplied procedures, icons, styles, and raw HWND creation; callers retain userdata, ownership, and cleanup |
 | `WindowAppearance.zig` (exists) | Background-blur policy and fallback, and high-contrast and theme refresh; the composition objects stay in `Backdrop.zig` |
-| `SplitDivider.zig` (new) | Divider layout, painting and window procedure, colors, invalidation, hit testing, drag, capture, and cursor |
-| `TabBarController.zig` (new) | Tab-bar paint preparation, pointer, drag, and wheel handling, viewport, invalidation, and the tab-bar window procedure; drawing and geometry stay in `TabBar.zig` |
+| `SplitDivider.zig` (exists) | Divider layout, painting and window procedure, colors, invalidation, hit testing, drag, capture, and cursor |
+| `TabBarController.zig` (exists) | Tab-bar paint preparation, pointer, drag, and wheel handling, viewport, invalidation, and the tab-bar window procedure; drawing and geometry stay in `TabBar.zig` |
 | `TabBarAccessibility.zig` (exists) | The provider plus accessible-name synchronization, event notifications, lookup, and detachment |
 | `Keyboard.zig` (new) | Key translation and the complete key, character, and IME-placement handling, including suppression state and its reset on focus loss |
 | `Mouse.zig` (exists) | Cursor shape plus terminal mouse buttons, motion, capture release, wheel, and coordinate helpers |
-| `FileDrop.zig` (exists) | Plus native drop handling and its warning |
+| `FileDrop.zig` (exists) | Shell classification and path formatting plus native drop collection, paste handling, and warning display; the window procedure retains target checks and HDROP cleanup |
 | `CommandPalette.zig` (exists) | Native palette plus posted display requests, App-side presentation, and surface ownership/identity checks around the modal loop |
 | `SearchBar.zig` (exists) | Native search controls plus search start/end and result-update actions; `App.performAction` forwards to this module |
 | `Recovery.zig` (exists) | GPU recovery budget and power suspend/resume handling, including the test messages |
@@ -1604,8 +1604,129 @@ a closed jump target, selected source closure, and deferred reload diagnostics.
 Successful GUI checks exited 0 without forced termination. An unobscured
 filtered-palette capture was inspected; the port log records the partly
 obscured generic capture and fixture corrections. Grouped manual checks
-remain due. The next extraction is native drop handling and its warning
-into the existing `FileDrop.zig`.
+remain due.
+
+The subsequent `FileDrop.zig` extraction on 2026-10-14 moved native path
+collection, paste handling, and warning display into the existing module.
+The window procedure retains target checks, error selection, and `DragFinish`.
+Source comparison confirmed unchanged bodies after qualification. The Debug
+build, Win32 tests (178 passed, one skipped), file-drop filtered tests
+(78 passed), and unmodified window-state regression passed. Synthetic native
+drops verified shell-classified quoted text, Unicode/multiple paths, separate
+pane delivery, no automatic Enter, and rejection warnings. All three fixture
+processes exited 0 without forced termination; pane and warning captures were
+inspected after explicitly showing the test windows. This does not establish
+physical Explorer drops, shell argument parsing, or warning-owner closure;
+see the port log for scope and evidence. Grouped manual checks remain due.
+
+The subsequent `Mouse.zig` extraction on 2026-10-14 moved terminal buttons,
+motion, capture release, wheel and coordinate helpers, cursor actions, and
+three existing unit tests. Source comparison confirms unchanged bodies after
+qualification. The Debug build, Win32 tests (178 passed, one skipped), normal
+window-state and parity regressions passed. Dedicated visible-window checks
+also passed right-click/drag selection and vertical-wheel/scrollbar behavior;
+menu, search, and split captures were inspected. Successful GUI runs exited 0
+and left no dedicated processes. The port log records the initial obstructed
+context-menu run and the temporary visibility adjustments. Physical input,
+terminal capture-loss acceptance, and grouped manual checks remain due.
+
+The subsequent `TabBarAccessibility.zig` extraction on 2026-10-14 moved
+accessible-name synchronization, WinEvent notification, provider lookup and
+detachment, and the name-format test. Source comparison confirms unchanged
+helper bodies; App retains provider creation and message dispatch. The Debug
+build, Win32 tests (178 passed, one skipped), normal window-state regression,
+and existing title fixture passed. The fixture checks tab-bar HWND name text
+through title changes, overrides, Japanese rename/cancel, and tab switching;
+dialog and renamed-window captures were inspected. Both GUI runs exited 0
+without forced termination. WinEvent client delivery, retained COM references
+after closure, and screen-reader acceptance were not exercised. See the port
+log for evidence; grouped manual checks remain due.
+
+The subsequent `NativeWindow.zig` extraction on 2026-10-14 moved class
+registration, icons, creation styles, five HWND creation helpers, and two
+existing tests. App supplies the existing procedures and retains userdata,
+ownership, fallback, and cleanup sequencing. Source comparison confirmed
+unchanged bodies after qualification and procedure parameters. The Debug
+build, Win32 tests (178 passed, one skipped), normal window-state regression,
+existing title fixture, and eight diagnostic lifecycle cases passed. Class
+icons, styles, four-monitor layout, tab/split/multiwindow behavior, and normal
+exit were checked; renamed-window and diagnostic captures were inspected.
+All GUI exits were 0 without forced termination. OpenGL runtime and injected
+native-creation failures were not exercised; grouped manual checks remain due.
+See the port log for evidence.
+
+The subsequent `WindowLayout.zig` extraction on 2026-10-14 moved placement,
+content bounds, visibility policy, size/move/DPI handlers, and two existing
+tests. Source comparison confirmed unchanged bodies after qualification;
+divider and viewport helpers remain in App until their controllers are split.
+The Debug build, Win32 tests (178 passed, one skipped), and normal window-state
+regression passed. Two initial parity runs stopped at cursor hiding; subsequent
+unchanged full runs passed both pre-layout and current binaries, without
+establishing the earlier failures' cause. The extended overlay check passed
+after its separate history window was also explicitly shown/raised. Search
+and split captures were inspected; successful GUI runs exited 0 with no
+dedicated processes left. See the port log for each failure and final result.
+All four monitors used 96 DPI; mixed-DPI and grouped manual checks remain due.
+
+The subsequent `SplitDivider.zig` extraction on 2026-10-14 moved divider
+placement, gap sizing, painting, hit testing, drag/capture, cursor handling,
+the native window procedure, and the existing thickness test. Window retains
+state; App retains input arbitration and teardown ordering. Source comparison
+confirmed unchanged bodies after helper naming/visibility normalization.
+The Debug build, Win32 tests (178 passed, one skipped), normal window-state
+regression, and visible-window overlay checks passed. Four-monitor divider
+layout and maximize/restore were checked; the split capture was inspected.
+Main/history exits were 0 without forced termination or leftover test
+processes. Overlay drag checks cover scrollbars; physical divider dragging,
+divider capture loss, mixed-DPI transitions, and grouped manual acceptance
+remain due. See the port log for evidence.
+
+The subsequent `TabBarController.zig` extraction on 2026-10-14 moved tab-bar
+paint preparation, pointer/drag/wheel handling, viewport, invalidation, and
+the native window procedure, including accessibility dispatch. Drawing and
+geometry remain in TabBar; Window retains state. App exposes its existing
+new-tab, close-tab and state-transfer helpers without changing their bodies.
+Moved source and remaining App code compare equal after naming, qualification,
+method-call syntax and visibility normalization. Debug build: 128/128 steps
+succeeded. Following the explicit test request, Win32 tests (178 passed, one
+skipped), normal window-state regression, the existing title fixture and 11
+synthetic tab interaction checks passed. These cover new-tab/close/selection,
+reorder, native capture loss, overflow wheel/buttons, posted accessibility
+selection and viewport restoration. Title, reordered and overflow captures
+were inspected. GUI runs exited 0 without forced termination or leftover test
+processes. The controller fixture's initial tab-creation wait failure and its
+refined completion condition are recorded separately in the port log.
+Subsequent Computer Use SendInput checks passed tab creation/reorder/selection,
+divider dragging and pane focus. Real IME composition/candidate/commit passed
+in the rename dialog and terminal; the recorder received exact Japanese UTF-8.
+These checks are injected input, not human physical-device evidence.
+SystemSettings was not targetable; Narrator audio could not be captured and
+its accessibility was restricted by integrity level. The user subsequently
+confirmed audible reading. A subsequent display 1/2 round
+trip passed at 100%/125%: the window reported 120 DPI on display 2 and 96 DPI
+after return. Divider dragging, pane input, tab creation and state preservation
+were checked. After the user opened Narrator speech recap, replay confirmed
+selected/renamed window titles, dialog edit values and OK/Cancel labels, and
+the selected title after closure. New-tab creation announced only `Ghostty`;
+the shell's subsequent title was absent from the history. In a separate
+owner-operated check, the user heard only `ウインドウ`, without the title.
+The owner check is complete with failed title announcement. This is a recorded
+finding, not a blanket screen-reader pass. Tab role/ordinal/selected-state
+speech and broader COM/WinEvent acceptance remain unconfirmed.
+The subsequent review fixes move remaining close/title/file-drop dialogs out
+of callbacks and preserve targets by surface ID. The pre-fix rename/shell-exit
+crash was reproduced; four modal-lifetime regressions pass after the fix.
+Terminal child windows now expose their effective title, and drag reorder
+updates the accessible tab order/name. Focused-element names, new-tab title
+updates and rename were checked through Computer Use. The owner subsequently
+confirmed Narrator title speech and the automatic final-title announcement
+after new-tab creation, using only the instructed operations. See the latest
+port-log entry for this scoped owner confirmation.
+See the port log for these tool limitations.
+Physical input, detailed screen-reader/COM client behavior and
+grouped manual acceptance remain due. See the port log for the hash and evidence.
+The next planned extraction is `WindowLifecycle.zig`, followed by
+`WindowCommands.zig`.
 
 The name indirection is a fork-owned `src/brand.zig` usable by the runtime and
 the build, holding the current `ghostty` values. Runtime identifiers move to
@@ -2381,7 +2502,15 @@ the code exists.
 
 | Category | Test item | Current |
 |---|---|---|
+| Win32 review fixes | Modal lifetime and accessible names | 2026-10-14: Debug 128/128, Win32 179 passed/one skipped, four modal-action scenarios, eight config-diagnostic scenarios, window-state and three file-drop modes passed. Rename plus shell exit: baseline exit 3, fixed exit 0. Native key/pointer checks preserved close target after an earlier tab exited; new-tab/renamed focused names and reordered tab metadata matched. Owner confirmed Narrator title speech and automatic new-tab final-title announcement; broad COM/WinEvent and terminal-content acceptance remain open; see the port log |
 | Configuration | Diagnostic dialog lifetime | Fixed by displaying queued diagnostics outside core callbacks on 2026-10-14. Baseline owner-close reproduced exit 3; final Debug build, Win32 tests (178 passed, one skipped), eight diagnostic lifecycle scenarios, and normal window regression passed. Captures inspected; all final GUI cases exited 0 without forced termination and no dedicated processes remained. See the port log |
+| Win32 restructuring | `WindowLayout.zig` extraction (#12) | Debug build, Win32 tests (178 passed, one skipped), normal window-state, final full parity, and visible-window overlay checks passed on 2026-10-14; search/split captures inspected. Initial cursor/measurement failures and baseline comparison are recorded separately in the port log. Mixed-DPI and manual acceptance remain |
+| Win32 restructuring | `SplitDivider.zig` extraction (#12) | Debug build, Win32 tests (178 passed, one skipped), normal window-state, and visible-window overlay checks passed on 2026-10-14; divider placement on four monitors and split capture checked. Physical divider dragging, divider capture loss, mixed-DPI transitions, and manual acceptance remain |
+| Win32 restructuring | `TabBarController.zig` extraction (#12) | Source comparison, Debug build (128/128), Win32 tests (178 passed, one skipped), window-state, title and 11 synthetic tab interaction checks passed on 2026-10-14; captures inspected. Computer Use SendInput tab/divider checks and real IME composition/conversion/commit passed. Native capture loss and overflow behavior checked. Narrator speech recap confirmed selection/rename/dialog/closure titles and values; new-tab later shell-title speech was absent; the subsequent owner check spoke only `ウインドウ`, without the title; 100%/125% display 1/2 round trip passed with measured 96/120 DPI; human physical input, detailed screen-reader/COM and manual acceptance remain |
+| Win32 restructuring | `NativeWindow.zig` extraction (#12) | Debug build, Win32 tests (178 passed, one skipped), normal window-state, existing title checks, and eight diagnostic lifecycle cases passed on 2026-10-14. Icons/styles, four-monitor layout and normal exit checked; captures inspected. OpenGL runtime, injected native-creation failures, and grouped manual acceptance remain; see the port log |
+| Win32 restructuring | `TabBarAccessibility.zig` App-side extraction (#12) | Debug build, Win32 tests (178 passed, one skipped), normal window-state and title checks passed on 2026-10-14. HWND accessible-name text and Japanese rename/cancel checked; captures inspected, both GUI exits 0 without forced termination. WinEvent client delivery, retained COM references after close, and screen-reader acceptance not exercised; see the port log |
+| Win32 restructuring | `Mouse.zig` terminal input extraction (#12) | Debug build, Win32 tests (178 passed, one skipped), normal window-state and parity checks passed on 2026-10-14. Visible-window context-menu and overlay-scrollbar checks passed; menu, search, and split captures inspected. Physical input and terminal capture-loss acceptance remain; see the port log for scope |
+| Win32 restructuring | `FileDrop.zig` native handling extraction (#12) | Debug build, Win32 tests (178 passed, one skipped), file-drop filtered tests (78 passed), and normal window-state regression passed on 2026-10-14. Synthetic drops verified quoting, Unicode, pane targeting, no Enter, and rejection warnings; captures inspected, all exits 0 without forced termination. Physical Explorer and grouped manual checks remain; see the port log for scope |
 | Win32 restructuring | `CommandPalette.zig` App-side extraction (#12) | Debug build, Win32 tests (178 passed, one skipped), palette-query filtered tests (77 passed), window-state regression with palette checks, deferred diagnostic regression, and dedicated action/jump/closed-target checks passed on 2026-10-14. GUI exits 0 with no forced termination; filtered palette capture inspected. Grouped manual checks remain; see the port log |
 | Win32 restructuring | `SearchBar.zig` action extraction (#12) | Debug build, Win32 tests (178 passed, one skipped), and unmodified window-state regression passed on 2026-10-14. A paced search-focused regression passed with exit 0; search capture inspected. Unmodified parity failed on repeated synthetic command characters, also reproduced on a saved pre-extraction executable; subsequently isolated to .NET cached-repeat handling. The corrected tracked parity fixture passes all checks without pacing in both cwd inheritance modes, exit 0; final captures inspected. Grouped manual checks remain; see the port log |
 | Win32 restructuring | `WindowAppearance.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), window-state regression, and controlled blur/theme/high-contrast checks passed on 2026-10-14; captures inspected and system contrast restored. Acrylic fallback and grouped manual checks remain. The invalid-config/modal-close finding is addressed by the subsequent diagnostic queue fix; see the port log |
@@ -2437,7 +2566,7 @@ the code exists.
 | GUI | High contrast rendering | Implemented for dividers, tab bar, and title bar, real environment verification needed |
 | GUI state | Split zoom state display | Verified in the executable binary |
 | Tab | Key operations | Default bindings verified, regression verification of actual operation needed |
-| Tab | Accessibility | Individual tabs checked via MSAA and regression tested, screen reader not verified |
+| Tab | Accessibility | Individual tabs checked via MSAA; terminal child names and drag-reorder metadata corrected on 2026-10-14 and inspected through Computer Use. Earlier owner title speech failed; after the fix, the owner confirmed title speech and automatic new-tab final-title announcement. Tab-role/ordinal, broad COM and terminal-content acceptance remain open |
 | Tab | Tab bar rendering | Verified |
 | Tab | All tab bar click operations | Verified |
 | Tab | Drag reordering | Verified |

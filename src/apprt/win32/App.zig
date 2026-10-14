@@ -22,21 +22,24 @@ const D3D11Shaders = @import("../../renderer/d3d11/shaders.zig");
 const D3D11Texture = @import("../../renderer/d3d11/Texture.zig");
 const Backdrop = @import("Backdrop.zig");
 const ConfigActions = @import("ConfigActions.zig");
-const ContextMenu = @import("ContextMenu.zig");
+const DeferredActions = @import("DeferredActions.zig");
 const DirectComposition = @import("DirectComposition.zig");
 const Surface = @import("Surface.zig");
-const TabBar = @import("TabBar.zig");
+const SplitDivider = @import("SplitDivider.zig");
+const TabBarController = @import("TabBarController.zig");
 const TabBarAccessibility = @import("TabBarAccessibility.zig");
 const TabTitles = @import("TabTitles.zig");
 const Titlebar = @import("Titlebar.zig");
 const Window = @import("Window.zig");
 const WindowState = @import("WindowState.zig");
 const WindowAppearance = @import("WindowAppearance.zig");
+const WindowLayout = @import("WindowLayout.zig");
 const SearchBar = @import("SearchBar.zig");
 const ShellOpen = @import("ShellOpen.zig");
 const CommandPalette = @import("CommandPalette.zig");
 const FileDrop = @import("FileDrop.zig");
 const Mouse = @import("Mouse.zig");
+const NativeWindow = @import("NativeWindow.zig");
 const Recovery = @import("Recovery.zig");
 const Overrides = @import("Overrides.zig");
 const IpcProtocol = @import("IpcProtocol.zig");
@@ -48,37 +51,22 @@ comptime {
     _ = WindowState;
     _ = ShellOpen;
     _ = TabTitles;
+    _ = TabBarAccessibility;
+    _ = TabBarController;
     _ = ConfigActions;
     _ = CommandPalette;
+    _ = FileDrop;
+    _ = Mouse;
+    _ = NativeWindow;
     _ = Recovery;
     _ = WindowAppearance;
+    _ = WindowLayout;
+    _ = SplitDivider;
     _ = brand;
 }
 
 const log = std.log.scoped(.win32);
 const WindowList = std.ArrayListUnmanaged(*Window);
-const window_class_name = win32.L(brand.windows.window_class_prefix ++ "Window");
-const tab_bar_class_name = win32.L(brand.windows.window_class_prefix ++ "TabBar");
-const split_divider_class_name = win32.L(brand.windows.window_class_prefix ++ "SplitDivider");
-const wakeup_class_name = win32.L(brand.windows.window_class_prefix ++ "Wakeup");
-
-/// Parent handle that creates a message-only window. Message-only windows
-/// never appear on screen and exist so that posted messages are delivered
-/// through DispatchMessage, including from inside modal loops.
-const hwnd_message: win32.HWND = @ptrFromInt(@as(usize, @bitCast(@as(isize, -3))));
-
-const default_window_title = win32.L(brand.display_name);
-const icon_resource_id: usize = 1;
-const split_divider_logical_gap: i32 = 1;
-const split_divider_high_contrast_logical_gap: i32 = 2;
-const split_divider_hit_slop: i32 = 4;
-// WinEvent accessibility event and object identifiers from winuser.h.
-const event_object_reorder: u32 = 0x8004;
-const event_object_selection: u32 = 0x8006;
-const event_object_namechange: u32 = 0x800C;
-const objid_client: i32 = -4;
-const childid_self: i32 = 0;
-
 /// User-defined wakeup message sent via PostMessage to break out of
 /// GetMessage and run the core app's tick.
 const WM_WAKEUP = win32.WM_USER + 1;
@@ -117,6 +105,7 @@ ipc_server: ?*IpcTransport.Server = null,
 pending_opens: ShellOpen.Queue = .empty,
 /// Owned diagnostic text displayed only after core callbacks have returned.
 pending_config_diagnostics: ConfigActions.DiagnosticQueue = .{},
+pending_actions: DeferredActions.Queue = .empty,
 
 pub fn init(
     self: *App,
@@ -177,24 +166,7 @@ pub fn init(
 }
 
 fn createWakeupWindow(self: *App) !win32.HWND {
-    const hinstance = win32.GetModuleHandleW(null);
-    const hwnd = win32.CreateWindowExW(
-        .{},
-        wakeup_class_name,
-        win32.L(""),
-        .{},
-        0,
-        0,
-        0,
-        0,
-        hwnd_message,
-        null,
-        hinstance,
-        null,
-    ) orelse {
-        log.err("CreateWindowExW(wakeup) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        return error.Win32Error;
-    };
+    const hwnd = try NativeWindow.createWakeup();
     _ = win32.SetWindowLongPtrW(
         hwnd,
         win32.GWLP_USERDATA,
@@ -252,6 +224,7 @@ pub fn run(self: *App) !void {
         // Here the core is not inside a callback and holds no lock.
         ConfigActions.drainDiagnostics(self);
         ShellOpen.drain(self);
+        DeferredActions.drain(self);
 
         var msg: win32.MSG = std.mem.zeroes(win32.MSG);
         const ret = win32.GetMessageW(&msg, null, 0, 0);
@@ -296,9 +269,10 @@ pub fn terminate(self: *App) void {
     self.discardPendingIpcRequests();
     ShellOpen.discardPending(self);
     ConfigActions.discardDiagnostics(self);
+    DeferredActions.discard(self);
     while (self.windows.pop()) |window| {
         WindowAppearance.disableWindowBackgroundBlur(window);
-        deinitTabBarAccessibility(window);
+        TabBarAccessibility.deinitForWindow(window);
         var surfaces = window.surfaceIterator();
         while (surfaces.next()) |surface| {
             surface.deinit();
@@ -363,18 +337,28 @@ pub fn requestSurfaceClose(_: *App, surface: *Surface, confirm: bool) void {
         @intFromBool(confirm),
         @bitCast(@intFromPtr(surface)),
     ) == 0) {
+        surface.close_requested = false;
         log.warn("PostMessage(WM_CLOSE_SURFACE) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
     }
 }
 
 fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
-    if (confirm and !confirmSurfaceClose(surface.windowHwnd())) return;
+    if (confirm) {
+        var request: DeferredActions.Close = .{ .confirm = true };
+        request.add(self.alloc, surface) catch |err| {
+            request.deinit(self.alloc);
+            log.warn("failed to queue surface close: {}", .{err});
+            return;
+        };
+        _ = DeferredActions.enqueue(self, .{ .close = request });
+        return;
+    }
 
     const window = self.windowForSurface(surface) orelse {
         log.warn("close requested for an unowned surface", .{});
         return;
     };
-    clearWindowSplitPointer(window);
+    SplitDivider.clearPointer(window);
     const close_window = window.totalSurfaceCount() == 1;
     const tab_surface_count = window.surfaceCountFor(surface) orelse return;
     const close_tab = !close_window and tab_surface_count == 1;
@@ -412,7 +396,7 @@ fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
     }
 
     if (close_window) WindowAppearance.disableWindowBackgroundBlur(window);
-    if (close_window) deinitTabBarAccessibility(window);
+    if (close_window) TabBarAccessibility.deinitForWindow(window);
 
     // Keep the child HWND and its DC alive until the renderer has stopped and
     // the surface has released all native rendering resources.
@@ -439,13 +423,13 @@ fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
     } else {
         // The background tab's own focused surface was already advanced by
         // Tab.removeSurface; only its title in the tab bar can change.
-        invalidateTabBar(window);
+        TabBarController.invalidate(window);
     }
-    self.layoutWindow(window);
+    WindowLayout.layoutWindow(self, window);
 }
 
 fn destroyTabAt(self: *App, window: *Window, index: usize) bool {
-    clearWindowSplitPointer(window);
+    SplitDivider.clearPointer(window);
     const tab_surfaces = window.surfacesAt(index) orelse return false;
     const surfaces = self.alloc.dupe(*Surface, tab_surfaces) catch |err| {
         log.warn("failed to allocate tab close list: {}", .{err});
@@ -478,10 +462,10 @@ fn destroyTabAt(self: *App, window: *Window, index: usize) bool {
         self.alloc.destroy(surface);
     }
 
-    self.layoutWindow(window);
+    WindowLayout.layoutWindow(self, window);
     _ = win32.SetFocus(focus.hwnd);
     focus.syncTitle();
-    self.syncTabBarAccessibility(window, true, true);
+    TabBarAccessibility.sync(self, window, true, true);
     return true;
 }
 
@@ -521,20 +505,6 @@ pub fn windowForHwnd(self: *App, hwnd: win32.HWND) ?*Window {
     return null;
 }
 
-fn confirmSurfaceClose(hwnd: win32.HWND) bool {
-    const caption = std.unicode.utf8ToUtf16LeStringLiteral("Close Terminal?");
-    const message = std.unicode.utf8ToUtf16LeStringLiteral(
-        "The terminal still has a running process. If you close the terminal the process will be killed.",
-    );
-    const style: win32.MESSAGEBOX_STYLE = .{
-        .YESNO = 1,
-        .ICONHAND = 1,
-        .ICONQUESTION = 1,
-        .DEFBUTTON2 = 1,
-    };
-    return win32.MessageBoxW(hwnd, message, caption, style) == win32.IDYES;
-}
-
 pub fn performAction(
     self: *App,
     target: apprt.Target,
@@ -542,15 +512,7 @@ pub fn performAction(
     value: apprt.Action.Value(action),
 ) !bool {
     switch (action) {
-        .quit => {
-            // Match GTK and macOS: a running process in any surface asks
-            // once before every terminal session is terminated.
-            if (self.quitConfirmationHwnd()) |hwnd| {
-                if (!confirmAllWindowsClose(hwnd)) return true;
-            }
-            win32.PostQuitMessage(0);
-            return true;
-        },
+        .quit => return self.queueCloseAll(true),
         .quit_timer => {
             if (value == .start) win32.PostQuitMessage(0);
             return true;
@@ -565,18 +527,8 @@ pub fn performAction(
             if (surface.scrollbar) |bar| bar.update(value);
             return true;
         },
-        .mouse_shape => {
-            const surface = targetSurface(target) orelse return false;
-            surface.mouse_shape = value;
-            Mouse.refresh(surface);
-            return true;
-        },
-        .mouse_visibility => {
-            const surface = targetSurface(target) orelse return false;
-            surface.mouse_visible = value == .visible;
-            Mouse.refresh(surface);
-            return true;
-        },
+        .mouse_shape => return Mouse.setShape(target, value),
+        .mouse_visibility => return Mouse.setVisibility(target, value),
         .prompt_title => return try TabTitles.promptTitle(self, target, value),
         .toggle_command_palette => return CommandPalette.requestShow(target),
         .new_window => {
@@ -628,7 +580,7 @@ fn closeWindow(self: *App, target: apprt.Target) bool {
     return self.closeOwnedWindow(window);
 }
 
-fn closeTab(
+pub fn closeTab(
     self: *App,
     target: apprt.Target,
     mode: apprt.action.CloseTabMode,
@@ -648,28 +600,23 @@ fn closeTab(
         return self.closeOwnedWindow(window);
     }
 
-    var selected_count: usize = 0;
-    var needs_confirmation = false;
+    var request: DeferredActions.Close = .{};
     for (0..window.tabCount()) |index| {
         if (!tabSelectedForClose(index, target_index, mode)) continue;
-        selected_count += 1;
         const surfaces = window.surfacesAt(index) orelse continue;
         for (surfaces) |candidate| {
-            const core = candidate.core_surface orelse continue;
-            if (core.needsConfirmQuit()) needs_confirmation = true;
+            request.add(self.alloc, candidate) catch |err| {
+                request.deinit(self.alloc);
+                log.warn("failed to snapshot tab close: {}", .{err});
+                return false;
+            };
         }
     }
-    if (selected_count == 0) return false;
-    if (needs_confirmation and !confirmSurfaceClose(window.hwnd)) return true;
-
-    // Defer native destruction until the current key/action callback returns.
-    // Every request is posted before the message loop can mutate tab indexes.
-    for (0..window.tabCount()) |index| {
-        if (!tabSelectedForClose(index, target_index, mode)) continue;
-        const surfaces = window.surfacesAt(index) orelse continue;
-        for (surfaces) |candidate| self.requestSurfaceClose(candidate, false);
+    if (request.ids.items.len == 0) {
+        request.deinit(self.alloc);
+        return false;
     }
-    return true;
+    return DeferredActions.requestClose(self, request);
 }
 
 fn tabSelectedForClose(
@@ -685,67 +632,36 @@ fn tabSelectedForClose(
 }
 
 fn closeOwnedWindow(self: *App, window: *Window) bool {
+    var request: DeferredActions.Close = .{};
     var surfaces = window.surfaceIterator();
     while (surfaces.next()) |surface| {
-        const core = surface.core_surface orelse continue;
-        if (!core.needsConfirmQuit()) continue;
-        if (!confirmSurfaceClose(window.hwnd)) return true;
-        break;
+        request.add(self.alloc, surface) catch |err| {
+            request.deinit(self.alloc);
+            log.warn("failed to snapshot window close: {}", .{err});
+            return false;
+        };
     }
-
-    // Post every close before processing any of them so the surface list is
-    // stable throughout this loop.
-    surfaces = window.surfaceIterator();
-    while (surfaces.next()) |surface| {
-        self.requestSurfaceClose(surface, false);
-    }
-    return true;
+    return DeferredActions.requestClose(self, request);
 }
 
 fn closeAllWindows(self: *App) bool {
     if (self.windows.items.len == 0) return false;
+    return self.queueCloseAll(false);
+}
 
-    // Match the native app behavior: ask once for the complete operation,
-    // rather than showing one confirmation for every running terminal.
-    if (self.quitConfirmationHwnd()) |hwnd| {
-        if (!confirmAllWindowsClose(hwnd)) return true;
-    }
-
-    // Closing is posted to the message queue. The list therefore remains
-    // stable throughout this loop and each close follows normal teardown.
+fn queueCloseAll(self: *App, quit: bool) bool {
+    var request: DeferredActions.Close = .{ .all = true, .quit = quit };
     for (self.windows.items) |window| {
         var surfaces = window.surfaceIterator();
         while (surfaces.next()) |surface| {
-            self.requestSurfaceClose(surface, false);
+            request.add(self.alloc, surface) catch |err| {
+                request.deinit(self.alloc);
+                log.warn("failed to snapshot application close: {}", .{err});
+                return false;
+            };
         }
     }
-    return true;
-}
-
-/// The window that should own a quit confirmation dialog, or null when no
-/// surface reports a running process that would be killed.
-fn quitConfirmationHwnd(self: *App) ?win32.HWND {
-    for (self.windows.items) |window| {
-        var surfaces = window.surfaceIterator();
-        while (surfaces.next()) |surface| {
-            const core = surface.core_surface orelse continue;
-            if (core.needsConfirmQuit()) return window.hwnd;
-        }
-    }
-    return null;
-}
-
-fn confirmAllWindowsClose(hwnd: win32.HWND) bool {
-    const message = win32.L("All terminal sessions will be terminated. Close all windows?");
-    const caption = win32.L("Close All Windows?");
-    const style: win32.MESSAGEBOX_STYLE = .{
-        // MB_ICONWARNING is the combined 0x30 value in Win32.
-        .ICONHAND = 1,
-        .ICONQUESTION = 1,
-        .YESNO = 1,
-        .DEFBUTTON2 = 1,
-    };
-    return win32.MessageBoxW(hwnd, message, caption, style) == win32.IDYES;
+    return DeferredActions.requestClose(self, request);
 }
 
 fn presentTerminal(target: apprt.Target) bool {
@@ -879,7 +795,7 @@ pub fn windowStateSurface(surface: *Surface) *Surface {
     return window.stateSurface();
 }
 
-fn transferWindowState(from: *Surface, to: *Surface) void {
+pub fn transferWindowState(from: *Surface, to: *Surface) void {
     std.debug.assert(from.windowHwnd() == to.windowHwnd());
     to.initial_client_size = from.initial_client_size;
     to.shown = from.shown;
@@ -1205,10 +1121,10 @@ pub fn createWindow(self: *App, opts: WindowOptions) !void {
     const window = try self.alloc.create(Window);
     errdefer self.alloc.destroy(window);
 
-    const window_hwnd = try createNativeWindow();
+    const window_hwnd = try NativeWindow.createWindow();
     errdefer _ = win32.DestroyWindow(window_hwnd);
 
-    const surface_hwnd = try createNativeSurfaceWindow(window_hwnd);
+    const surface_hwnd = try NativeWindow.createSurface(window_hwnd);
     errdefer _ = win32.DestroyWindow(surface_hwnd);
 
     try surface.init(self, window_hwnd, surface_hwnd);
@@ -1220,7 +1136,7 @@ pub fn createWindow(self: *App, opts: WindowOptions) !void {
     // The tab bar is an auxiliary window. Every consumer tolerates a null
     // handle, so a creation failure (USER handle exhaustion, for example)
     // degrades to a window without a tab bar instead of no window at all.
-    const tab_bar_hwnd: ?win32.HWND = createNativeTabBarWindow(window_hwnd) catch |err| tab_bar: {
+    const tab_bar_hwnd: ?win32.HWND = NativeWindow.createTabBar(window_hwnd) catch |err| tab_bar: {
         log.warn("tab bar unavailable for this window; continuing without it: {}", .{err});
         break :tab_bar null;
     };
@@ -1240,7 +1156,7 @@ pub fn createWindow(self: *App, opts: WindowOptions) !void {
             log.warn("failed to create tab bar accessibility provider: {}", .{err});
         }
     }
-    errdefer deinitTabBarAccessibility(window);
+    errdefer TabBarAccessibility.deinitForWindow(window);
 
     _ = win32.SetWindowLongPtrW(
         window_hwnd,
@@ -1257,12 +1173,12 @@ pub fn createWindow(self: *App, opts: WindowOptions) !void {
     errdefer _ = self.removeWindow(window);
 
     try self.initCoreSurface(surface, opts, .window);
-    self.syncTabBarAccessibility(window, false, false);
-    self.layoutWindow(window);
+    TabBarAccessibility.sync(self, window, false, false);
+    WindowLayout.layoutWindow(self, window);
     showWindow(surface);
 }
 
-fn newTab(self: *App, target: apprt.Target) !bool {
+pub fn newTab(self: *App, target: apprt.Target) !bool {
     return self.newTabWithOptions(target, .{});
 }
 
@@ -1279,7 +1195,7 @@ fn newTabWithOptions(self: *App, target: apprt.Target, opts: WindowOptions) !boo
     const surface = try self.alloc.create(Surface);
     errdefer self.alloc.destroy(surface);
 
-    const surface_hwnd = try createNativeSurfaceWindow(window.hwnd);
+    const surface_hwnd = try NativeWindow.createSurface(window.hwnd);
     errdefer _ = win32.DestroyWindow(surface_hwnd);
 
     try surface.init(self, window.hwnd, surface_hwnd);
@@ -1303,8 +1219,8 @@ fn newTabWithOptions(self: *App, target: apprt.Target, opts: WindowOptions) !boo
     }
 
     try self.initCoreSurface(surface, opts, .tab);
+    TabBarAccessibility.notifyEvent(window, TabBarAccessibility.event_object_reorder);
     activateWindowTab(self, window);
-    notifyTabBarAccessibilityEvent(window, event_object_reorder);
     log.info("created Win32 tab tabs={d}", .{window.tabCount()});
     return true;
 }
@@ -1356,23 +1272,23 @@ fn moveTab(
     if (!window.moveTab(surface, value.amount)) return false;
     const new_state = window.stateSurface();
     if (old_state != new_state) transferWindowState(old_state, new_state);
-    invalidateTabBar(window);
-    self.syncTabBarAccessibility(window, false, true);
+    TabBarController.invalidate(window);
+    TabBarAccessibility.sync(self, window, false, true);
     return true;
 }
 
 pub fn activateWindowTab(self: *App, window: *Window) void {
-    clearWindowSplitPointer(window);
+    SplitDivider.clearPointer(window);
     const focus = window.focusedSurface();
     _ = win32.SetWindowLongPtrW(
         window.hwnd,
         win32.GWLP_USERDATA,
         @bitCast(@intFromPtr(focus)),
     );
-    self.layoutWindow(window);
-    _ = win32.SetFocus(focus.hwnd);
+    WindowLayout.layoutWindow(self, window);
     focus.syncTitle();
-    self.syncTabBarAccessibility(window, true, false);
+    _ = win32.SetFocus(focus.hwnd);
+    TabBarAccessibility.sync(self, window, true, false);
 }
 
 fn newSplit(
@@ -1388,12 +1304,12 @@ fn newSplit(
         log.warn("new_split targeted an unowned surface", .{});
         return false;
     };
-    clearWindowSplitPointer(window);
+    SplitDivider.clearPointer(window);
 
     const surface = try self.alloc.create(Surface);
     errdefer self.alloc.destroy(surface);
 
-    const surface_hwnd = try createNativeSurfaceWindow(window.hwnd);
+    const surface_hwnd = try NativeWindow.createSurface(window.hwnd);
     errdefer _ = win32.DestroyWindow(surface_hwnd);
 
     try surface.init(self, window.hwnd, surface_hwnd);
@@ -1423,7 +1339,7 @@ fn newSplit(
     }
 
     try self.initCoreSurface(surface, .{}, .split);
-    self.layoutWindow(window);
+    WindowLayout.layoutWindow(self, window);
     _ = win32.SetFocus(surface.hwnd);
     log.info("created Win32 split direction={s} surfaces={d}", .{
         @tagName(direction),
@@ -1469,8 +1385,8 @@ fn gotoSplit(
             .left => .left,
             .right => .right,
         },
-        windowContentBounds(self, window, client),
-        splitDividerGap(window),
+        WindowLayout.windowContentBounds(self, window, client),
+        SplitDivider.gap(window),
         rects,
     ) orelse return false;
 
@@ -1478,7 +1394,7 @@ fn gotoSplit(
         focus,
         self.config.@"split-preserve-zoom".navigation,
     );
-    self.layoutWindow(window);
+    WindowLayout.layoutWindow(self, window);
 
     _ = window.setFocusedSurface(focus);
     _ = win32.SetWindowLongPtrW(
@@ -1522,11 +1438,11 @@ fn resizeSplit(
             .left, .up => -amount,
             .right, .down => amount,
         },
-        windowContentBounds(self, window, client),
-        splitDividerGap(window),
+        WindowLayout.windowContentBounds(self, window, client),
+        SplitDivider.gap(window),
     );
     if (!changed) return false;
-    self.layoutWindow(window);
+    WindowLayout.layoutWindow(self, window);
     return true;
 }
 
@@ -1540,7 +1456,7 @@ fn equalizeSplits(self: *App, target: apprt.Target) bool {
         return false;
     };
     if (!window.equalizeSplits()) return false;
-    self.layoutWindow(window);
+    WindowLayout.layoutWindow(self, window);
     return true;
 }
 
@@ -1554,7 +1470,7 @@ fn toggleSplitZoom(self: *App, target: apprt.Target) bool {
         return false;
     };
     if (!window.toggleSplitZoom(surface)) return false;
-    self.layoutWindow(window);
+    WindowLayout.layoutWindow(self, window);
     return true;
 }
 
@@ -1567,648 +1483,16 @@ pub fn focusSearchPane(self: *App, surface: *Surface) void {
     if (surface.core_surface) |core| self.core_app.focusSurface(core);
     _ = win32.SetWindowLongPtrW(window.hwnd, win32.GWLP_USERDATA, @bitCast(@intFromPtr(surface)));
     surface.syncTitle();
-    invalidateTabBar(window);
-}
-
-pub fn layoutWindow(self: *App, window: *Window) void {
-    var client: win32.RECT = std.mem.zeroes(win32.RECT);
-    if (win32.GetClientRect(window.hwnd, &client) == 0) {
-        log.warn("GetClientRect for window layout failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        return;
-    }
-
-    const client_width = @max(0, client.right - client.left);
-    const tab_height = if (tabBarVisible(self, window))
-        TabBar.heightForDpi(windowDpi(window.hwnd))
-    else
-        0;
-    updateTabBarViewport(window, client_width, tab_height);
-
-    if (window.tab_bar_hwnd) |tab_bar| {
-        if (tab_height > 0) {
-            var origin: win32.POINT = .{ .x = 0, .y = 0 };
-            if (win32.ClientToScreen(window.hwnd, &origin) == 0) {
-                log.warn("ClientToScreen(tab bar) failed: err={d}", .{
-                    @intFromEnum(win32.GetLastError()),
-                });
-                return;
-            }
-            if (win32.SetWindowPos(
-                tab_bar,
-                null,
-                origin.x,
-                origin.y,
-                client_width,
-                tab_height,
-                .{ .NOZORDER = 1, .NOACTIVATE = 1, .SHOWWINDOW = 1 },
-            ) == 0) {
-                log.warn("SetWindowPos(tab bar) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-            }
-            invalidateTabBar(window);
-        } else {
-            _ = win32.ShowWindow(tab_bar, win32.SW_HIDE);
-        }
-    }
-
-    const rects = self.alloc.alloc(Window.LeafRect, window.activeSurfaceCount()) catch |err| {
-        log.warn("failed to allocate window layout: {}", .{err});
-        return;
-    };
-    defer self.alloc.free(rects);
-
-    const content_bounds = windowContentBounds(self, window, client);
-    const divider_gap = splitDividerGap(window);
-    const count = window.layout(
-        content_bounds,
-        divider_gap,
-        rects,
-    );
-    for (rects[0..count]) |entry| {
-        const search_height = if (entry.view.search_bar) |bar|
-            bar.layout(entry.rect.x, entry.rect.y, entry.rect.width, entry.rect.height, windowDpi(window.hwnd))
-        else
-            0;
-        if (win32.SetWindowPos(
-            entry.view.hwnd,
-            null,
-            entry.rect.x,
-            entry.rect.y + search_height,
-            entry.rect.width,
-            entry.rect.height - search_height,
-            .{ .NOZORDER = 1, .NOACTIVATE = 1 },
-        ) == 0) {
-            log.warn("SetWindowPos(surface layout) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        }
-        if (entry.view.scrollbar) |bar| {
-            bar.layout(entry.rect.x, entry.rect.y + search_height, entry.rect.width, entry.rect.height - search_height, true);
-        }
-    }
-
-    var surfaces = window.surfaceIterator();
-    while (surfaces.next()) |surface| {
-        var visible = false;
-        for (rects[0..count]) |entry| {
-            if (entry.view == surface) {
-                visible = true;
-                break;
-            }
-        }
-        _ = win32.ShowWindow(
-            surface.hwnd,
-            if (visible) win32.SW_SHOWNA else win32.SW_HIDE,
-        );
-        if (surface.search_bar) |bar| {
-            _ = win32.ShowWindow(bar.hwnd.?, if (visible and bar.active) win32.SW_SHOWNA else win32.SW_HIDE);
-        }
-        if (!visible) {
-            if (surface.scrollbar) |bar| bar.hide();
-        }
-    }
-
-    self.layoutSplitDividers(window, content_bounds, divider_gap);
-}
-
-fn layoutSplitDividers(
-    self: *App,
-    window: *Window,
-    bounds: Window.Rect,
-    divider_gap: i32,
-) void {
-    const capacity = window.activeSurfaceCount() -| 1;
-    const dividers = self.alloc.alloc(Window.Divider, capacity) catch |err| {
-        log.warn("failed to allocate split divider layout: {}", .{err});
-        hideSplitDividers(window, 0);
-        return;
-    };
-    defer self.alloc.free(dividers);
-
-    const count = window.dividers(bounds, divider_gap, dividers);
-    window.split_dividers.clearRetainingCapacity();
-    window.split_dividers.appendSlice(self.alloc, dividers[0..count]) catch |err| {
-        log.warn("failed to retain split divider layout: {}", .{err});
-        hideSplitDividers(window, 0);
-        return;
-    };
-
-    while (window.split_divider_hwnds.items.len < count) {
-        const hwnd = createNativeSplitDividerWindow(window.hwnd) catch break;
-        window.split_divider_hwnds.append(self.alloc, hwnd) catch |err| {
-            log.warn("failed to retain split divider window: {}", .{err});
-            _ = win32.DestroyWindow(hwnd);
-            break;
-        };
-        _ = win32.SetWindowLongPtrW(
-            hwnd,
-            win32.GWLP_USERDATA,
-            @bitCast(@intFromPtr(window)),
-        );
-    }
-
-    var origin: win32.POINT = .{ .x = 0, .y = 0 };
-    if (win32.ClientToScreen(window.hwnd, &origin) == 0) {
-        log.warn("ClientToScreen(split dividers) failed: err={d}", .{
-            @intFromEnum(win32.GetLastError()),
-        });
-        hideSplitDividers(window, 0);
-        return;
-    }
-
-    const visible_count = @min(count, window.split_divider_hwnds.items.len);
-    for (window.split_divider_hwnds.items[0..visible_count], dividers[0..visible_count]) |hwnd, divider| {
-        if (win32.SetWindowPos(
-            hwnd,
-            null,
-            origin.x + divider.rect.x,
-            origin.y + divider.rect.y,
-            @max(1, divider.rect.width),
-            @max(1, divider.rect.height),
-            .{ .NOZORDER = 1, .NOACTIVATE = 1, .SHOWWINDOW = 1 },
-        ) == 0) {
-            log.warn("SetWindowPos(split divider) failed: err={d}", .{
-                @intFromEnum(win32.GetLastError()),
-            });
-        }
-        _ = win32.InvalidateRect(hwnd, null, win32.TRUE);
-    }
-    hideSplitDividers(window, visible_count);
-}
-
-fn hideSplitDividers(window: *const Window, first: usize) void {
-    const start = @min(first, window.split_divider_hwnds.items.len);
-    for (window.split_divider_hwnds.items[start..]) |hwnd| {
-        _ = win32.ShowWindow(hwnd, win32.SW_HIDE);
-    }
-}
-
-pub fn tabBarVisible(self: *const App, window: *const Window) bool {
-    return tabBarVisibleForMode(
-        self.config.@"window-show-tab-bar",
-        window.tabCount(),
-        window.activeTabIsZoomed(),
-    );
-}
-
-fn tabBarVisibleForMode(
-    mode: Config.WindowShowTabBar,
-    tab_count: usize,
-    zoomed: bool,
-) bool {
-    return switch (mode) {
-        .always => true,
-        .auto => tab_count > 1 or zoomed,
-        .never => false,
-    };
-}
-
-fn windowContentBounds(
-    self: *const App,
-    window: *const Window,
-    client: win32.RECT,
-) Window.Rect {
-    const tab_height = if (tabBarVisible(self, window))
-        TabBar.heightForDpi(windowDpi(window.hwnd))
-    else
-        0;
-    return .{
-        .x = 0,
-        .y = tab_height,
-        .width = @max(0, client.right - client.left),
-        .height = @max(0, client.bottom - client.top - tab_height),
-    };
-}
-
-fn windowDpi(hwnd: win32.HWND) u32 {
-    const dpi = win32.GetDpiForWindow(hwnd);
-    return if (dpi == 0) 96 else dpi;
-}
-
-fn splitDividerGapForDpi(dpi: u32, high_contrast: bool) i32 {
-    const logical = if (high_contrast)
-        split_divider_high_contrast_logical_gap
-    else
-        split_divider_logical_gap;
-    return @intCast(@max(
-        1,
-        @divTrunc(@as(i64, logical) * dpi + 48, 96),
-    ));
-}
-
-fn splitDividerGap(window: *const Window) i32 {
-    const app = window.focusedSurface().rtApp();
-    return splitDividerGapForDpi(
-        windowDpi(window.hwnd),
-        app.high_contrast,
-    );
-}
-
-pub fn invalidateTabBar(window: *const Window) void {
-    const hwnd = window.tab_bar_hwnd orelse return;
-    if (win32.InvalidateRect(hwnd, null, win32.TRUE) != 0) {
-        _ = win32.UpdateWindow(hwnd);
-    }
-}
-
-fn tabBarAccessibleName(
-    alloc: Allocator,
-    tab_count: usize,
-    active_index: usize,
-    active_title: []const u8,
-) ![]u8 {
-    const tab_word = if (tab_count == 1) "tab" else "tabs";
-    return std.fmt.allocPrint(
-        alloc,
-        brand.display_name ++ " tabs. {d} {s}. Active tab {d}: {s}",
-        .{ tab_count, tab_word, active_index + 1, active_title },
-    );
-}
-
-pub fn syncTabBarAccessibility(
-    self: *App,
-    window: *const Window,
-    selection_changed: bool,
-    order_changed: bool,
-) void {
-    const hwnd = window.tab_bar_hwnd orelse return;
-    const active_index = window.activeTabIndex();
-    const active_surface = window.focusedSurface();
-    const active_title = window.tabTitleAt(active_index) orelse
-        active_surface.title orelse
-        brand.display_name;
-    const name = tabBarAccessibleName(
-        self.alloc,
-        window.tabCount(),
-        active_index,
-        active_title,
-    ) catch |err| {
-        log.warn("failed to allocate tab bar accessible name: {}", .{err});
-        return;
-    };
-    defer self.alloc.free(name);
-    const wide = std.unicode.utf8ToUtf16LeAllocZ(self.alloc, name) catch |err| {
-        log.warn("failed to encode tab bar accessible name: {}", .{err});
-        return;
-    };
-    defer self.alloc.free(wide);
-
-    if (win32.SetWindowTextW(hwnd, wide) == 0) {
-        log.warn("SetWindowTextW(tab bar accessible name) failed: err={d}", .{
-            @intFromEnum(win32.GetLastError()),
-        });
-        return;
-    }
-    notifyTabBarAccessibilityEvent(window, event_object_namechange);
-    if (selection_changed) {
-        notifyTabBarAccessibilityEvent(window, event_object_selection);
-    }
-    if (order_changed) {
-        notifyTabBarAccessibilityEvent(window, event_object_reorder);
-    }
-}
-
-fn notifyTabBarAccessibilityEvent(window: *const Window, event: u32) void {
-    const hwnd = window.tab_bar_hwnd orelse return;
-    const child_id: i32 = if (event == event_object_selection)
-        @intCast(window.activeTabIndex() + 1)
-    else
-        childid_self;
-    win32.NotifyWinEvent(event, hwnd, objid_client, child_id);
-}
-
-pub fn notifyTabBarChildNameChanged(window: *const Window, surface: *const Surface) void {
-    const hwnd = window.tab_bar_hwnd orelse return;
-    const index = window.tabIndexForSurface(surface) orelse return;
-    win32.NotifyWinEvent(
-        event_object_namechange,
-        hwnd,
-        objid_client,
-        @intCast(index + 1),
-    );
-}
-
-fn tabBarAccessibility(window: *const Window) ?*TabBarAccessibility {
-    const raw = window.tab_bar_accessibility orelse return null;
-    return @ptrCast(@alignCast(raw));
-}
-
-fn deinitTabBarAccessibility(window: *Window) void {
-    const accessibility = tabBarAccessibility(window) orelse return;
-    window.tab_bar_accessibility = null;
-    accessibility.detach();
-}
-
-pub fn invalidateSplitDividers(window: *const Window) void {
-    for (window.split_divider_hwnds.items) |hwnd| {
-        if (win32.InvalidateRect(hwnd, null, win32.TRUE) != 0) {
-            _ = win32.UpdateWindow(hwnd);
-        }
-    }
-}
-
-fn splitDividerColor(config: *const Config, hovered: bool, high_contrast: bool) u32 {
-    if (high_contrast) {
-        return win32.GetSysColor(if (hovered)
-            win32.COLOR_HIGHLIGHT
-        else
-            win32.COLOR_WINDOWTEXT);
-    }
-
-    const foreground = config.@"window-titlebar-foreground" orelse config.foreground;
-    const percent: u16 = if (hovered) 65 else 30;
-    return colorRef(mixColor(config.background, foreground, percent));
-}
-
-fn mixColor(background: Config.Color, foreground: Config.Color, percent: u16) Config.Color {
-    return .{
-        .r = mixColorChannel(background.r, foreground.r, percent),
-        .g = mixColorChannel(background.g, foreground.g, percent),
-        .b = mixColorChannel(background.b, foreground.b, percent),
-    };
-}
-
-fn mixColorChannel(background: u8, foreground: u8, percent: u16) u8 {
-    return @intCast((@as(u16, background) * (100 - percent) +
-        @as(u16, foreground) * percent) / 100);
-}
-
-fn colorRef(color: Config.Color) u32 {
-    return @as(u32, color.r) |
-        (@as(u32, color.g) << 8) |
-        (@as(u32, color.b) << 16);
-}
-
-fn updateTabBarViewport(window: *Window, width: i32, height: i32) void {
-    window.tab_bar_first_visible = TabBar.ensureVisible(
-        width,
-        height,
-        window.tabCount(),
-        window.activeTabIsZoomed(),
-        window.tab_bar_first_visible,
-        window.activeTabIndex(),
-    );
+    TabBarController.invalidate(window);
 }
 
 fn registerWindowClass() !void {
-    const hinstance = win32.GetModuleHandleW(null) orelse {
-        log.err("GetModuleHandleW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        return error.Win32Error;
-    };
-    const icons = loadWindowIcons(hinstance);
-
-    const wc: win32.WNDCLASSEXW = .{
-        .cbSize = @sizeOf(win32.WNDCLASSEXW),
-        .style = if (build_config.renderer == .opengl)
-            .{ .HREDRAW = 1, .VREDRAW = 1, .OWNDC = 1 }
-        else
-            .{ .HREDRAW = 1, .VREDRAW = 1 },
-        .lpfnWndProc = wndProc,
-        .cbClsExtra = 0,
-        .cbWndExtra = 0,
-        .hInstance = hinstance,
-        .hIcon = icons.large,
-        .hCursor = win32.LoadCursorW(null, win32.IDC_ARROW),
-        .hbrBackground = null,
-        .lpszMenuName = null,
-        .lpszClassName = window_class_name,
-        .hIconSm = icons.small,
-    };
-
-    if (win32.RegisterClassExW(&wc) == 0) {
-        log.err("RegisterClassExW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        return error.Win32Error;
-    }
-
-    const tab_bar_class: win32.WNDCLASSEXW = .{
-        .cbSize = @sizeOf(win32.WNDCLASSEXW),
-        .style = .{ .HREDRAW = 1, .VREDRAW = 1, .DBLCLKS = 1 },
-        .lpfnWndProc = tabBarWndProc,
-        .cbClsExtra = 0,
-        .cbWndExtra = 0,
-        .hInstance = hinstance,
-        .hIcon = null,
-        .hCursor = win32.LoadCursorW(null, win32.IDC_ARROW),
-        .hbrBackground = null,
-        .lpszMenuName = null,
-        .lpszClassName = tab_bar_class_name,
-        .hIconSm = null,
-    };
-    if (win32.RegisterClassExW(&tab_bar_class) == 0) {
-        log.err("RegisterClassExW(tab bar) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        return error.Win32Error;
-    }
-
-    const split_divider_class: win32.WNDCLASSEXW = .{
-        .cbSize = @sizeOf(win32.WNDCLASSEXW),
-        .style = .{ .HREDRAW = 1, .VREDRAW = 1 },
-        .lpfnWndProc = splitDividerWndProc,
-        .cbClsExtra = 0,
-        .cbWndExtra = 0,
-        .hInstance = hinstance,
-        .hIcon = null,
-        .hCursor = win32.LoadCursorW(null, win32.IDC_ARROW),
-        .hbrBackground = null,
-        .lpszMenuName = null,
-        .lpszClassName = split_divider_class_name,
-        .hIconSm = null,
-    };
-    if (win32.RegisterClassExW(&split_divider_class) == 0) {
-        log.err("RegisterClassExW(split divider) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        return error.Win32Error;
-    }
-
-    const wakeup_class: win32.WNDCLASSEXW = .{
-        .cbSize = @sizeOf(win32.WNDCLASSEXW),
-        .style = .{},
-        .lpfnWndProc = wakeupWndProc,
-        .cbClsExtra = 0,
-        .cbWndExtra = 0,
-        .hInstance = hinstance,
-        .hIcon = null,
-        .hCursor = null,
-        .hbrBackground = null,
-        .lpszMenuName = null,
-        .lpszClassName = wakeup_class_name,
-        .hIconSm = null,
-    };
-    if (win32.RegisterClassExW(&wakeup_class) == 0) {
-        log.err("RegisterClassExW(wakeup) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        return error.Win32Error;
-    }
-}
-
-const WindowIcons = struct {
-    large: ?win32.HICON,
-    small: ?win32.HICON,
-};
-
-/// Load the embedded application icon at the system large and small sizes.
-/// A missing or unreadable icon resource is not fatal: the window class falls
-/// back to the Windows default icon so the terminal still starts. Executables
-/// without the Windows resource script, such as the unit test binary, take
-/// this path.
-fn loadWindowIcons(hinstance: win32.HINSTANCE) WindowIcons {
-    const large_width = @max(1, win32.GetSystemMetrics(win32.SM_CXICON));
-    const large_height = @max(1, win32.GetSystemMetrics(win32.SM_CYICON));
-    const small_width = @max(1, win32.GetSystemMetrics(win32.SM_CXSMICON));
-    const small_height = @max(1, win32.GetSystemMetrics(win32.SM_CYSMICON));
-
-    const large = loadWindowIcon(hinstance, large_width, large_height) catch null;
-    const small = loadWindowIcon(hinstance, small_width, small_height) catch null;
-    if (large == null or small == null) {
-        log.warn(
-            "embedded window icon unavailable; using the Windows default icon",
-            .{},
-        );
-    }
-
-    return .{ .large = large, .small = small };
-}
-
-fn loadWindowIcon(
-    hinstance: win32.HINSTANCE,
-    width: i32,
-    height: i32,
-) !win32.HICON {
-    const handle = win32.LoadImageW(
-        hinstance,
-        @ptrFromInt(icon_resource_id),
-        .ICON,
-        width,
-        height,
-        .{ .SHARED = 1 },
-    ) orelse {
-        log.warn("LoadImageW(icon {d}x{d}) failed: err={d}", .{
-            width,
-            height,
-            @intFromEnum(win32.GetLastError()),
-        });
-        return error.Win32Error;
-    };
-    return @ptrCast(handle);
-}
-
-fn createNativeWindow() !win32.HWND {
-    const hinstance = win32.GetModuleHandleW(null);
-
-    return win32.CreateWindowExW(
-        nativeWindowExStyle(),
-        window_class_name,
-        default_window_title,
-        topLevelWindowStyle(),
-        win32.CW_USEDEFAULT,
-        win32.CW_USEDEFAULT,
-        800,
-        600,
-        null,
-        null,
-        hinstance,
-        null,
-    ) orelse {
-        log.err("CreateWindowExW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        return error.Win32Error;
-    };
-}
-
-fn createNativeSurfaceWindow(window_hwnd: win32.HWND) !win32.HWND {
-    const hinstance = win32.GetModuleHandleW(null);
-    var rect: win32.RECT = std.mem.zeroes(win32.RECT);
-    if (win32.GetClientRect(window_hwnd, &rect) == 0) {
-        log.err("GetClientRect for surface failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        return error.Win32Error;
-    }
-
-    return win32.CreateWindowExW(
-        nativeWindowExStyle(),
-        window_class_name,
-        win32.L(""),
-        surfaceWindowStyle(),
-        0,
-        0,
-        @max(1, rect.right - rect.left),
-        @max(1, rect.bottom - rect.top),
-        window_hwnd,
-        null,
-        hinstance,
-        null,
-    ) orelse {
-        log.err("CreateWindowExW(surface) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        return error.Win32Error;
-    };
-}
-
-fn createNativeTabBarWindow(window_hwnd: win32.HWND) !win32.HWND {
-    const popup: u32 = 0x80000000;
-    const clip_siblings: u32 = 0x04000000;
-    const hwnd = win32.CreateWindowExW(
-        .{ .TOOLWINDOW = 1, .NOACTIVATE = 1 },
-        tab_bar_class_name,
-        win32.L(""),
-        @bitCast(popup | clip_siblings),
-        0,
-        0,
-        1,
-        1,
-        window_hwnd,
-        null,
-        win32.GetModuleHandleW(null),
-        null,
-    ) orelse {
-        log.err("CreateWindowExW(tab bar) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        return error.Win32Error;
-    };
-    errdefer _ = win32.DestroyWindow(hwnd);
-    return hwnd;
-}
-
-fn createNativeSplitDividerWindow(window_hwnd: win32.HWND) !win32.HWND {
-    const popup: u32 = 0x80000000;
-    const clip_siblings: u32 = 0x04000000;
-    return win32.CreateWindowExW(
-        .{ .TOOLWINDOW = 1, .NOACTIVATE = 1, .TRANSPARENT = 1 },
-        split_divider_class_name,
-        win32.L(""),
-        @bitCast(popup | clip_siblings),
-        0,
-        0,
-        1,
-        1,
-        window_hwnd,
-        null,
-        win32.GetModuleHandleW(null),
-        null,
-    ) orelse {
-        log.warn("CreateWindowExW(split divider) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        return error.Win32Error;
-    };
-}
-
-fn topLevelWindowStyle() win32.WINDOW_STYLE {
-    const clip_children: u32 = 0x02000000;
-    return @bitCast(@as(u32, @bitCast(win32.WS_OVERLAPPEDWINDOW)) | clip_children);
-}
-
-fn surfaceWindowStyle() win32.WINDOW_STYLE {
-    const child: u32 = 0x40000000;
-    const visible: u32 = 0x10000000;
-    const clip_siblings: u32 = 0x04000000;
-    return @bitCast(child | visible | clip_siblings);
-}
-
-/// DirectComposition owns the complete client-area visual tree. Disabling the
-/// legacy redirected bitmap lets the swap chain's premultiplied alpha reach
-/// the desktop compositor instead of being flattened against an HWND surface.
-fn nativeWindowExStyle() win32.WINDOW_EX_STYLE {
-    return if (build_config.renderer == .d3d11)
-        .{ .NOREDIRECTIONBITMAP = 1 }
-    else
-        .{};
-}
-
-test "Win32 D3D11 windows bypass the legacy redirect bitmap" {
-    const style = nativeWindowExStyle();
-    try std.testing.expectEqual(
-        @as(u1, @intFromBool(build_config.renderer == .d3d11)),
-        style.NOREDIRECTIONBITMAP,
-    );
+    try NativeWindow.registerClasses(.{
+        .window = wndProc,
+        .tab_bar = TabBarController.wndProc,
+        .split_divider = SplitDivider.wndProc,
+        .wakeup = wakeupWndProc,
+    });
 }
 
 test "Win32 close tab mode selects the intended tab indexes" {
@@ -2220,22 +1504,6 @@ test "Win32 close tab mode selects the intended tab indexes" {
     try testing.expect(!tabSelectedForClose(1, 1, .other));
     try testing.expect(!tabSelectedForClose(1, 1, .right));
     try testing.expect(tabSelectedForClose(2, 1, .right));
-}
-
-test "Win32 automatic tab bar exposes split zoom state" {
-    try std.testing.expect(!tabBarVisibleForMode(.auto, 1, false));
-    try std.testing.expect(tabBarVisibleForMode(.auto, 2, false));
-    try std.testing.expect(tabBarVisibleForMode(.auto, 1, true));
-    try std.testing.expect(!tabBarVisibleForMode(.never, 2, true));
-    try std.testing.expect(tabBarVisibleForMode(.always, 1, false));
-}
-
-test "Win32 split divider thickness follows DPI and high contrast" {
-    try std.testing.expectEqual(@as(i32, 1), splitDividerGapForDpi(96, false));
-    try std.testing.expectEqual(@as(i32, 2), splitDividerGapForDpi(144, false));
-    try std.testing.expectEqual(@as(i32, 2), splitDividerGapForDpi(96, true));
-    try std.testing.expectEqual(@as(i32, 3), splitDividerGapForDpi(144, true));
-    try std.testing.expectEqual(@as(i32, 4), splitDividerGapForDpi(192, true));
 }
 
 fn showWindow(surface: *Surface) void {
@@ -2260,289 +1528,7 @@ pub fn getSurface(hwnd: win32.HWND) ?*Surface {
     return @ptrFromInt(@as(usize, @bitCast(ptr)));
 }
 
-fn getTabBarWindow(hwnd: win32.HWND) ?*Window {
-    const ptr = win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA);
-    if (ptr == 0) return null;
-    return @ptrFromInt(@as(usize, @bitCast(ptr)));
-}
-
-fn getSplitDividerWindow(hwnd: win32.HWND) ?*Window {
-    const ptr = win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA);
-    if (ptr == 0) return null;
-    return @ptrFromInt(@as(usize, @bitCast(ptr)));
-}
-
-fn paintSplitDivider(window: *Window, hwnd: win32.HWND, hdc: win32.HDC) void {
-    const index = for (window.split_divider_hwnds.items, 0..) |candidate, value| {
-        if (candidate == hwnd) break value;
-    } else return;
-    if (index >= window.split_dividers.items.len) return;
-
-    const divider = window.split_dividers.items[index];
-    const hovered = if (window.split_divider_hover) |value|
-        value.split == divider.split
-    else
-        false;
-    var client: win32.RECT = std.mem.zeroes(win32.RECT);
-    if (win32.GetClientRect(hwnd, &client) == 0) return;
-    const app = window.focusedSurface().rtApp();
-    const color = splitDividerColor(app.config, hovered, app.high_contrast);
-    const brush = win32.CreateSolidBrush(color) orelse return;
-    defer _ = win32.DeleteObject(brush);
-    _ = win32.FillRect(hdc, &client, brush);
-}
-
-fn paintTabBar(self: *App, window: *Window, hdc: win32.HDC, width: i32, height: i32) void {
-    updateTabBarViewport(window, width, height);
-    const items = self.alloc.alloc(TabBar.Item, window.tabCount()) catch |err| {
-        log.warn("failed to allocate tab bar labels: {}", .{err});
-        return;
-    };
-    defer self.alloc.free(items);
-
-    const active = window.activeTabIndex();
-    for (items, 0..) |*item, index| {
-        const surface = window.focusedSurfaceAt(index) orelse unreachable;
-        item.* = .{
-            .title = window.tabTitleAt(index) orelse surface.title orelse brand.display_name,
-            .active = index == active,
-        };
-    }
-    TabBar.paint(
-        self.alloc,
-        hdc,
-        width,
-        height,
-        windowDpi(window.hwnd),
-        self.config,
-        self.high_contrast,
-        items,
-        window.activeTabIsZoomed(),
-        window.tab_bar_first_visible,
-        window.tab_bar_hover,
-    );
-}
-
-fn handleTabBarClick(self: *App, window: *Window, x: i32, y: i32) void {
-    switch (tabBarHit(window, x, y)) {
-        .none => {},
-        .tab => |index| {
-            if (window.selectTab(.{ .n = index + 1 })) activateWindowTab(self, window);
-        },
-        .close => |index| {
-            const surface = window.focusedSurfaceAt(index) orelse return;
-            const core = surface.core_surface orelse return;
-            _ = self.closeTab(.{ .surface = core }, .this);
-        },
-        .scroll_previous => {
-            if (window.selectTab(.previous)) activateWindowTab(self, window);
-        },
-        .scroll_next => {
-            if (window.selectTab(.next)) activateWindowTab(self, window);
-        },
-        .new_tab => {
-            const core = window.focusedSurface().core_surface orelse return;
-            _ = self.newTab(.{ .surface = core }) catch |err| {
-                log.warn("failed to create tab from tab bar: {}", .{err});
-                return;
-            };
-        },
-    }
-}
-
-fn handleTabBarButtonDown(
-    self: *App,
-    hwnd: win32.HWND,
-    window: *Window,
-    x: i32,
-    y: i32,
-) void {
-    const hit = tabBarHit(window, x, y);
-    window.tab_bar_pressed = hit;
-    window.tab_bar_drag = switch (hit) {
-        .tab => |index| .{
-            .index = index,
-            .start_x = x,
-            .start_y = y,
-        },
-        else => null,
-    };
-    if (hit == .none) return;
-
-    _ = win32.SetCapture(hwnd);
-    if (hit == .tab) {
-        const index = hit.tab;
-        if (window.selectTab(.{ .n = index + 1 })) activateWindowTab(self, window);
-    }
-}
-
-fn handleTabBarButtonUp(
-    self: *App,
-    hwnd: win32.HWND,
-    window: *Window,
-    x: i32,
-    y: i32,
-) void {
-    const pressed = window.tab_bar_pressed;
-    const was_dragging = if (window.tab_bar_drag) |drag| drag.active else false;
-    window.tab_bar_pressed = .none;
-    window.tab_bar_drag = null;
-    if (win32.GetCapture() == hwnd and win32.ReleaseCapture() == 0) {
-        log.warn("ReleaseCapture(tab bar) failed: err={d}", .{
-            @intFromEnum(win32.GetLastError()),
-        });
-    }
-    if (was_dragging or pressed == .none) return;
-
-    const released = tabBarHit(window, x, y);
-    if (!std.meta.eql(pressed, released)) return;
-    // A tab label was selected on button down so keyboard focus follows the
-    // new surface before a possible drag. Buttons perform their action here.
-    if (pressed == .tab) return;
-    self.handleTabBarClick(window, x, y);
-}
-
-fn handleTabBarDoubleClick(
-    self: *App,
-    hwnd: win32.HWND,
-    window: *Window,
-    x: i32,
-    y: i32,
-) void {
-    cancelTabBarPointer(window);
-    if (win32.GetCapture() == hwnd) _ = win32.ReleaseCapture();
-    const index = switch (tabBarHit(window, x, y)) {
-        .tab => |value| value,
-        else => return,
-    };
-    if (window.selectTab(.{ .n = index + 1 })) activateWindowTab(self, window);
-    _ = TabTitles.promptTabTitle(self, window, index) catch |err| {
-        log.warn("failed to prompt for tab title: {}", .{err});
-        return;
-    };
-}
-
-fn updateTabBarDrag(window: *Window, x: i32, y: i32) void {
-    const drag = if (window.tab_bar_drag) |*value| value else return;
-    if (!drag.active) {
-        const threshold_x = win32.GetSystemMetrics(.CXDRAG);
-        const threshold_y = win32.GetSystemMetrics(.CYDRAG);
-        if (!TabBar.dragThresholdExceeded(drag.*, x, y, threshold_x, threshold_y)) return;
-        drag.active = true;
-    }
-
-    const hwnd = window.tab_bar_hwnd orelse return;
-    var client: win32.RECT = std.mem.zeroes(win32.RECT);
-    if (win32.GetClientRect(hwnd, &client) == 0) return;
-    const hit = TabBar.hitTest(
-        client.right - client.left,
-        client.bottom - client.top,
-        window.tabCount(),
-        window.activeTabIsZoomed(),
-        window.tab_bar_first_visible,
-        x,
-        y,
-    );
-    const destination = switch (hit) {
-        .tab => |index| index,
-        .close => |index| index,
-        .scroll_previous => if (drag.index > 0) drag.index - 1 else return,
-        .scroll_next => if (drag.index + 1 < window.tabCount()) drag.index + 1 else return,
-        .none, .new_tab => return,
-    };
-    if (destination == drag.index) return;
-
-    const old_state = window.stateSurface();
-    if (!window.moveTabTo(drag.index, destination)) return;
-    drag.index = destination;
-    const new_state = window.stateSurface();
-    if (old_state != new_state) transferWindowState(old_state, new_state);
-    updateTabBarViewport(
-        window,
-        client.right - client.left,
-        client.bottom - client.top,
-    );
-    window.tab_bar_hover = .{ .tab = destination };
-    invalidateTabBar(window);
-}
-
-fn handleTabBarWheel(
-    self: *App,
-    hwnd: win32.HWND,
-    window: *Window,
-    msg: u32,
-    wparam: win32.WPARAM,
-) void {
-    var client: win32.RECT = std.mem.zeroes(win32.RECT);
-    if (win32.GetClientRect(hwnd, &client) == 0) return;
-    if (!TabBar.overflows(
-        client.right - client.left,
-        client.bottom - client.top,
-        window.tabCount(),
-        window.activeTabIsZoomed(),
-    )) return;
-
-    const delta = wheelDelta(wparam);
-    if (delta == 0) return;
-    const selection: Window.SelectTab = if (msg == win32.WM_MOUSEHWHEEL)
-        (if (delta > 0) .next else .previous)
-    else if (delta > 0)
-        .previous
-    else
-        .next;
-    if (window.selectTab(selection)) activateWindowTab(self, window);
-}
-
-fn cancelTabBarPointer(window: *Window) void {
-    window.tab_bar_pressed = .none;
-    window.tab_bar_drag = null;
-}
-
-fn tabBarHit(window: *const Window, x: i32, y: i32) TabBar.Hit {
-    const hwnd = window.tab_bar_hwnd orelse return .none;
-    var client: win32.RECT = std.mem.zeroes(win32.RECT);
-    if (win32.GetClientRect(hwnd, &client) == 0) return .none;
-    return TabBar.hitTest(
-        client.right - client.left,
-        client.bottom - client.top,
-        window.tabCount(),
-        window.activeTabIsZoomed(),
-        window.tab_bar_first_visible,
-        x,
-        y,
-    );
-}
-
-fn updateTabBarHover(hwnd: win32.HWND, window: *Window, x: i32, y: i32) void {
-    var client: win32.RECT = std.mem.zeroes(win32.RECT);
-    if (win32.GetClientRect(hwnd, &client) == 0) return;
-    const hit = TabBar.hitTest(
-        client.right - client.left,
-        client.bottom - client.top,
-        window.tabCount(),
-        window.activeTabIsZoomed(),
-        window.tab_bar_first_visible,
-        x,
-        y,
-    );
-    if (!std.meta.eql(hit, window.tab_bar_hover)) {
-        window.tab_bar_hover = hit;
-        invalidateTabBar(window);
-    }
-
-    if (window.tab_bar_tracking_mouse_leave) return;
-    var event: win32.TRACKMOUSEEVENT = .{
-        .cbSize = @sizeOf(win32.TRACKMOUSEEVENT),
-        .dwFlags = win32.TME_LEAVE,
-        .hwndTrack = hwnd,
-        .dwHoverTime = 0,
-    };
-    if (win32.TrackMouseEvent(&event) != 0) {
-        window.tab_bar_tracking_mouse_leave = true;
-    }
-}
-
-fn getModifiers() input.Mods {
+pub fn getModifiers() input.Mods {
     var mods: input.Mods = .{};
     if (win32.GetKeyState(0x10) < 0) {
         mods.shift = true;
@@ -3042,528 +2028,12 @@ fn handleTextInput(
     return 0;
 }
 
-const MouseButtonEvent = struct {
-    button: input.MouseButton,
-    state: input.MouseButtonState,
-    bit: u8,
-    xbutton: bool = false,
-};
-
-fn mouseButtonEvent(msg: u32, wparam: win32.WPARAM) ?MouseButtonEvent {
-    return switch (msg) {
-        win32.WM_LBUTTONDOWN => .{ .button = .left, .state = .press, .bit = 1 << 0 },
-        win32.WM_LBUTTONUP => .{ .button = .left, .state = .release, .bit = 1 << 0 },
-        win32.WM_RBUTTONDOWN => .{ .button = .right, .state = .press, .bit = 1 << 1 },
-        win32.WM_RBUTTONUP => .{ .button = .right, .state = .release, .bit = 1 << 1 },
-        win32.WM_MBUTTONDOWN => .{ .button = .middle, .state = .press, .bit = 1 << 2 },
-        win32.WM_MBUTTONUP => .{ .button = .middle, .state = .release, .bit = 1 << 2 },
-        win32.WM_XBUTTONDOWN, win32.WM_XBUTTONUP => x: {
-            const xbutton: u16 = @truncate(wparam >> 16);
-            const state: input.MouseButtonState = if (msg == win32.WM_XBUTTONDOWN)
-                .press
-            else
-                .release;
-            break :x switch (xbutton) {
-                1 => .{ .button = .four, .state = state, .bit = 1 << 3, .xbutton = true },
-                2 => .{ .button = .five, .state = state, .bit = 1 << 4, .xbutton = true },
-                else => null,
-            };
-        },
-        else => null,
-    };
-}
-
-fn signedLowWord(value: usize) i16 {
-    return @bitCast(@as(u16, @truncate(value)));
-}
-
-fn signedHighWord(value: usize) i16 {
-    return @bitCast(@as(u16, @truncate(value >> 16)));
-}
-
-fn mousePoint(lparam: win32.LPARAM) apprt.CursorPos {
-    const bits: usize = @bitCast(lparam);
-    return .{
-        .x = @floatFromInt(signedLowWord(bits)),
-        .y = @floatFromInt(signedHighWord(bits)),
-    };
-}
-
-fn mouseClientPoint(lparam: win32.LPARAM) win32.POINT {
-    const bits: usize = @bitCast(lparam);
-    return .{
-        .x = signedLowWord(bits),
-        .y = signedHighWord(bits),
-    };
-}
-
-fn pointInWindowClient(
-    surface: *Surface,
-    source_hwnd: win32.HWND,
-    local: win32.POINT,
-) ?win32.POINT {
-    var point = local;
-    if (win32.ClientToScreen(source_hwnd, &point) == 0) {
-        log.warn("ClientToScreen(split pointer) failed: err={d}", .{
-            @intFromEnum(win32.GetLastError()),
-        });
-        return null;
-    }
-    if (win32.ScreenToClient(surface.windowHwnd(), &point) == 0) {
-        log.warn("ScreenToClient(split pointer) failed: err={d}", .{
-            @intFromEnum(win32.GetLastError()),
-        });
-        return null;
-    }
-    return point;
-}
-
-fn currentWindowContentBounds(
-    app: *const App,
-    window: *const Window,
-) ?Window.Rect {
-    var client: win32.RECT = std.mem.zeroes(win32.RECT);
-    if (win32.GetClientRect(window.hwnd, &client) == 0) {
-        log.warn("GetClientRect(split pointer) failed: err={d}", .{
-            @intFromEnum(win32.GetLastError()),
-        });
-        return null;
-    }
-    return windowContentBounds(app, window, client);
-}
-
-fn scaledSplitHitSlop(window: *const Window) i32 {
-    const dpi: i64 = windowDpi(window.hwnd);
-    return @intCast(@max(
-        1,
-        @divTrunc(@as(i64, split_divider_hit_slop) * dpi + 95, 96),
-    ));
-}
-
-fn splitMinimumExtent(
-    window: *const Window,
-    direction: Window.ResizeDirection,
-) i32 {
-    var result: i64 = 1;
-    const surfaces = window.surfacesAt(window.activeTabIndex()) orelse return 1;
-    for (surfaces) |surface| {
-        const core = surface.core_surface orelse continue;
-        const extent: i64 = switch (direction) {
-            .horizontal => @as(i64, core.size.cell.width) * CoreSurface.min_window_width_cells +
-                core.size.padding.left + core.size.padding.right,
-            .vertical => @as(i64, core.size.cell.height) * CoreSurface.min_window_height_cells +
-                core.size.padding.top + core.size.padding.bottom,
-        };
-        result = @max(result, extent);
-    }
-    return @intCast(@min(result, std.math.maxInt(i32)));
-}
-
-fn setSplitCursor(direction: Window.ResizeDirection) void {
-    const cursor = win32.LoadCursorW(
-        null,
-        switch (direction) {
-            .horizontal => win32.IDC_SIZEWE,
-            .vertical => win32.IDC_SIZENS,
-        },
-    );
-    if (cursor) |handle| _ = win32.SetCursor(handle);
-}
-
-fn dividerAtPoint(
-    surface: *Surface,
-    window: *Window,
-    point: win32.POINT,
-) ?Window.Divider {
-    const app = surface.rtApp();
-    const bounds = currentWindowContentBounds(app, window) orelse return null;
-    return window.dividerAt(
-        bounds,
-        splitDividerGap(window),
-        point.x,
-        point.y,
-        scaledSplitHitSlop(window),
-    );
-}
-
-fn setSplitDividerHover(window: *Window, value: ?Window.Divider) void {
-    if (std.meta.eql(window.split_divider_hover, value)) return;
-    window.split_divider_hover = value;
-    invalidateSplitDividers(window);
-}
-
-fn trackSplitDividerMouseLeave(window: *Window, hwnd: win32.HWND) void {
-    if (window.split_divider_tracking_mouse_leave) return;
-    var event: win32.TRACKMOUSEEVENT = .{
-        .cbSize = @sizeOf(win32.TRACKMOUSEEVENT),
-        .dwFlags = win32.TME_LEAVE,
-        .hwndTrack = hwnd,
-        .dwHoverTime = 0,
-    };
-    if (win32.TrackMouseEvent(&event) != 0) {
-        window.split_divider_tracking_mouse_leave = true;
-    }
-}
-
-fn updateSplitDividerPointer(
-    surface: *Surface,
-    hwnd: win32.HWND,
-    lparam: win32.LPARAM,
-) bool {
-    const app = surface.rtApp();
-    const window = app.windowForSurface(surface) orelse return false;
-    const point = pointInWindowClient(
-        surface,
-        hwnd,
-        mouseClientPoint(lparam),
-    ) orelse return false;
-
-    if (window.split_divider_drag) |*drag| {
-        if (drag.capture_hwnd != hwnd) return false;
-        const delta = switch (drag.divider.direction) {
-            .horizontal => point.x - drag.last_x,
-            .vertical => point.y - drag.last_y,
-        };
-        drag.last_x = point.x;
-        drag.last_y = point.y;
-        if (delta != 0) {
-            const bounds = currentWindowContentBounds(app, window) orelse return true;
-            if (window.resizeDivider(
-                drag.divider,
-                delta,
-                bounds,
-                splitDividerGap(window),
-                splitMinimumExtent(window, drag.divider.direction),
-            )) app.layoutWindow(window);
-        }
-        setSplitCursor(drag.divider.direction);
-        return true;
-    }
-
-    setSplitDividerHover(window, dividerAtPoint(surface, window, point));
-    if (window.split_divider_hover) |divider| {
-        setSplitCursor(divider.direction);
-        return true;
-    }
-    return false;
-}
-
-fn beginSplitDividerDrag(
-    surface: *Surface,
-    hwnd: win32.HWND,
-    lparam: win32.LPARAM,
-) bool {
-    if (surface.mouse_buttons_down != 0) return false;
-    const window = surface.rtApp().windowForSurface(surface) orelse return false;
-    const point = pointInWindowClient(
-        surface,
-        hwnd,
-        mouseClientPoint(lparam),
-    ) orelse return false;
-    const divider = dividerAtPoint(surface, window, point) orelse return false;
-
-    setSplitDividerHover(window, divider);
-    window.split_divider_drag = .{
-        .divider = divider,
-        .last_x = point.x,
-        .last_y = point.y,
-        .capture_hwnd = hwnd,
-    };
-    _ = win32.SetCapture(hwnd);
-    setSplitCursor(divider.direction);
-    return true;
-}
-
-fn endSplitDividerDrag(
-    surface: *Surface,
-    hwnd: win32.HWND,
-    lparam: win32.LPARAM,
-) bool {
-    const window = surface.rtApp().windowForSurface(surface) orelse return false;
-    const drag = window.split_divider_drag orelse return false;
-    if (drag.capture_hwnd != hwnd) return false;
-
-    window.split_divider_drag = null;
-    if (pointInWindowClient(surface, hwnd, mouseClientPoint(lparam))) |point| {
-        setSplitDividerHover(window, dividerAtPoint(surface, window, point));
-    } else {
-        setSplitDividerHover(window, null);
-    }
-    if (win32.GetCapture() == hwnd and win32.ReleaseCapture() == 0) {
-        log.warn("ReleaseCapture(split divider) failed: err={d}", .{
-            @intFromEnum(win32.GetLastError()),
-        });
-    }
-    return true;
-}
-
-fn cancelSplitDividerDrag(surface: *Surface, hwnd: win32.HWND) void {
-    const window = surface.rtApp().windowForSurface(surface) orelse return;
-    if (window.split_divider_drag) |drag| {
-        if (drag.capture_hwnd != hwnd) return;
-        window.split_divider_drag = null;
-    }
-    setSplitDividerHover(window, null);
-}
-
-fn clearWindowSplitPointer(window: *Window) void {
-    const capture = if (window.split_divider_drag) |drag|
-        drag.capture_hwnd
-    else
-        null;
-    window.split_divider_drag = null;
-    setSplitDividerHover(window, null);
-    window.split_divider_tracking_mouse_leave = false;
-    if (capture) |hwnd| {
-        if (win32.GetCapture() == hwnd and win32.ReleaseCapture() == 0) {
-            log.warn("ReleaseCapture(split reset) failed: err={d}", .{
-                @intFromEnum(win32.GetLastError()),
-            });
-        }
-    }
-}
-
-fn handleSplitDividerCursor(surface: *Surface) bool {
-    const window = surface.rtApp().windowForSurface(surface) orelse return false;
-    if (window.split_divider_drag) |drag| {
-        setSplitCursor(drag.divider.direction);
-        return true;
-    }
-
-    var point: win32.POINT = undefined;
-    if (win32.GetCursorPos(&point) == 0 or
-        win32.ScreenToClient(window.hwnd, &point) == 0)
-    {
-        return false;
-    }
-    setSplitDividerHover(window, dividerAtPoint(surface, window, point));
-    if (window.split_divider_hover) |divider| {
-        setSplitCursor(divider.direction);
-        return true;
-    }
-    return false;
-}
-
-fn wheelDelta(wparam: win32.WPARAM) i16 {
-    return signedHighWord(wparam);
-}
-
-fn dpiScale(wparam: win32.WPARAM) apprt.ContentScale {
-    const default_dpi: f32 = @floatFromInt(win32.USER_DEFAULT_SCREEN_DPI);
-    const x: u16 = @truncate(wparam);
-    const y: u16 = @truncate(wparam >> 16);
-    return .{
-        .x = @as(f32, @floatFromInt(x)) / default_dpi,
-        .y = @as(f32, @floatFromInt(y)) / default_dpi,
-    };
-}
-
-fn accumulateWheelTicks(remainder: *i32, delta: i16) i32 {
-    remainder.* += delta;
-    const wheel_delta: i32 = @intCast(win32.WHEEL_DELTA);
-    const ticks = @divTrunc(remainder.*, wheel_delta);
-    remainder.* -= ticks * wheel_delta;
-    return ticks;
-}
-
-fn updateCursorPosition(
-    surface: *Surface,
-    pos: apprt.CursorPos,
-    mods: input.Mods,
-    force: bool,
-) void {
-    const previous = surface.cursor_pos;
-    surface.cursor_pos = pos;
-    if (!force and previous.x == pos.x and previous.y == pos.y) return;
-
-    const core = surface.core_surface orelse return;
-    core.cursorPosCallback(pos, mods) catch |err| {
-        log.err("cursor position callback error: {}", .{err});
-    };
-}
-
-fn trackMouseLeave(surface: *Surface, hwnd: win32.HWND) void {
-    if (surface.tracking_mouse_leave) return;
-
-    var event: win32.TRACKMOUSEEVENT = .{
-        .cbSize = @sizeOf(win32.TRACKMOUSEEVENT),
-        .dwFlags = win32.TME_LEAVE,
-        .hwndTrack = hwnd,
-        .dwHoverTime = 0,
-    };
-    if (win32.TrackMouseEvent(&event) == 0) {
-        log.warn("TrackMouseEvent failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        return;
-    }
-    surface.tracking_mouse_leave = true;
-}
-
-fn handleMouseButton(
-    surface: *Surface,
-    hwnd: win32.HWND,
-    event: MouseButtonEvent,
-    lparam: win32.LPARAM,
-) win32.LRESULT {
-    const mods = getModifiers();
-    updateCursorPosition(surface, mousePoint(lparam), mods, true);
-
-    if (event.state == .press) {
-        // Child windows never take keyboard focus on their own. Without this,
-        // clicking an unfocused split leaves typing in the previously focused
-        // pane, which makes the clicked pane look unresponsive. The surface
-        // WM_SETFOCUS handler updates the window's active tab and focused
-        // surface, so the tab bar follows along.
-        if (win32.GetFocus() != hwnd) _ = win32.SetFocus(hwnd);
-
-        if (surface.mouse_buttons_down == 0) _ = win32.SetCapture(hwnd);
-        surface.mouse_buttons_down |= event.bit;
-    } else {
-        surface.mouse_buttons_down &= ~event.bit;
-    }
-
-    if (surface.core_surface) |core| {
-        const consumed = core.mouseButtonCallback(event.state, event.button, mods) catch |err| consumed: {
-            log.err("mouse button callback error: {}", .{err});
-            break :consumed true;
-        };
-
-        // The core leaves a right press unconsumed when right-click-action
-        // is context-menu and the program is not capturing the mouse. Like
-        // other Windows applications, open the menu on release.
-        if (event.button == .right and event.state == .press) {
-            surface.context_menu_pending = !consumed;
-        }
-    }
-
-    if (event.state == .release and surface.mouse_buttons_down == 0 and
-        win32.GetCapture() == hwnd)
-    {
-        if (win32.ReleaseCapture() == 0) {
-            log.warn("ReleaseCapture failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        }
-    }
-
-    if (event.state == .release and event.button == .right and surface.context_menu_pending) {
-        surface.context_menu_pending = false;
-        if (surface.core_surface) |core| {
-            // The menu may close this surface, so nothing touches it afterwards.
-            ContextMenu.show(surface.rtApp().alloc, hwnd, core, mouseClientPoint(lparam));
-        }
-        return 0;
-    }
-
-    // XBUTTON messages require TRUE to prevent further processing.
-    return if (event.xbutton) 1 else 0;
-}
-
-fn releaseMouseButtons(surface: *Surface) void {
-    const down = surface.mouse_buttons_down;
-    if (down == 0) return;
-    // Capture was taken away mid-click, so the right release that would open
-    // the context menu is never coming.
-    surface.context_menu_pending = false;
-    surface.mouse_buttons_down = 0;
-
-    const buttons = [_]struct { u8, input.MouseButton }{
-        .{ 1 << 0, .left },
-        .{ 1 << 1, .right },
-        .{ 1 << 2, .middle },
-        .{ 1 << 3, .four },
-        .{ 1 << 4, .five },
-    };
-    const core = surface.core_surface orelse return;
-    const mods = getModifiers();
-    for (buttons) |entry| {
-        if (down & entry[0] == 0) continue;
-        _ = core.mouseButtonCallback(.release, entry[1], mods) catch |err| {
-            log.err("mouse capture release callback error: {}", .{err});
-        };
-    }
-}
-
-fn updateWheelCursorPosition(
-    surface: *Surface,
-    hwnd: win32.HWND,
-    lparam: win32.LPARAM,
-    mods: input.Mods,
-) void {
-    const screen_pos = mousePoint(lparam);
-    var point: win32.POINT = .{
-        .x = @intFromFloat(screen_pos.x),
-        .y = @intFromFloat(screen_pos.y),
-    };
-    if (win32.ScreenToClient(hwnd, &point) == 0) {
-        log.warn("ScreenToClient failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        return;
-    }
-    updateCursorPosition(surface, .{
-        .x = @floatFromInt(point.x),
-        .y = @floatFromInt(point.y),
-    }, mods, true);
-}
-
-fn handleMouseWheel(
-    surface: *Surface,
-    hwnd: win32.HWND,
-    msg: u32,
-    wparam: win32.WPARAM,
-    lparam: win32.LPARAM,
-) void {
-    const mods = getModifiers();
-    updateWheelCursorPosition(surface, hwnd, lparam, mods);
-
-    const core = surface.core_surface orelse return;
-    const delta: i32 = wheelDelta(wparam);
-    if (msg == win32.WM_MOUSEWHEEL) {
-        if (surface.scrollbar) |bar| bar.reveal();
-        const ticks = @as(f64, @floatFromInt(delta)) /
-            @as(f64, @floatFromInt(win32.WHEEL_DELTA));
-        core.scrollCallback(0, ticks, .{}) catch |err| {
-            log.err("vertical scroll callback error: {}", .{err});
-        };
-        return;
-    }
-
-    const ticks = accumulateWheelTicks(&surface.horizontal_wheel_remainder, @intCast(delta));
-    if (ticks == 0) return;
-    core.scrollCallback(@floatFromInt(ticks), 0, .{}) catch |err| {
-        log.err("horizontal scroll callback error: {}", .{err});
-    };
-}
-
-fn handleDpiChanged(
-    surface: *Surface,
-    hwnd: win32.HWND,
-    wparam: win32.WPARAM,
-    lparam: win32.LPARAM,
-) void {
-    if (surface.core_surface) |core| {
-        core.contentScaleCallback(dpiScale(wparam)) catch |err| {
-            log.err("content scale callback error: {}", .{err});
-        };
-    }
-
-    if (lparam == 0) return;
-    const rect: *const win32.RECT = @ptrFromInt(@as(usize, @bitCast(lparam)));
-    if (win32.SetWindowPos(
-        hwnd,
-        null,
-        rect.left,
-        rect.top,
-        rect.right - rect.left,
-        rect.bottom - rect.top,
-        .{ .NOZORDER = 1, .NOACTIVATE = 1 },
-    ) == 0) {
-        log.warn("SetWindowPos for DPI change failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-    }
-}
-
 fn handleFocus(surface: *Surface, focused: bool) void {
     if (!focused) {
         surface.pending_text_key = null;
         surface.pending_high_surrogate = null;
         surface.suppressed_char_keycode = null;
-        releaseMouseButtons(surface);
+        Mouse.releaseMouseButtons(surface);
     }
 
     surface.rtApp().core_app.focusEvent(focused);
@@ -3605,204 +2075,6 @@ fn handleImeStartComposition(surface: *Surface, hwnd: win32.HWND) void {
     }
 }
 
-fn splitDividerWndProc(
-    hwnd: win32.HWND,
-    msg: u32,
-    wparam: win32.WPARAM,
-    lparam: win32.LPARAM,
-) callconv(.winapi) win32.LRESULT {
-    switch (msg) {
-        win32.WM_ERASEBKGND => return 1,
-        win32.WM_NCHITTEST => return win32.HTTRANSPARENT,
-        win32.WM_PAINT => {
-            var ps: win32.PAINTSTRUCT = std.mem.zeroes(win32.PAINTSTRUCT);
-            const hdc = win32.BeginPaint(hwnd, &ps) orelse {
-                _ = win32.EndPaint(hwnd, &ps);
-                return 0;
-            };
-            if (getSplitDividerWindow(hwnd)) |window| {
-                paintSplitDivider(window, hwnd, hdc);
-            }
-            _ = win32.EndPaint(hwnd, &ps);
-            return 0;
-        },
-        else => return win32.DefWindowProcW(hwnd, msg, wparam, lparam),
-    }
-}
-
-fn tabBarWndProc(
-    hwnd: win32.HWND,
-    msg: u32,
-    wparam: win32.WPARAM,
-    lparam: win32.LPARAM,
-) callconv(.winapi) win32.LRESULT {
-    switch (msg) {
-        win32.WM_GETOBJECT => {
-            if (@as(i32, @truncate(lparam)) != objid_client) {
-                return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
-            }
-            const window = getTabBarWindow(hwnd) orelse {
-                return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
-            };
-            const accessibility = tabBarAccessibility(window) orelse {
-                return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
-            };
-            return accessibility.objectResult(wparam);
-        },
-        TabBarAccessibility.select_message => {
-            const window = getTabBarWindow(hwnd) orelse return 0;
-            if (wparam == 0 or wparam > window.tabCount()) return 0;
-            if (window.selectTab(.{ .n = wparam })) {
-                activateWindowTab(window.focusedSurface().rtApp(), window);
-            }
-            return 0;
-        },
-        win32.WM_ERASEBKGND => return 1,
-        win32.WM_PAINT => {
-            var ps: win32.PAINTSTRUCT = std.mem.zeroes(win32.PAINTSTRUCT);
-            const hdc = win32.BeginPaint(hwnd, &ps) orelse {
-                _ = win32.EndPaint(hwnd, &ps);
-                return 0;
-            };
-            if (getTabBarWindow(hwnd)) |window| {
-                var client: win32.RECT = std.mem.zeroes(win32.RECT);
-                if (win32.GetClientRect(hwnd, &client) != 0) {
-                    window.focusedSurface().rtApp().paintTabBar(
-                        window,
-                        hdc,
-                        client.right - client.left,
-                        client.bottom - client.top,
-                    );
-                }
-            }
-            _ = win32.EndPaint(hwnd, &ps);
-            return 0;
-        },
-        win32.WM_LBUTTONUP => {
-            if (getTabBarWindow(hwnd)) |window| {
-                const bits: usize = @bitCast(lparam);
-                window.focusedSurface().rtApp().handleTabBarButtonUp(
-                    hwnd,
-                    window,
-                    signedLowWord(bits),
-                    signedHighWord(bits),
-                );
-            }
-            return 0;
-        },
-        win32.WM_LBUTTONDOWN => {
-            if (getTabBarWindow(hwnd)) |window| {
-                const bits: usize = @bitCast(lparam);
-                window.focusedSurface().rtApp().handleTabBarButtonDown(
-                    hwnd,
-                    window,
-                    signedLowWord(bits),
-                    signedHighWord(bits),
-                );
-            }
-            return 0;
-        },
-        win32.WM_LBUTTONDBLCLK => {
-            if (getTabBarWindow(hwnd)) |window| {
-                const bits: usize = @bitCast(lparam);
-                window.focusedSurface().rtApp().handleTabBarDoubleClick(
-                    hwnd,
-                    window,
-                    signedLowWord(bits),
-                    signedHighWord(bits),
-                );
-            }
-            return 0;
-        },
-        win32.WM_MOUSEMOVE => {
-            if (getTabBarWindow(hwnd)) |window| {
-                const bits: usize = @bitCast(lparam);
-                updateTabBarHover(
-                    hwnd,
-                    window,
-                    signedLowWord(bits),
-                    signedHighWord(bits),
-                );
-                updateTabBarDrag(
-                    window,
-                    signedLowWord(bits),
-                    signedHighWord(bits),
-                );
-            }
-            return 0;
-        },
-        win32.WM_MOUSEWHEEL, win32.WM_MOUSEHWHEEL => {
-            if (getTabBarWindow(hwnd)) |window| {
-                window.focusedSurface().rtApp().handleTabBarWheel(
-                    hwnd,
-                    window,
-                    msg,
-                    wparam,
-                );
-            }
-            return 0;
-        },
-        win32.WM_MOUSELEAVE => {
-            if (getTabBarWindow(hwnd)) |window| {
-                window.tab_bar_tracking_mouse_leave = false;
-                window.tab_bar_hover = .none;
-                invalidateTabBar(window);
-            }
-            return 0;
-        },
-        win32.WM_CAPTURECHANGED => {
-            if (getTabBarWindow(hwnd)) |window| cancelTabBarPointer(window);
-            return 0;
-        },
-        else => return win32.DefWindowProcW(hwnd, msg, wparam, lparam),
-    }
-}
-
-fn handleFileDrop(surface: *Surface, drop: win32.HDROP) !void {
-    const core = surface.core_surface orelse return;
-    const alloc = surface.rtApp().alloc;
-    var arena = std.heap.ArenaAllocator.init(alloc);
-    defer arena.deinit();
-    const temp = arena.allocator();
-
-    const count = win32.DragQueryFileW(drop, 0xffffffff, null, 0);
-    if (count == 0) return;
-    var paths: std.ArrayListUnmanaged([]const u8) = .empty;
-    for (0..count) |index| {
-        const length = win32.DragQueryFileW(drop, @intCast(index), null, 0);
-        if (length == 0) return error.InvalidPath;
-        const wide = try temp.allocSentinel(u16, length, 0);
-        const copied = win32.DragQueryFileW(drop, @intCast(index), wide.ptr, length + 1);
-        if (copied != length) return error.InvalidPath;
-        try paths.append(temp, try std.unicode.utf16LeToUtf8Alloc(temp, wide[0..length]));
-    }
-    const formatted = try FileDrop.formatPaths(temp, surface.file_drop_shell, paths.items);
-    core.pasteExternalText(formatted, false) catch |err| switch (err) {
-        error.UnsafePaste => {
-            const caption = std.unicode.utf8ToUtf16LeStringLiteral(brand.display_name ++ " File Drop");
-            const message = std.unicode.utf8ToUtf16LeStringLiteral(
-                "The dropped paths may contain unsafe text. Paste them into the terminal?",
-            );
-            const style: win32.MESSAGEBOX_STYLE = .{
-                .YESNO = 1,
-                .ICONQUESTION = 1,
-                .DEFBUTTON2 = 1,
-            };
-            if (win32.MessageBoxW(surface.windowHwnd(), message, caption, style) != win32.IDYES) return;
-            try core.pasteExternalText(formatted, true);
-        },
-        else => return err,
-    };
-}
-
-fn showFileDropWarning(surface: *Surface, message: []const u8) void {
-    const wide = std.unicode.utf8ToUtf16LeAllocZ(surface.rtApp().alloc, message) catch return;
-    defer surface.rtApp().alloc.free(wide);
-    const caption = std.unicode.utf8ToUtf16LeStringLiteral(brand.display_name ++ " File Drop");
-    const style: win32.MESSAGEBOX_STYLE = .{ .ICONHAND = 1 };
-    _ = win32.MessageBoxW(surface.windowHwnd(), wide, caption, style);
-}
-
 fn wndProc(
     hwnd: win32.HWND,
     msg: u32,
@@ -3815,9 +2087,9 @@ fn wndProc(
             defer win32.DragFinish(drop);
             if (getSurface(hwnd)) |surface| {
                 if (hwnd == surface.hwnd) {
-                    handleFileDrop(surface, drop) catch |err| {
+                    FileDrop.handleDrop(surface, drop) catch |err| {
                         log.warn("file drop failed: {}", .{err});
-                        showFileDropWarning(surface, switch (err) {
+                        FileDrop.showWarning(surface, switch (err) {
                             error.CmdExpansion => "cmd expands % and ! in paths. This file drop was rejected.",
                             error.UnsupportedShell => "File drop supports PowerShell and cmd startup shells.",
                             else => "The dropped files could not be pasted.",
@@ -3876,63 +2148,9 @@ fn wndProc(
         Recovery.WM_TEST_RECOVER_RENDERER => return Recovery.testRecoverRenderer(hwnd, msg, wparam, lparam),
         Recovery.WM_TEST_RECOVERY_STATUS => return Recovery.testRecoveryStatus(hwnd, msg, wparam, lparam),
         win32.WM_POWERBROADCAST => return Recovery.powerBroadcast(hwnd, wparam),
-        win32.WM_SIZE => {
-            if (getSurface(hwnd)) |surface| {
-                const width: u32 = @intCast(lparam & 0xFFFF);
-                const height: u32 = @intCast((lparam >> 16) & 0xFFFF);
-                if (width > 0 and height > 0) {
-                    if (hwnd == surface.windowHwnd()) {
-                        const app = surface.rtApp();
-                        if (app.windowForHwnd(hwnd)) |window| app.layoutWindow(window);
-                    } else if (hwnd == surface.hwnd) {
-                        surface.width = width;
-                        surface.height = height;
-                        if (surface.core_surface) |core| {
-                            core.sizeCallback(.{
-                                .width = width,
-                                .height = height,
-                            }) catch |err| {
-                                log.err("size callback error: {}", .{err});
-                            };
-                        }
-                    }
-                }
-            }
-            return 0;
-        },
-        win32.WM_MOVE => {
-            if (getSurface(hwnd)) |surface| {
-                if (hwnd == surface.windowHwnd()) {
-                    const app = surface.rtApp();
-                    if (app.windowForHwnd(hwnd)) |window| {
-                        app.layoutWindow(window);
-                    }
-                }
-            }
-            return 0;
-        },
-        win32.WM_DPICHANGED => {
-            if (getSurface(hwnd)) |surface| {
-                if (hwnd == surface.windowHwnd()) {
-                    const app = surface.rtApp();
-                    if (app.windowForHwnd(hwnd)) |window| {
-                        var surfaces = window.surfaceIterator();
-                        while (surfaces.next()) |candidate| {
-                            if (candidate == surface) continue;
-                            if (candidate.core_surface) |core| {
-                                core.contentScaleCallback(dpiScale(wparam)) catch |err| {
-                                    log.err("content scale callback error: {}", .{err});
-                                };
-                            }
-                        }
-                        handleDpiChanged(surface, hwnd, wparam, lparam);
-                        app.layoutWindow(window);
-                        return 0;
-                    }
-                }
-            }
-            return 0;
-        },
+        win32.WM_SIZE => return WindowLayout.sizeChanged(hwnd, lparam),
+        win32.WM_MOVE => return WindowLayout.moved(hwnd),
+        win32.WM_DPICHANGED => return WindowLayout.dpiChanged(hwnd, wparam, lparam),
         win32.WM_SETFOCUS, win32.WM_KILLFOCUS => {
             if (getSurface(hwnd)) |surface| {
                 if (hwnd == surface.windowHwnd()) {
@@ -3948,9 +2166,9 @@ fn wndProc(
                         if (surface.rtApp().windowForSurface(surface)) |window| {
                             const previous_tab = window.active_tab;
                             _ = window.setFocusedSurface(surface);
-                            invalidateTabBar(window);
+                            TabBarController.invalidate(window);
                             if (window.active_tab != previous_tab) {
-                                surface.rtApp().syncTabBarAccessibility(window, true, false);
+                                TabBarAccessibility.sync(surface.rtApp(), window, true, false);
                             }
                             _ = win32.SetWindowLongPtrW(
                                 window.hwnd,
@@ -3971,12 +2189,12 @@ fn wndProc(
                     const app = surface.rtApp();
                     const window = app.windowForHwnd(hwnd) orelse return 0;
                     if (wparam != 0) {
-                        app.layoutWindow(window);
+                        WindowLayout.layoutWindow(app, window);
                     } else {
                         if (window.tab_bar_hwnd) |tab_bar| {
                             _ = win32.ShowWindow(tab_bar, win32.SW_HIDE);
                         }
-                        hideSplitDividers(window, 0);
+                        SplitDivider.hide(window, 0);
                     }
                     var surfaces = window.surfaceIterator();
                     while (surfaces.next()) |candidate| {
@@ -4008,7 +2226,7 @@ fn wndProc(
         win32.WM_SETCURSOR => {
             if (getSurface(hwnd)) |surface| {
                 if ((hwnd == surface.hwnd or hwnd == surface.windowHwnd()) and
-                    handleSplitDividerCursor(surface))
+                    SplitDivider.handleCursor(surface))
                 {
                     return 1;
                 }
@@ -4022,15 +2240,15 @@ fn wndProc(
         win32.WM_MOUSEMOVE => {
             if (getSurface(hwnd)) |surface| {
                 if (hwnd == surface.hwnd) {
-                    trackMouseLeave(surface, hwnd);
-                    if (surface.scrollbar) |bar| bar.hoverAt(@intFromFloat(mousePoint(lparam).x));
-                    if (updateSplitDividerPointer(surface, hwnd, lparam)) return 0;
-                    updateCursorPosition(surface, mousePoint(lparam), getModifiers(), false);
+                    Mouse.trackMouseLeave(surface, hwnd);
+                    if (surface.scrollbar) |bar| bar.hoverAt(@intFromFloat(Mouse.mousePoint(lparam).x));
+                    if (SplitDivider.updatePointer(surface, hwnd, lparam)) return 0;
+                    Mouse.updateCursorPosition(surface, Mouse.mousePoint(lparam), getModifiers(), false);
                 } else if (hwnd == surface.windowHwnd()) {
                     if (surface.rtApp().windowForSurface(surface)) |window| {
-                        trackSplitDividerMouseLeave(window, hwnd);
+                        SplitDivider.trackMouseLeave(window, hwnd);
                     }
-                    _ = updateSplitDividerPointer(surface, hwnd, lparam);
+                    _ = SplitDivider.updatePointer(surface, hwnd, lparam);
                 }
             }
             return 0;
@@ -4041,15 +2259,15 @@ fn wndProc(
                     surface.tracking_mouse_leave = false;
                     if (surface.rtApp().windowForSurface(surface)) |window| {
                         if (window.split_divider_drag == null) {
-                            setSplitDividerHover(window, null);
+                            SplitDivider.setHover(window, null);
                         }
                     }
-                    updateCursorPosition(surface, .{ .x = -1, .y = -1 }, getModifiers(), true);
+                    Mouse.updateCursorPosition(surface, .{ .x = -1, .y = -1 }, getModifiers(), true);
                 } else if (hwnd == surface.windowHwnd()) {
                     if (surface.rtApp().windowForSurface(surface)) |window| {
                         window.split_divider_tracking_mouse_leave = false;
                         if (window.split_divider_drag == null) {
-                            setSplitDividerHover(window, null);
+                            SplitDivider.setHover(window, null);
                         }
                     }
                 }
@@ -4068,18 +2286,18 @@ fn wndProc(
             if (getSurface(hwnd)) |surface| {
                 if (hwnd == surface.hwnd or hwnd == surface.windowHwnd()) {
                     if (msg == win32.WM_LBUTTONDOWN and
-                        beginSplitDividerDrag(surface, hwnd, lparam))
+                        SplitDivider.beginDrag(surface, hwnd, lparam))
                     {
                         return 0;
                     }
                     if (msg == win32.WM_LBUTTONUP and
-                        endSplitDividerDrag(surface, hwnd, lparam))
+                        SplitDivider.endDrag(surface, hwnd, lparam))
                     {
                         return 0;
                     }
                     if (hwnd == surface.hwnd) {
-                        if (mouseButtonEvent(msg, wparam)) |event| {
-                            return handleMouseButton(surface, hwnd, event, lparam);
+                        if (Mouse.mouseButtonEvent(msg, wparam)) |event| {
+                            return Mouse.handleMouseButton(surface, hwnd, event, lparam);
                         }
                     }
                 }
@@ -4088,15 +2306,15 @@ fn wndProc(
         },
         win32.WM_MOUSEWHEEL, win32.WM_MOUSEHWHEEL => {
             if (getSurface(hwnd)) |surface| {
-                if (hwnd == surface.hwnd) handleMouseWheel(surface, hwnd, msg, wparam, lparam);
+                if (hwnd == surface.hwnd) Mouse.handleMouseWheel(surface, hwnd, msg, wparam, lparam);
             }
             return 0;
         },
         win32.WM_CAPTURECHANGED => {
             if (getSurface(hwnd)) |surface| {
                 if (hwnd == surface.hwnd or hwnd == surface.windowHwnd()) {
-                    cancelSplitDividerDrag(surface, hwnd);
-                    if (hwnd == surface.hwnd) releaseMouseButtons(surface);
+                    SplitDivider.cancelDrag(surface, hwnd);
+                    if (hwnd == surface.hwnd) Mouse.releaseMouseButtons(surface);
                 }
             }
             return 0;
@@ -4421,64 +2639,14 @@ test "decode Win32 UTF-16 input" {
     try std.testing.expectEqual(@as(?u16, null), pending);
 }
 
-test "decode Win32 mouse coordinates and wheel delta" {
-    const point = mousePoint(@bitCast(@as(usize, 0xFFEC_000A)));
-    try std.testing.expectEqual(@as(f32, 10), point.x);
-    try std.testing.expectEqual(@as(f32, -20), point.y);
-
-    try std.testing.expectEqual(@as(i16, 120), wheelDelta(@as(usize, 120) << 16));
-    try std.testing.expectEqual(@as(i16, -120), wheelDelta(@as(usize, 0xFF88) << 16));
-}
-
-test "map Win32 mouse buttons" {
-    const left = mouseButtonEvent(win32.WM_LBUTTONDOWN, 0).?;
-    try std.testing.expectEqual(input.MouseButton.left, left.button);
-    try std.testing.expectEqual(input.MouseButtonState.press, left.state);
-
-    const x2 = mouseButtonEvent(win32.WM_XBUTTONUP, @as(usize, 2) << 16).?;
-    try std.testing.expectEqual(input.MouseButton.five, x2.button);
-    try std.testing.expectEqual(input.MouseButtonState.release, x2.state);
-    try std.testing.expect(x2.xbutton);
-}
-
-test "accumulate partial Win32 horizontal wheel ticks" {
-    var remainder: i32 = 0;
-    try std.testing.expectEqual(@as(i32, 0), accumulateWheelTicks(&remainder, 30));
-    try std.testing.expectEqual(@as(i32, 30), remainder);
-    try std.testing.expectEqual(@as(i32, 0), accumulateWheelTicks(&remainder, 60));
-    try std.testing.expectEqual(@as(i32, 90), remainder);
-    try std.testing.expectEqual(@as(i32, 1), accumulateWheelTicks(&remainder, 30));
-    try std.testing.expectEqual(@as(i32, 0), remainder);
-    try std.testing.expectEqual(@as(i32, -2), accumulateWheelTicks(&remainder, -240));
-    try std.testing.expectEqual(@as(i32, 0), remainder);
-}
-
-test "decode Win32 DPI scale" {
-    const wparam = @as(usize, 192) << 16 | 144;
-    try std.testing.expectEqual(
-        apprt.ContentScale{ .x = 1.5, .y = 2.0 },
-        dpiScale(wparam),
-    );
-}
-
-test "Win32 window icons fall back without an embedded resource" {
-    // The unit test executable does not link the Windows resource script,
-    // so the icon lookup must degrade to the default icon instead of
-    // failing window class registration.
-    const hinstance = win32.GetModuleHandleW(null) orelse return error.Win32Error;
-    const icons = loadWindowIcons(hinstance);
-    try std.testing.expect(icons.large == null);
-    try std.testing.expect(icons.small == null);
-}
-
 test "restore Win32 native window state after fullscreen" {
     try registerWindowClass();
     defer _ = win32.UnregisterClassW(
-        window_class_name,
+        NativeWindow.window_class_name,
         win32.GetModuleHandleW(null),
     );
 
-    const hwnd = try createNativeWindow();
+    const hwnd = try NativeWindow.createWindow();
     defer _ = win32.DestroyWindow(hwnd);
     var surface: Surface = .{ .hwnd = hwnd, .window_hwnd = hwnd };
 
@@ -4645,32 +2813,5 @@ test "restore Win32 native window state after fullscreen" {
     try std.testing.expectEqual(
         WindowState.styleWithDecorations(original_style, false),
         WindowState.getWindowStyle(hwnd).?,
-    );
-}
-
-test "format Win32 tab bar accessible name" {
-    const name = try tabBarAccessibleName(
-        std.testing.allocator,
-        3,
-        1,
-        "PowerShell",
-    );
-    defer std.testing.allocator.free(name);
-
-    try std.testing.expectEqualStrings(
-        brand.display_name ++ " tabs. 3 tabs. Active tab 2: PowerShell",
-        name,
-    );
-
-    const singular = try tabBarAccessibleName(
-        std.testing.allocator,
-        1,
-        0,
-        "Command Prompt",
-    );
-    defer std.testing.allocator.free(singular);
-    try std.testing.expectEqualStrings(
-        brand.display_name ++ " tabs. 1 tab. Active tab 1: Command Prompt",
-        singular,
     );
 }

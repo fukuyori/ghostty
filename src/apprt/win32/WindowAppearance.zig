@@ -6,8 +6,11 @@ const win32 = @import("win32").everything;
 const build_config = @import("../../build_config.zig");
 const Config = @import("../../config/Config.zig");
 const App = @import("App.zig");
+const TabBarController = @import("TabBarController.zig");
+const WindowLayout = @import("WindowLayout.zig");
 const Backdrop = @import("Backdrop.zig");
 const Surface = @import("Surface.zig");
+const SplitDivider = @import("SplitDivider.zig");
 const Titlebar = @import("Titlebar.zig");
 const Window = @import("Window.zig");
 
@@ -39,9 +42,9 @@ pub fn refreshTheme(hwnd: win32.HWND) win32.LRESULT {
                 while (bars.next()) |candidate| {
                     if (candidate.scrollbar) |bar| bar.setAppearance(app.config.background, app.high_contrast);
                 }
-                app.layoutWindow(window);
-                App.invalidateTabBar(window);
-                App.invalidateSplitDividers(window);
+                WindowLayout.layoutWindow(app, window);
+                TabBarController.invalidate(window);
+                SplitDivider.invalidate(window);
             }
         }
     }

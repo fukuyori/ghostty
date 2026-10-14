@@ -6,6 +6,7 @@ const std = @import("std");
 const win32 = @import("win32").everything;
 const apprt = @import("../../apprt.zig");
 const App = @import("App.zig");
+const WindowLayout = @import("WindowLayout.zig");
 const Surface = @import("Surface.zig");
 const TabBar = @import("TabBar.zig");
 
@@ -322,7 +323,7 @@ fn resizeClientArea(
         break :dpi if (value > 0) value else win32.USER_DEFAULT_SCREEN_DPI;
     };
     if (surface.rtApp().windowForSurface(surface)) |window| {
-        if (surface.rtApp().tabBarVisible(window)) {
+        if (WindowLayout.tabBarVisible(surface.rtApp(), window)) {
             rect.bottom = @min(
                 std.math.maxInt(i32),
                 rect.bottom + TabBar.heightForDpi(dpi),

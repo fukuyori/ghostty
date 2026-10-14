@@ -5,6 +5,534 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-14: Review fixes for modal lifetime and accessibility
+
+- Investigate the Claude Code review against the working tree. The old
+  terminal child HWND had no accessible name: Computer Use reported the
+  focused element as only `ウィンドウ`, while the parent and tab had titles.
+  This is a confirmed name omission, not proof of the cause of every Narrator
+  announcement. Do not treat the initial review's speech-cause claim as proven.
+- Reproduce a separate lifetime failure: open tab rename with F4, then let
+  that terminal's probe shell exit through a marker file. The pre-fix binary
+  crashed with a segmentation fault and exit 3. The corrected binary exited 0
+  on the same native-input sequence. The tracked synthetic regression also
+  reproduces baseline exit 3 (`modal-actions-20261014-193012-767.json`).
+- Add `DeferredActions.zig`. Close confirmations, rename and file-drop
+  dialogs run only from the outer App loop. Requests own text and close
+  selections, using core surface IDs instead of retained pointers or tab
+  indexes. Resolve live targets again after a modal loop; discard pending
+  owned requests at quit. Confirmation-free closure still posts immediately
+  so shells and owners can close inside other modal loops.
+- Name terminal child HWNDs, synchronize effective shell/tab titles (including
+  background panes), and suppress redundant child-name updates. Mouse drag
+  reorder now synchronizes accessible names and sends REORDER; new-tab and
+  combined reorder/selection notifications put REORDER first.
+- Keep the intentional config-diagnostic owner-discard policy unchanged.
+  Correct the summary documents to include the owner's failed title-speech
+  check separately from earlier recap observations. Clarify the rebranding
+  plan's original decision dates versus the 2026-10-13 Gooztty spelling.
+
+### Verification
+
+- Final Debug build: 128/128 steps; Win32 hook tests: 179 passed, one skipped
+  (91/91 steps). Logs: `zig-out/logs/review-fixes-build-v2.log` and
+  `review-fixes-win32-tests-v2.log`.
+- `scripts/test-windows-modal-actions.ps1` covers rename/shell exit,
+  close-target identity after an earlier tab exits during confirmation,
+  close-all/shell exit and quit/shell exit. All four pass on the corrected
+  binary; all exit 0 without forced termination. These are synthetic-message
+  checks, separate from the native-input checks below. Final result:
+  `zig-out/logs/modal-actions-20261014-193150-681.json`.
+- Existing config-diagnostic scenarios: eight passed
+  (`config-diagnostics-20261014-192433-593.json`). Normal window-state
+  regression passed (`window-state-20261014-192511-025-c48b073f`), including
+  input, IME process keys, splits, reload, multi-window and normal exit.
+  These monitor observations all reported 96 DPI; they are not a new mixed-DPI
+  acceptance result. File-drop fixtures passed PowerShell, cmd and unsupported
+  shell cases (`file-drop-20261014-193015-482.json`), including quoting,
+  Unicode, target pane, no automatic Enter, and warnings. Captures inspected.
+- Native Computer Use key/pointer checks: three tabs, drag active third tab
+  into second position, open its close confirmation, exit the first probe
+  shell, then accept. Only the originally selected terminal closed; the other
+  terminal remained. The reordered accessible name said `Active tab 2` and
+  matched visible order. Renaming the survivor updated the tab, parent and
+  focused terminal name. Reopening rename and exiting its shell ended with
+  code 0. No dedicated Ghostty processes remained after successful runs.
+- Name evidence and manual exit records are under
+  `zig-out/test-fixtures/review-fixes/`: `baseline-accessibility.json`,
+  `fixed-accessibility.json`, `new-tab-name.json`,
+  `reorder-accessibility.json`, `close-selection-after-exit.json`,
+  `renamed-focus-name.json`, and `selection-fixed-exit.json`.
+  Computer Use screenshots were inspected. The tool could not target cached
+  dialog element indexes; refreshed screenshot-based clicks worked.
+- Retain intermediate failures: the first implementation delayed even
+  confirmation-free closure, preventing owner closure inside config dialogs.
+  That run was interrupted and corrected; its prefix is
+  `config-diagnostics-20261014-192247-726`. The first modal test fixture failed
+  its visibility precondition because it launched hidden; explicitly showing
+  its dedicated window fixed the fixture (`modal-actions-20261014-192932-153`).
+  These are not passing final results.
+- The owner confirmed post-fix Narrator title speech: `一番ウインドウ` and
+  `読み上げ確認ウインドウ`. When asked whether the final new-tab title was
+  announced automatically after F2 without an additional action, the owner
+  replied `指示された操作のみで`. Title speech and the automatic new-tab
+  final-title announcement are therefore confirmed by owner report. Audio was
+  not independently captured, and no separate per-step speech transcript was
+  supplied. The fixture and executable identity are recorded in
+  `zig-out/test-fixtures/narrator-owner-20261014-195930/session.json`.
+  This does not establish tab-role/ordinal speech, broad COM lifetime/threading
+  behavior, or full terminal-content accessibility.
+- File-drop unsafe confirmation was hardened by target revalidation; the
+  normal formatter already rejects the
+  control characters that trigger unsafe paste, so that branch was not reproduced.
+- Final tested executable: `zig-out/review-fixes-v2/bin/ghostty.exe`, SHA-256
+  `E6AC659E43CCF3BBFDF663D0A0E2B16A08B74C01D13398771C5BC3183954EED5`.
+  Verification used a dedicated Debug build; no release package was created.
+
+### Handoff
+
+- The changes cover FileDrop, Mouse, TabBarAccessibility, NativeWindow,
+  WindowLayout, SplitDivider and TabBarController extraction, plus the modal
+  lifetime and accessible-title fixes above. Verification results are recorded
+  per stage below; the final build results and owner speech confirmation are
+  recorded above.
+- Continue with `WindowLifecycle.zig`, followed by `WindowCommands.zig`.
+  Preserve deferred modal execution and stable surface-ID target validation
+  while moving creation, closure and teardown out of App.
+
+## 2026-10-14: Tab-bar controller extraction (#12)
+
+- Add `TabBarController.zig` for paint preparation, click/double-click,
+  pointer hover and tracking, drag reorder, wheel selection, viewport,
+  invalidation, and the tab-bar window procedure, including accessibility
+  object retrieval and posted selection. Keep drawing/geometry and their
+  existing tests in TabBar; Window retains tab and pointer state.
+- Update App, WindowLayout, WindowAppearance and TabTitles callers. Register
+  the module in App's comptime block and the existing Win32 test imports.
+  Expose App's existing newTab, closeTab and transferWindowState helpers for
+  the controller; their bodies remain unchanged pending lifecycle extraction.
+- Preserve selection/focus on button down, capture release before button-up
+  actions, double-click rename, drag thresholds, state transfer after reorder,
+  overflow wheel directions, and accessibility dispatch. App is 401 lines
+  shorter than the pre-move working tree.
+
+### Verification
+
+- Compare the three moved source blocks after reversing function names,
+  qualification and method-call syntax and ignoring indentation. Compare
+  the remaining App source after reversing imports, caller qualification and
+  helper visibility changes. All comparisons matched:
+  `zig-out/logs/tab-bar-controller-extraction-source-comparison.log`.
+- Debug build: 128/128 steps succeeded
+  (`zig-out/logs/tab-bar-controller-extraction-build.log`). Formatting and
+  `git diff --check` passed. No test cases or tracked test scripts were added.
+- The initial extraction recorded build-only evidence. On the subsequent
+  explicit test request, Win32 tests with hooks passed: 91/91 steps succeeded,
+  178 passed and one skipped
+  (`zig-out/logs/tab-bar-controller-extraction-win32-tests.log`).
+- The unmodified window-state regression passed, including input, synthetic
+  IME process keys, split focus, config reload, multiple windows, four-monitor
+  layout, maximize/minimize/restore and normal exit. Evidence:
+  `zig-out/logs/tab-bar-controller-extraction-window-state.json`, prefix
+  `window-state-20261014-174436-192-61cae162`. All monitors used 96 DPI.
+- The existing title fixture passed OSC title/override/clear, double-click
+  rename with Japanese text, cancel, and title restoration across tabs.
+  Dialog and renamed-window captures were inspected. Evidence:
+  `zig-out/logs/tab-bar-controller-extraction-titles.json`, capture/log prefix
+  `tab-titles-20261014-174447`.
+- A temporary controller fixture passed 11 synthetic-message checks: plus
+  creation, selection/focus, ignoring wheel input without overflow,
+  mismatched close-button release, drag reorder and release, native capture
+  transfer to the terminal cancelling a pending reorder, closing the intended
+  tab, both overflow wheel directions, previous/next buttons, posted
+  accessibility selection with invalid-index guards, and resize/viewport
+  restoration. Reordered and overflow captures were inspected. Evidence:
+  `zig-out/logs/tab-bar-controller-extraction-interaction.json`, prefix
+  `tab-controller-20261014-174648`; fixture:
+  `zig-out/test-fixtures/tab-bar-controller-extraction/check-interaction.ps1`.
+- The first controller-fixture run stopped at a premature visible-child
+  assertion during second-tab creation. The native child is created before
+  core initialization and layout. Update the fixture to wait for the expected
+  child count, one visible terminal, and synchronized accessible tab count.
+  The subsequent full run passed without product-code changes. Retain the
+  first failure and stderr under `tab-controller-20261014-174613`.
+- Successful GUI runs exited 0 without forced termination; no dedicated test
+  processes remained. Human-operated physical devices, mixed-DPI
+  transitions and screen-reader/COM client behavior remain unverified. The
+  posted selection check is not COM-provider or WinEvent delivery evidence.
+  Grouped manual acceptance remains due.
+- After reconnecting Computer Use, native SendInput checks passed for plus
+  creation, tab drag reorder/selection, split-divider dragging and click focus.
+  Screenshots showed the divider move from x=502 to x=645 and the active-pane
+  title change. These are injected pointer/key checks, not human-device evidence.
+- IME checks used individual romaji key presses, not Unicode text injection.
+  Both the rename dialog and terminal showed composition and the Japanese
+  candidate list. Enter committed `日本語`; in the dialog it did not submit
+  the form. Clicking OK applied the Japanese tab title. The terminal recorder
+  captured exactly `日本語`, UTF-8 `E697A5E69CACE8AA9E`:
+  `zig-out/test-fixtures/tab-bar-controller-manual/input-15416.jsonl`.
+  Screenshots were inspected in the Computer Use transcript. Run summary:
+  `zig-out/logs/tab-controller-native-20261014-180554-result.json`.
+- In the first native-input run, mixed-DPI movement was not attempted: SystemSettings ran but was absent
+  from the tool's targetable windows; no display setting was changed. Narrator
+  started, then exposed an update window and reported higher-integrity
+  accessibility restrictions. Audio was not captured, so screen-reader
+  acceptance was initially pending. The user subsequently confirmed audible
+  reading (「読み上げされた」). Record speech output as user-confirmed;
+  the spoken content, target element and per-action announcements were not
+  specified, so detailed screen-reader acceptance remains open.
+  A close-button attempt while Narrator was active
+  did not close the tab; this is inconclusive, not a controller failure verdict.
+  Narrator cleanup was denied access and its normal exit chord did not stop it;
+  manual exit is required. The dedicated Ghostty exited normally with code 0
+  and no remaining recorder processes (`zig-out/logs/tab-controller-native-exit.json`).
+- A subsequent run used the owner's existing display 1 (100%, 2560x1440)
+  and display 2 (125%, 1920x1080), with no display-setting changes. Computer
+  Use title-bar drags moved the same dedicated Ghostty to display 2 and back.
+  Read-only `GetDpiForWindow` observations measured 120 DPI on display 2 and
+  96 DPI after return. At 125%, divider dragging, pane focus, direct `1`/Enter
+  input and plus-button tab creation passed. After return, the two tabs,
+  adjusted split ratio and recorded input remained visible. Screenshots were
+  inspected; intermediate cross-monitor captures were clipped by the tool.
+  Evidence: `zig-out/logs/dpi-reader-observations.jsonl`,
+  `zig-out/test-fixtures/tab-bar-controller-manual/input-23740.jsonl`, and
+  `zig-out/logs/dpi-reader-20261014-182336-result.json`.
+  A separate `type_text` attempt recorded `v` instead of the requested string;
+  it is not counted as a passing text-entry test. Direct key input passed.
+- With Narrator running, exercise rename to `1`, Tab navigation through
+  OK/Cancel/edit, selection of `Ghostty input check 12820`, addition of
+  `Ghostty input check 25820` and closure back to `Ghostty input check 12820`.
+  Visual and accessibility-tree state matched these operations; the close
+  button worked in this run. Spoken content initially awaited speech-recap review.
+  Both Caps Lock+Alt+X and Insert+Alt+X through Computer Use failed to open
+  recap; the first sent `x` to the recorder. The dedicated window and Narrator
+  were left open for the user's physical recap shortcut and subsequent review.
+- After the user opened speech recap, replay and compare actual Narrator
+  history with the dedicated application's visible state. Selecting tab `1`
+  produced `1 ウィンドウ`. The rename dialog announced `Change Tab Title`,
+  the edit label and value `1`; Tab navigation announced `OK, ボタン`,
+  `Cancel, ボタン`, and the edit value `2`. Commit produced `2 ウィンドウ`.
+  Closing the newly added tab returned to the existing tab and announced
+  `Ghostty input check 12820 ウィンドウ`. These scoped checks passed.
+- New-tab announcement has a finding: creation announced `Ghostty ウィンドウ`,
+  but after the shell changed its title to `Ghostty input check 39848`, that
+  updated title was absent from speech recap, including a later observation.
+  Record this as an observed missing automatic updated-title announcement;
+  its cause and required behavior are not established. Tab selection/rename
+  were announced as window titles; tab role, ordinal and explicit selected
+  state were not confirmed in speech. This is not blanket screen-reader or
+  COM/WinEvent acceptance. No product fix was made in this test task.
+  Speech-recap screenshots were inspected in the tool transcript, and the
+  observed phrases are in `zig-out/logs/dpi-reader-20261014-182336-result.json`.
+  The dedicated Ghostty exited 0 without forced termination
+  (`zig-out/logs/dpi-reader-exit.json`).
+- In the subsequent owner-operated new-tab check, the user reported only
+  `ウインドウ` being spoken. The owner did not hear the title. Keep this
+  separate from the earlier automated recap observation (`Ghostty ウィンドウ`):
+  both runs lacked an announcement of the final new-tab title. The requested
+  owner check is complete with a failed title-announcement result; the cause
+  remains uninvestigated and no product fix has been made. Dedicated process
+  28584 was launched for this check; evidence is in
+  `zig-out/test-fixtures/tab-bar-controller-manual/owner-session.json` and
+  `zig-out/logs/reader-owner-check-20261014-185519-result.json`.
+- Built `zig-out/bin/ghostty.exe`, working tree based on `61010d533`, SHA-256:
+  `CA55637745D3C2F924F4C47213550EB2D8EFEF85AE05FEF4B302E0B3B9660B9E`.
+  Earlier extractions remain in the working tree; pre-move snapshots are
+  under `zig-out/test-fixtures/tab-bar-controller-extraction/`.
+
+## 2026-10-14: Split divider extraction (#12)
+
+- Add `SplitDivider.zig` for divider placement, gap sizing, painting/colors,
+  invalidation, hit testing, drag/capture, cursor, and the divider window
+  procedure. Window retains geometry and drag state. Update App,
+  WindowLayout and WindowAppearance callers; move the existing DPI and
+  high-contrast thickness test and register the module in Win32 tests.
+- Preserve divider handling before terminal mouse input, minimum pane size,
+  capture reset before tab switches and pane teardown, and layout order.
+  Six extracted source blocks, including the existing test, compare equal
+  after helper naming/visibility normalization:
+  `zig-out/logs/split-divider-extraction-source-comparison.log`.
+
+### Verification
+
+- Debug build: 128/128 steps succeeded
+  (`zig-out/logs/split-divider-extraction-build.log`). Win32 tests with hooks:
+  91/91 steps succeeded, 178 passed and one skipped
+  (`zig-out/logs/split-divider-extraction-win32-tests.log`).
+- Unmodified window-state regression passed: initial divider placement,
+  split click-to-focus, four-monitor layout, maximize/minimize/restore,
+  config reload, multiple windows, and clean exit. Evidence:
+  `zig-out/logs/split-divider-extraction-window-state.json`, log prefix
+  `window-state-20261014-161131-712-9fe0c34b`.
+- Reuse the temporary visible-window fixture from the layout extraction,
+  including its explicit show/raise of the separate history window. Overlay
+  search/wheel tracking, pane independence, resize, scrollbar drag, pane
+  close during scrollbar drag, and history-boundary checks passed. Evidence:
+  `zig-out/logs/split-divider-extraction-overlay-scrollbar.json`, prefix
+  `window-state-20261014-161156-696-c8a053a2`. The split capture was inspected;
+  the divider and both panes were visible. These drag checks exercise the
+  scrollbar, not the split divider.
+- Main/history exits were 0 without forced termination; no dedicated test
+  processes remained. Formatting and `git diff --check` passed. All four
+  monitor layouts used 96 DPI. Physical divider dragging, divider capture
+  loss, mixed-DPI transitions, and grouped manual acceptance remain due.
+  No tracked test scripts or test cases were added.
+- Tested `zig-out/bin/ghostty.exe`, working tree based on `61010d533`, SHA-256:
+  `D94799905377405559251316B9CFFF6E4434C9D46552F16A0BCAC0B74AF7BB78`.
+  Earlier extractions remain in the working tree; pre-move snapshots are
+  under `zig-out/test-fixtures/split-divider-extraction/`.
+
+## 2026-10-14: Window layout extraction (#12)
+
+- Add `WindowLayout.zig` for tab-bar, search, pane and scrollbar placement,
+  tab-bar visibility policy, content bounds, DPI lookup/decoding, and native
+  size/move/DPI handlers. Move the two existing visibility/DPI tests and
+  register the module in Win32 tests and App's comptime block. Update App,
+  ConfigActions, SearchBar, WindowAppearance and WindowState callers.
+- Divider layout/gap and tab-bar viewport helpers remain in App, exposed for
+  this module until their controllers are split. Preserve child visibility,
+  search-space reservation, scrollbar placement, inactive-pane hiding,
+  divider layout last, per-surface DPI callback order, and suggested-rectangle
+  application. Source comparison confirms the moved functions, tests, and
+  three message-handler bodies are unchanged after qualification/indentation:
+  `zig-out/logs/window-layout-extraction-source-comparison.log`.
+
+### Verification
+
+- Debug build: 128/128 steps succeeded
+  (`zig-out/logs/window-layout-extraction-build.log`). Win32 tests with hooks:
+  91/91 steps succeeded, 178 passed and one skipped
+  (`zig-out/logs/window-layout-extraction-win32-tests.log`).
+- Unmodified window-state regression passed with exit 0 and no forced
+  termination (`zig-out/logs/window-layout-extraction-window-state.json`).
+  The four monitored layouts all used 96 DPI; this is not mixed-DPI evidence.
+- Two initial parity runs stopped at `typing hides pointer`. The first
+  diagnostic recorded the pointer over `MozillaWindowClass`; the second
+  recorded it over the expected surface with visibility flag 1. Their logs
+  and captures use prefixes `parity-20261014-155805-009` and
+  `parity-20261014-155854-681`. Earlier search, eight resize cycles, and exact
+  input-after-search checks had completed, but later pane/cwd checks had not.
+- Compare against the cached pre-layout executable (SHA-256
+  `BE1C8DA7DAA722BF940972F3673D24FE5EE9C16E7780879A32D2D4017260EEB8`),
+  copied beside the same runtime dependencies as `ghostty-layout-baseline.exe`.
+  The unchanged full parity script subsequently passed both baseline and
+  current binaries, exit 0, with cwd inheritance enabled. Evidence:
+  `zig-out/logs/window-layout-extraction-parity-baseline.log` and
+  `zig-out/logs/window-layout-extraction-parity-final.log`; current result:
+  `zig-out/logs/parity-20261014-160246-677.json`. Its search capture was
+  inspected. The two earlier cursor failures are not treated as root-caused
+  or fixed by this extraction.
+- The existing visible-window overlay fixture initially failed to locate the
+  reached-history-limit thumb in its separate history window (log prefix
+  `window-state-20261014-160107-088-b8ce3eee`). A temporary copy also explicitly
+  shows and raises that dedicated history window. The complete rerun passed
+  search/wheel position tracking, pane independence, resize, drag, pane close
+  during drag, and history-boundary checks. Main/history exits were 0 without
+  forced termination; the split capture was inspected. Evidence:
+  `zig-out/logs/window-layout-extraction-overlay-scrollbar-final.json`, prefix
+  `window-state-20261014-160402-070-5e25ad72`; temporary fixture:
+  `zig-out/test-fixtures/window-layout-extraction/window-state-visible.ps1`.
+- Observed initial failure diagnostics are retained in
+  `zig-out/logs/window-layout-extraction-initial-failures.json`. Tracked test
+  scripts are unchanged. No dedicated processes remained; formatting and
+  `git diff --check` passed. Physical input, mixed-DPI monitor transitions,
+  and grouped manual acceptance remain due.
+- Tested `zig-out/bin/ghostty.exe`, working tree based on `61010d533`, SHA-256:
+  `A4379F34F8EDAD8EA13DDC9185C8661E0DC2246EDEA14F79F5C7BFB6B5D0FA3F`.
+  Previous extractions remain in the working tree; pre-move snapshots are
+  under `zig-out/test-fixtures/window-layout-extraction/`.
+
+## 2026-10-14: Native window extraction (#12)
+
+- Add `NativeWindow.zig` for the four class registrations, large/small icon
+  loading and fallback, creation styles, and parent/surface/tab-bar/divider/
+  message-only HWND creation. App passes its existing window procedures
+  through a `Procedures` value; the new module does not import App.
+- App retains userdata assignment, Window/Surface initialization and ownership,
+  optional tab-bar/wakeup fallbacks, and cleanup ordering. Its existing native
+  fullscreen/rendering integration test calls the new creation helper. Move
+  the existing D3D11 extended-style and icon-resource fallback tests into the
+  new module and register it in the Win32 test imports and App's comptime block.
+- Source comparison against the pre-move working tree confirms unchanged
+  registration, icon, style, HWND creation, and test bodies after naming,
+  visibility, and explicit procedure-parameter normalization. The message-only
+  creation body is unchanged, with userdata still attached immediately by App.
+  Evidence: `zig-out/logs/native-window-extraction-source-comparison.log`;
+  baseline: `zig-out/test-fixtures/native-window-extraction/App.before.zig`.
+
+### Verification
+
+- Debug build: 128/128 steps succeeded
+  (`zig-out/logs/native-window-extraction-build.log`). Win32 tests with hooks:
+  91/91 steps succeeded, 178 passed and one skipped
+  (`zig-out/logs/native-window-extraction-win32-tests.log`).
+- Unmodified window-state regression passed: class icons, native styles,
+  initial grid and input, split focus, tab-bar/divider layout on four monitors,
+  multiple windows, config reload, maximize/minimize/restore and clean exit.
+  Evidence: `zig-out/logs/native-window-extraction-window-state.json`.
+- Existing title fixture passed unchanged, including double-click rename,
+  Japanese text, override/clear/cancel, and tab switching; the renamed-window
+  capture was inspected. Evidence: `zig-out/logs/native-window-extraction-titles.json`,
+  with capture/log prefix `tab-titles-20261014-155050`.
+- All eight configuration-diagnostic lifecycle cases passed, including queued
+  requests, owner/shell closure, another surviving window, and reload from a
+  palette. The palette-reload diagnostic capture was inspected. Evidence:
+  `zig-out/logs/native-window-extraction-config-diagnostics.json`, with
+  capture/log prefix `config-diagnostics-20261014-155111-004`.
+- All successful GUI processes exited 0 without forced termination; no
+  dedicated test processes remained. Formatting and `git diff --check` passed.
+  These are D3D11 Debug checks with synthetic input. OpenGL runtime, injected
+  HWND/class-registration failures, physical shell/input behavior, and grouped
+  manual acceptance were not exercised.
+- Tested `zig-out/bin/ghostty.exe`, working tree based on `61010d533`, SHA-256:
+  `BE1C8DA7DAA722BF940972F3673D24FE5EE9C16E7780879A32D2D4017260EEB8`.
+  FileDrop, Mouse, and TabBarAccessibility extractions remain in the working tree.
+
+## 2026-10-14: Tab accessibility extraction (#12)
+
+- Move six App-side helpers into `TabBarAccessibility.zig`: accessible-name
+  formatting and synchronization, list/child WinEvent notification, provider
+  lookup, and window detachment. Move the name-format test and shared event
+  identifiers too. App and TabTitles call the module directly; register it
+  in the Win32 test imports and App's comptime block.
+- Keep provider creation at the window-creation call site and `WM_GETOBJECT`
+  and posted selection dispatch in App. Existing COM methods are unchanged.
+  Name/selection/reorder notification order, child IDs, title fallback,
+  allocator cleanup, and detachment before window/surface destruction are
+  preserved. Source comparison against the saved pre-move working tree
+  confirms the six functions and moved test are unchanged after naming,
+  type qualification, and visibility normalization:
+  `zig-out/logs/tab-accessibility-extraction-source-comparison.log`.
+
+### Verification
+
+- Debug build: 128/128 steps succeeded
+  (`zig-out/logs/tab-accessibility-extraction-build.log`). Win32 tests with
+  hooks: 91/91 steps succeeded, 178 passed and one skipped
+  (`zig-out/logs/tab-accessibility-extraction-win32-tests.log`).
+- Unmodified window-state regression passed, including input, synthetic IME
+  process keys, split focus, monitor/layout checks and window lifecycle:
+  `zig-out/logs/tab-accessibility-extraction-window-state.json`.
+- The existing `zig-out/test-fixtures/tab-titles-split/check.ps1` passed
+  unchanged: OSC title updates, setting/clearing overrides, override retention,
+  Japanese rename, cancel, and tab switching. It checks the window title and
+  tab-bar HWND text used as the accessible name. The dialog and renamed-window
+  captures were inspected. Evidence:
+  `zig-out/logs/tab-accessibility-extraction-titles.json`, with capture/log
+  prefix `tab-titles-20261014-154213`.
+- Both GUI runs exited 0 without forced termination and left no dedicated
+  test processes. Formatting and `git diff --check` passed. This run does
+  not establish screen-reader acceptance, WinEvent delivery to a client,
+  or retained COM-reference behavior after window closure; those were not
+  exercised. Grouped manual and screen-reader checks remain due.
+- Tested `zig-out/bin/ghostty.exe`, working tree based on `61010d533`, SHA-256:
+  `DC84CA5431160C6EA61130C77FCA238AB62F543283928F306307BC4D8729DB1B`.
+  The preceding FileDrop and Mouse extractions remain in the working tree;
+  pre-move snapshots are under `zig-out/test-fixtures/tab-accessibility-extraction/`.
+
+## 2026-10-14: Terminal mouse extraction (#12)
+
+- Move terminal button decoding and delivery, coordinate helpers, mouse-leave
+  tracking, cursor-position callbacks, capture release, and vertical/horizontal
+  wheel handling into the existing `Mouse.zig`. Move cursor shape/visibility
+  actions and the three existing unit tests too; register Mouse in the Win32
+  test imports and App's comptime block.
+- App retains window-procedure dispatch and divider arbitration in their
+  existing order. Shared keyboard/mouse modifier collection stays in App as
+  `pub fn getModifiers`. The focus-before-capture sequence, button bitmask,
+  right-release menu, no surface access after the modal menu, fractional
+  vertical scrolling, and accumulated horizontal ticks are unchanged.
+- Source comparison against the saved pre-move working tree confirms the
+  moved bodies and action bodies are unchanged after module qualification
+  and visibility changes. Evidence: `zig-out/logs/mouse-extraction-source-comparison.log`;
+  baseline: `zig-out/test-fixtures/mouse-extraction/App.before.zig`. The preceding
+  FileDrop extraction remains in the same working tree.
+
+### Verification
+
+- Debug build: 128/128 steps succeeded (`zig-out/logs/mouse-extraction-build.log`).
+  Win32 tests with hooks: 91/91 steps succeeded, 178 passed and one skipped
+  (`zig-out/logs/mouse-extraction-win32-tests.log`).
+- Unmodified window-state regression passed, including input, synthetic IME
+  process keys, split click-to-focus, monitor/layout and lifecycle checks:
+  `zig-out/logs/mouse-extraction-window-state.json`. Exit 0, no forced termination.
+- Unmodified parity regression passed with cwd inheritance enabled, including
+  cursor shape/visibility and input after search; its search capture was
+  inspected. Evidence: `zig-out/logs/mouse-extraction-parity.json` and
+  `zig-out/logs/parity-20261014-153132-567.png`.
+- The first context-menu run stopped before clicking because another window
+  obscured the target; the failure capture confirms the obstruction
+  (`zig-out/logs/blank-context-20261014-153145-501-failure.png`). A temporary
+  copy raises only the dedicated test window. All blank-row, word-selection,
+  drag-selection, and selection-preservation checks then passed through
+  SendInput; the existing-selection/menu capture was inspected. Evidence:
+  `zig-out/logs/mouse-extraction-context-menu-visible.json`, with screenshot
+  prefix `blank-context-20261014-153216-127`.
+- A temporary window-state copy explicitly shows and raises its dedicated
+  window for the overlay-scrollbar pixel checks. Vertical wheel position,
+  reveal/hide, reload, drag, pane independence, and pane closure during a
+  scrollbar drag passed. The split capture was inspected. Evidence:
+  `zig-out/logs/mouse-extraction-overlay-scrollbar.json`, with log/capture
+  prefix `window-state-20261014-153245-501-ab99cd1a`.
+- Temporary copies are under `zig-out/test-fixtures/mouse-extraction/`;
+  tracked test scripts are unchanged. Successful GUI runs exited 0, with
+  no dedicated test processes remaining. Formatting and `git diff --check`
+  passed. Horizontal partial ticks and extra-button decoding are unit-test
+  evidence; physical mouse/IME, terminal capture-loss acceptance, and grouped
+  manual checks remain due.
+- Tested `zig-out/bin/ghostty.exe`, working tree based on `61010d533`, SHA-256:
+  `47FF4712AB5CE1394700A3735BAF7D42FCB632129136D30942F0109D6D6FACD7`.
+
+## 2026-10-14: Native file-drop extraction (#12)
+
+- Move `handleFileDrop` and `showFileDropWarning` from App into the existing
+  `FileDrop.zig` as `handleDrop` and `showWarning`. App's window procedure
+  retains the target-HWND guard, error logging/message selection, and the
+  deferred `DragFinish`. Startup shell classification stays at its existing
+  call site. Register FileDrop in the Win32 test imports and App's comptime
+  block; its existing quoting and shell-classification tests are unchanged.
+- Source comparison against `61010d533` confirms both function bodies are
+  unchanged after module qualification and whitespace normalization. The
+  arena, UTF-16 conversion, formatting, paste safety check, confirmation,
+  warning text allocation, and cleanup ordering are preserved.
+
+### Verification
+
+- Debug build: 128/128 steps succeeded
+  (`zig-out/logs/file-drop-extraction-build.log`). Win32 tests with hooks:
+  91/91 steps succeeded, 178 passed and one skipped
+  (`zig-out/logs/file-drop-extraction-win32-tests.log`). The `file drop`
+  filtered run passed 78/78 tests
+  (`zig-out/logs/file-drop-extraction-unit-tests.log`).
+- The unmodified window-state regression passed with exit 0 and no forced
+  termination (`zig-out/logs/file-drop-extraction-window-state.json`), with
+  underlying logs prefixed `window-state-20261014-152346-801-4d48c359`.
+- A dedicated native-message fixture posts UTF-16 `HDROP` payloads to child
+  panes, transferring ownership only after a successful post. PowerShell
+  and cmd startup configurations produced exact quoted text for multiple
+  paths containing Japanese, spaces, apostrophes, ampersands, and parentheses.
+  The two panes received only their own payloads, with no automatic Enter.
+  Rejected control characters produced no input; cmd `%` and `!` paths and
+  an unsupported startup executable displayed their expected warnings.
+- The receiver records `Console.ReadLine` text; cmd mode starts that recorder
+  through cmd. This verifies the shell-classified formatting and delivered
+  text, not a fresh shell argument-parsing acceptance test. The fixture uses
+  synthetic drops, not Explorer or a physical pointer. Unsafe-paste
+  confirmation and closing an owner while a warning is open were not exercised.
+- Initial native checks passed but their hidden main-window captures showed
+  the desktop. The fixture now explicitly shows the dedicated main window
+  and raises it for capture. The final run passed all three startup modes,
+  each exiting 0 without forced termination:
+  `zig-out/logs/file-drop-20261014-152441-862.json`. PowerShell/cmd pane
+  captures and rejection-dialog captures were inspected. Earlier run:
+  `zig-out/logs/file-drop-20261014-152357-055.json`.
+- Fixture: `zig-out/test-fixtures/file-drop-extraction/run.ps1`, with its
+  native helper and reader beside it. No dedicated Ghostty processes remained.
+  Formatting and `git diff --check` passed. Grouped manual Explorer/drop and
+  release acceptance remain due.
+- Tested `zig-out/bin/ghostty.exe`, working tree based on `61010d533`, SHA-256:
+  `0904002394CCF9E576529982E6AD70C6DD69648BC50EEE6F67A2E9CB251FA1C5`.
+
 ## 2026-10-14: Command-palette App-side extraction (#12)
 
 - Move the toggle action's posted request and `showCommandPalette` into

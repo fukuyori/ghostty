@@ -6,8 +6,11 @@ const win32 = @import("win32").everything;
 const apprt = @import("../../apprt.zig");
 const brand = @import("../../brand.zig");
 const App = @import("App.zig");
+const TabBarController = @import("TabBarController.zig");
 const Surface = @import("Surface.zig");
+const TabBarAccessibility = @import("TabBarAccessibility.zig");
 const Window = @import("Window.zig");
+const DeferredActions = @import("DeferredActions.zig");
 
 const log = std.log.scoped(.win32);
 
@@ -19,9 +22,9 @@ const dialog_cancel_id: u16 = 2;
 
 pub fn tabTitleChanged(self: *App, surface: *const Surface) void {
     const window = self.windowForSurface(surface) orelse return;
-    App.invalidateTabBar(window);
-    self.syncTabBarAccessibility(window, false, false);
-    App.notifyTabBarChildNameChanged(window, surface);
+    TabBarController.invalidate(window);
+    TabBarAccessibility.sync(self, window, false, false);
+    TabBarAccessibility.notifyChildNameChanged(window, surface);
 }
 
 pub fn syncWindowTitle(self: *App, surface: *Surface) void {
@@ -61,9 +64,9 @@ pub fn setTabTitle(
         return false;
     };
     if (!try window.setTabTitle(self.alloc, surface, value.title)) return false;
-    App.invalidateTabBar(window);
-    self.syncTabBarAccessibility(window, false, false);
-    App.notifyTabBarChildNameChanged(window, surface);
+    TabBarController.invalidate(window);
+    TabBarAccessibility.sync(self, window, false, false);
+    TabBarAccessibility.notifyChildNameChanged(window, surface);
     if (window.focusedSurface() == surface or
         window.tabForSurface(surface) == window.active_tab)
     {
@@ -173,6 +176,15 @@ fn tabTitleDialogProc(
 
 pub fn promptTabTitle(self: *App, window: *Window, index: usize) !bool {
     const surface = window.focusedSurfaceAt(index) orelse return false;
+    const core = surface.core_surface orelse return false;
+    return DeferredActions.enqueue(self, .{ .rename = core.id });
+}
+
+/// Only called by the outer message loop, never from a core key callback.
+pub fn showPrompt(self: *App, id: u64) !void {
+    const surface = DeferredActions.resolve(self, id) orelse return;
+    const window = self.windowForSurface(surface) orelse return;
+    const index = window.tabIndexForSurface(surface) orelse return;
     const initial = window.tabTitleAt(index) orelse brand.display_name;
     const initial_wide = try std.unicode.utf8ToUtf16LeAllocZ(self.alloc, initial);
     defer self.alloc.free(initial_wide);
@@ -190,21 +202,24 @@ pub fn promptTabTitle(self: *App, window: *Window, index: usize) !bool {
         log.warn("DialogBoxParamW(tab title) failed: err={d}", .{
             @intFromEnum(win32.GetLastError()),
         });
-        return false;
+        return;
     }
-    if (!context.accepted) return true;
+    if (!context.accepted) return;
+
+    // The shell can exit or the tab can move while the modal loop runs.
+    const live_surface = DeferredActions.resolve(self, id) orelse return;
+    const live_window = self.windowForSurface(live_surface) orelse return;
 
     const title = try std.unicode.utf16LeToUtf8Alloc(
         self.alloc,
         context.result[0..context.result_len],
     );
     defer self.alloc.free(title);
-    if (!try window.setTabTitle(self.alloc, surface, title)) return false;
-    App.invalidateTabBar(window);
-    self.syncTabBarAccessibility(window, false, false);
-    App.notifyTabBarChildNameChanged(window, surface);
-    if (window.active_tab == window.tabForSurface(surface).?) {
-        window.focusedSurface().syncTitle();
+    if (!try live_window.setTabTitle(self.alloc, live_surface, title)) return;
+    TabBarController.invalidate(live_window);
+    TabBarAccessibility.sync(self, live_window, false, false);
+    TabBarAccessibility.notifyChildNameChanged(live_window, live_surface);
+    if (live_window.active_tab == live_window.tabForSurface(live_surface)) {
+        live_window.focusedSurface().syncTitle();
     }
-    return true;
 }

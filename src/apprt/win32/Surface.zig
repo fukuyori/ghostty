@@ -329,6 +329,7 @@ pub fn syncTitle(self: *Self) void {
 }
 
 pub fn applyTitle(self: *Self, value: [:0]const u8) !void {
+    try self.applyAccessibleTitle(value);
     const alloc = self.rtApp().alloc;
     const wide = try std.unicode.utf8ToUtf16LeAllocZ(alloc, value);
     defer alloc.free(wide);
@@ -336,6 +337,23 @@ pub fn applyTitle(self: *Self, value: [:0]const u8) !void {
         log.err("SetWindowTextW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         return error.Win32Error;
     }
+}
+
+/// The terminal child receives keyboard focus. Its standard accessibility
+/// proxy needs a name as well as the shared top-level window. Avoid emitting
+/// redundant name changes when layout or focus sync repeats the same title.
+pub fn applyAccessibleTitle(self: *Self, value: [:0]const u8) !void {
+    const alloc = self.rtApp().alloc;
+    const wide = try std.unicode.utf8ToUtf16LeAllocZ(alloc, value);
+    defer alloc.free(wide);
+    const previous = try alloc.allocSentinel(u16, wide.len, 0);
+    defer alloc.free(previous);
+    const length = win32.GetWindowTextLengthW(self.hwnd);
+    if (length == wide.len) {
+        const copied = win32.GetWindowTextW(self.hwnd, previous.ptr, @intCast(previous.len + 1));
+        if (copied == wide.len and std.mem.eql(u16, previous[0..wide.len], wide)) return;
+    }
+    if (win32.SetWindowTextW(self.hwnd, wide) == 0) return error.Win32Error;
 }
 
 pub fn close(self: *Self, confirm: bool) void {

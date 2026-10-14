@@ -10,6 +10,7 @@ const configpkg = @import("../../config.zig");
 const Config = configpkg.Config;
 const global = @import("../../global.zig");
 const App = @import("App.zig");
+const WindowLayout = @import("WindowLayout.zig");
 const Surface = @import("Surface.zig");
 const Scrollbar = @import("Scrollbar.zig");
 const ShellOpen = @import("ShellOpen.zig");
@@ -300,13 +301,13 @@ pub fn configChange(
             Titlebar.apply(state.windowHwnd(), value.config, self.high_contrast);
             WindowAppearance.updateWindowBackgroundBlur(state, value.config);
             try configureScrollbar(self, core.rt_surface, value.config);
-            if (self.windowForSurface(state)) |window| self.layoutWindow(window);
+            if (self.windowForSurface(state)) |window| WindowLayout.layoutWindow(self, window);
         },
         .app => {
             const config = try value.config.clone(self.alloc);
             self.config.deinit();
             self.config.* = config;
-            for (self.windows.items) |window| self.layoutWindow(window);
+            for (self.windows.items) |window| WindowLayout.layoutWindow(self, window);
         },
     }
     return true;

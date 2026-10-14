@@ -25,6 +25,18 @@ known issues, and known limitations of each version; the
 
 ### Fixed
 
+- Run close confirmations, tab-title dialogs, and file-drop dialogs after
+  core callbacks return. Preserve close selections by stable surface IDs and
+  revalidate targets after modal dialogs; a shell exit during tab rename
+  previously reproduced a crash. Add `test-windows-modal-actions.ps1`.
+- Give terminal child windows accessible names and update them on shell/tab
+  title changes. Notify accessibility clients after mouse-driven tab reorder,
+  and announce tree reorder before selection for newly added tabs. Focused
+  element names and reordered tab metadata were checked. The owner confirmed
+  Narrator title speech and the automatic final-title announcement after new-tab
+  creation; broader screen-reader/COM acceptance remains open. See the
+  [port log](windows-port-log.md).
+
 - Pair synthetic text with key-release messages in the Windows parity
   regression, avoiding .NET's extra character when adjacent key-down records
   are coalesced. Verify repeated-character payloads without delays, and raise
@@ -63,6 +75,54 @@ known issues, and known limitations of each version; the
 
 ### Changed
 
+- Extract tab-bar paint preparation, pointer/drag/wheel handling, viewport,
+  invalidation, and the native window procedure into `TabBarController.zig`
+  for [#12](https://github.com/fukuyori/ghostty/issues/12). Keep drawing and
+  geometry in `TabBar.zig` and state in `Window.zig`; preserve action and
+  accessibility dispatch order. Source comparison, Debug build, Win32 tests,
+  window-state, title and synthetic tab interaction checks passed; captures
+  inspected. Computer Use SendInput tab/divider checks and IME conversion in
+  the rename dialog and terminal also passed, followed by a display 1/2 round
+  trip at 100%/125% with measured 96/120 DPI and preserved tab/split state.
+  Narrator speech recap confirmed selected/renamed titles, dialog labels and
+  values, and the selected title after closing a tab. New-tab creation spoke
+  the initial title but not its later shell title. In the subsequent pre-fix
+  owner check, only `ウインドウ` was spoken, without the title. Post-fix owner
+  confirmation of title speech and the automatic new-tab final-title
+  announcement is recorded under Fixed above. Broader screen-reader acceptance
+  remains open. See the [port log](windows-port-log.md).
+- Extract divider placement, painting, hit testing, drag/capture, cursor,
+  and native window procedure handling into `SplitDivider.zig` for
+  [#12](https://github.com/fukuyori/ghostty/issues/12). Preserve input
+  arbitration and teardown order; move the existing DPI/high-contrast
+  thickness test. Verification is in the [port log](windows-port-log.md).
+- Extract pane/search/scrollbar/tab-bar placement, content bounds, and native
+  size/move/DPI handling into `WindowLayout.zig` for
+  [#12](https://github.com/fukuyori/ghostty/issues/12). Preserve layout and
+  callback order; update search, config, appearance, and resize callers.
+  Move existing tab-visibility and DPI-decoding tests. Verification and the
+  intermediate verification failures are recorded in the [port log](windows-port-log.md).
+- Extract Win32 class registration, icons, creation styles, and raw HWND
+  creation into `NativeWindow.zig` for
+  [#12](https://github.com/fukuyori/ghostty/issues/12). App supplies the existing
+  window procedures and retains userdata, ownership, fallback, and cleanup
+  sequencing. Move the existing style and icon tests; verification is in the
+  [port log](windows-port-log.md).
+- Move accessible-name synchronization, WinEvent notifications, provider lookup,
+  and detachment from `App.zig` into `TabBarAccessibility.zig` for
+  [#12](https://github.com/fukuyori/ghostty/issues/12). Preserve notification
+  and teardown order; title actions call the owning module directly. Move the
+  existing name-format test too. Verification is in the [port log](windows-port-log.md).
+- Move terminal mouse buttons, motion, capture release, wheel handling,
+  coordinate helpers, and cursor actions from `App.zig` into `Mouse.zig` for
+  [#12](https://github.com/fukuyori/ghostty/issues/12). Preserve focus/capture
+  ordering, context-menu behavior, and divider arbitration. Existing tests
+  move with their helpers; verification is in the [port log](windows-port-log.md).
+- Move native file-drop path collection, paste handling, and warning display
+  from `App.zig` into the existing `FileDrop.zig` for
+  [#12](https://github.com/fukuyori/ghostty/issues/12). Preserve shell quoting,
+  pane targeting, paste confirmation, and cleanup order. Verification is in
+  the [port log](windows-port-log.md).
 - Move Win32 palette requests and App-side presentation into the existing
   `CommandPalette.zig` for [#12](https://github.com/fukuyori/ghostty/issues/12).
   Preserve posted opening, snapshot ownership, the single-palette guard,

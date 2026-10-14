@@ -6,6 +6,7 @@ const std = @import("std");
 const win32 = @import("win32").everything;
 const apprt = @import("../../apprt.zig");
 const App = @import("App.zig");
+const WindowLayout = @import("WindowLayout.zig");
 const Surface = @import("Surface.zig");
 const input = @import("../../input.zig");
 const log = std.log.scoped(.win32_search);
@@ -30,7 +31,7 @@ pub fn startSearch(app: *App, target: apprt.Target, value: apprt.Action.Value(.s
     }
     const bar = surface.search_bar.?;
     try bar.start(value.needle);
-    if (app.windowForSurface(surface)) |window| app.layoutWindow(window);
+    if (app.windowForSurface(surface)) |window| WindowLayout.layoutWindow(app, window);
     bar.focus();
     return true;
 }
@@ -38,7 +39,7 @@ pub fn startSearch(app: *App, target: apprt.Target, value: apprt.Action.Value(.s
 pub fn endSearch(app: *App, target: apprt.Target) bool {
     const surface = App.targetSurface(target) orelse return false;
     if (surface.search_bar) |bar| bar.stop();
-    if (app.windowForSurface(surface)) |window| app.layoutWindow(window);
+    if (app.windowForSurface(surface)) |window| WindowLayout.layoutWindow(app, window);
     return true;
 }
 
