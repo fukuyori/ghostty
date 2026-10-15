@@ -113,8 +113,21 @@ Final pass required by roadmap Section 7 (goal 4), on `windows` at
   - Not exercised: an IPC request exceeding the 5 s UI timeout and injected
     creation failures (rollback paths), which need fault injection not
     present in the build (the rollback work is tracked as
-    [#49](https://github.com/fukuyori/ghostty/issues/49)); AltGr layouts; and
-    grouped manual acceptance.
+    [#49](https://github.com/fukuyori/ghostty/issues/49)); and grouped
+    manual acceptance.
+  - AltGr: after the owner added the German (de-DE, `0407:00000407`) layout,
+    an owner-operated check with the same executable passed in the key
+    recorder (`zig-out/test-fixtures/altgr-manual/keys-37572.jsonl`,
+    `session-20261015-155733.json`). AltGr+Q/E/7/8/9/0/ß/+ produced
+    `@€{[]}\~` (UTF-8 `40E282AC7B5B5D7D5C7E`), each delivered with
+    Ctrl+Alt modifiers; left Ctrl+Alt+Q also produced `@`; unmodified keys
+    produced `öäüßz`; the `^` and `´` dead keys composed `âé` (UTF-8
+    `C3A2C3A9`); Ctrl+C arrived as Control+C (U+0003) without ending the
+    shell; left Alt+Q produced `q` with Alt. Retyped keystrokes in the record
+    (a mistyped `ß`, and an accent followed by a non-composing key emitting
+    both characters) match standard Windows dead-key behavior. The process
+    exited 0 with no crash or leak markers. The ISO-only AltGr+< (`|`) was
+    not tested because the physical keyboard has no ISO 102nd key.
 
 With every group in the layout table in its own file and this pass recorded,
 the Phase 1 restructuring on `windows` is complete. Creating `gooztty`
@@ -344,7 +357,8 @@ the Phase 1 restructuring on `windows` is complete. Creating `gooztty`
   but the previous executable was not run with the same steps. The cause is
   not yet confirmed. Tracked separately as
   [#48](https://github.com/fukuyori/ghostty/issues/48).
-- AltGr layouts and grouped manual acceptance have not been exercised.
+- Grouped manual acceptance has not been exercised. AltGr on the German
+  layout was checked later in the final verification pass (see that entry).
 
 ### Handoff
 
