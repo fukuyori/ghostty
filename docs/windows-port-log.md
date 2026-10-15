@@ -5,6 +5,119 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-15: Win32 apprt restructuring final verification (#12)
+
+Final pass required by roadmap Section 7 (goal 4), on `windows` at
+`92d3a5d25`, Debug executable SHA-256
+`E4424F4A62809F407B79B1447203B2A3F018D60E6328BC0E4A1985B9A1FEA2B9`.
+
+- Full Zig test suite (`zig build test`, no filter): 91/91 steps, 4037 of
+  4099 tests passed, 62 skipped, exit 0, about 10 minutes
+  (`zig-out/logs/final-pass-zig-test.log`). The log contains a
+  `failed command:` line for the `ghostty-test` run directly after two
+  `terminal-formatter roundtrip ... equal=true` stderr lines; the same step is
+  reported as `success` (4032 pass, 62 skip) and no test failure is recorded.
+  Why the build runner printed that line was not investigated.
+- `test-windows-window-state.ps1 -TestCommandPalette` passed: input, IME
+  process keys, initial grid, split click focus, multi-window navigation,
+  hide/restore together, individual close and close-all, config reload,
+  palette, four monitors, minimize/restore, exit 0 without forced termination
+  (`window-state-20261015-143859-311-07e54627`).
+- `test-windows-parity.ps1` passed (search, Unicode matches, input after
+  search, mouse shape/visibility, cwd inheritance), exit 0
+  (`parity-20261015-143905-820.png`). `test-windows-context-menu.ps1` passed
+  (blank rows, word and existing selections), exit 0
+  (`blank-context-20261015-143914-113`).
+- `test-windows-soak.ps1 -Iterations 20` against `zig-out\bin\ghostty.exe`:
+  20 of 20 runs passed with graceful exit, config reload, window navigation
+  and visibility toggle on four monitors, 129 seconds
+  (`windows-soak-20261015-143925-339.json`). The script prints "Windows
+  Release regression" as a fixed label; it forwards `-Executable` to each run.
+- Owner-operated GUI check with the physical keyboard, mouse and Japanese IME
+  (`zig-out/test-fixtures/final-pass-manual/`, `session-20261015-144233.json`):
+  tabs (F2 new tab, tab-bar selection, drag reorder), splits (F3, click focus,
+  divider drag), IME commit of `日本語` in the terminal (UTF-8
+  `E697A5E69CACE8AA9E`) and in the tab-title dialog, a move between a 96 DPI
+  and a 120 DPI (125%) monitor, and IPC `+new-tab` sent from this session
+  (client exit 0, fallback window reported, `created Win32 tab tabs=3`). The
+  owner reported every item as OK; the log records the tab and split creation,
+  the 120 DPI scale and the IME placement. The process exited 0 with no crash
+  or leak markers. The rename-dialog input and drag reorder are owner-confirmed
+  only.
+- After each run, a process query for `ghostty.exe` under `zig-out` returned
+  no remaining test processes. These queries were made from the session and
+  their output was not saved; the soak summary records a graceful exit for
+  each of its runs.
+- Overlay scrollbar: the unmodified script with `-TestOverlayScrollbar`
+  failed on both this build and the previous executable because another
+  application's window covered the scrollbar area being measured (capture
+  `window-state-20261015-143750-271-6440e803.scrollbar.png`). It was then run
+  with the existing topmost copy
+  `zig-out/test-fixtures/config-actions-split/window-state-topmost.ps1`, which
+  differs from the current script only in the repository-root lookup and two
+  `SetWindowPos(HWND_TOPMOST)` calls for the test window and the measured
+  scrollbar (the script is unchanged since 2026-09-26). With
+  `-TestCommandPalette -TestOverlayScrollbar` it passed: reveal and hide
+  after delay, `never`/`system` reload, split independence, resize tracking,
+  alternate-screen hiding, exact drag (delta -3 px within 4), output and pane
+  close during drag, key/wheel/search position sync, and scrollback history
+  limits; exit 0 without forced termination. The first topmost run
+  (`window-state-20261015-145044-722-828f8b25`) returned these values only to
+  the console, so it was rerun with the returned object saved:
+  `zig-out/logs/final-pass-overlay-topmost.json`
+  (`window-state-20261015-150647-789-158fb3b0`), with the same results,
+  exact drag expected 364 / actual 361 (delta -3, tolerance 4), exit 0, no
+  forced termination. Single and split scrollbar captures of both runs were
+  inspected.
+- Known issue #48 (partial IME commit) is tracked separately.
+- Items left unexercised by the individual extraction steps were then checked
+  against the same executable:
+  - File drop (`zig-out/test-fixtures/file-drop-extraction/run-final-pass.ps1`,
+    a copy of the review-fixes fixture pointed at `zig-out/bin`): PowerShell,
+    cmd and unsupported-shell cases passed, covering exact quoting with
+    Unicode, the target pane, no automatic Enter, invalid-path rejection and
+    cmd `%`/`!` rejection; all exit 0 (`file-drop-20261015-145354-866.json`).
+  - Command palette (`palette-extraction/actions.ps1`, run in a fresh
+    PowerShell process because the shared native type was already loaded):
+    nested request ignored, palette action created a tab, jump to the other
+    tab focused it, a jump to a closed pane was ignored, and the close action
+    exited 0 (`palette-actions-20261015-145411-195.json`).
+  - New fixture `zig-out/test-fixtures/final-pass-extra/check.ps1`
+    (`final-pass-extra-20261015-150622-280.json`), all cases exit 0 without
+    forced termination or crash/leak markers:
+    `toggle_window_float_on_top` set and cleared `WS_EX_TOPMOST`;
+    `reset_window_size` returned a 920x568 window resized to 1120x688 to
+    920x568; `open_config:new_window` used `VISUAL` ahead of an invalid
+    `EDITOR`, passed the isolated configuration path containing a space and
+    Japanese, and titled the window `Editing configuration file ...`;
+    `maximize = true` started zoomed; `fullscreen = true` covered the
+    2560x1440 monitor without a caption; IPC `+new-tab --title=...
+    --working-directory=... -e ...` with `GHOSTTY_SURFACE_ID=0` exited 0
+    without a fallback message and created the second tab, titled it, and
+    ran the `-e` command in the requested working directory (a path with a
+    space and Japanese). The `-e` command is a separate probe script that
+    writes its own marker; the configured default shell ran only in the
+    first tab.
+  - The first run of this fixture (`final-pass-extra-20261015-145600-573`)
+    used the same probe script for the default shell and the `-e` command, so
+    it could not show that `-e` was applied, and it did not record leftover
+    processes. The Codex review found both gaps; the fixture was corrected and
+    rerun as above. The rerun's summary records leftover processes after
+    the cases: no fixture shells, mock editors or Ghostty processes remained
+    (`Leftovers` in the JSON). The leftover query was checked against a dummy
+    process carrying the fixture path, which it detected.
+  - `present_terminal` has no Win32 binding path: the core sends it only for
+    the `present_surface` message (`src/Surface.zig:1127`), which only the GTK
+    runtime posts. Its presentation code (`WindowState.presentSurface`) is
+    exercised by `goto_window` and palette jumps above.
+  - Not exercised: an IPC request exceeding the 5 s UI timeout and injected
+    creation failures (rollback paths), which need fault injection not
+    present in the build; AltGr layouts; and grouped manual acceptance.
+
+With every group in the layout table in its own file and this pass recorded,
+the Phase 1 restructuring on `windows` is complete. Creating `gooztty`
+(rebranding plan Phase 2) is the next step and is done only when requested.
+
 ## 2026-10-15: IPC handler extraction (#12)
 
 - Add `IpcHandler.zig` for the CLI entry point body (`performIpc`), the UI
@@ -45,7 +158,7 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   build and the previous executable, so it is not a regression of this
   change. After the owner moved the physical mouse, parity passed in full,
   exit 0 (`parity-20261015-140912-663.png`, inspected). No test processes
-  remained after any run.
+  remained after any run (process query from the session; its output was not saved).
 - Tested executable SHA-256
   `E4424F4A62809F407B79B1447203B2A3F018D60E6328BC0E4A1985B9A1FEA2B9`.
 - Not exercised: an IPC request timing out, `+new-tab` arguments
@@ -89,7 +202,7 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   the eight config-diagnostic cases and the context-menu check (blank rows,
   word and existing selections) passed with exit 0 and no forced
   termination. Parity and context-menu captures inspected. No test processes
-  remained.
+  remained (process query from the session; its output was not saved).
 - Tested executables SHA-256: normal
   `5C7B661CE2EAB6849B31469384F8B2E7FB102CDCDEFDB2984EF8357787F782AE`, hook
   build `B7E8589AB70E7C16C3170D36EE8AF1DDA5E3B462D631817A35F675654CAA7080`.
@@ -128,7 +241,7 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 - Parity (search, mouse shape/visibility, cwd inheritance) passed, capture
   inspected. The four modal-action cases and all eight config-diagnostic
   cases (startup/reload diagnostics, owner close, palette reload) passed with
-  exit 0 and no forced termination. No test processes remained.
+  exit 0 and no forced termination. No test processes remained (process query from the session; its output was not saved).
 - Tested executable SHA-256
   `709E729C6FD5E936250533D5A267247E2B02EBFD5057B02C33EB2102A723342E`.
 - Not exercised: actions without a regression path (`present_terminal`,
@@ -168,7 +281,7 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   results at every step, including state transfer on `move_tab`, with the
   window in the foreground and exit 0. Parity passed (capture inspected), and
   the four modal-action cases, which transfer state when tabs close, passed
-  with exit 0. No test processes remained.
+  with exit 0. No test processes remained (process query from the session; its output was not saved).
 - Tested executable SHA-256
   `E7DEE3177E62EABCEFA6723745D900A6A1803D22BAB5D992816D60603411A782`.
 - Not exercised: `present_terminal` from a key binding, configured
@@ -210,7 +323,7 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   search, exit 0 (`parity-20261015-124432-973.png`, inspected). The four
   modal-action cases, which use key bindings, passed with exit 0 and no forced
   termination (`modal-actions-20261015-124441-149`). No test processes
-  remained.
+  remained (process query from the session; its output was not saved).
 - Tested executable SHA-256
   `D626AA3A99243A6741C6623B915D26049B12ADB110FE6E36A03E6413B6825B16`.
 - The checks above post synthetic messages. The owner then operated the same
@@ -280,7 +393,7 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   the palette checks passed (`window-state-20261015-123145-786-1c19c122`).
   Parity (including `goto_tab` cwd inheritance) and the four modal-action
   cases passed; all exits 0 without forced termination. Parity and palette
-  captures inspected. No test processes remained.
+  captures inspected. No test processes remained (process query from the session; its output was not saved).
 - Tested executable SHA-256
   `3A6FDC1B53FBBB93ECB60EB1D607A71ED3531DB663E37114669AA482F5F586AE`.
 - Not exercised: command palette jump to another tab, physical input, and
@@ -338,7 +451,7 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   and both showed `Close Terminal?` on WM_CLOSE. The behavior is identical; the
   warning predates this change. Both test servers were ended by their own PID
   after the dialog check. Logs: `zig-out/logs/window-lifecycle-ipc-*`.
-- No test processes from `zig-out` remained. Tested executable SHA-256
+- No test processes from `zig-out` remained (process query from the session; its output was not saved). Tested executable SHA-256
   `BC13A3462FEC07D1CC87DD366BF095D0874AD3831FE53395E4A2CD0A7E86689A`.
 - Not exercised: physical input, injected creation failures (rollback
   paths), and grouped manual acceptance.

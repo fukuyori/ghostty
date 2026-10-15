@@ -75,6 +75,16 @@ known issues, and known limitations of each version; the
 
 ### Changed
 
+- Complete the Win32 apprt restructuring
+  ([#12](https://github.com/fukuyori/ghostty/issues/12)): every group in the
+  layout has its own file and `App.zig` keeps the application lifecycle and
+  wiring. The final pass ran the full Zig test suite, window-state (including
+  the overlay scrollbar checks), parity, context-menu, a 20-run soak, and an
+  owner-operated check of tabs, splits,
+  Japanese IME, a 96/120 DPI move and IPC, followed by checks of file drop,
+  palette jumps, float-on-top, reset window size, the configuration editor,
+  startup maximize/fullscreen and IPC `+new-tab` arguments. See the
+  [port log](windows-port-log.md).
 - Extract the CLI IPC entry point, UI request ownership and dispatch, and
   results into `IpcHandler.zig` for
   [#12](https://github.com/fukuyori/ghostty/issues/12); the transport stays in

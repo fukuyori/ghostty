@@ -1418,8 +1418,9 @@ from `gooztty`; a defect it finds in an inherited Windows feature is fixed on
 
 ### Win32 apprt restructuring
 
-Status: **In progress** on `windows`; must be completed before `gooztty`
-is created (decided 2026-10-12), tracked as
+Status: **Completed** on `windows` on 2026-10-15 (final verification at
+`92d3a5d25`); it had to be completed before `gooztty` is created (decided
+2026-10-12), tracked as
 [#12](https://github.com/fukuyori/ghostty/issues/12).
 `src/apprt/win32` is fork-only (upstream has no `win32` apprt), so the
 restructuring causes no upstream conflicts. It must be complete before
@@ -1764,7 +1765,19 @@ dispatch, and results. The Debug build, Win32 tests, IPC `+new-tab` and
 no-server comparisons with the previous executable, window-state with palette
 checks, parity, modal-action and config-diagnostic regressions passed.
 Every group in the layout table now has its own file. The final verification
-pass (goal 4 above) remains before `gooztty` is created.
+pass (goal 4 above) was completed on 2026-10-15 at `92d3a5d25`: the full Zig
+test suite (4037 passed, 62 skipped), window-state, parity, context-menu, a
+20-run soak, and an owner-operated GUI check of tabs, splits, Japanese IME, a
+96/120 DPI move and IPC all passed. The overlay-scrollbar check, which could
+not measure while another window covered it, passed with the existing topmost
+copy of the script. Items left unexercised by individual steps then passed:
+file drop, palette jumps, float-on-top, reset window size, the configuration
+editor window, startup maximize and fullscreen, and IPC `+new-tab` arguments
+(`--title`, `--working-directory` and an `-e` command distinguished from the
+default shell).
+IPC timeout, injected creation failures, AltGr layouts and grouped manual
+acceptance remain unexercised. The restructuring is complete; `gooztty` can be created when
+requested.
 
 The name indirection is a fork-owned `src/brand.zig` usable by the runtime and
 the build, holding the current `ghostty` values. Runtime identifiers move to
@@ -2542,6 +2555,7 @@ the code exists.
 |---|---|---|
 | Win32 review fixes | Modal lifetime and accessible names | 2026-10-14: Debug 128/128, Win32 179 passed/one skipped, four modal-action scenarios, eight config-diagnostic scenarios, window-state and three file-drop modes passed. Rename plus shell exit: baseline exit 3, fixed exit 0. Native key/pointer checks preserved close target after an earlier tab exited; new-tab/renamed focused names and reordered tab metadata matched. Owner confirmed Narrator title speech and automatic new-tab final-title announcement; broad COM/WinEvent and terminal-content acceptance remain open; see the port log |
 | Configuration | Diagnostic dialog lifetime | Fixed by displaying queued diagnostics outside core callbacks on 2026-10-14. Baseline owner-close reproduced exit 3; final Debug build, Win32 tests (178 passed, one skipped), eight diagnostic lifecycle scenarios, and normal window regression passed. Captures inspected; all final GUI cases exited 0 without forced termination and no dedicated processes remained. See the port log |
+| Win32 restructuring | Final verification pass (#12) | On 2026-10-15 at `92d3a5d25`: full Zig test suite (91/91 steps, 4037 passed, 62 skipped), window-state with palette checks, parity, context-menu and a 20-run soak (20/20) passed, all exits 0 without forced termination. Owner-operated physical check of tabs, splits, Japanese IME (terminal and tab-title dialog), a 96/120 DPI move and IPC `+new-tab` passed with exit 0. The overlay-scrollbar check, blocked by another window in the unmodified script on both this and the previous executable, passed with the topmost copy (exit 0). Follow-up fixtures passed for file drop, palette jumps, float-on-top, reset window size, the configuration editor, startup maximize/fullscreen and IPC `+new-tab` arguments (`--title`, `--working-directory`, and an `-e` command distinguished from the default shell). IPC timeout, injected creation failures, AltGr and grouped manual acceptance remain; #48 remains open |
 | Win32 restructuring | `IpcHandler.zig` extraction (#12) | Debug build, Win32 tests (179 passed, one skipped), IPC `+new-tab` (tab created, client exit 0, fallback reported) and no-server client output matched the previous executable; window-state with palette checks, parity, four modal-action cases and eight config-diagnostic cases passed on 2026-10-15; these GUI regressions all exited 0 without forced termination. The IPC test servers were ended by their own PID after the `Close Terminal?` check, and the no-server client exited 1 as expected. Parity initially failed on both executables while the system cursor was suppressed and passed after the owner moved the mouse. IPC timeout, `+new-tab` arguments and grouped manual acceptance remain |
 | Win32 restructuring | `WndProc.zig` extraction (#12) | Debug build, Win32 tests (179 passed, one skipped), window-state with palette checks, GPU recovery and power resume on a hook build, the split/tab command check, parity, four modal-action cases, eight config-diagnostic cases and the context-menu check passed on 2026-10-15; all exits 0 without forced termination. The moved window procedure is identical apart from `pub`. File drop in this run, physical input and grouped manual acceptance remain |
 | Win32 restructuring | `Actions.zig` extraction (#12) | Debug build, Win32 tests (179 passed, one skipped), window-state with palette checks, the split/tab command check, parity, four modal-action cases and eight config-diagnostic cases passed on 2026-10-15; all exits 0 without forced termination. The dispatch body differs from HEAD only in its name. Actions without a regression path and grouped manual acceptance remain |
