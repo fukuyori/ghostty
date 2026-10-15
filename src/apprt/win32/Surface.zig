@@ -4,6 +4,7 @@
 const Self = @This();
 
 const std = @import("std");
+const TestHooks = @import("LifecycleTestHooks.zig");
 const brand = @import("../../brand.zig");
 const win32 = @import("win32").everything;
 const build_config = @import("../../build_config.zig");
@@ -149,6 +150,7 @@ pub fn init(
         .gpu_recovery_failures_remaining = app.test_device_recovery_failures,
     };
     errdefer self.deinit();
+    try TestHooks.fail(.surface_init);
     self.updateClientSize();
     win32.DragAcceptFiles(hwnd, 1);
     if (comptime build_config.renderer == .opengl) try self.initOpenGL();

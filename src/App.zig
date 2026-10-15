@@ -234,7 +234,13 @@ pub fn deleteSurface(self: *App, rt_surface: *apprt.Surface) void {
     // just let focused surface be but the allocator was reusing addresses
     // after free and giving false positives, so we must clear it.
     if (self.focused_surface) |focused| {
-        if (focused == rt_surface.core()) {
+        // Win32 registers the runtime surface before core initialization.
+        // Rollback must not unwrap rt_surface.core_surface in that interval.
+        const matches = if (comptime apprt.runtime == apprt.win32)
+            rt_surface.core_surface == focused
+        else
+            focused == rt_surface.core();
+        if (matches) {
             self.focused_surface = null;
         }
     }
@@ -266,6 +272,30 @@ pub fn focusedSurface(self: *const App) ?*Surface {
     const surface = self.focused_surface orelse return null;
     if (!self.hasSurface(surface)) return null;
     return surface;
+}
+
+test "Win32 rollback unregisters an uninitialized surface without disturbing focus" {
+    if (comptime apprt.runtime != apprt.win32) return error.SkipZigTest;
+    const testing = std.testing;
+    var pending: apprt.Surface = .{ .hwnd = @ptrFromInt(1), .window_hwnd = @ptrFromInt(2) };
+    var live: apprt.Surface = .{ .hwnd = @ptrFromInt(3), .window_hwnd = @ptrFromInt(2) };
+    var core: Surface = undefined;
+    core.rt_surface = &live;
+    live.core_surface = &core;
+    // deleteSurface needs only membership and focus while a survivor exists.
+    var app: App = undefined;
+    app.alloc = testing.allocator;
+    app.surfaces = .empty;
+    defer app.surfaces.deinit(testing.allocator);
+    app.focused_surface = &core;
+    try app.surfaces.appendSlice(testing.allocator, &.{ &live, &pending });
+    app.deleteSurface(&pending);
+    try testing.expectEqual(@as(usize, 1), app.surfaces.items.len);
+    try testing.expect(app.focused_surface == &core);
+    try app.surfaces.append(testing.allocator, &pending);
+    app.deleteSurface(&live);
+    try testing.expect(app.focused_surface == null);
+    try testing.expect(app.surfaces.items[0] == &pending);
 }
 
 /// Returns true if confirmation is needed to quit the app. It is up to

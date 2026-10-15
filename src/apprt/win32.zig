@@ -10,6 +10,7 @@ const context_menu = @import("win32/ContextMenu.zig");
 const file_drop = @import("win32/FileDrop.zig");
 const ipc_handler = @import("win32/IpcHandler.zig");
 const keyboard = @import("win32/Keyboard.zig");
+const lifecycle_test_hooks = @import("win32/LifecycleTestHooks.zig");
 const mouse = @import("win32/Mouse.zig");
 const native_window = @import("win32/NativeWindow.zig");
 const recovery = @import("win32/Recovery.zig");
@@ -33,6 +34,7 @@ test {
     _ = file_drop;
     _ = ipc_handler;
     _ = keyboard;
+    _ = lifecycle_test_hooks;
     _ = mouse;
     _ = native_window;
     _ = recovery;

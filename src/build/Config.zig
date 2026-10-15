@@ -264,7 +264,7 @@ pub fn init(b: *std.Build, appVersion: []const u8, libVersion: []const u8) !Conf
     config.win32_test_hooks = b.option(
         bool,
         "win32-test-hooks",
-        "Compile the Windows regression hooks (controlled GPU recovery and power notifications driven by GHOSTTY_TEST_DEVICE_RECOVERY) into the executable. Off by default so release builds ignore them.",
+        "Compile the Windows regression hooks (GPU/power recovery and lifecycle/IPC fault injection) into the executable. Off by default; individual checks require their GHOSTTY_TEST_* opt-in.",
     ) orelse false;
 
     config.i18n = b.option(

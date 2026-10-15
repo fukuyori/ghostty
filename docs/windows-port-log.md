@@ -5,6 +5,290 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-15: Creation rollback and IPC UI timeout (#49)
+
+Follow-up on `windows`, verified as working-tree changes based on `653033b4c`.
+This is separate from the restructuring acceptance at `92d3a5d25` below.
+Issue #49 remains open; this entry does not record an issue closure or release.
+
+Verification is complete for the controlled rollback and IPC timeout scope
+described below, including the final fallback-layout correction.
+
+| Check | Final recorded result |
+|---|---|
+| Ordinary and hook-enabled Debug builds | Both 128/128 steps, exit 0 |
+| Creation rollback/fallback and IPC timeout | 33 creation cases plus four IPC cases passed; all app exits 0 and no observed leftover processes |
+| Ordinary-build hook rejection | Passed |
+| Representative display checks | Four captures inspected; the 32-pixel fallback strip is resolved |
+| Win32 tests after the layout correction | Hooks enabled: 182 passed, one skipped, 91/91 steps, exit 0 |
+| Unfiltered Zig suite | Before the layout correction: 4039 passed, 63 skipped, 91/91 steps, exit 0; not rerun after that correction |
+
+Final desktop evidence is `lifecycle-acceptance-20261015-185443-952.json`
+and its separate `*-visual-review.json`. The completion judgment uses the
+post-correction Win32 tests and desktop checks; it does not claim a full
+suite run on the final source. Saved failures and earlier test results are
+retained below to distinguish them from final acceptance.
+
+### Reproduction and fixes
+
+- With injection added to the otherwise unchanged lifecycle code, a tab
+  failure after core registration (`core_config`) exited 3: rollback called
+  `App.deleteSurface`, which unwrapped a still-null `Surface.core_surface`.
+  A failure immediately after successful core initialization (`core_ready`)
+  also exited 3: `initCoreSurface` freed the core before the outer
+  `Surface.deinit` used it. Saved reproduction results are
+  `zig-out/logs/lifecycle-20261015-180306-844.json` and
+  `lifecycle-20261015-180323-670.json`, with their matching stderr files;
+  injection-only executable SHA-256
+  `E7E35EC56C2C6B8698C3504486E8C31E077DB3AC06C673403743C4EC1C1D4B42`.
+- Win32 unregister now compares the optional core pointer without unwrapping
+  it. Before core initialization succeeds, `initCoreSurface` owns its
+  allocation and registration; afterwards, `Surface.deinit` owns both.
+  Later failures therefore use the fully initialized surface's destructor
+  exactly once.
+- Failed tab/split creation now restores the previous active tab and native
+  focus; split rollback also restores the logical focused pane and zoom.
+  `lifecycle-20261015-180330-610.json` detected changed split state, and
+  `lifecycle-20261015-180551-901.json` isolated a changed logical focused
+  pane despite an unchanged native focus HWND. The final fixture starts
+  with three tabs, selects the first, and creates two panes with one zoomed.
+- Keep `removeTabAt(...) catch unreachable` in tab rollback: the successful
+  insertion guarantees an existing new tab and a surviving original tab,
+  and removal cannot allocate. The injected post-insertion failures exercise
+  this invariant. Do not suppress an ownership violation as a recoverable
+  creation failure.
+
+### Regression controls and scope
+
+`LifecycleTestHooks.zig` requires both `-Dwin32-test-hooks=true` and
+`GHOSTTY_TEST_LIFECYCLE=1`. The private message accepts numeric operations,
+not caller pointers. Failure injection is one-shot. The ordinary build
+ignores these controls even when the environment variable is set.
+
+`scripts/test-windows-lifecycle.ps1` uses isolated configs and dedicated
+processes. Its 17 checkpoints cover parent/child/tab-bar HWND creation,
+runtime surface/window initialization, window-list append, tab/split
+insertion and ownership, core allocation/registration/configuration,
+before/after core initialization, and after scrollbar configuration.
+There are 33 action/checkpoint combinations: 13 window, 10 tab, 10 split.
+For rollback it compares native HWND sets, core/window/tab counts, and a
+fingerprint of registration, ordered tabs/surfaces, split structure/ratios,
+focus, zoom and parent USERDATA; it also checks live ownership and retries
+creation. Tab-bar failure instead checks the supported fallback: a usable
+new window without a tab bar, then a subsequent window with a tab bar.
+Every case checks normal exit and absence of crash/allocator-leak diagnostics.
+A final process scan checks for leftover observed descendants and fixture
+shells across the run.
+
+IPC controls hold the UI-owned request while leaving the message loop
+responsive. Four real `+new-tab` client cases cover the existing five-second
+timeout followed by late success, late creation failure, shutdown before
+timeout, and shutdown after timeout. They check the client error, retained
+request counts, later completion/release, subsequent IPC where applicable,
+and zero live requests at shutdown. The timeout remains "completion unknown;
+the tab may be created later"; it does not cancel the request. Unit tests
+also check either owner releasing the request first. No production IPC
+timeout or protocol behavior was changed.
+
+These are controlled boundary failures, not exhaustive allocator-failure
+enumeration or physical GPU/USER-resource exhaustion. In particular,
+`core_init` fails before entering `CoreSurface.init`; it does not inject
+every partial initialization inside the core or renderer. Physical input,
+OpenGL, and the separate partial IME commit defect (#48) are outside this
+follow-up.
+
+### Build and verification evidence
+
+- Debug executable SHA-256 before the fallback-layout correction below:
+  Hook build:
+  `FE7BD86F22AD12E895F02B6602455002DD312708F8BC4C3BDD3B0430C5715465`.
+  Ordinary Debug executable SHA-256:
+  `17EAE28106FA694EC3FC12C56EE90AE4B2C7DAEE115BE1C62C8D154D1BB5B786`.
+- `zig build test -Dtest-filter=Win32 -Dwin32-test-hooks=true`: 91/91
+  steps, 182 passed, one skipped, exit 0
+  (`zig-out/logs/lifecycle-win32-tests-final.log`). This includes three new
+  tests for uninitialized unregister, request ownership and one-shot opt-in.
+- Unfiltered `zig build test --summary all` before the fallback-layout
+  correction: 91/91 steps, 4039 of
+  4102 tests passed, 63 skipped, exit 0
+  (`lifecycle-full-zig-test.log`). The main test run reports 4034 passed and
+  63 skipped; the build-helper tests contribute the other five passes.
+  The log again prints `failed command:` after two formatter roundtrip
+  `equal=true` messages, despite a successful step and command exit. See
+  the runner-source explanation below; the line is preserved in the log.
+- The same Win32 filter without test hooks also passed 182 tests, one
+  skipped, 91/91 steps, exit 0 (`lifecycle-normal-win32-tests.log`).
+- Initial complete automated lifecycle run: 37/37 cases passed (33 creation cases and
+  four IPC cases), all server exits 0, no forced termination or crash/leak
+  diagnostic, empty `Leftovers`, 246 observed child processes across the
+  run (`lifecycle-20261015-181717-486.json`). Three timeout cases took
+  5.16-5.32 seconds including client startup; pre-timeout shutdown was
+  requested after 0.060 seconds. All four held-request clients exited 1.
+  The ordinary-build control rejection check passed with normal tab creation,
+  exit 0 and empty leftovers (`lifecycle-20261015-181900-096.json`).
+  All 32 rollback cases also logged the expected failed binding action
+  (`lifecycle-action-error-check.json`); the tab-bar case is the intentional
+  successful fallback. The script now asserts that failure report as well.
+  A `tab-core_ready` rerun with that assertion passed, with empty leftovers
+  (`lifecycle-20261015-182226-150.json`).
+- Existing ordinary-build regressions passed: window-state (input,
+  process-key suppression, startup grid, split focus, multi-window lifetime,
+  reload, four-monitor layout and minimize/maximize/restore), exit 0 without
+  forced termination (`lifecycle-window-state.json`, underlying log prefix
+  `window-state-20261015-181911-001-c3b0c86f`); and all four modal-action
+  cases, exit 0 without forced termination
+  (`modal-actions-20261015-181922-040.json`). Palette/overlay/recovery options
+  were not enabled in this window-state run.
+- In the sandbox, both executable compilations and installations succeeded, but both
+  complete build commands exited 1: 125/128 steps succeeded, with the only
+  failing step being Git's `tic.exe` (`couldn't create signal pipe, Win32
+  error 5`). See `lifecycle-hooks-build-final.log` and
+  `lifecycle-normal-build.log`. Commands set `ZIG_GLOBAL_CACHE_DIR` to
+  `.zig-cache/global`; without that override, resource-manifest creation
+  failed with `AccessDenied`. These attempts were not successful full builds;
+  the subsequent desktop builds below passed. No release package was checked.
+- Screenshot attempts failed with `CopyFromScreen` Win32 error 6
+  (`invalid handle`), also reproduced by a standalone 32x32 desktop capture
+  (`lifecycle-desktop-capture-error.log`). The later desktop captures below
+  succeeded. `-CaptureWindows` enables strict capture
+  checks when a desktop capture can be obtained.
+
+### Final review and environment diagnostics
+
+- The installed Zig 0.16.0 runner explains the misleading `failed command:`
+  line. `lib/std/Build/Step/Run.zig:1541` records the command before spawning;
+  its successful test-completion path retains buffered stderr at line 1746
+  and uses `test_results.isSuccess()` at line 1385 to decide failure.
+  `lib/compiler/build_runner.zig:1381` displays diagnostics regardless of
+  step success, and its printer at line 1518 labels the recorded command
+  `failed command:`. Here the stderr comes from the unconditional
+  `std.debug.print` in `src/benchmark/TerminalFormatter.zig:470`, not a failed
+  equality assertion. This source inspection explains the current log;
+  no runner/library source or benchmark output was modified.
+- `tic.exe -V`, without any terminfo input, independently failed with
+  `couldn't create signal pipe, Win32 error 5`
+  (`lifecycle-tic-version.log`, exit recorded in
+  `lifecycle-tic-version-exit.txt`). The corresponding diagnostic in the
+  [MSYS runtime](https://github.com/msys2/msys2-runtime/blob/master/winsup/cygwin/sigproc.cc)
+  belongs to signal-thread initialization. This narrows the failure to
+  runtime startup, before Ghostty's terminfo data is processed; it does not
+  establish the precise ACL responsible. No terminfo build step was skipped
+  or changed to turn the failed build into a success.
+- The environment probe (`zig-out/test-fixtures/lifecycle-environment/probe.ps1`)
+  recorded a restricted process token and a `CodexSandboxDesktop-*` thread
+  desktop. A direct GDI `BitBlt`, using source and destination DCs whose object
+  types were valid (3 and 10), failed with error 6
+  (`lifecycle-environment.json`). Thus the capture failure also occurs below
+  the .NET wrapper. The sandbox/token/desktop configuration was not changed;
+  the normal interactive PowerShell comparison is recorded below.
+- Final script review corrected the capture timing: `-CaptureWindows` now
+  captures the restored state immediately after rollback, before retrying
+  creation. The tab-bar fallback capture targets the newly created window
+  without a bar, rather than the original window after the successful retry.
+  `CaptureStage` records which state was requested, and pane text identifies
+  the fixture. A capture error still fails the case.
+- The revised fixture passed all 37 automated cases again, with empty
+  leftovers (`lifecycle-20261015-182851-451.json`). Capture-enabled checks
+  reached `rollback-before-retry` and `tab-bar-fallback-before-retry`, then
+  failed with the same `CopyFromScreen` error. These are failed capture runs,
+  not visual acceptance (`lifecycle-20261015-183044-362.json` and
+  `lifecycle-20261015-183047-955.json`); both app processes exited 0 without
+  a crash/leak diagnostic or forced termination.
+- The first capture failure's immediate process scan still saw an OpenConsole
+  child, which had exited by the later inspection. The script now waits up
+  to `TimeoutSeconds` for observed children to exit, saving `InitialLeftovers`,
+  `CleanupSeconds` and final `Leftovers`; it does not kill those children.
+  A capture-failure rerun observed one OpenConsole initially and none after
+  2.47 seconds (`lifecycle-20261015-183149-830.json`). A normal
+  `tab-core_ready` rerun passed with empty final leftovers
+  (`lifecycle-20261015-183205-728.json`).
+
+`scripts/verify-windows-lifecycle.ps1` now runs both full builds, the
+ordinary-build control-rejection check, and all 37 cases with captures in
+sequence. It stops on a failed step and saves its exit code and log path in
+`zig-out/logs/lifecycle-acceptance-<timestamp>.json`. On success it collects
+the executable hashes and four image paths; its raw `VisualInspection` stays
+`Pending`, with completed inspection recorded in a separate review JSON.
+The script restores the
+calling process's cache environment setting on exit.
+
+The runner's failure path was exercised here: `normal-build` exited 1 on
+`tic.exe`, and no later step was run
+(`lifecycle-acceptance-20261015-184228-998.json`). The test script's new
+explicit summary-path option was separately verified through child `pwsh`
+processes: ordinary-build control rejection and `tab-core_ready` both passed,
+with empty leftovers (`lifecycle-summarypath-normal.json` and
+`lifecycle-summarypath-hook.json`).
+
+### Owner-run desktop acceptance and fallback-layout correction
+
+The owner ran the acceptance script in an interactive PowerShell:
+`zig-out/logs/lifecycle-acceptance-20261015-184520-800.json`. Both full Debug
+builds passed 128/128 steps, exit 0, including `tic` (93 ms normal, 53 ms
+hooks); executable hashes match those above. Control rejection and all 37
+capture-enabled cases passed, all app exits were 0, with no forced exit,
+crash/leak diagnostic or initial/final leftovers. The raw runner summary
+correctly leaves `VisualInspection` as `Pending`.
+The separate `lifecycle-acceptance-20261015-184520-800-visual-review.json`
+records the image inspection below without changing that raw summary.
+
+Inspection of `lifecycle-20261015-184525-247-{window,tab,split}-core_ready.png`
+confirmed three tabs with the first selected, the restored zoomed pane and
+readable fixture text. However, `*-window-tab_bar_hwnd.png` exposed an
+unpainted strip above the fallback terminal containing another pane's text.
+`WindowLayout.tabBarVisible` considered configuration and tab state but not
+the missing tab-bar HWND, so layout still reserved the bar's height.
+
+The fixture now checks the fallback pane's four native insets relative to
+the parent client rectangle, even without screenshots. Against the desktop
+run's executable it failed with `[0, 32, 0, 0]` (left, top, right, bottom),
+exit 0 and no leftovers (`lifecycle-fallback-layout-before.json`). The fix
+makes a missing tab-bar HWND invisible to layout, so the terminal can fill
+the client area. The previous 37/37 result did not assert this geometry and
+must not be treated as successful fallback visual acceptance.
+
+The corrected hook executable compiled and installed successfully, SHA-256
+`CD7B3192D9EEDD94998F710256AE9F1A0654923FF90AA066F505DDDAC2DC393F`.
+The sandbox full build still exited 1 solely at `tic` (125/128 steps;
+`lifecycle-fallback-layout-build.log`). Targeted Win32 tests with hooks
+passed 182 tests, one skipped, 91/91 steps, exit 0
+(`lifecycle-fallback-layout-win32-tests.log`). The unfiltered full-suite
+result above predates this three-line layout correction.
+All 37 cases passed again on the corrected hook executable, with zero
+fallback insets `[0, 0, 0, 0]`, no forced exit or crash/leak diagnostic and
+no final leftovers (`lifecycle-fallback-layout-after.json`). This rerun did
+not capture images; the subsequent desktop run below supplies that evidence.
+
+The owner reran the corrected version with the same command from an ordinary
+interactive PowerShell:
+
+```powershell
+./scripts/verify-windows-lifecycle.ps1
+```
+
+Final summary: `lifecycle-acceptance-20261015-185443-952.json` (18:54-18:57).
+Both Debug builds passed 128/128 steps, exit 0, including `tic` (16 ms normal,
+29 ms hooks). The normal executable SHA-256 is
+`1140B33FB6B6E57B8CE9461B660E485811AD20C08DFD0ED828AA5D6471BCCFCA`;
+the hook executable retains `CD7B3192D9EEDD94998F710256AE9F1A0654923FF90AA066F505DDDAC2DC393F`.
+Both on-disk hashes were checked against the summary. The associated
+`*-hooks-disabled.json` confirms ordinary-build controls are ignored;
+`*-cases.json` records 37/37 passes, zero fallback insets, all app exits 0,
+no forced termination or crash/leak diagnostics, and empty initial/final
+leftovers.
+
+All four `lifecycle-20261015-185533-242-*.png` captures were inspected. The
+three `core_ready` images show the first of three tabs selected, the restored
+zoomed pane and readable fixture output. The fallback image shows readable
+terminal output directly below the title bar, without the former unpainted
+strip or another pane's text inside the client area. Capture stages remain
+before retry. The separate
+`lifecycle-acceptance-20261015-185443-952-visual-review.json` records this
+successful inspection; the raw automated summary retains its original
+`VisualInspection: Pending`. Desktop acceptance of the correction is now
+complete for the documented injection scope. No release, commit or issue
+closure is recorded by this verification.
+
 ## 2026-10-15: Win32 apprt restructuring final verification (#12)
 
 Final pass required by roadmap Section 7 (goal 4), on `windows` at
@@ -17,7 +301,8 @@ Final pass required by roadmap Section 7 (goal 4), on `windows` at
   `failed command:` line for the `ghostty-test` run directly after two
   `terminal-formatter roundtrip ... equal=true` stderr lines; the same step is
   reported as `success` (4032 pass, 62 skip) and no test failure is recorded.
-  Why the build runner printed that line was not investigated.
+  Why the build runner printed that line was not investigated in that pass;
+  the later lifecycle follow-up above records a Zig runner source inspection.
 - `test-windows-window-state.ps1 -TestCommandPalette` passed: input, IME
   process keys, initial grid, split click focus, multi-window navigation,
   hide/restore together, individual close and close-all, config reload,

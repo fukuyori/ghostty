@@ -6,6 +6,7 @@
 const Window = @This();
 
 const std = @import("std");
+const TestHooks = @import("LifecycleTestHooks.zig");
 const win32 = @import("win32").everything;
 const Surface = @import("Surface.zig");
 const Tab = @import("Tab.zig");
@@ -61,6 +62,7 @@ pub fn init(
     hwnd: win32.HWND,
     surface: *Surface,
 ) !Window {
+    try TestHooks.fail(.window_init);
     const tab = try alloc.create(Tab);
     errdefer alloc.destroy(tab);
     tab.* = try Tab.init(alloc, surface);
@@ -221,6 +223,7 @@ pub fn addTab(
         self.activeTabIndex() + 1
     else
         self.tabs.items.len;
+    try TestHooks.fail(.tab_insert);
     try self.tabs.insert(alloc, index, tab);
     self.active_tab = tab;
 }

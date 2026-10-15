@@ -3,6 +3,7 @@
 //! and confirmation, teardown, and tab/window removal.
 
 const std = @import("std");
+const TestHooks = @import("LifecycleTestHooks.zig");
 const win32 = @import("win32").everything;
 const apprt = @import("../../apprt.zig");
 const configpkg = @import("../../config.zig");
@@ -54,12 +55,18 @@ fn initCoreSurface(
 ) !void {
     const alloc = self.alloc;
 
+    try TestHooks.fail(.core_alloc);
     const core_surface = try alloc.create(CoreSurface);
-    errdefer alloc.destroy(core_surface);
+    // Until init succeeds this function owns the allocation/registration.
+    // Afterwards Surface.deinit owns both, including failures configuring the
+    // scrollbar below. Do not free the core ahead of that destructor.
+    errdefer if (surface.core_surface == null) alloc.destroy(core_surface);
 
+    try TestHooks.fail(.core_register);
     try self.core_app.addSurface(surface);
-    errdefer self.core_app.deleteSurface(surface);
+    errdefer if (surface.core_surface == null) self.core_app.deleteSurface(surface);
 
+    try TestHooks.fail(.core_config);
     var config = try apprt.surface.newConfig(
         self.core_app,
         self.config,
@@ -101,6 +108,7 @@ fn initCoreSurface(
         }
         Titlebar.apply(surface.windowHwnd(), &config, self.high_contrast);
     }
+    try TestHooks.fail(.core_init);
     core_surface.init(
         alloc,
         &config,
@@ -113,6 +121,7 @@ fn initCoreSurface(
     };
 
     surface.core_surface = core_surface;
+    try TestHooks.fail(.core_ready);
 
     // The initial_size action can resize the native windows while the core
     // surface is still initializing. The child's WM_SIZE arrives before
@@ -128,6 +137,7 @@ fn initCoreSurface(
     };
 
     try ConfigActions.configureScrollbar(self, surface, &config);
+    try TestHooks.fail(.scrollbar_ready);
 
     WindowAppearance.updateWindowBackgroundBlur(surface, &config);
     log.info("core surface initialized successfully", .{});
@@ -188,9 +198,11 @@ pub fn createWindow(self: *App, opts: Options) !void {
         @bitCast(@intFromPtr(surface)),
     );
 
+    try TestHooks.fail(.window_append);
     try self.windows.append(self.alloc, window);
     errdefer _ = removeWindow(self, window);
 
+    try TestHooks.fail(.window_owned);
     try initCoreSurface(self, surface, opts, .window);
     TabBarAccessibility.sync(self, window, false, false);
     WindowLayout.layoutWindow(self, window);
@@ -210,6 +222,13 @@ pub fn newTabWithOptions(self: *App, target: apprt.Target, opts: Options) !bool 
         log.warn("new_tab targeted an unowned surface", .{});
         return false;
     };
+    const previous_tab = window.active_tab;
+    const previous_native_focus = win32.GetFocus();
+    errdefer {
+        window.active_tab = previous_tab;
+        WindowCommands.activateWindowTab(self, window);
+        _ = win32.SetFocus(previous_native_focus);
+    }
 
     const surface = try self.alloc.create(Surface);
     errdefer self.alloc.destroy(surface);
@@ -234,9 +253,12 @@ pub fn newTabWithOptions(self: *App, target: apprt.Target, opts: Options) !bool 
     );
     errdefer {
         const index = window.tabIndexForSurface(surface) orelse unreachable;
+        // addTab succeeded and the original tab still exists. Removal cannot
+        // allocate and can fail only for a missing index or the last tab.
         _ = window.removeTabAt(self.alloc, index) catch unreachable;
     }
 
+    try TestHooks.fail(.tab_owned);
     try initCoreSurface(self, surface, opts, .tab);
     TabBarAccessibility.notifyEvent(window, TabBarAccessibility.event_object_reorder);
     WindowCommands.activateWindowTab(self, window);
@@ -257,6 +279,18 @@ pub fn newSplit(
         log.warn("new_split targeted an unowned surface", .{});
         return false;
     };
+    const previous_tab = window.active_tab;
+    const previous_native_focus = win32.GetFocus();
+    const split_tab = window.tabForSurface(existing).?;
+    const previous_focus = split_tab.focused_surface;
+    const previous_zoom = split_tab.tree.zoomed;
+    errdefer {
+        split_tab.focused_surface = previous_focus;
+        split_tab.tree.zoomed = previous_zoom;
+        window.active_tab = previous_tab;
+        WindowCommands.activateWindowTab(self, window);
+        _ = win32.SetFocus(previous_native_focus);
+    }
     SplitDivider.clearPointer(window);
 
     const surface = try self.alloc.create(Surface);
@@ -291,6 +325,7 @@ pub fn newSplit(
         };
     }
 
+    try TestHooks.fail(.split_owned);
     try initCoreSurface(self, surface, .{}, .split);
     WindowLayout.layoutWindow(self, window);
     _ = win32.SetFocus(surface.hwnd);

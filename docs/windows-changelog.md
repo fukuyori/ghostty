@@ -11,6 +11,20 @@ known issues, and known limitations of each version; the
 
 ### Added
 
+- Add opt-in lifecycle failure injection and
+  `scripts/test-windows-lifecycle.ps1` for creation rollback
+  ([#49](https://github.com/fukuyori/ghostty/issues/49)) and IPC UI timeout.
+  The checks exercise 33 creation cases and four real IPC client cases;
+  ordinary builds ignore the test controls. See the
+  [port log](windows-port-log.md#2026-10-15-creation-rollback-and-ipc-ui-timeout-49)
+  for results: after correcting the fallback layout defect found in image
+  inspection, both desktop builds, all 37 cases and four image checks passed.
+  `scripts/verify-windows-lifecycle.ps1` collects both builds and the
+  capture-enabled checks in one run, preserving failed-stage results and
+  leaving image inspection to a separate review record. Verification of
+  this scope is complete. After the final layout correction, Win32 tests
+  passed 182 tests with one skipped; the full Zig suite's 4039 passes and
+  63 skips were recorded before that correction and were not rerun afterwards.
 - Handle upstream's `resize_window` action (`CSI 8 ; rows ; cols t`) on Win32
   ([#45](https://github.com/fukuyori/ghostty/issues/45)). With
   `vt-window-resize-allowed = true`, a window with a single terminal resizes
@@ -25,6 +39,15 @@ known issues, and known limitations of each version; the
 
 ### Fixed
 
+- Fix creation rollback panics when unregistering a Win32 surface before
+  core initialization and when destroying an already initialized core after
+  a later failure. Restore the previous active tab, native focus, logical
+  focused pane and split zoom on failed tab/split creation. These failures
+  were reproduced with the new lifecycle hooks; IPC timeout behavior itself
+  is unchanged.
+- Stop reserving tab-bar space when its auxiliary HWND could not be created.
+  Desktop capture exposed an unpainted strip; the lifecycle fixture now
+  asserts that the fallback terminal fills the parent client area.
 - Run close confirmations, tab-title dialogs, and file-drop dialogs after
   core callbacks return. Preserve close selections by stable surface IDs and
   revalidate targets after modal dialogs; a shell exit during tab rename
@@ -83,8 +106,13 @@ known issues, and known limitations of each version; the
   owner-operated check of tabs, splits,
   Japanese IME, a 96/120 DPI move and IPC, followed by checks of file drop,
   palette jumps, float-on-top, reset window size, the configuration editor,
-  startup maximize/fullscreen and IPC `+new-tab` arguments. See the
-  [port log](windows-port-log.md).
+  startup maximize/fullscreen and IPC `+new-tab` arguments. Subsequent
+  owner-operated checks covered German AltGr and dead keys, physical mouse
+  input and appearance. IPC timeout and injected creation-failure rollback
+  (#49), left unexercised by that pass, are covered by the follow-up above;
+  partial IME commit (#48) is tracked separately.
+  See the [port log](windows-port-log.md) for logged evidence, owner reports
+  and the saved follow-up results addressing the review findings.
 - Extract the CLI IPC entry point, UI request ownership and dispatch, and
   results into `IpcHandler.zig` for
   [#12](https://github.com/fukuyori/ghostty/issues/12); the transport stays in

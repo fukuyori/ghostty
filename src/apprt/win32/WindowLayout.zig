@@ -115,6 +115,9 @@ pub fn layoutWindow(self: *App, window: *Window) void {
 }
 
 pub fn tabBarVisible(self: *const App, window: *const Window) bool {
+    // Auxiliary HWND creation can fail while the terminal remains usable.
+    // Reserve no strip that would otherwise have no window to paint it.
+    if (window.tab_bar_hwnd == null) return false;
     return tabBarVisibleForMode(
         self.config.@"window-show-tab-bar",
         window.tabCount(),

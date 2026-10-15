@@ -6,6 +6,7 @@
 const Tab = @This();
 
 const std = @import("std");
+const TestHooks = @import("LifecycleTestHooks.zig");
 const brand = @import("../../brand.zig");
 const SplitTree = @import("SplitTree.zig").SplitTree;
 const Surface = @import("Surface.zig");
@@ -77,6 +78,7 @@ pub fn addSplit(
 ) !void {
     try self.surfaces.append(alloc, new_surface);
     errdefer _ = self.surfaces.pop();
+    try TestHooks.fail(.split_insert);
     try self.tree.split(alloc, existing, new_surface, direction, after);
     self.focused_surface = new_surface;
 }

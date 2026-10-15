@@ -2,6 +2,7 @@
 //! App supplies the window procedures and owns userdata and HWND lifetimes.
 
 const std = @import("std");
+const TestHooks = @import("LifecycleTestHooks.zig");
 const win32 = @import("win32").everything;
 const build_config = @import("../../build_config.zig");
 const brand = @import("../../brand.zig");
@@ -190,6 +191,7 @@ fn loadWindowIcon(
 }
 
 pub fn createWindow() !win32.HWND {
+    try TestHooks.fail(.parent_hwnd);
     const hinstance = win32.GetModuleHandleW(null);
 
     return win32.CreateWindowExW(
@@ -212,6 +214,7 @@ pub fn createWindow() !win32.HWND {
 }
 
 pub fn createSurface(window_hwnd: win32.HWND) !win32.HWND {
+    try TestHooks.fail(.child_hwnd);
     const hinstance = win32.GetModuleHandleW(null);
     var rect: win32.RECT = std.mem.zeroes(win32.RECT);
     if (win32.GetClientRect(window_hwnd, &rect) == 0) {
@@ -239,6 +242,7 @@ pub fn createSurface(window_hwnd: win32.HWND) !win32.HWND {
 }
 
 pub fn createTabBar(window_hwnd: win32.HWND) !win32.HWND {
+    try TestHooks.fail(.tab_bar_hwnd);
     const popup: u32 = 0x80000000;
     const clip_siblings: u32 = 0x04000000;
     const hwnd = win32.CreateWindowExW(

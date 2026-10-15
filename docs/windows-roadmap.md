@@ -1776,17 +1776,29 @@ editor window, startup maximize and fullscreen, and IPC `+new-tab` arguments
 (`--title`, `--working-directory` and an `-e` command distinguished from the
 default shell).
 An owner-operated check on the German layout then passed AltGr symbols,
-Ctrl+Alt equivalence, dead-key composition and Ctrl shortcuts. IPC timeout,
-injected creation failures (tracked as
-[#49](https://github.com/fukuyori/ghostty/issues/49)) remain unexercised.
+Ctrl+Alt equivalence, dead-key composition and Ctrl shortcuts. IPC timeout
+and injected creation failures were not exercised in that pass. A subsequent
+follow-up for [#49](https://github.com/fukuyori/ghostty/issues/49) added
+controlled checks, fixed the observed rollback defects, and passed 33
+creation cases plus four IPC cases. Both desktop builds passed 128/128
+steps. Image inspection found a reserved strip after tab-bar creation
+failure; after correction, both desktop builds, all 37 cases and four
+capture inspections passed. Verification of this controlled-failure scope
+is complete. After the final layout correction, hook-enabled Win32 tests
+passed 182 tests with one skipped; the unfiltered suite was not rerun after
+that correction. Verification used working-tree changes based on `653033b4c`. See the
+[port log](windows-port-log.md#2026-10-15-creation-rollback-and-ipc-ui-timeout-49).
 Of the grouped manual checks described under "Verification" below, the
 input (keyboard, IME, dragging), display (DPI, layout, recovery) and IPC
 areas were covered in this pass, and a following owner-operated check
 covered physical mouse input (selection, copy/paste, wheel, context-menu
 split, click focus) and appearance (opacity, title-bar colors, blur, light
 and dark themes, high contrast). Blur application and the paste are
-evidenced in the logs; the rest is owner-confirmed. The restructuring is complete; `gooztty` can be created when
-requested.
+evidenced in the logs; the rest is owner-confirmed. The restructuring is
+complete and #12 is closed. The next rebranding phase is the branch workflow:
+create `gooztty` when requested, decide the default branch and pull-request
+target, and perform the documentation/AGENTS cutover described in the
+[rebranding plan](windows-rebranding-plan.md#12-branch-tiers).
 
 The name indirection is a fork-owned `src/brand.zig` usable by the runtime and
 the build, holding the current `ghostty` values. Runtime identifiers move to
@@ -2560,11 +2572,23 @@ Release history and evidence for already distributed builds remain in
 `Not verified` means that real-hardware verification is not complete even if
 the code exists.
 
+The Win32 extraction rows preserve the scope of each dated run. For later
+coverage of their pending items, use the final verification row and the
+[port log](windows-port-log.md#2026-10-15-win32-apprt-restructuring-final-verification-12);
+for example, AltGr, mixed DPI and grouped manual checks were subsequently
+covered. Completion of the restructuring does not imply that every earlier
+limit was exercised. IPC timeout and creation-failure rollback (#49) now
+have a separate follow-up row below. OpenGL,
+forced Acrylic fallback, terminal/divider capture loss, broader accessibility
+acceptance and the ISO-only AltGr+< key remain outside the recorded final
+pass. The partial IME commit defect (#48) is tracked separately.
+
 | Category | Test item | Current |
 |---|---|---|
+| Win32 lifecycle | Creation rollback (#49) and IPC UI timeout | 2026-10-15, follow-up verified as working-tree changes based on `653033b4c`: 33 creation cases plus four IPC cases passed, no forced termination/crash/leak diagnostics or observed process leftovers. Ordinary-build test controls were rejected; normal tab creation/exit, window-state and four modal-action cases passed. Win32 tests with and without hooks each passed 182 tests, one skipped; the full suite before the fallback-layout correction passed 4039 tests with 63 skipped, 91/91 steps, exit 0. The port log explains the misleading `failed command:` line from the Zig runner. Image inspection exposed a reserved strip with no tab bar; a native-geometry assertion reproduced it. After correction, hook-enabled Win32 tests passed 182 tests, one skipped; both owner-run desktop Debug builds passed 128/128 steps including `tic`, all 37 capture-enabled cases passed with zero fallback insets, and all four images passed inspection. Normal-build control rejection also passed. Desktop acceptance is complete for this scope; no issue closure or release is recorded. See the [port log](windows-port-log.md#2026-10-15-creation-rollback-and-ipc-ui-timeout-49) for hashes, logs and injection limits |
 | Win32 review fixes | Modal lifetime and accessible names | 2026-10-14: Debug 128/128, Win32 179 passed/one skipped, four modal-action scenarios, eight config-diagnostic scenarios, window-state and three file-drop modes passed. Rename plus shell exit: baseline exit 3, fixed exit 0. Native key/pointer checks preserved close target after an earlier tab exited; new-tab/renamed focused names and reordered tab metadata matched. Owner confirmed Narrator title speech and automatic new-tab final-title announcement; broad COM/WinEvent and terminal-content acceptance remain open; see the port log |
 | Configuration | Diagnostic dialog lifetime | Fixed by displaying queued diagnostics outside core callbacks on 2026-10-14. Baseline owner-close reproduced exit 3; final Debug build, Win32 tests (178 passed, one skipped), eight diagnostic lifecycle scenarios, and normal window regression passed. Captures inspected; all final GUI cases exited 0 without forced termination and no dedicated processes remained. See the port log |
-| Win32 restructuring | Final verification pass (#12) | On 2026-10-15 at `92d3a5d25`: full Zig test suite (91/91 steps, 4037 passed, 62 skipped), window-state with palette checks, parity, context-menu and a 20-run soak (20/20) passed, all exits 0 without forced termination. Owner-operated physical check of tabs, splits, Japanese IME (terminal and tab-title dialog), a 96/120 DPI move and IPC `+new-tab` passed with exit 0. The overlay-scrollbar check, blocked by another window in the unmodified script on both this and the previous executable, passed with the topmost copy (exit 0). Follow-up fixtures passed for file drop, palette jumps, float-on-top, reset window size, the configuration editor, startup maximize/fullscreen and IPC `+new-tab` arguments (`--title`, `--working-directory`, and an `-e` command distinguished from the default shell). An owner-operated German-layout check passed AltGr symbols (`@€{[]}\~`), Ctrl+Alt equivalence, dead keys (`âé`) and Ctrl+C, exit 0. Grouped manual checks covered keyboard/IME, dragging, DPI/layout, recovery and IPC, and a later owner-operated check covered physical mouse input and appearance (blur application and paste logged; the rest owner-confirmed), exit 0. IPC timeout and injected creation failures (#49) remain; #48 remains open |
+| Win32 restructuring | Final verification pass (#12) | On 2026-10-15 at `92d3a5d25`: full Zig test suite (91/91 steps, 4037 passed, 62 skipped), window-state with palette checks, parity, context-menu and a 20-run soak (20/20) passed, all exits 0 without forced termination. Owner-operated physical check of tabs, splits, Japanese IME (terminal and tab-title dialog), a 96/120 DPI move and IPC `+new-tab` passed with exit 0. The overlay-scrollbar check, blocked by another window in the unmodified script on both this and the previous executable, passed with the topmost copy (exit 0). Follow-up fixtures passed for file drop, palette jumps, float-on-top, reset window size, the configuration editor, startup maximize/fullscreen and IPC `+new-tab` arguments (`--title`, `--working-directory`, and an `-e` command distinguished from the default shell). An owner-operated German-layout check passed AltGr symbols (`@€{[]}\~`), Ctrl+Alt equivalence, dead keys (`âé`) and Ctrl+C, exit 0. Grouped manual checks covered keyboard/IME, dragging, DPI/layout, recovery and IPC, and a later owner-operated check covered physical mouse input and appearance (blur application and paste logged; the rest owner-confirmed), exit 0. IPC timeout and injected creation failures (#49) were left for the follow-up above; #48 remains open |
 | Win32 restructuring | `IpcHandler.zig` extraction (#12) | Debug build, Win32 tests (179 passed, one skipped), IPC `+new-tab` (tab created, client exit 0, fallback reported) and no-server client output matched the previous executable; window-state with palette checks, parity, four modal-action cases and eight config-diagnostic cases passed on 2026-10-15; these GUI regressions all exited 0 without forced termination. The IPC test servers were ended by their own PID after the `Close Terminal?` check, and the no-server client exited 1 as expected. Parity initially failed on both executables while the system cursor was suppressed and passed after the owner moved the mouse. IPC timeout, `+new-tab` arguments and grouped manual acceptance remain |
 | Win32 restructuring | `WndProc.zig` extraction (#12) | Debug build, Win32 tests (179 passed, one skipped), window-state with palette checks, GPU recovery and power resume on a hook build, the split/tab command check, parity, four modal-action cases, eight config-diagnostic cases and the context-menu check passed on 2026-10-15; all exits 0 without forced termination. The moved window procedure is identical apart from `pub`. File drop in this run, physical input and grouped manual acceptance remain |
 | Win32 restructuring | `Actions.zig` extraction (#12) | Debug build, Win32 tests (179 passed, one skipped), window-state with palette checks, the split/tab command check, parity, four modal-action cases and eight config-diagnostic cases passed on 2026-10-15; all exits 0 without forced termination. The dispatch body differs from HEAD only in its name. Actions without a regression path and grouped manual acceptance remain |
@@ -2666,6 +2690,18 @@ git diff --check
 - Input changes are verified by real-hardware key, mouse, and IME operation.
 - Window lifecycle changes are verified for leftover processes and exit
   codes.
+- For creation rollback or IPC request lifetime changes, build with
+  `-Dwin32-test-hooks=true --prefix zig-out/lifecycle-hooks` and run
+  `./scripts/test-windows-lifecycle.ps1`. It enables the lifecycle environment
+  variable only for its dedicated test processes. Use `-Area Rollback` or
+  `-Area Ipc` to narrow the checks, and `-CaptureWindows` to save representative
+  windows for inspection (capture failure fails that case). Also run
+  `-Area HooksDisabled -Executable <ordinary-build>` to check that test
+  controls are ignored in a build without hooks. Never distribute a hook
+  build; automated state checks do not replace display inspection.
+  For final desktop acceptance, `./scripts/verify-windows-lifecycle.ps1`
+  runs both builds and these checks, records exit codes/hashes/image paths,
+  and stops at the first failed step. Inspect its four captures separately.
 - For configuration diagnostics or modal lifetime changes, also run
   `./scripts/test-windows-config-diagnostics.ps1 -Executable <test-build>`.
   It checks startup/reload dialogs, repeated reloads, dismissal, owner and

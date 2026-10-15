@@ -3,6 +3,7 @@
 const App = @This();
 
 const std = @import("std");
+const TestHooks = @import("LifecycleTestHooks.zig");
 const win32 = @import("win32").everything;
 const build_config = @import("../../build_config.zig");
 const brand = @import("../../brand.zig");
@@ -132,6 +133,11 @@ pub fn init(
             0
     else
         0;
+
+    TestHooks.init(if (comptime build_config.win32_test_hooks)
+        if (environ.get(brand.env_prefix ++ "TEST_LIFECYCLE")) |value| std.mem.eql(u8, value, "1") else false
+    else
+        false);
 
     self.* = .{
         .core_app = core_app,

@@ -3,6 +3,7 @@
 //! module that owns it.
 
 const std = @import("std");
+const TestHooks = @import("LifecycleTestHooks.zig");
 const win32 = @import("win32").everything;
 const CommandPalette = @import("CommandPalette.zig");
 const FileDrop = @import("FileDrop.zig");
@@ -33,6 +34,7 @@ pub fn wndProc(
     lparam: win32.LPARAM,
 ) callconv(.winapi) win32.LRESULT {
     switch (msg) {
+        TestHooks.WM_CONTROL => return TestHooks.control(hwnd, wparam, lparam),
         win32.WM_DROPFILES => {
             const drop: win32.HDROP = @ptrFromInt(wparam);
             defer win32.DragFinish(drop);
