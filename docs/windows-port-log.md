@@ -5,6 +5,44 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-15: Window-state additions (#12)
+
+- Move the startup show (`showWindow`), `present_terminal` and
+  `presentSurface`, `toggle_visibility`, and `transferWindowState` from App
+  into `WindowState.zig`, as the layout table assigns them. App action
+  dispatch, CommandPalette, WindowCommands, TabBarController and
+  WindowLifecycle call the module. `windowStateSurface` stays in App as an
+  ownership lookup used across modules.
+- A normalized comparison with `HEAD:src/apprt/win32/App.zig` (ignoring
+  indentation, blank lines, `App.` qualification and `pub`) matches all 105
+  moved lines.
+
+### Verification
+
+- Debug build: 128/128 steps (`zig-out/logs/window-state-additions-build.log`).
+  Win32 hook tests: 91/91 steps, 179 passed, one skipped
+  (`window-state-additions-win32-tests.log`).
+- `test-windows-window-state.ps1 -TestCommandPalette` passed: startup
+  placement, maximize, minimize/restore to maximized and restore,
+  multi-window `goto_window`, hide/restore together through
+  `toggle_visibility` (including across config reload), close/recreate,
+  palette checks, and exit 0 without forced termination
+  (`window-state-20261015-133145-974-eb430030`).
+- The ad-hoc split/tab command check
+  (`zig-out/test-fixtures/window-commands-check.ps1`) matched the earlier
+  results at every step, including state transfer on `move_tab`, with the
+  window in the foreground and exit 0. Parity passed (capture inspected), and
+  the four modal-action cases, which transfer state when tabs close, passed
+  with exit 0. No test processes remained.
+- Tested executable SHA-256
+  `E7DEE3177E62EABCEFA6723745D900A6A1803D22BAB5D992816D60603411A782`.
+- Not exercised: `present_terminal` from a key binding, configured
+  `maximize`/`fullscreen` at startup, and grouped manual acceptance.
+
+### Handoff
+
+- Continue with `Actions.zig`, then `WndProc.zig`.
+
 ## 2026-10-15: Keyboard extraction (#12)
 
 - Add `Keyboard.zig` for modifier state, key translation (scan code,

@@ -11,6 +11,7 @@ const TabBarAccessibility = @import("TabBarAccessibility.zig");
 const TabTitles = @import("TabTitles.zig");
 const Window = @import("Window.zig");
 const WindowCommands = @import("WindowCommands.zig");
+const WindowState = @import("WindowState.zig");
 const WindowLayout = @import("WindowLayout.zig");
 const WindowLifecycle = @import("WindowLifecycle.zig");
 
@@ -204,7 +205,7 @@ fn updateTabBarDrag(window: *Window, x: i32, y: i32) void {
     if (!window.moveTabTo(drag.index, destination)) return;
     drag.index = destination;
     const new_state = window.stateSurface();
-    if (old_state != new_state) App.transferWindowState(old_state, new_state);
+    if (old_state != new_state) WindowState.transferWindowState(old_state, new_state);
     updateViewport(
         window,
         client.right - client.left,

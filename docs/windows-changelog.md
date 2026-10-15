@@ -75,6 +75,12 @@ known issues, and known limitations of each version; the
 
 ### Changed
 
+- Move the startup show, terminal presentation, visibility toggling and
+  window-state transfer from App into `WindowState.zig` for
+  [#12](https://github.com/fukuyori/ghostty/issues/12). Debug build, Win32
+  tests, window-state (with palette checks), the split/tab command check,
+  parity and modal-action regressions passed. See the
+  [port log](windows-port-log.md).
 - Extract key translation, key/character/IME message handling, character
   suppression with its reset on focus loss, and IME composition placement
   into `Keyboard.zig` for

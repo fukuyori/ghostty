@@ -10,6 +10,7 @@ const TabBarAccessibility = @import("TabBarAccessibility.zig");
 const TabBarController = @import("TabBarController.zig");
 const Window = @import("Window.zig");
 const WindowLayout = @import("WindowLayout.zig");
+const WindowState = @import("WindowState.zig");
 
 const log = std.log.scoped(.win32);
 
@@ -39,7 +40,7 @@ pub fn gotoWindow(
         const candidate = self.windows.items[index];
         if (win32.IsWindowVisible(candidate.hwnd) == 0) continue;
         if (win32.IsIconic(candidate.hwnd) != 0) continue;
-        return App.presentSurface(candidate.focusedSurface());
+        return WindowState.presentSurface(candidate.focusedSurface());
     }
     return false;
 }
@@ -90,7 +91,7 @@ pub fn moveTab(
     const old_state = window.stateSurface();
     if (!window.moveTab(surface, value.amount)) return false;
     const new_state = window.stateSurface();
-    if (old_state != new_state) App.transferWindowState(old_state, new_state);
+    if (old_state != new_state) WindowState.transferWindowState(old_state, new_state);
     TabBarController.invalidate(window);
     TabBarAccessibility.sync(self, window, false, true);
     return true;

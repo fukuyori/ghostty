@@ -375,8 +375,8 @@ pub fn performAction(
         .close_window => return WindowLifecycle.closeWindow(self, target),
         .close_all_windows => return WindowLifecycle.closeAllWindows(self),
         .goto_window => return WindowCommands.gotoWindow(self, target, value),
-        .present_terminal => return presentTerminal(target),
-        .toggle_visibility => return self.toggleVisibility(),
+        .present_terminal => return WindowState.presentTerminal(target),
+        .toggle_visibility => return WindowState.toggleVisibility(self),
         .toggle_maximize => return WindowState.toggleMaximize(target),
         .toggle_fullscreen => return WindowState.toggleFullscreen(target, value),
         .toggle_window_decorations => return WindowState.toggleWindowDecorations(target),
@@ -396,89 +396,6 @@ pub fn performAction(
     }
 }
 
-fn presentTerminal(target: apprt.Target) bool {
-    const surface = targetSurface(target) orelse {
-        log.warn("present_terminal targeted the application", .{});
-        return false;
-    };
-    return presentSurface(surface);
-}
-
-pub fn presentSurface(surface: *Surface) bool {
-    const hwnd = surface.windowHwnd();
-    const state = windowStateSurface(surface);
-    state.hidden_by_visibility_toggle = false;
-    state.focused_before_visibility_toggle = false;
-    if (win32.IsIconic(hwnd) != 0) {
-        _ = win32.ShowWindow(hwnd, win32.SW_RESTORE);
-    } else if (win32.IsWindowVisible(hwnd) == 0) {
-        _ = win32.ShowWindow(hwnd, win32.SW_SHOW);
-    }
-
-    // Windows can refuse foreground activation when another process owns the
-    // foreground lock. The terminal was still presented, so this does not
-    // make the action itself fail.
-    _ = win32.SetForegroundWindow(hwnd);
-    _ = win32.SetFocus(surface.hwnd);
-    return true;
-}
-
-fn toggleVisibility(self: *App) bool {
-    var restore_any = false;
-    for (self.windows.items) |window| {
-        const state = window.stateSurface();
-        if (state.hidden_by_visibility_toggle) {
-            restore_any = true;
-            break;
-        }
-    }
-
-    if (restore_any) {
-        var first: ?*Surface = null;
-        var focus: ?*Surface = null;
-        for (self.windows.items) |window| {
-            const state = window.stateSurface();
-            if (!state.hidden_by_visibility_toggle) continue;
-            state.hidden_by_visibility_toggle = false;
-            _ = win32.ShowWindow(window.hwnd, win32.SW_SHOWNA);
-            if (first == null) first = window.focusedSurface();
-            if (state.focused_before_visibility_toggle) focus = window.focusedSurface();
-            state.focused_before_visibility_toggle = false;
-        }
-        if (focus orelse first) |surface| _ = presentSurface(surface);
-        return true;
-    }
-
-    const focused = self.core_app.focusedSurface();
-    if (focused) |core| {
-        for (self.windows.items) |window| {
-            var surfaces = window.surfaceIterator();
-            while (surfaces.next()) |surface| {
-                if (surface.core_surface != core) continue;
-                if (window.stateSurface().fullscreen) return true;
-                break;
-            }
-        }
-    }
-
-    var hidden_any = false;
-    for (self.windows.items) |window| {
-        const state = window.stateSurface();
-        if (win32.IsWindowVisible(window.hwnd) == 0) continue;
-        state.hidden_by_visibility_toggle = true;
-        state.focused_before_visibility_toggle = if (focused) |core| focused_in_window: {
-            var surfaces = window.surfaceIterator();
-            while (surfaces.next()) |candidate| {
-                if (candidate.core_surface == core) break :focused_in_window true;
-            }
-            break :focused_in_window false;
-        } else false;
-        _ = win32.ShowWindow(window.hwnd, win32.SW_HIDE);
-        hidden_any = true;
-    }
-    return hidden_any;
-}
-
 pub fn targetSurface(target: apprt.Target) ?*Surface {
     return switch (target) {
         .app => null,
@@ -494,21 +411,6 @@ pub fn windowStateSurface(surface: *Surface) *Surface {
     const app = surface.rtApp();
     const window = app.windowForSurface(surface) orelse return surface;
     return window.stateSurface();
-}
-
-pub fn transferWindowState(from: *Surface, to: *Surface) void {
-    std.debug.assert(from.windowHwnd() == to.windowHwnd());
-    to.initial_client_size = from.initial_client_size;
-    to.shown = from.shown;
-    to.default_maximized = from.default_maximized;
-    to.default_fullscreen = from.default_fullscreen;
-    to.fullscreen = from.fullscreen;
-    to.windowed_style = from.windowed_style;
-    to.windowed_placement = from.windowed_placement;
-    to.decorated = from.decorated;
-    to.always_on_top = from.always_on_top;
-    to.hidden_by_visibility_toggle = from.hidden_by_visibility_toggle;
-    to.focused_before_visibility_toggle = from.focused_before_visibility_toggle;
 }
 
 pub fn performIpc(
@@ -731,22 +633,6 @@ fn registerWindowClass() !void {
         .split_divider = SplitDivider.wndProc,
         .wakeup = wakeupWndProc,
     });
-}
-
-pub fn showWindow(surface: *Surface) void {
-    const hwnd = surface.windowHwnd();
-    _ = win32.ShowWindow(
-        hwnd,
-        if (surface.default_maximized)
-            win32.SW_MAXIMIZE
-        else
-            win32.SW_SHOWNORMAL,
-    );
-    _ = win32.UpdateWindow(hwnd);
-    surface.shown = true;
-    if (surface.default_fullscreen and !WindowState.setFullscreen(surface, true)) {
-        log.warn("failed to enter configured fullscreen mode", .{});
-    }
 }
 
 pub fn getSurface(hwnd: win32.HWND) ?*Surface {

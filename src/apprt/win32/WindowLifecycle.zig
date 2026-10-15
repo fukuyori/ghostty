@@ -194,7 +194,7 @@ pub fn createWindow(self: *App, opts: Options) !void {
     try initCoreSurface(self, surface, opts, .window);
     TabBarAccessibility.sync(self, window, false, false);
     WindowLayout.layoutWindow(self, window);
-    App.showWindow(surface);
+    WindowState.showWindow(surface);
 }
 
 pub fn newTab(self: *App, target: apprt.Target) !bool {
@@ -359,7 +359,7 @@ pub fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
         };
 
     if (!close_window and was_state_surface) {
-        App.transferWindowState(surface, window.stateSurface());
+        WindowState.transferWindowState(surface, window.stateSurface());
     }
 
     if (next_focus) |focus| {
@@ -424,7 +424,7 @@ fn destroyTabAt(self: *App, window: *Window, index: usize) bool {
         log.warn("failed to remove tab: {}", .{err});
         return false;
     };
-    if (state_will_close) App.transferWindowState(old_state, window.stateSurface());
+    if (state_will_close) WindowState.transferWindowState(old_state, window.stateSurface());
 
     _ = win32.SetWindowLongPtrW(
         window.hwnd,
