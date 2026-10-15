@@ -5,6 +5,58 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-15: IPC handler extraction (#12)
+
+- Add `IpcHandler.zig` for the CLI entry point body (`performIpc`), the UI
+  request (`IpcUiRequest`) with its reference counting, the transport
+  callback (`ipcHandler`), window-thread processing (`processIpcRequest`),
+  `WM_IPC_REQUEST` dispatch from the wakeup window (`dispatch`), and
+  shutdown discard of posted requests. App keeps `performIpc` as the apprt
+  entry point the CLI calls, the wakeup window procedure (which forwards
+  `WM_IPC_REQUEST` in one line), and the server lifetime in `init` and
+  `terminate`. App no longer imports `Overrides`. The pipe transport stays in
+  `IpcTransport.zig`.
+- The 213 moved lines are identical to `HEAD:src/apprt/win32/App.zig` apart
+  from `pub`, the `processIpcRequest(app, request)` call form, and the new
+  `dispatch` signature and doc comment.
+
+### Verification
+
+- Debug build: 128/128 steps (`zig-out/logs/ipc-handler-build.log`). Win32
+  hook tests: 91/91 steps, 179 passed, one skipped
+  (`ipc-handler-win32-tests.log`).
+- IPC `+new-tab` against a dedicated Debug instance matched the previous
+  `zig-out/review-fixes-v2/bin/ghostty.exe`: the tab was created, the client
+  exited 0 and reported the fallback window, the server logged the
+  pre-existing `OverlappedIoFailed` warning, and WM_CLOSE showed
+  `Close Terminal?`. Both test servers were then ended by their own PID.
+  Logs: `zig-out/logs/window-lifecycle-ipc-ipchandler*`.
+- With no server running, the client printed `No running Ghostty instance was
+  found.` and exited 1 in four alternating runs of both executables
+  (`ipchandler-noserver2-*`). An earlier single run of the previous
+  executable, started immediately after a test server was force-ended,
+  printed `Ghostty IPC failed: error.OverlappedIoFailed` instead; its state was
+  not recorded, so the cause is not established.
+- `test-windows-window-state.ps1 -TestCommandPalette` passed, exit 0 without
+  forced termination (`window-state-20261015-140558-567-aa803993`). The four
+  modal-action cases and eight config-diagnostic cases passed with exit 0.
+- Parity first failed three times at `OSC 22 hand cursor` with
+  `CURSORINFO.flags = 2` (`CURSOR_SUPPRESSED`) and cursor 0, on both this
+  build and the previous executable, so it is not a regression of this
+  change. After the owner moved the physical mouse, parity passed in full,
+  exit 0 (`parity-20261015-140912-663.png`, inspected). No test processes
+  remained after any run.
+- Tested executable SHA-256
+  `E4424F4A62809F407B79B1447203B2A3F018D60E6328BC0E4A1985B9A1FEA2B9`.
+- Not exercised: an IPC request timing out, `+new-tab` arguments
+  (`--command`, `--working-directory`, `--title`) in this run, and grouped
+  manual acceptance.
+
+### Handoff
+
+- Every group in the layout table now has its own file. Run the final
+  verification pass in roadmap Section 7 before creating `gooztty`.
+
 ## 2026-10-15: Window procedure extraction (#12)
 
 - Add `WndProc.zig` for the parent and terminal window procedure and the

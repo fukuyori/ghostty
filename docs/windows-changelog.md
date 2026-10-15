@@ -75,6 +75,13 @@ known issues, and known limitations of each version; the
 
 ### Changed
 
+- Extract the CLI IPC entry point, UI request ownership and dispatch, and
+  results into `IpcHandler.zig` for
+  [#12](https://github.com/fukuyori/ghostty/issues/12); the transport stays in
+  `IpcTransport.zig`. Debug build, Win32 tests, IPC `+new-tab` and no-server
+  comparisons with the previous executable, window-state with palette checks,
+  parity, modal-action and config-diagnostic regressions passed. See the
+  [port log](windows-port-log.md).
 - Extract the parent and terminal window procedure and the userdata lookup
   into `WndProc.zig` for
   [#12](https://github.com/fukuyori/ghostty/issues/12). Debug build, Win32
