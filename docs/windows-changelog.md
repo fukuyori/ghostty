@@ -75,6 +75,15 @@ known issues, and known limitations of each version; the
 
 ### Changed
 
+- Extract window, tab, and split creation (including core surface
+  initialization and rollback), close requests and confirmation, tab/window
+  removal, and shutdown teardown into `WindowLifecycle.zig` for
+  [#12](https://github.com/fukuyori/ghostty/issues/12). App keeps the
+  `requestSurfaceClose` entry point; deferred modal closes and stable
+  surface-ID targets are unchanged. Move the close-tab mode test. Debug build,
+  Win32 tests, window-state, modal-action, config-diagnostic and parity
+  regressions passed; IPC `+new-tab` matched the previous executable. See the
+  [port log](windows-port-log.md).
 - Extract tab-bar paint preparation, pointer/drag/wheel handling, viewport,
   invalidation, and the native window procedure into `TabBarController.zig`
   for [#12](https://github.com/fukuyori/ghostty/issues/12). Keep drawing and

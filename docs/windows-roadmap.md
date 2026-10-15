@@ -1725,8 +1725,14 @@ port-log entry for this scoped owner confirmation.
 See the port log for these tool limitations.
 Physical input, detailed screen-reader/COM client behavior and
 grouped manual acceptance remain due. See the port log for the hash and evidence.
-The next planned extraction is `WindowLifecycle.zig`, followed by
-`WindowCommands.zig`.
+On 2026-10-15 `WindowLifecycle.zig` took window, tab, and split creation
+(including core surface initialization and rollback), close requests and
+confirmation, tab/window removal, and shutdown teardown. App keeps the
+`requestSurfaceClose` entry point. The Debug build, Win32 tests (179 passed,
+one skipped), window-state, modal-action, config-diagnostic and parity
+regressions passed; IPC `+new-tab` matched the previous executable. See the
+[port log](windows-port-log.md).
+The next planned extraction is `WindowCommands.zig`.
 
 The name indirection is a fork-owned `src/brand.zig` usable by the runtime and
 the build, holding the current `ghostty` values. Runtime identifiers move to
@@ -2504,6 +2510,7 @@ the code exists.
 |---|---|---|
 | Win32 review fixes | Modal lifetime and accessible names | 2026-10-14: Debug 128/128, Win32 179 passed/one skipped, four modal-action scenarios, eight config-diagnostic scenarios, window-state and three file-drop modes passed. Rename plus shell exit: baseline exit 3, fixed exit 0. Native key/pointer checks preserved close target after an earlier tab exited; new-tab/renamed focused names and reordered tab metadata matched. Owner confirmed Narrator title speech and automatic new-tab final-title announcement; broad COM/WinEvent and terminal-content acceptance remain open; see the port log |
 | Configuration | Diagnostic dialog lifetime | Fixed by displaying queued diagnostics outside core callbacks on 2026-10-14. Baseline owner-close reproduced exit 3; final Debug build, Win32 tests (178 passed, one skipped), eight diagnostic lifecycle scenarios, and normal window regression passed. Captures inspected; all final GUI cases exited 0 without forced termination and no dedicated processes remained. See the port log |
+| Win32 restructuring | `WindowLifecycle.zig` extraction (#12) | Debug build, Win32 tests (179 passed, one skipped), window-state (multi-window create/close/recreate/close-all), four modal-action cases, eight config-diagnostic cases and parity passed on 2026-10-15; all exits 0 without forced termination. IPC `+new-tab` behaved identically to the previous executable, including a pre-existing server warning. Injected creation failures, physical input and grouped manual acceptance remain; see the port log |
 | Win32 restructuring | `WindowLayout.zig` extraction (#12) | Debug build, Win32 tests (178 passed, one skipped), normal window-state, final full parity, and visible-window overlay checks passed on 2026-10-14; search/split captures inspected. Initial cursor/measurement failures and baseline comparison are recorded separately in the port log. Mixed-DPI and manual acceptance remain |
 | Win32 restructuring | `SplitDivider.zig` extraction (#12) | Debug build, Win32 tests (178 passed, one skipped), normal window-state, and visible-window overlay checks passed on 2026-10-14; divider placement on four monitors and split capture checked. Physical divider dragging, divider capture loss, mixed-DPI transitions, and manual acceptance remain |
 | Win32 restructuring | `TabBarController.zig` extraction (#12) | Source comparison, Debug build (128/128), Win32 tests (178 passed, one skipped), window-state, title and 11 synthetic tab interaction checks passed on 2026-10-14; captures inspected. Computer Use SendInput tab/divider checks and real IME composition/conversion/commit passed. Native capture loss and overflow behavior checked. Narrator speech recap confirmed selection/rename/dialog/closure titles and values; new-tab later shell-title speech was absent; the subsequent owner check spoke only `ウインドウ`, without the title; 100%/125% display 1/2 round trip passed with measured 96/120 DPI; human physical input, detailed screen-reader/COM and manual acceptance remain |

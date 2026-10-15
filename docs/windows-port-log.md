@@ -5,6 +5,63 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-15: Window lifecycle extraction (#12)
+
+- Add `WindowLifecycle.zig` for window, tab, and split creation, core
+  surface initialization and its rollback, `WM_CLOSE_SURFACE` close requests,
+  surface/tab/window/all-window closure and confirmation, tab and window
+  removal, and shutdown window teardown (`destroyAll`, called from
+  `App.terminate` at the same point as the former inline loop). The close-tab
+  mode test moves with `tabSelectedForClose` and is registered in
+  `src/apprt/win32.zig`.
+- App keeps `requestSurfaceClose` as the apprt entry point used by Surface and
+  DeferredActions, and forwards to the module. Action dispatch, IPC request
+  processing, the window procedure, ConfigActions (editor window) and
+  TabBarController (tab close/new) call the module directly. Code is moved
+  unchanged apart from `self.` calls becoming module calls.
+- `showWindow` (the startup show), `transferWindowState`, `presentSurface`,
+  `toggleVisibility` and `activateWindowTab` stay in App. The layout table
+  assigns the first four to `WindowState.zig` and the last to
+  `WindowCommands.zig`; they move in those steps.
+
+### Verification
+
+- Debug build: 128/128 steps (`zig-out/logs/window-lifecycle-build.log`,
+  written by a rerun with `--summary all` because the first silent build left
+  no log; the executable hash was unchanged). Win32
+  hook tests: 91/91 steps, 179 passed, one skipped — the same count as before
+  the move (`window-lifecycle-win32-tests.log`).
+- `test-windows-window-state.ps1 -Executable zig-out\bin\ghostty.exe` passed,
+  including multi-window create/close/recreate/close-all, splits, input, IME
+  process keys and exit 0 without forced termination
+  (`window-state-20261015-122011-569-0ae695bf`). A first run without
+  `-Executable` exercised the default `zig-out\release` executable and is not
+  evidence for this change.
+- `test-windows-modal-actions.ps1`: RenameShellExit, CloseTabIndexShift,
+  CloseAllShellExit and QuitShellExit passed, all exit 0 without forced
+  termination (`modal-actions-20261015-122022-055`).
+- `test-windows-config-diagnostics.ps1`: all eight cases passed, exit 0
+  without forced termination.
+- `test-windows-parity.ps1 -Executable zig-out\bin\ghostty.exe`: search,
+  resize, input, mouse shape and window/tab/split cwd inheritance passed, exit
+  0 (`parity-20261015-122100-930.png`).
+- IPC `+new-tab` against a dedicated Debug instance, compared with the
+  previous `zig-out/review-fixes-v2/bin/ghostty.exe`: both created the tab
+  with client exit 0 and reported the fallback window, both logged
+  `IPC client failed after response: error.OverlappedIoFailed` on the server,
+  and both showed `Close Terminal?` on WM_CLOSE. The behavior is identical; the
+  warning predates this change. Both test servers were ended by their own PID
+  after the dialog check. Logs: `zig-out/logs/window-lifecycle-ipc-*`.
+- No test processes from `zig-out` remained. Tested executable SHA-256
+  `BC13A3462FEC07D1CC87DD366BF095D0874AD3831FE53395E4A2CD0A7E86689A`.
+- Not exercised: physical input, injected creation failures (rollback
+  paths), and grouped manual acceptance.
+
+### Handoff
+
+- Continue with `WindowCommands.zig` (navigation, reordering,
+  resize/equalize/zoom, tab activation).
+
 ## 2026-10-14: Review fixes for modal lifetime and accessibility
 
 - Investigate the Claude Code review against the working tree. The old

@@ -11,6 +11,7 @@ const TabBarAccessibility = @import("TabBarAccessibility.zig");
 const TabTitles = @import("TabTitles.zig");
 const Window = @import("Window.zig");
 const WindowLayout = @import("WindowLayout.zig");
+const WindowLifecycle = @import("WindowLifecycle.zig");
 
 const log = std.log.scoped(.win32);
 
@@ -78,7 +79,7 @@ fn handleTabBarClick(self: *App, window: *Window, x: i32, y: i32) void {
         .close => |index| {
             const surface = window.focusedSurfaceAt(index) orelse return;
             const core = surface.core_surface orelse return;
-            _ = self.closeTab(.{ .surface = core }, .this);
+            _ = WindowLifecycle.closeTab(self, .{ .surface = core }, .this);
         },
         .scroll_previous => {
             if (window.selectTab(.previous)) App.activateWindowTab(self, window);
@@ -88,7 +89,7 @@ fn handleTabBarClick(self: *App, window: *Window, x: i32, y: i32) void {
         },
         .new_tab => {
             const core = window.focusedSurface().core_surface orelse return;
-            _ = self.newTab(.{ .surface = core }) catch |err| {
+            _ = WindowLifecycle.newTab(self, .{ .surface = core }) catch |err| {
                 log.warn("failed to create tab from tab bar: {}", .{err});
                 return;
             };

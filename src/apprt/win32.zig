@@ -19,6 +19,7 @@ const tab_titles = @import("win32/TabTitles.zig");
 const window = @import("win32/Window.zig");
 const window_appearance = @import("win32/WindowAppearance.zig");
 const window_layout = @import("win32/WindowLayout.zig");
+const window_lifecycle = @import("win32/WindowLifecycle.zig");
 
 test {
     _ = command_palette;
@@ -37,5 +38,6 @@ test {
     _ = window;
     _ = window_appearance;
     _ = window_layout;
+    _ = window_lifecycle;
     @import("std").testing.refAllDecls(@This());
 }

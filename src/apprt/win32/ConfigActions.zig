@@ -16,6 +16,7 @@ const Scrollbar = @import("Scrollbar.zig");
 const ShellOpen = @import("ShellOpen.zig");
 const Titlebar = @import("Titlebar.zig");
 const WindowAppearance = @import("WindowAppearance.zig");
+const WindowLifecycle = @import("WindowLifecycle.zig");
 const WindowState = @import("WindowState.zig");
 
 const log = std.log.scoped(.win32);
@@ -230,7 +231,7 @@ pub fn openConfig(
             );
             defer self.alloc.free(title);
 
-            try self.createWindow(.{
+            try WindowLifecycle.createWindow(self, .{
                 .command = command,
                 .title = title,
             });
