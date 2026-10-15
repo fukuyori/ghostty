@@ -5,6 +5,44 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-15: Action dispatch extraction (#12)
+
+- Add `Actions.zig` holding the body of `performAction` as `perform`; the
+  dispatch switch is moved unchanged, including the small inline `.quit_timer`
+  and `.scrollbar` cases. `App.performAction` stays as the apprt entry point
+  and forwards in one line. App no longer imports `SearchBar`, which only the
+  dispatch used.
+- Compared with `HEAD:src/apprt/win32/App.zig`, the dispatch body differs only
+  in the function name (`targetSurface` qualified as `App.targetSurface`).
+
+### Verification
+
+- Debug build: 128/128 steps (`zig-out/logs/actions-build.log`). Win32 hook
+  tests: 91/91 steps, 179 passed, one skipped (`actions-win32-tests.log`).
+- `test-windows-window-state.ps1 -TestCommandPalette` passed (terminal input,
+  IME process keys, splits and click focus, multi-window navigation,
+  hide/restore together, config reload, close-all, palette), exit 0 without
+  forced termination (`window-state-20261015-133913-278-b812ac74`).
+- The split/tab command check matched the earlier results at every step, exit
+  0 (`window-commands-actions-20261015-133920-183.json`). In this run the test
+  window was not the foreground window at any step, unlike the previous
+  run (10/10); the focused pane was still resolved at every step, so keys
+  reached the intended pane.
+- Parity (search, mouse shape/visibility, cwd inheritance) passed, capture
+  inspected. The four modal-action cases and all eight config-diagnostic
+  cases (startup/reload diagnostics, owner close, palette reload) passed with
+  exit 0 and no forced termination. No test processes remained.
+- Tested executable SHA-256
+  `709E729C6FD5E936250533D5A267247E2B02EBFD5057B02C33EB2102A723342E`.
+- Not exercised: actions without a regression path (`present_terminal`,
+  `float_window`, `reset_window_size`, `open_config` editor launch in this
+  run), and grouped manual acceptance.
+
+### Handoff
+
+- Continue with `WndProc.zig`, the last planned group, followed by the final
+  verification pass listed in roadmap Section 7.
+
 ## 2026-10-15: Window-state additions (#12)
 
 - Move the startup show (`showWindow`), `present_terminal` and

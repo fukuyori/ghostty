@@ -75,6 +75,11 @@ known issues, and known limitations of each version; the
 
 ### Changed
 
+- Move the action dispatch (`performAction` body) into `Actions.zig` for
+  [#12](https://github.com/fukuyori/ghostty/issues/12); App keeps the apprt
+  entry point. Debug build, Win32 tests, window-state with palette checks,
+  the split/tab command check, parity, modal-action and config-diagnostic
+  regressions passed. See the [port log](windows-port-log.md).
 - Move the startup show, terminal presentation, visibility toggling and
   window-state transfer from App into `WindowState.zig` for
   [#12](https://github.com/fukuyori/ghostty/issues/12). Debug build, Win32
