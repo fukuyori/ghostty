@@ -112,7 +112,9 @@ Final pass required by roadmap Section 7 (goal 4), on `windows` at
     exercised by `goto_window` and palette jumps above.
   - Not exercised: an IPC request exceeding the 5 s UI timeout and injected
     creation failures (rollback paths), which need fault injection not
-    present in the build; AltGr layouts; and grouped manual acceptance.
+    present in the build (the rollback work is tracked as
+    [#49](https://github.com/fukuyori/ghostty/issues/49)); AltGr layouts; and
+    grouped manual acceptance.
 
 With every group in the layout table in its own file and this pass recorded,
 the Phase 1 restructuring on `windows` is complete. Creating `gooztty`
@@ -454,7 +456,8 @@ the Phase 1 restructuring on `windows` is complete. Creating `gooztty`
 - No test processes from `zig-out` remained (process query from the session; its output was not saved). Tested executable SHA-256
   `BC13A3462FEC07D1CC87DD366BF095D0874AD3831FE53395E4A2CD0A7E86689A`.
 - Not exercised: physical input, injected creation failures (rollback
-  paths), and grouped manual acceptance.
+  paths, tracked as [#49](https://github.com/fukuyori/ghostty/issues/49)),
+  and grouped manual acceptance.
 
 ### Handoff
 
