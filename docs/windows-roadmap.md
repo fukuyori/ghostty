@@ -1737,9 +1737,17 @@ reordering, split resize/equalize/zoom, and tab activation. The Debug build,
 Win32 tests (179 passed, one skipped), window-state (with palette checks),
 parity and modal-action regressions passed, and a dedicated split/tab command
 check matched the previous executable at every step.
-The next planned extraction is `Keyboard.zig`. The additions to
-`WindowState.zig` (startup show, state transfer, presentation, visibility
-toggling) are still in App.
+`Keyboard.zig` then took key translation, key/character/IME message
+handling, character suppression with its reset on focus loss, and IME
+composition placement, with the ten keyboard tests. The Debug build, Win32
+tests (179 passed, one skipped), window-state with palette checks, parity and
+modal-action regressions passed with synthetic messages, and the owner's
+physical keyboard and Japanese IME check passed. That check found a partial
+IME commit leaving the remaining composition over the committed text, tracked
+as [#48](https://github.com/fukuyori/ghostty/issues/48).
+The next planned extraction is `Actions.zig`, then `WndProc.zig`. The
+additions to `WindowState.zig` (startup show, state transfer, presentation,
+visibility toggling) are still in App.
 
 The name indirection is a fork-owned `src/brand.zig` usable by the runtime and
 the build, holding the current `ghostty` values. Runtime identifiers move to
@@ -2517,6 +2525,7 @@ the code exists.
 |---|---|---|
 | Win32 review fixes | Modal lifetime and accessible names | 2026-10-14: Debug 128/128, Win32 179 passed/one skipped, four modal-action scenarios, eight config-diagnostic scenarios, window-state and three file-drop modes passed. Rename plus shell exit: baseline exit 3, fixed exit 0. Native key/pointer checks preserved close target after an earlier tab exited; new-tab/renamed focused names and reordered tab metadata matched. Owner confirmed Narrator title speech and automatic new-tab final-title announcement; broad COM/WinEvent and terminal-content acceptance remain open; see the port log |
 | Configuration | Diagnostic dialog lifetime | Fixed by displaying queued diagnostics outside core callbacks on 2026-10-14. Baseline owner-close reproduced exit 3; final Debug build, Win32 tests (178 passed, one skipped), eight diagnostic lifecycle scenarios, and normal window regression passed. Captures inspected; all final GUI cases exited 0 without forced termination and no dedicated processes remained. See the port log |
+| Win32 restructuring | `Keyboard.zig` extraction (#12) | Debug build, Win32 tests (179 passed, one skipped; ten moved keyboard tests included), window-state with palette checks (text/Enter delivery, IME process-key suppression), parity and four modal-action cases passed on 2026-10-15 with synthetic messages; all exits 0 without forced termination. Normalized source comparison differs only in the new forwarding functions. Owner-operated physical keyboard and Japanese IME check passed (IME commit, Shift symbols, arrows, Ctrl+C, exit 0); it found the partial-commit composition overlap tracked as #48. AltGr layouts and grouped manual acceptance remain |
 | Win32 restructuring | `WindowCommands.zig` extraction (#12) | Debug build, Win32 tests (179 passed, one skipped), window-state with palette checks, parity and four modal-action cases passed on 2026-10-15. A dedicated check of split, `goto_split`, `resize_split`, `equalize_splits`, `toggle_split_zoom`, `new_tab`, `move_tab` and `goto_tab` matched the previous executable at every step in two runs each; all exits 0 without forced termination. A first run with unrecorded foreground state differed and is retained in the port log. Palette tab jump, physical input and grouped manual acceptance remain |
 | Win32 restructuring | `WindowLifecycle.zig` extraction (#12) | Debug build, Win32 tests (179 passed, one skipped), window-state (multi-window create/close/recreate/close-all), four modal-action cases, eight config-diagnostic cases and parity passed on 2026-10-15; all exits 0 without forced termination. IPC `+new-tab` behaved identically to the previous executable, including a pre-existing server warning. Injected creation failures, physical input and grouped manual acceptance remain; see the port log |
 | Win32 restructuring | `WindowLayout.zig` extraction (#12) | Debug build, Win32 tests (178 passed, one skipped), normal window-state, final full parity, and visible-window overlay checks passed on 2026-10-14; search/split captures inspected. Initial cursor/measurement failures and baseline comparison are recorded separately in the port log. Mixed-DPI and manual acceptance remain |

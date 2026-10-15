@@ -5,6 +5,65 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-15: Keyboard extraction (#12)
+
+- Add `Keyboard.zig` for modifier state, key translation (scan code,
+  virtual key, layout-unshifted codepoint, Win32 key and text metadata), the
+  `WM_KEYDOWN`/`WM_SYSKEYDOWN`, `WM_KEYUP`/`WM_SYSKEYUP` and
+  `WM_CHAR`/`WM_SYSCHAR` handling, VK_PROCESSKEY rejection, character
+  suppression and pending text-key state with its reset on focus loss
+  (`handleFocus`), and IME composition-window placement. The ten keyboard
+  tests move with the code and are registered in `src/apprt/win32.zig`.
+- App's window procedure forwards those messages in one line each, as for
+  the earlier layout and recovery extractions, and calls
+  `Keyboard.handleFocus`. Mouse and the window procedure's mouse cases use
+  `Keyboard.getModifiers`.
+- A normalized comparison with `HEAD:src/apprt/win32/App.zig` (ignoring
+  indentation, blank lines and the `App.getSurface` qualification) differs
+  only in the four new forwarding signatures and their closing braces.
+
+### Verification
+
+- Debug build: 128/128 steps (`zig-out/logs/keyboard-build.log`). Win32 hook
+  tests: 91/91 steps, 179 passed, one skipped, unchanged; all ten moved test
+  names contain `Win32` and remain within the filter
+  (`keyboard-win32-tests.log`).
+- `test-windows-window-state.ps1 -TestCommandPalette` passed: text, Enter and
+  command execution reached the shell, IME process Enter/Backspace were
+  suppressed, the palette suppressed IME process Enter, function-key bindings
+  drove splits/windows, and the process exited 0 without forced termination
+  (`window-state-20261015-124426-277-75bc4ae9`).
+- Parity passed, including search text entry, Unicode matches and input after
+  search, exit 0 (`parity-20261015-124432-973.png`, inspected). The four
+  modal-action cases, which use key bindings, passed with exit 0 and no forced
+  termination (`modal-actions-20261015-124441-149`). No test processes
+  remained.
+- Tested executable SHA-256
+  `D626AA3A99243A6741C6623B915D26049B12ADB110FE6E36A03E6413B6825B16`.
+- The checks above post synthetic messages. The owner then operated the same
+  executable with the physical keyboard and the Microsoft Japanese IME in a
+  dedicated key recorder (`zig-out/test-fixtures/keyboard-manual/`,
+  `keys-25620.jsonl`, `session-20261015-125759.json`). IME conversion and
+  commit of `日本語` produced UTF-8 `E697A5E69CACE8AA9E`, and the committing
+  Enter did not submit the line. On the US layout, `Hello, World!` and
+  `{}[]"@` arrived as typed; the four arrow keys arrived as arrow keys; Ctrl+C
+  arrived as `C` with Control (U+0003) without ending the shell. The process
+  exited 0 with no crash or leak markers.
+- The owner found that committing only part of a composition (`にわにはにわ`,
+  committing `庭には`) leaves the remaining `にわ` drawn over the committed
+  text; the committed result `庭にはにわ` was correct. The composition window
+  is positioned only at composition start, and the moved code is unchanged,
+  but the previous executable was not run with the same steps. The cause is
+  not yet confirmed. Tracked separately as
+  [#48](https://github.com/fukuyori/ghostty/issues/48).
+- AltGr layouts and grouped manual acceptance have not been exercised.
+
+### Handoff
+
+- Continue with `Actions.zig`, then `WndProc.zig`. The WindowState additions
+  (`showWindow`, `transferWindowState`, `presentSurface`,
+  `toggleVisibility`) also remain.
+
 ## 2026-10-15: Window commands extraction (#12)
 
 - Add `WindowCommands.zig` for `goto_window`, `goto_tab`, `move_tab`,

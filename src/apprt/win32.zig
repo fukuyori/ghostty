@@ -8,6 +8,7 @@ const config_actions = @import("win32/ConfigActions.zig");
 const deferred_actions = @import("win32/DeferredActions.zig");
 const context_menu = @import("win32/ContextMenu.zig");
 const file_drop = @import("win32/FileDrop.zig");
+const keyboard = @import("win32/Keyboard.zig");
 const mouse = @import("win32/Mouse.zig");
 const native_window = @import("win32/NativeWindow.zig");
 const recovery = @import("win32/Recovery.zig");
@@ -28,6 +29,7 @@ test {
     _ = deferred_actions;
     _ = context_menu;
     _ = file_drop;
+    _ = keyboard;
     _ = mouse;
     _ = native_window;
     _ = recovery;

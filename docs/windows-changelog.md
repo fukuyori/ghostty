@@ -75,6 +75,17 @@ known issues, and known limitations of each version; the
 
 ### Changed
 
+- Extract key translation, key/character/IME message handling, character
+  suppression with its reset on focus loss, and IME composition placement
+  into `Keyboard.zig` for
+  [#12](https://github.com/fukuyori/ghostty/issues/12). Move the ten keyboard
+  tests. Debug build, Win32 tests, window-state (input, IME process keys,
+  palette), parity and modal-action regressions passed with synthetic
+  messages, and an owner-operated physical keyboard and Japanese IME check
+  passed. That check found that a partial IME commit leaves the remaining
+  composition over the committed text
+  ([#48](https://github.com/fukuyori/ghostty/issues/48), tracked separately).
+  See the [port log](windows-port-log.md).
 - Extract window, tab and split navigation, tab reordering, split
   resize/equalize/zoom, and tab activation into `WindowCommands.zig` for
   [#12](https://github.com/fukuyori/ghostty/issues/12). Debug build, Win32

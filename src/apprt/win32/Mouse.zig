@@ -4,6 +4,7 @@ const apprt = @import("../../apprt.zig");
 const input = @import("../../input.zig");
 const App = @import("App.zig");
 const ContextMenu = @import("ContextMenu.zig");
+const Keyboard = @import("Keyboard.zig");
 const win32 = @import("win32").everything;
 const terminal = @import("../../terminal/main.zig");
 const Surface = @import("Surface.zig");
@@ -160,7 +161,7 @@ pub fn handleMouseButton(
     event: MouseButtonEvent,
     lparam: win32.LPARAM,
 ) win32.LRESULT {
-    const mods = App.getModifiers();
+    const mods = Keyboard.getModifiers();
     updateCursorPosition(surface, mousePoint(lparam), mods, true);
 
     if (event.state == .press) {
@@ -228,7 +229,7 @@ pub fn releaseMouseButtons(surface: *Surface) void {
         .{ 1 << 4, .five },
     };
     const core = surface.core_surface orelse return;
-    const mods = App.getModifiers();
+    const mods = Keyboard.getModifiers();
     for (buttons) |entry| {
         if (down & entry[0] == 0) continue;
         _ = core.mouseButtonCallback(.release, entry[1], mods) catch |err| {
@@ -265,7 +266,7 @@ pub fn handleMouseWheel(
     wparam: win32.WPARAM,
     lparam: win32.LPARAM,
 ) void {
-    const mods = App.getModifiers();
+    const mods = Keyboard.getModifiers();
     updateWheelCursorPosition(surface, hwnd, lparam, mods);
 
     const core = surface.core_surface orelse return;
