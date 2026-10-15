@@ -1754,7 +1754,13 @@ parity and modal-action regressions passed.
 keeps the apprt entry point. The Debug build, Win32 tests, window-state with
 palette checks, the split/tab command check, parity, modal-action and
 config-diagnostic regressions passed.
-The next planned extraction is `WndProc.zig`, the last group.
+`WndProc.zig` then took the parent and terminal window procedure and the
+userdata lookup. The Debug build, Win32 tests, window-state with palette
+checks and with GPU/power recovery on a hook build, the split/tab command
+check, parity, modal-action, config-diagnostic and context-menu regressions
+passed.
+`IpcHandler.zig` is the remaining group in the layout table; the final
+verification pass follows it.
 
 The name indirection is a fork-owned `src/brand.zig` usable by the runtime and
 the build, holding the current `ghostty` values. Runtime identifiers move to
@@ -2532,6 +2538,7 @@ the code exists.
 |---|---|---|
 | Win32 review fixes | Modal lifetime and accessible names | 2026-10-14: Debug 128/128, Win32 179 passed/one skipped, four modal-action scenarios, eight config-diagnostic scenarios, window-state and three file-drop modes passed. Rename plus shell exit: baseline exit 3, fixed exit 0. Native key/pointer checks preserved close target after an earlier tab exited; new-tab/renamed focused names and reordered tab metadata matched. Owner confirmed Narrator title speech and automatic new-tab final-title announcement; broad COM/WinEvent and terminal-content acceptance remain open; see the port log |
 | Configuration | Diagnostic dialog lifetime | Fixed by displaying queued diagnostics outside core callbacks on 2026-10-14. Baseline owner-close reproduced exit 3; final Debug build, Win32 tests (178 passed, one skipped), eight diagnostic lifecycle scenarios, and normal window regression passed. Captures inspected; all final GUI cases exited 0 without forced termination and no dedicated processes remained. See the port log |
+| Win32 restructuring | `WndProc.zig` extraction (#12) | Debug build, Win32 tests (179 passed, one skipped), window-state with palette checks, GPU recovery and power resume on a hook build, the split/tab command check, parity, four modal-action cases, eight config-diagnostic cases and the context-menu check passed on 2026-10-15; all exits 0 without forced termination. The moved window procedure is identical apart from `pub`. File drop in this run, physical input and grouped manual acceptance remain |
 | Win32 restructuring | `Actions.zig` extraction (#12) | Debug build, Win32 tests (179 passed, one skipped), window-state with palette checks, the split/tab command check, parity, four modal-action cases and eight config-diagnostic cases passed on 2026-10-15; all exits 0 without forced termination. The dispatch body differs from HEAD only in its name. Actions without a regression path and grouped manual acceptance remain |
 | Win32 restructuring | `WindowState.zig` additions (#12) | Debug build, Win32 tests (179 passed, one skipped), window-state with palette checks (startup, maximize/minimize/restore, `goto_window`, `toggle_visibility` hide/restore together), the split/tab command check including `move_tab` state transfer, parity and four modal-action cases passed on 2026-10-15; all exits 0 without forced termination. Normalized comparison matches all moved lines. `present_terminal` binding, configured startup maximize/fullscreen and grouped manual acceptance remain |
 | Win32 restructuring | `Keyboard.zig` extraction (#12) | Debug build, Win32 tests (179 passed, one skipped; ten moved keyboard tests included), window-state with palette checks (text/Enter delivery, IME process-key suppression), parity and four modal-action cases passed on 2026-10-15 with synthetic messages; all exits 0 without forced termination. Normalized source comparison differs only in the new forwarding functions. Owner-operated physical keyboard and Japanese IME check passed (IME commit, Shift symbols, arrows, Ctrl+C, exit 0); it found the partial-commit composition overlap tracked as #48. AltGr layouts and grouped manual acceptance remain |

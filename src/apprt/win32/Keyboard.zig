@@ -6,7 +6,7 @@ const std = @import("std");
 const win32 = @import("win32").everything;
 const global = @import("../../global.zig");
 const input = @import("../../input.zig");
-const App = @import("App.zig");
+const WndProc = @import("WndProc.zig");
 const Mouse = @import("Mouse.zig");
 const Surface = @import("Surface.zig");
 
@@ -570,14 +570,14 @@ pub fn imeStartComposition(
     wparam: win32.WPARAM,
     lparam: win32.LPARAM,
 ) win32.LRESULT {
-    if (App.getSurface(hwnd)) |surface| {
+    if (WndProc.getSurface(hwnd)) |surface| {
         if (hwnd == surface.hwnd) handleImeStartComposition(surface, hwnd);
     }
     return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
 }
 
 pub fn character(hwnd: win32.HWND, wparam: win32.WPARAM, lparam: win32.LPARAM) win32.LRESULT {
-    if (App.getSurface(hwnd)) |surface| {
+    if (WndProc.getSurface(hwnd)) |surface| {
         if (hwnd == surface.hwnd) return handleTextInput(surface, wparam, lparam);
     }
     return 0;
@@ -589,7 +589,7 @@ pub fn keyDown(
     wparam: win32.WPARAM,
     lparam: win32.LPARAM,
 ) win32.LRESULT {
-    if (App.getSurface(hwnd)) |surface| {
+    if (WndProc.getSurface(hwnd)) |surface| {
         if (hwnd == surface.hwnd) surface.suppressed_char_keycode = null;
     }
 
@@ -602,13 +602,13 @@ pub fn keyDown(
     // metadata: the text the IME commits later belongs to the
     // composition, not to one physical keystroke.
     if (wparam == vk_processkey) {
-        if (App.getSurface(hwnd)) |surface| {
+        if (WndProc.getSurface(hwnd)) |surface| {
             if (hwnd == surface.hwnd) surface.pending_text_key = null;
         }
         return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
     }
 
-    if (App.getSurface(hwnd)) |surface| {
+    if (WndProc.getSurface(hwnd)) |surface| {
         if (hwnd == surface.hwnd) {
             if (surface.core_surface) |core| {
                 const mods = getModifiers();
@@ -654,7 +654,7 @@ pub fn keyUp(
     wparam: win32.WPARAM,
     lparam: win32.LPARAM,
 ) win32.LRESULT {
-    if (App.getSurface(hwnd)) |surface| {
+    if (WndProc.getSurface(hwnd)) |surface| {
         if (hwnd == surface.hwnd) surface.suppressed_char_keycode = null;
     }
 
@@ -663,7 +663,7 @@ pub fn keyUp(
         return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
     }
 
-    if (App.getSurface(hwnd)) |surface| {
+    if (WndProc.getSurface(hwnd)) |surface| {
         if (hwnd == surface.hwnd) {
             if (surface.core_surface) |core| {
                 const key = mapKey(wparam, lparam);

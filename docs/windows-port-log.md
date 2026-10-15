@@ -5,6 +5,51 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-15: Window procedure extraction (#12)
+
+- Add `WndProc.zig` for the parent and terminal window procedure and the
+  userdata lookup (`getSurface`). The 251 moved lines are identical to
+  `HEAD:src/apprt/win32/App.zig` apart from `pub` on `wndProc`.
+  `WM_CLOSE_SURFACE` is referenced from `WindowLifecycle`. App registers
+  `WndProc.wndProc` through `registerWindowClass` and keeps the wakeup
+  window procedure with the message loop.
+- Keyboard, Recovery, WindowAppearance and WindowLayout call
+  `WndProc.getSurface`; Keyboard no longer imports App.
+
+### Verification
+
+- Debug build: 128/128 steps (`zig-out/logs/wndproc-build.log`). Win32 hook
+  tests: 91/91 steps, 179 passed, one skipped (`wndproc-win32-tests.log`).
+  A separate hook-enabled build (`zig-out/wndproc-hooks`, 128/128 steps)
+  was used only for the recovery checks.
+- `test-windows-window-state.ps1 -TestCommandPalette` passed: input, IME
+  process keys, initial grid, split click focus, multi-window navigation,
+  hide/restore together, individual close and close-all, config reload,
+  palette checks, four-monitor layouts, minimize/restore, exit 0 without
+  forced termination (`window-state-20261015-134738-527-40d4d135`).
+- With the hook build, `-TestGpuRecovery -TestPowerResume` passed: resources
+  recreated with the session preserved, suspend/resume notifications, all
+  three renderers recovered, duplicate resume suppressed, exit 0
+  (`window-state-20261015-134746-296-2c289296`).
+- The split/tab command check matched the previous run at every step with
+  the window in the foreground (10/10), exit 0
+  (`window-commands-wndproc-*.json`). Parity, the four modal-action cases,
+  the eight config-diagnostic cases and the context-menu check (blank rows,
+  word and existing selections) passed with exit 0 and no forced
+  termination. Parity and context-menu captures inspected. No test processes
+  remained.
+- Tested executables SHA-256: normal
+  `5C7B661CE2EAB6849B31469384F8B2E7FB102CDCDEFDB2984EF8357787F782AE`, hook
+  build `B7E8589AB70E7C16C3170D36EE8AF1DDA5E3B462D631817A35F675654CAA7080`.
+- Not exercised: file drop (`WM_DROPFILES`) in this run, physical input, and
+  grouped manual acceptance.
+
+### Handoff
+
+- `IpcHandler.zig` is still listed in the layout table and not yet split
+  (the IPC entry point, UI request ownership and results remain in App).
+  After it, run the final verification pass in roadmap Section 7.
+
 ## 2026-10-15: Action dispatch extraction (#12)
 
 - Add `Actions.zig` holding the body of `performAction` as `perform`; the

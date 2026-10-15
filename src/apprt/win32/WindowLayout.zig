@@ -7,6 +7,7 @@ const win32 = @import("win32").everything;
 const apprt = @import("../../apprt.zig");
 const Config = @import("../../config.zig").Config;
 const App = @import("App.zig");
+const WndProc = @import("WndProc.zig");
 const TabBarController = @import("TabBarController.zig");
 const Surface = @import("Surface.zig");
 const SplitDivider = @import("SplitDivider.zig");
@@ -207,7 +208,7 @@ fn handleDpiChanged(
 }
 
 pub fn sizeChanged(hwnd: win32.HWND, lparam: win32.LPARAM) win32.LRESULT {
-    if (App.getSurface(hwnd)) |surface| {
+    if (WndProc.getSurface(hwnd)) |surface| {
         const width: u32 = @intCast(lparam & 0xFFFF);
         const height: u32 = @intCast((lparam >> 16) & 0xFFFF);
         if (width > 0 and height > 0) {
@@ -232,7 +233,7 @@ pub fn sizeChanged(hwnd: win32.HWND, lparam: win32.LPARAM) win32.LRESULT {
 }
 
 pub fn moved(hwnd: win32.HWND) win32.LRESULT {
-    if (App.getSurface(hwnd)) |surface| {
+    if (WndProc.getSurface(hwnd)) |surface| {
         if (hwnd == surface.windowHwnd()) {
             const app = surface.rtApp();
             if (app.windowForHwnd(hwnd)) |window| {
@@ -244,7 +245,7 @@ pub fn moved(hwnd: win32.HWND) win32.LRESULT {
 }
 
 pub fn dpiChanged(hwnd: win32.HWND, wparam: win32.WPARAM, lparam: win32.LPARAM) win32.LRESULT {
-    if (App.getSurface(hwnd)) |surface| {
+    if (WndProc.getSurface(hwnd)) |surface| {
         if (hwnd == surface.windowHwnd()) {
             const app = surface.rtApp();
             if (app.windowForHwnd(hwnd)) |window| {

@@ -75,6 +75,13 @@ known issues, and known limitations of each version; the
 
 ### Changed
 
+- Extract the parent and terminal window procedure and the userdata lookup
+  into `WndProc.zig` for
+  [#12](https://github.com/fukuyori/ghostty/issues/12). Debug build, Win32
+  tests, window-state (with palette checks, and GPU/power recovery on a hook
+  build), the split/tab command check, parity, modal-action,
+  config-diagnostic and context-menu regressions passed. See the
+  [port log](windows-port-log.md).
 - Move the action dispatch (`performAction` body) into `Actions.zig` for
   [#12](https://github.com/fukuyori/ghostty/issues/12); App keeps the apprt
   entry point. Debug build, Win32 tests, window-state with palette checks,

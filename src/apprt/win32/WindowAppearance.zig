@@ -6,6 +6,7 @@ const win32 = @import("win32").everything;
 const build_config = @import("../../build_config.zig");
 const Config = @import("../../config/Config.zig");
 const App = @import("App.zig");
+const WndProc = @import("WndProc.zig");
 const TabBarController = @import("TabBarController.zig");
 const WindowLayout = @import("WindowLayout.zig");
 const Backdrop = @import("Backdrop.zig");
@@ -32,7 +33,7 @@ pub fn highContrastEnabled() bool {
 }
 
 pub fn refreshTheme(hwnd: win32.HWND) win32.LRESULT {
-    if (App.getSurface(hwnd)) |surface| {
+    if (WndProc.getSurface(hwnd)) |surface| {
         if (hwnd == surface.windowHwnd()) {
             const app = surface.rtApp();
             if (app.windowForHwnd(hwnd)) |window| {

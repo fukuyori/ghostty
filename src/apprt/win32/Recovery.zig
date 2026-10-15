@@ -7,6 +7,7 @@ const apprt = @import("../../apprt.zig");
 const build_config = @import("../../build_config.zig");
 const rendererpkg = @import("../../renderer.zig");
 const App = @import("App.zig");
+const WndProc = @import("WndProc.zig");
 
 const log = std.log.scoped(.win32);
 
@@ -105,7 +106,7 @@ pub fn testRecoverRenderer(
     if (comptime !build_config.win32_test_hooks) {
         return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
     }
-    if (App.getSurface(hwnd)) |surface| {
+    if (WndProc.getSurface(hwnd)) |surface| {
         const app = surface.rtApp();
         if (app.test_device_recovery) {
             if (surface.core_surface) |core| {
@@ -127,7 +128,7 @@ pub fn testRecoveryStatus(
     if (comptime !build_config.win32_test_hooks) {
         return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
     }
-    if (App.getSurface(hwnd)) |surface| {
+    if (WndProc.getSurface(hwnd)) |surface| {
         if (surface.rtApp().test_device_recovery) {
             // wparam 1 probes whether the hooks are compiled in and
             // enabled, so scripts can fail early with a clear message
@@ -143,7 +144,7 @@ pub fn powerBroadcast(
     hwnd: win32.HWND,
     wparam: win32.WPARAM,
 ) win32.LRESULT {
-    if (App.getSurface(hwnd)) |surface| {
+    if (WndProc.getSurface(hwnd)) |surface| {
         if (hwnd == surface.windowHwnd()) {
             handlePowerBroadcast(surface.rtApp(), @intCast(wparam));
         }

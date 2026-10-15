@@ -22,6 +22,7 @@ const window_appearance = @import("win32/WindowAppearance.zig");
 const window_commands = @import("win32/WindowCommands.zig");
 const window_layout = @import("win32/WindowLayout.zig");
 const window_lifecycle = @import("win32/WindowLifecycle.zig");
+const wnd_proc = @import("win32/WndProc.zig");
 
 test {
     _ = command_palette;
@@ -43,5 +44,6 @@ test {
     _ = window_commands;
     _ = window_layout;
     _ = window_lifecycle;
+    _ = wnd_proc;
     @import("std").testing.refAllDecls(@This());
 }
