@@ -7,6 +7,102 @@ versions with their commits, the
 numbering rules, the [User Guide](windows.md) for configuration and known
 limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 
+## 1.3.2-windows.15
+
+- Status: locally built, signed and owner-accepted; not published.
+- Source: `windows` at `9c89f4057`, plus the preview version/documentation update.
+- Base version: upstream Ghostty 1.3.2 series (`1.3.2-dev`).
+- Product name: Ghostty. The Gooztty rename remains a separate later change.
+
+### Changes Since 1.3.2-windows.14
+
+- Synchronize the Windows port with upstream through `6d53bafb1` and complete
+  the Win32 application-runtime restructuring (#12).
+- Support opt-in `CSI 8 t` window resize requests and keep the ConPTY console
+  grid synchronized when a request is ignored or constrained (#45, #46).
+- Prevent Ctrl+click URL opening from deadlocking the UI, and reject invalid
+  URL-as-file paths before Debug path validation (#36, #47).
+- Defer configuration, close, tab-title and file-drop dialogs out of core
+  callbacks, preserving live targets across modal operations.
+- Improve accessible terminal names and tab change notifications.
+- Fix creation rollback crashes and restore tab, focus and split-zoom state
+  after failed creation. Remove the unpainted strip when tab-bar creation
+  fails. Add opt-in regression coverage for rollback and IPC timeout (#49);
+  distributed binaries do not enable these test hooks.
+
+### Verification
+
+Prior source verification includes the restructuring's full Zig suite,
+window-state/parity/context-menu checks, 20-run soak and owner-operated
+keyboard, IME, mouse, appearance and mixed-DPI checks. The rollback follow-up
+passed 37 controlled cases and four captured-window inspections. Its final
+layout correction passed 182 Win32 tests with one skipped. See the
+[port log](windows-port-log.md) for exact binaries, saved evidence and scope.
+These results precede the `.15` distribution and do not by themselves verify
+its signed artifacts.
+
+An unfiltered `zig build test --summary all` run on the final source during
+`.15` preparation completed with exit 0: 91/91 steps succeeded, 4040 tests
+passed and 62 skipped. This run includes the fallback-layout correction.
+The log retains a `failed command:` line after two formatter roundtrip stderr
+messages; the same run reports `test success` and the successful counts above.
+Evidence: `zig-out/logs/windows15-full-zig-test.log` and
+`windows15-full-zig-test-exit.txt`.
+
+The `.15` baseline-CPU ReleaseFast build completed all 128 steps. Its unsigned
+`ghostty.exe` is 26,672,128 bytes with SHA-256
+`27742510382E1BB8CD8C56994304E6C24E7DF2F77AA039A143DAF778A3D62B6E`.
+It reports `1.3.2-windows.15` and numeric version `1.3.2.15`; `--version` and
+`+list-keybinds --default` both exited 0. The lifecycle test controls were
+ignored by this distribution build, with exit 0 and no leftover processes.
+
+Automated checks against that unsigned executable passed window-state and
+command-palette checks, parity with working-directory inheritance enabled and
+disabled, four modal-action cases, eight configuration-diagnostic cases,
+context-menu checks, and 20 soak iterations (116 seconds, all graceful exits).
+The window-state run covered four monitors at 96 DPI; it did not enable the
+optional scrollbar, renderer-wakeup, GPU-recovery or power-resume checks.
+The configuration startup-error image was visually inspected. The inspected
+palette and search captures contained another window, so their appearance is
+not verified by this run. These automated checks do not replace physical
+keyboard, mouse and IME acceptance of the installed preview.
+
+Evidence is saved under `zig-out/logs/`: `windows15-release-build.log`,
+`windows15-cli.json`, `windows15-hooks-disabled.json`,
+`windows15-window-state.json`, `windows15-parity.json`,
+`windows15-parity-no-inherit.json`, `modal-actions-20261015-194113-086.json`,
+`config-diagnostics-20261015-194118-383.json`, `windows15-context-menu.json`
+and `windows15-soak.json`.
+
+The signed staged executable is 26,683,248 bytes with SHA-256
+`72512E7B14C361B8C937BAE0921DBC963BE4EA7EE4496EA13C84539240DA18A7`.
+Its Authenticode signature is Valid and timestamped. Its `--version` and
+`+list-keybinds --default` checks exited 0, and the lifecycle hook-rejection
+check passed with exit 0, no forced termination and no leftover processes.
+
+The signed installer `ghostty-1.3.2-windows.15-x64-setup.exe` is 17,880,720
+bytes with SHA-256
+`FE09E927320F3632EEAE57A65C41371187AE69CF346440E58F64496F393C8DF5`.
+Its Authenticode signature is Valid and timestamped. Inno Setup completed
+with signed-uninstaller support enabled. Evidence:
+`zig-out/logs/windows15-installer-build.log`, `windows15-signed-artifacts.json`
+and `windows15-signed-hooks-disabled.json`.
+
+On 2026-10-15 the owner reported completing upgrade, uninstallation and
+installation checks, then confirmed terminal display, keyboard, mouse and
+Japanese IME operation in the installed `.15` preview. These are
+owner-reported results; no installation logs or additional runtime captures
+were supplied. This acceptance is separate from the signed staging-tree
+CLI checks above and does not establish a fix for the known IME defect below.
+
+### Known Limitations
+
+- Microsoft Japanese IME partial commit can leave the remaining composition
+  drawn over committed text (#48). The recorded committed text reaching the
+  shell is correct; the composition placement defect remains unfixed.
+- Broad screen-reader/COM acceptance, physical GPU-device-loss and sleep/resume
+  checks, and a several-hour soak remain separate open verification items.
+
 ## 1.3.2-windows.14
 
 - Released: 2026-09-29

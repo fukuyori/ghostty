@@ -141,7 +141,21 @@ and the release notes. The signed installer is available on
 This preview retains the current product name;
 rebranding remains tracked separately in [#31](https://github.com/fukuyori/ghostty/issues/31).
 
-The current Windows preview is `1.3.2-windows.14`, published from
+The working-tree Windows preview is `1.3.2-windows.15`, being prepared from
+`9c89f4057` before the Gooztty rename. The ReleaseFast build and automated
+unsigned-distribution checks passed, including 20 soak iterations. The signed
+installer and staged executable have Valid timestamped signatures; signed
+CLI and hook-rejection checks passed. On 2026-10-15 the owner reported
+completing upgrade, uninstallation and installation checks, then confirmed
+terminal display, keyboard, mouse and Japanese IME operation in the installed
+preview. These are owner-reported results; the known IME defect (#48) remains
+open. This version has not been published. See the
+[release notes](windows-release-notes.md#132-windows15) for evidence and the
+limits of the captured-image checks.
+The full Zig suite was rerun after the final fallback-layout correction:
+4040 passed, 62 skipped, 91/91 steps succeeded and exit 0.
+
+The latest published Windows preview is `1.3.2-windows.14`, published from
 `v1.3.2-windows.14` (`cdfeab50c`) on 2026-09-29. It adds DEC private mode 9001
 so ConPTY receives native Win32 key records and preserves the physical identity
 of Ctrl+Space. Source, unit, and physical-input verification passed before the

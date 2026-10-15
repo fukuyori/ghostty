@@ -9,6 +9,13 @@ known issues, and known limitations of each version; the
 
 ## Unreleased
 
+No changes recorded yet.
+
+## 1.3.2-windows.15 (preparing)
+
+Prepared from `9c89f4057`; release-artifact verification is recorded in the
+[release notes](windows-release-notes.md#132-windows15).
+
 ### Added
 
 - Add opt-in lifecycle failure injection and
