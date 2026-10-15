@@ -19,6 +19,7 @@ const TabBarAccessibility = @import("TabBarAccessibility.zig");
 const TabBarController = @import("TabBarController.zig");
 const Titlebar = @import("Titlebar.zig");
 const Window = @import("Window.zig");
+const WindowCommands = @import("WindowCommands.zig");
 const WindowAppearance = @import("WindowAppearance.zig");
 const WindowLayout = @import("WindowLayout.zig");
 const WindowState = @import("WindowState.zig");
@@ -238,7 +239,7 @@ pub fn newTabWithOptions(self: *App, target: apprt.Target, opts: Options) !bool 
 
     try initCoreSurface(self, surface, opts, .tab);
     TabBarAccessibility.notifyEvent(window, TabBarAccessibility.event_object_reorder);
-    App.activateWindowTab(self, window);
+    WindowCommands.activateWindowTab(self, window);
     log.info("created Win32 tab tabs={d}", .{window.tabCount()});
     return true;
 }

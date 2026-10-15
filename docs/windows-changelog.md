@@ -75,6 +75,12 @@ known issues, and known limitations of each version; the
 
 ### Changed
 
+- Extract window, tab and split navigation, tab reordering, split
+  resize/equalize/zoom, and tab activation into `WindowCommands.zig` for
+  [#12](https://github.com/fukuyori/ghostty/issues/12). Debug build, Win32
+  tests, window-state (with palette checks), parity and modal-action
+  regressions passed; a dedicated split/tab command check matched the
+  previous executable at every step. See the [port log](windows-port-log.md).
 - Extract window, tab, and split creation (including core surface
   initialization and rollback), close requests and confirmation, tab/window
   removal, and shutdown teardown into `WindowLifecycle.zig` for

@@ -5,6 +5,60 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-15: Window commands extraction (#12)
+
+- Add `WindowCommands.zig` for `goto_window`, `goto_tab`, `move_tab`,
+  `goto_split`, `resize_split`, `equalize_splits`, `toggle_split_zoom`, and
+  tab activation (`activateWindowTab`). App action dispatch calls the module;
+  CommandPalette, TabBarController and WindowLifecycle call
+  `WindowCommands.activateWindowTab`. Code is moved unchanged apart from App
+  helpers (`targetSurface`, `transferWindowState`, `presentSurface`) becoming
+  qualified calls.
+- `focusSearchPane` stays in App as the SearchBar entry point; the layout
+  table assigns it to no module. `presentSurface`, `toggleVisibility`,
+  `transferWindowState` and `showWindow` remain for the WindowState step.
+
+### Verification
+
+- Debug build: 128/128 steps (`zig-out/logs/window-commands-build.log`).
+  Win32 hook tests: 91/91 steps, 179 passed, one skipped, unchanged
+  (`window-commands-win32-tests.log`).
+- No tracked script exercises `move_tab`, `goto_split`, `resize_split`,
+  `equalize_splits` or `toggle_split_zoom`. An ad-hoc check
+  (`zig-out/test-fixtures/window-commands-check.ps1`, untracked) launches a
+  dedicated process with its own config and function-key bindings, posts
+  key messages to the focused pane, and records visible pane widths, the
+  focused pane, foreground state and the tab-bar accessible name after split
+  right, `goto_split:left`, `resize_split:right,40`, `equalize_splits`,
+  `toggle_split_zoom` twice, `new_tab`, `move_tab:-1` and `goto_tab:2`, then
+  quits. Compared with the previous `zig-out/review-fixes-v2/bin/ghostty.exe`,
+  two alternating runs of each matched at every step (widths 601/602 →
+  641/562 → 601/602, zoom 1204, tab order and active tab), all exit 0
+  without forced termination or crash/leak markers. Results:
+  `zig-out/logs/window-commands-*-20261015-1230*.json` and `-1231*.json`.
+- Retain the first comparison run: the new build recorded no focused pane
+  during the split steps, so keys went to the left pane and the final focus
+  differed (`window-commands-commands-20261015-123034-308.json`). Foreground
+  was not recorded in that run, so its cause is not established; after
+  adding foreground recording, all four runs had the window in the
+  foreground and matched.
+- `test-windows-window-state.ps1` passed, including `goto_window`
+  navigation, multi-window close/recreate and split click focus
+  (`window-state-20261015-123121-114-fc578e2e`); with `-TestCommandPalette`
+  the palette checks passed (`window-state-20261015-123145-786-1c19c122`).
+  Parity (including `goto_tab` cwd inheritance) and the four modal-action
+  cases passed; all exits 0 without forced termination. Parity and palette
+  captures inspected. No test processes remained.
+- Tested executable SHA-256
+  `3A6FDC1B53FBBB93ECB60EB1D607A71ED3531DB663E37114669AA482F5F586AE`.
+- Not exercised: command palette jump to another tab, physical input, and
+  grouped manual acceptance.
+
+### Handoff
+
+- Continue with `Keyboard.zig`. The WindowState additions (`showWindow`,
+  `transferWindowState`, `presentSurface`, `toggleVisibility`) also remain.
+
 ## 2026-10-15: Window lifecycle extraction (#12)
 
 - Add `WindowLifecycle.zig` for window, tab, and split creation, core

@@ -10,6 +10,7 @@ const TabBar = @import("TabBar.zig");
 const TabBarAccessibility = @import("TabBarAccessibility.zig");
 const TabTitles = @import("TabTitles.zig");
 const Window = @import("Window.zig");
+const WindowCommands = @import("WindowCommands.zig");
 const WindowLayout = @import("WindowLayout.zig");
 const WindowLifecycle = @import("WindowLifecycle.zig");
 
@@ -74,7 +75,7 @@ fn handleTabBarClick(self: *App, window: *Window, x: i32, y: i32) void {
     switch (tabBarHit(window, x, y)) {
         .none => {},
         .tab => |index| {
-            if (window.selectTab(.{ .n = index + 1 })) App.activateWindowTab(self, window);
+            if (window.selectTab(.{ .n = index + 1 })) WindowCommands.activateWindowTab(self, window);
         },
         .close => |index| {
             const surface = window.focusedSurfaceAt(index) orelse return;
@@ -82,10 +83,10 @@ fn handleTabBarClick(self: *App, window: *Window, x: i32, y: i32) void {
             _ = WindowLifecycle.closeTab(self, .{ .surface = core }, .this);
         },
         .scroll_previous => {
-            if (window.selectTab(.previous)) App.activateWindowTab(self, window);
+            if (window.selectTab(.previous)) WindowCommands.activateWindowTab(self, window);
         },
         .scroll_next => {
-            if (window.selectTab(.next)) App.activateWindowTab(self, window);
+            if (window.selectTab(.next)) WindowCommands.activateWindowTab(self, window);
         },
         .new_tab => {
             const core = window.focusedSurface().core_surface orelse return;
@@ -119,7 +120,7 @@ fn handleTabBarButtonDown(
     _ = win32.SetCapture(hwnd);
     if (hit == .tab) {
         const index = hit.tab;
-        if (window.selectTab(.{ .n = index + 1 })) App.activateWindowTab(self, window);
+        if (window.selectTab(.{ .n = index + 1 })) WindowCommands.activateWindowTab(self, window);
     }
 }
 
@@ -162,7 +163,7 @@ fn handleTabBarDoubleClick(
         .tab => |value| value,
         else => return,
     };
-    if (window.selectTab(.{ .n = index + 1 })) App.activateWindowTab(self, window);
+    if (window.selectTab(.{ .n = index + 1 })) WindowCommands.activateWindowTab(self, window);
     _ = TabTitles.promptTabTitle(self, window, index) catch |err| {
         log.warn("failed to prompt for tab title: {}", .{err});
         return;
@@ -238,7 +239,7 @@ fn handleTabBarWheel(
         .previous
     else
         .next;
-    if (window.selectTab(selection)) App.activateWindowTab(self, window);
+    if (window.selectTab(selection)) WindowCommands.activateWindowTab(self, window);
 }
 
 fn cancelTabBarPointer(window: *Window) void {
@@ -313,7 +314,7 @@ pub fn wndProc(
             const window = getTabBarWindow(hwnd) orelse return 0;
             if (wparam == 0 or wparam > window.tabCount()) return 0;
             if (window.selectTab(.{ .n = wparam })) {
-                App.activateWindowTab(window.focusedSurface().rtApp(), window);
+                WindowCommands.activateWindowTab(window.focusedSurface().rtApp(), window);
             }
             return 0;
         },

@@ -10,6 +10,7 @@ const log = std.log.scoped(.win32);
 const Config = @import("../../config/Config.zig");
 const input = @import("../../input.zig");
 const Surface = @import("Surface.zig");
+const WindowCommands = @import("WindowCommands.zig");
 
 /// Opening a modal dialog directly from a core key callback lets the modal
 /// message loop destroy that callback's surface before the callback returns.
@@ -99,7 +100,7 @@ pub fn showForSurface(app: *App, source: *Surface) anyerror!void {
             const core = jump.surface.core_surface orelse return;
             if (core.id != jump.id) return;
             _ = window.setFocusedSurface(jump.surface);
-            App.activateWindowTab(app, window);
+            WindowCommands.activateWindowTab(app, window);
             _ = App.presentSurface(jump.surface);
         },
     }
