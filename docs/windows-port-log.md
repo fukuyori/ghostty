@@ -113,8 +113,26 @@ Final pass required by roadmap Section 7 (goal 4), on `windows` at
   - Not exercised: an IPC request exceeding the 5 s UI timeout and injected
     creation failures (rollback paths), which need fault injection not
     present in the build (the rollback work is tracked as
-    [#49](https://github.com/fukuyori/ghostty/issues/49)); and grouped
-    manual acceptance.
+    [#49](https://github.com/fukuyori/ghostty/issues/49)).
+  - Grouped manual checks (roadmap Section 7, "Verification": input,
+    display and IPC, batched by area). Covered in this pass: keyboard and
+    Japanese IME, AltGr (below), divider and tab-bar dragging (owner-reported),
+    the 96/120 DPI move and layout, GPU recovery and power resume (hook
+    build, during the WndProc step), and real `+new-tab` requests.
+  - The remaining grouped areas, physical mouse input and appearance, were
+    then checked by the owner with the same executable
+    (`zig-out/test-fixtures/grouped-manual/`, `session-20261015-172856.json`,
+    `keys-25632.jsonl`, `zig-out/logs/grouped-manual-20261015-172856.stderr.log`).
+    The owner reported every item as OK; the process exited 0 with no crash
+    or leak markers. Evidenced by the records: drag selection, context-menu
+    Copy and Paste delivering `two-words-here` to the recorder; two splits
+    created (context menu and F3); 19 configuration reloads; the Gaussian
+    backdrop blur applied (`standard_deviation=20`) after
+    `background-blur = true`; and `window-theme = light` as the final
+    configuration. Owner-confirmed only: double- and triple-click selection,
+    wheel scrolling, click focus between panes, background opacity and the
+    `window-theme = ghostty` title-bar colors at startup, the `dark` theme,
+    and high contrast on and off (no log entry is written for these).
   - AltGr: after the owner added the German (de-DE, `0407:00000407`) layout,
     an owner-operated check with the same executable passed in the key
     recorder (`zig-out/test-fixtures/altgr-manual/keys-37572.jsonl`,
