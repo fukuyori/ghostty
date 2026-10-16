@@ -95,7 +95,7 @@ The 2026-09-22 integration of upstream `bd1c82bc5` followed its move of GPU shad
 
 #### 5. IME, DPI, and Accessibility
 
-- This fork handles `WM_IME_*`, converts terminal grid-cell positions to pixels, and calls `ImmSetCompositionWindow` with `CFS_POINT` / `CFS_RECT` to position Japanese IME candidates near the cursor. It also handles `WM_DPICHANGED` across monitors, high contrast, and MSAA tab elements through `TabBarAccessibility.zig`.
+- This fork handles `WM_IME_*`, converts terminal grid-cell positions to pixels, and calls `ImmSetCompositionWindow` with `CFS_POINT` to position the native Japanese IME composition window. While composition is active, a UI-thread timer follows asynchronous terminal cursor movement, including partial commits; tracking stops on composition end, focus loss or surface destruction. The #48 correction passed automated and owner-operated acceptance on 2026-10-16 (see the [port log](windows-port-log.md#2026-10-16-partial-ime-commit-diagnostics-48)). The fork also handles `WM_DPICHANGED` across monitors, high contrast, and MSAA tab elements through `TabBarAccessibility.zig`.
 - `noctty` supports IME and per-monitor DPI and has work on exposing controls through UI Automation.
 
 ---

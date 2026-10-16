@@ -49,7 +49,7 @@ upstream → `main` → `windows` → `gooztty`.
 - **Own features.** Features and behavior extensions not provided by upstream are implemented on `gooztty`, preferably as new files under `src/apprt/win32/` (or other fork-owned locations) with minimal wiring changes. F4-F8 are not in this category. Windows-support work continues on `windows` for the lifetime of both branches.
 - **Documentation.** After `gooztty` is created, the README, `docs/windows*.md` (except `docs/windows-port-log.md`), the roadmap, release notes, changelog, and `docs/version-update-checklist.md` are maintained on `gooztty`. `windows` records its synchronization results, Windows-support implementations, design decisions and verification evidence in `docs/windows-port-log.md`, which `gooztty` never edits, so the log merges without conflicts. When such an entry reaches `gooztty`, the roadmap's status and verification entries are updated there in the same merge or an immediately following documentation change. `README.md` exists in upstream: on `windows`, resolve README conflicts by keeping the `windows` text; on `gooztty`, by keeping the `gooztty` text and porting relevant upstream changes by hand.
 - **Releases and versions.** Releases are built from `gooztty`; `windows` publishes nothing after `gooztty` is created, and existing `1.3.2-windows.N` tags remain records of the old name. `dist/windows/version.txt` is edited only on `gooztty` from then on; `windows` leaves it as it was at the cutover, so it does not conflict. Gooztty continues the existing `X.Y.Z-windows.N` sequence while the base stays the same. After each `windows` → `gooztty` merge, check that the numeric base in `version.txt` still matches `build.zig.zon` (required by `scripts/windows-version.ps1`) and reconcile it on `gooztty` when upstream changed the base, following `docs/version-update-checklist.md`. Tags stay unique across the repository.
-- **Cutover and PR routing.** Create `gooztty` immediately before rename implementation, after the advance Windows-support work. The GitHub default branch remains an open decision for Phase 2; PR targets follow the responsibility of the change (`windows` for upstream-feature Windows support, `gooztty` for branding and independent extensions), regardless of the default. Update `AGENTS.md` on each branch at cutover. Until then, current development and distribution stay on `windows`.
+- **Cutover and PR routing.** Create `gooztty` immediately before rename implementation, after the advance Windows-support work and the owner-run release following F8. The GitHub default branch remains an open decision for Phase 2; PR targets follow the responsibility of the change (`windows` for upstream-feature Windows support, `gooztty` for branding and independent extensions), regardless of the default. Update `AGENTS.md` on each branch at cutover. Until then, current development and distribution stay on `windows`.
 
 | Example | Owning branch | Reason |
 |---|---|---|
@@ -153,8 +153,13 @@ for execution order.
 
 ### Advance work before rename integration
 
-The planned order is: diagnose/fix #48 and implement F4-F8 on `windows`,
-then perform branch cutover immediately before the rename.
+The #48 correction and its acceptance checks are complete (2026-10-16;
+see the [port log](windows-port-log.md#2026-10-16-partial-ime-commit-diagnostics-48)).
+The remaining planned order is: implement F4-F8 on `windows`,
+then the owner performs a release under the current Ghostty name. Branch
+cutover follows that release, immediately before the rename. Release
+operations remain with the owner; this schedule authorizes no packaging,
+signing, tagging or publication by the agent.
 Clarify F4-F8 specifications early; implement each only after its open
 decisions are resolved. Existing-feature hardware checks (#5-#10), rename
 inventory, icon preparation and migration/verification drafts also move
@@ -221,8 +226,10 @@ open as of 2026-10-16; verification completion does not record its closure.
 The earlier extraction records also retain limits for OpenGL,
 forced Acrylic fallback, terminal/divider capture loss and broader
 COM/WinEvent/screen-reader acceptance. The ISO-only AltGr+< key was not
-tested. The partial IME commit defect is tracked separately in
-[#48](https://github.com/fukuyori/ghostty/issues/48). These limits and the
+tested. The separate partial IME commit defect
+[#48](https://github.com/fukuyori/ghostty/issues/48) was corrected and passed
+automated and owner-operated Japanese IME acceptance on 2026-10-16.
+These other limits and the
 distinction between logged results and owner reports remain in the port log.
 
 F4-F8 have no dependency on branch cutover or renaming: implement them on

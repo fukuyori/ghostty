@@ -33,6 +33,11 @@ pub fn wndProc(
     wparam: win32.WPARAM,
     lparam: win32.LPARAM,
 ) callconv(.winapi) win32.LRESULT {
+    if (comptime @import("../../build_config.zig").win32_test_hooks) {
+        if (getSurface(hwnd)) |surface| {
+            if (hwnd == surface.hwnd) @import("ImeDiagnostics.zig").message(surface, msg, wparam, lparam);
+        }
+    }
     switch (msg) {
         TestHooks.WM_CONTROL => return TestHooks.control(hwnd, wparam, lparam),
         win32.WM_DROPFILES => {
@@ -162,7 +167,14 @@ pub fn wndProc(
             return 0;
         },
         win32.WM_SETTINGCHANGE, win32.WM_SYSCOLORCHANGE, win32.WM_THEMECHANGED => return WindowAppearance.refreshTheme(hwnd),
-        win32.WM_IME_STARTCOMPOSITION => return Keyboard.imeStartComposition(hwnd, msg, wparam, lparam),
+        win32.WM_IME_STARTCOMPOSITION,
+        win32.WM_IME_COMPOSITION,
+        win32.WM_IME_ENDCOMPOSITION,
+        => return Keyboard.imeComposition(hwnd, msg, wparam, lparam),
+        win32.WM_TIMER => {
+            if (Keyboard.imeTimer(hwnd, wparam)) return 0;
+            return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
+        },
         win32.WM_PAINT => {
             // Validate the update region here. The renderer thread owns the
             // WGL context and presents completed frames with SwapBuffers.

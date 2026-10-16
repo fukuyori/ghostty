@@ -17,6 +17,9 @@ const log = std.log.scoped(.win32);
 /// code untouched.
 const vk_processkey: win32.WPARAM = @intFromEnum(win32.VK_PROCESSKEY);
 
+// Terminal-child timer; distinct from ImeDiagnostics' observation timer.
+const ime_timer_id = 0x494D46;
+
 pub fn getModifiers() input.Mods {
     var mods: input.Mods = .{};
     if (win32.GetKeyState(0x10) < 0) {
@@ -519,6 +522,7 @@ fn handleTextInput(
 
 pub fn handleFocus(surface: *Surface, focused: bool) void {
     if (!focused) {
+        stopImeComposition(surface);
         surface.pending_text_key = null;
         surface.pending_high_surrogate = null;
         surface.suppressed_char_keycode = null;
@@ -533,25 +537,27 @@ pub fn handleFocus(surface: *Surface, focused: bool) void {
     }
 }
 
-fn handleImeStartComposition(surface: *Surface, hwnd: win32.HWND) void {
+fn updateImePosition(surface: *Surface) void {
+    if (!surface.ime_composing) return;
     const core = surface.core_surface orelse return;
 
     const cursor = cursor: {
         core.renderer_state.mutex.lockUncancelable(global.io());
         defer core.renderer_state.mutex.unlock(global.io());
-        break :cursor core.renderer_state.terminal.screens.active.cursor;
+        const cursor = core.renderer_state.terminal.screens.active.cursor;
+        break :cursor .{ .x = cursor.x, .y = cursor.y };
     };
-
-    const context = win32.ImmGetContext(hwnd) orelse {
-        log.debug("IME composition started without an input context", .{});
-        return;
-    };
-    defer _ = win32.ImmReleaseContext(hwnd, context);
 
     const point: win32.POINT = .{
         .x = @intCast(cursor.x * core.size.cell.width + core.size.padding.left),
         .y = @intCast(cursor.y * core.size.cell.height + core.size.padding.top),
     };
+    if (surface.ime_position) |previous| {
+        if (point.x == previous.x and point.y == previous.y) return;
+    }
+
+    const context = win32.ImmGetContext(surface.hwnd) orelse return;
+    defer _ = win32.ImmReleaseContext(surface.hwnd, context);
     var form: win32.COMPOSITIONFORM = .{
         .dwStyle = win32.CFS_POINT,
         .ptCurrentPos = point,
@@ -560,20 +566,55 @@ fn handleImeStartComposition(surface: *Surface, hwnd: win32.HWND) void {
     if (win32.ImmSetCompositionWindow(context, &form) == 0) {
         log.warn("ImmSetCompositionWindow failed", .{});
     } else {
+        surface.ime_position = point;
         log.debug("positioned IME composition window x={d} y={d}", .{ point.x, point.y });
     }
 }
 
-pub fn imeStartComposition(
+pub fn stopImeComposition(surface: *Surface) void {
+    if (surface.ime_composing) _ = win32.KillTimer(surface.hwnd, ime_timer_id);
+    surface.ime_composing = false;
+    surface.ime_position = null;
+}
+
+pub fn imeComposition(
     hwnd: win32.HWND,
     msg: u32,
     wparam: win32.WPARAM,
     lparam: win32.LPARAM,
 ) win32.LRESULT {
     if (WndProc.getSurface(hwnd)) |surface| {
-        if (hwnd == surface.hwnd) handleImeStartComposition(surface, hwnd);
+        if (hwnd == surface.hwnd) {
+            switch (msg) {
+                win32.WM_IME_STARTCOMPOSITION => {
+                    surface.ime_composing = true;
+                    surface.ime_position = null;
+                    // Committed text reaches the terminal asynchronously,
+                    // after WM_IME_COMPOSITION/WM_CHAR return. Keep following
+                    // the cursor for the whole composition instead of assuming
+                    // one posted callback or a fixed delay is sufficient.
+                    if (win32.SetTimer(hwnd, ime_timer_id, 16, null) == 0)
+                        log.warn("could not start IME position timer", .{});
+                    updateImePosition(surface);
+                },
+                win32.WM_IME_COMPOSITION => updateImePosition(surface),
+                win32.WM_IME_ENDCOMPOSITION => stopImeComposition(surface),
+                else => unreachable,
+            }
+        }
     }
+    // Preserve the native clause/candidate UI and the existing committed
+    // text path. DefWindowProc generates the WM_CHAR messages as before.
     return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
+}
+
+pub fn imeTimer(hwnd: win32.HWND, timer_id: win32.WPARAM) bool {
+    if (timer_id != ime_timer_id) return false;
+    if (WndProc.getSurface(hwnd)) |surface| {
+        if (hwnd == surface.hwnd) updateImePosition(surface);
+    }
+    // A queued timer message after cancellation must not restart tracking.
+    return true;
 }
 
 pub fn character(hwnd: win32.HWND, wparam: win32.WPARAM, lparam: win32.LPARAM) win32.LRESULT {

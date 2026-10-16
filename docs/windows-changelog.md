@@ -9,8 +9,28 @@ known issues, and known limitations of each version; the
 
 ## Unreleased
 
+### Changed
+
+- Follow the terminal cursor throughout native IME composition (#48),
+  including asynchronous cursor movement after a partial commit. Stop
+  tracking on composition end, focus loss and surface destruction.
+  Controlled placement/lifecycle and existing input/window regressions
+  passed. The owner confirmed that partial commit no longer overlaps;
+  the final text was `庭にはにわ` and the test process exited with code 0.
+
+### Diagnostics
+
+- Add opt-in message, cursor and IMM composition-position tracing for #48,
+  enabled only with `-Dwin32-test-hooks=true` and
+  `GHOSTTY_TEST_IME_TRACE=1`. Add `scripts/test-windows-ime.ps1` for a
+  dedicated owner-operated reproduction, and
+  `scripts/test-windows-ime-position.ps1` for controlled asynchronous
+  placement and tracking-lifecycle checks.
+
 ### Documentation
 
+- Schedule an owner-run release from `windows` after F8 acceptance and
+  before branch cutover, retaining the current Ghostty name for that release.
 - Apply the corrected roadmap review: schedule pending build/distribution
   name indirection and verified upstream synchronization before cutover;
   separate F8 feature acceptance from new-name integration; link F6 snapshot

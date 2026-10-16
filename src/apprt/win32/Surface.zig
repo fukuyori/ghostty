@@ -5,6 +5,7 @@ const Self = @This();
 
 const std = @import("std");
 const TestHooks = @import("LifecycleTestHooks.zig");
+const ImeDiagnostics = @import("ImeDiagnostics.zig");
 const brand = @import("../../brand.zig");
 const win32 = @import("win32").everything;
 const build_config = @import("../../build_config.zig");
@@ -29,6 +30,10 @@ app: ?*App = null,
 hdc: ?win32.HDC = null,
 hglrc: ?win32.HGLRC = null,
 core_surface: ?*CoreSurface = null,
+ime_diagnostics: ImeDiagnostics.State = .{},
+/// UI-thread-only tracking of the native IME composition window.
+ime_composing: bool = false,
+ime_position: ?win32.POINT = null,
 /// Successful renderer GPU resource rebuilds. This is observed only by the
 /// opt-in Windows recovery regression hook.
 gpu_recovery_count: std.atomic.Value(u32) = .init(0),
@@ -157,6 +162,8 @@ pub fn init(
 }
 
 pub fn deinit(self: *Self) void {
+    @import("Keyboard.zig").stopImeComposition(self);
+    ImeDiagnostics.stop(self);
     win32.DragAcceptFiles(self.hwnd, 0);
     if (self.scrollbar) |bar| {
         bar.deinit();

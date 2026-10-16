@@ -5,6 +5,89 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-16: Partial IME commit diagnostics (#48)
+
+- Started schedule step 1 on the owner's instruction. Before correction,
+  the code set
+  the composition position only at `WM_IME_STARTCOMPOSITION`; saved input
+  evidence contains the correct final `庭にはにわ` despite the reported
+  overlap. This establishes the observed symptom, not its cause.
+- `ImeDiagnostics.zig` observes start/composition/end, `WM_CHAR`, focus
+  loss and cursor changes sampled during composition. Each record includes
+  `GetTickCount64`, the terminal child handle, flags, cursor coordinates,
+  the expected cell origin, the IMM composition form and string lengths.
+  The IMM form is configuration readback, not proof of the actual drawn
+  position; visual inspection is still required. The trace does not log
+  input text and never changes IME placement or consumes IME messages.
+- Tracing requires both `-Dwin32-test-hooks=true` and
+  `GHOSTTY_TEST_IME_TRACE=1`. The observation timer stops on composition
+  end, focus loss and surface destruction. Normal builds disable tracing.
+- `scripts/test-windows-ime.ps1` launches a dedicated recorder, saves
+  completed lines/UTF-8 bytes separately, and captures the executable hash,
+  stderr and exit status. Typed input is not executed as shell commands.
+  Build with `zig build -Dwin32-test-hooks=true --prefix zig-out/ime-diagnostics`,
+  then run `./scripts/test-windows-ime.ps1` and reproduce the partial commit.
+- Diagnostic Debug build: 128/128 steps passed. Win32 tests with hooks:
+  182 passed, one skipped, 91/91 steps passed. Window-state regression with
+  tracing enabled passed terminal input, IME process-key suppression,
+  startup grid, split focus, config reload, multi-window/monitor and window
+  lifecycle checks; exit 0, no forced termination or remaining test process.
+  Logs: `zig-out/logs/ime-diagnostics-build.log`,
+  `ime-diagnostics-tests.log`, `ime-diagnostics-window-state.log` and
+  `window-state-20261016-151127-560-3d1cb264.stderr.log` in the same directory.
+- The owner reproduced the overlap with the diagnostic executable
+  (`3CC3F0E906172943AEEE1D923F9C8D70E8D590EA5DC75ABE86AD2A0DAB3F2E2C`).
+  Evidence: `zig-out/test-fixtures/ime-20261016-164646-305/`.
+  At tick 88407875, a `WM_IME_COMPOSITION` notification with flags `0x1db8`
+  had six result bytes and four remaining composition bytes. The following
+  three `WM_CHAR` notifications still saw cursor column 7 and point (72,86).
+  At tick 88407906, the cursor was at column 13 and point (132,86), but IMM
+  still reported (72,86). It remained there until the next commit more than
+  eight seconds later. This confirms the missing position update after
+  asynchronous terminal output. Exit was 0, with no crash/leak marker.
+  This run did not save an Enter-terminated line; the earlier final-text
+  evidence above is a separate run.
+- `Keyboard.zig` now follows the cursor on the UI thread throughout native
+  composition, updating `CFS_POINT` only when the cell-origin coordinates
+  change. A 16 ms window timer observes later terminal output; it does not
+  assume that output completes within a fixed delay. Composition end,
+  focus loss and surface destruction cancel tracking. All composition
+  messages still reach `DefWindowProc`, preserving the native clause UI
+  and the existing committed-character delivery.
+- `scripts/test-windows-ime-position.ps1` exercises two delayed PTY cursor
+  moves during one composition, end/focus cancellation (including queued
+  timer messages), restart and close while composing. The opt-in diagnostic
+  query (`WM_USER + 113`, integer correlation ID only) records IMM readback
+  and tracking state. All six check groups passed with exit 0 and no
+  crash/leak marker; evidence is in
+  `zig-out/test-fixtures/ime-position-20261016-165235-107/`. After excluding
+  the diagnostic dispatch from normal builds, all six groups passed again
+  in `zig-out/test-fixtures/ime-position-20261016-165446-667/`; the diagnostic
+  executable hash is `59116E1B21218C43BD9FAA36901317068964DC49FC556E3835528BA641947DC8`.
+  The corrected build also passed Win32 tests (182 passed, one skipped)
+  and window-state regression (exit 0, no forced termination); logs are
+  `zig-out/logs/ime-fix-tests.log` and `ime-fix-window-state.log`.
+- Final normal and diagnostic Debug builds passed 128/128 steps each
+  (`ime-fix-normal-build.log` and `ime-fix-build.log` in `zig-out/logs`).
+  The normal build passed window-state regression with exit 0 and no forced
+  termination (`ime-fix-normal-window-state.log`). Even with the trace
+  environment variable set, its stderr contained no `win32_ime_trace`
+  records, confirming that diagnostics were disabled.
+- Physical Japanese IME acceptance passed on 2026-10-16. The owner confirmed
+  that the remaining composition no longer overlaps the partially committed
+  text. Evidence: `zig-out/test-fixtures/ime-20261016-165519-925/`, using the
+  corrected executable hash above. At tick 92990453 the partial commit
+  arrived with six result bytes and four remaining composition bytes; at
+  tick 92990484 the terminal point and IMM form both read (132,86). After
+  composition end, subsequent character records show `tracking=false`.
+  The probe saved `庭にはにわ` with UTF-8
+  `E5BAADE381ABE381AFE381ABE3828F`. The process exited with code 0, no
+  crash/leak marker and no remaining test process. Schedule step 1 is Done.
+- On the owner's instruction, issue #48 was closed as completed on
+  2026-10-16 after this acceptance. The correction and documentation were
+  still local working-tree changes at closure; no commit or push was
+  performed as part of the closure request.
+
 ## 2026-10-16: Roadmap review and pre-cutover prerequisites
 
 Claude Code CLI reviewed `7b2c255fb`; a follow-up covered the initially unread

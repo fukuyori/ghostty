@@ -103,7 +103,9 @@ CLI checks above and does not establish a fix for the known IME defect below.
 
 - Microsoft Japanese IME partial commit can leave the remaining composition
   drawn over committed text (#48). The recorded committed text reaching the
-  shell is correct; the composition placement defect remains unfixed.
+  shell is correct; this defect is present in the `.15` build described here.
+  The subsequent correction and its 2026-10-16 acceptance are recorded in the
+  [port log](windows-port-log.md#2026-10-16-partial-ime-commit-diagnostics-48).
 - Broad screen-reader/COM acceptance, physical GPU-device-loss and sleep/resume
   checks, and a several-hour soak remain separate open verification items.
 

@@ -57,7 +57,9 @@ F1-F3 are complete. The revised 2026-10-16 schedule advances F4-F8 before
 the product rename: design the remaining features early, then implement
 F4 → F5 → F6 → F7 → F8 on `windows`. They implement upstream Ghostty
 features on Windows and are not Gooztty-specific. Neither branch cutover
-nor renaming is a prerequisite. This is a priority
+nor renaming is a prerequisite. After F8 acceptance, the owner performs a
+release from `windows` under the current Ghostty name before branch cutover.
+This is a priority
 order, not a strict implementation dependency. Resolve each feature's open
 specifications before its implementation. Only integration checks requiring
 the new application identity, paths or installer wait for the renamed build;
@@ -321,7 +323,7 @@ Treat `desktop_notification` and `command_finished` separately. Preserve upstrea
 
 Verify registration and activation for the current product identity on
 `windows` where required by the chosen API. The new Gooztty identity is
-revalidated after the rename in roadmap step 9. Record that integration
+revalidated after the rename in roadmap step 10. Record that integration
 check separately from F8's Windows-feature acceptance; do not defer current
 identity checks merely because a later rename is planned.
 

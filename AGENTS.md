@@ -23,7 +23,9 @@ tooling around them.
 - Changes flow upstream → `main` → `windows` → `gooztty`. Fix port defects
   on `windows` first, including those found while running Gooztty. Fix rename
   and Gooztty-specific defects on `gooztty`; never merge it into `windows`.
-- F4-F8 proceed on `windows` before the rename. Create `gooztty` immediately
+- F4-F8 proceed on `windows` before the rename. After F8 acceptance, the
+  owner performs a release under the current Ghostty name. Then create
+  `gooztty` immediately
   before rename implementation, when instructed, after completing the
   build/distribution/output name-indirection mechanisms with unchanged
   Ghostty values and verifying the pre-cutover upstream synchronization.

@@ -158,8 +158,10 @@ installer and staged executable have Valid timestamped signatures; signed
 CLI and hook-rejection checks passed. On 2026-10-15 the owner reported
 completing upgrade, uninstallation and installation checks, then confirmed
 terminal display, keyboard, mouse and Japanese IME operation in the installed
-preview. These are owner-reported results; the known IME defect (#48) remains
-open. See the
+preview. These are owner-reported results; the partial IME commit defect
+(#48) was present in that preview. Its subsequent correction and physical
+acceptance on 2026-10-16 are recorded in the
+[port log](windows-port-log.md#2026-10-16-partial-ime-commit-diagnostics-48). See the
 [release notes](windows-release-notes.md#132-windows15) for evidence and the
 limits of the captured-image checks.
 The full Zig suite was rerun after the final fallback-layout correction:
@@ -1276,7 +1278,7 @@ checks; this roadmap owns ordering and status.
 | Independent | F5 | HTML and mixed clipboard output | [#34](https://github.com/fukuyori/ghostty/issues/34) | Not started | Settle plain fallback for HTML-only copies; verify CF_HTML offsets, Japanese text, rich/plain paste, and existing OSC 52 behavior |
 | Later design | F6 | Session save/restore: `window-save-state` | [#35](https://github.com/fukuyori/ghostty/issues/35) | Not started | Decide Windows defaults, saved scope, format, startup precedence, invalid state, and working-directory limits before implementation; if persisting terminal snapshots, resolve the #43 mode-bit ordering and snapshot-compatibility concern first |
 | Later design | F7 | Quick terminal and `global:` bindings | [#24](https://github.com/fukuyori/ghostty/issues/24) | Not started | Decide Win32 semantics for each setting; verify hotkey conflicts, focus, reload, multiple monitors, and clean exit |
-| Later design | F8 | Desktop and command-finish notifications | [#21](https://github.com/fukuyori/ghostty/issues/21) | Not started | Separate OSC notifications from shell-dependent command completion; verify policy, delivery, activation, and unavailable notifications using the current product identity. Revalidate new-name registration/activation separately in Section 7 step 9 |
+| Later design | F8 | Desktop and command-finish notifications | [#21](https://github.com/fukuyori/ghostty/issues/21) | Not started | Separate OSC notifications from shell-dependent command completion; verify policy, delivery, activation, and unavailable notifications using the current product identity. Revalidate new-name registration/activation separately in Section 7 step 10 |
 
 At the 2026-09-26 checkpoint, F3's main normal-window Explorer scenarios had
 real input evidence and the elevated-window limit had been observed. F1 and F2
@@ -1412,7 +1414,7 @@ feature plan reflect the results.
 These gates cover upstream-compatible Windows behavior with the current
 product identity. F8 must verify notification registration and activation
 for that identity where required by its chosen API. Revalidation with the
-new Gooztty identity belongs to Section 7 step 9 and is recorded separately;
+new Gooztty identity belongs to Section 7 step 10 and is recorded separately;
 it does not replace the Windows-feature acceptance checks.
 
 Other shared capabilities remain candidates: tab overview, structural
@@ -1422,7 +1424,8 @@ scope must be reassessed after F1-F8; they are not part of Phase 7 completion.
 ## 7. Next Steps
 
 The schedule was revised on 2026-10-16: fix #48 and implement F4-F8 on
-`windows` before the rename. Create `gooztty` immediately before rename
+`windows` before the rename, then the owner performs a release under the
+current Ghostty name. Create `gooztty` immediately before rename
 implementation, then verify the renamed product. Branch creation is not a
 prerequisite for upstream-feature Windows support. The
 [rebranding plan](windows-rebranding-plan.md) retains
@@ -1455,15 +1458,24 @@ packaging. Resolve open specifications before implementing the affected item.
 
 | Order | Work | Branch | Completion condition / dependency |
 |---|---|---|---|
-| 1 | Diagnose and fix partial IME commit overlap (#48) | `windows` | Reproduce, correlate IME messages and cursor/placement logs, establish the cause, then verify the fix with regression checks and physical Japanese IME operation |
+| 1 | Diagnose and fix partial IME commit overlap (#48) | `windows` | Done — cause confirmed from the reproduction trace; cursor-following correction, automated regressions and owner-operated Japanese IME acceptance passed on 2026-10-16 |
 | 2 | F4 taskbar progress (#33) | `windows` | Resolve multi-pane state selection, implement and verify progress states, cleanup and a supporting application |
 | 3 | F5 HTML clipboard (#34) | `windows` | Resolve plain/HTML/mixed behavior, implement and verify CF_HTML offsets and actual paste destinations |
 | 4 | F6 session save/restore (#35) | `windows` | Decide scope, format, save timing and startup precedence before implementation; verify restoration and failure handling |
 | 5 | F7 quick terminal/global bindings (#24) | `windows` | Decide hotkey conflicts, focus and monitor behavior before implementation; verify with real keys and another foreground app |
 | 6 | F8 desktop/command-finish notifications (#21) | `windows` | Decide API, shell reporting, install-state requirements and click behavior; implement and verify upstream-compatible Windows support. New Gooztty identity integration is separate |
-| 7 | Branch workflow (rebranding Phase 2), immediately before the rename | `windows` → `gooztty` | First complete build/distribution/output name indirection on `windows` with unchanged values and the pre-cutover upstream synchronization checks below. Decide the default branch, route PRs by responsibility, create `gooztty` on instruction, and update branch-specific AGENTS/documentation. F4-F8 do not depend on this step |
-| 8 | Integrate the Gooztty name (rebranding Phases 5-8) | `gooztty` | Select the agreed product-name values using the mechanisms already implemented on `windows`; apply the icon, installer identity and documentation changes, and verify build/UI/configuration/terminal/distribution outputs including F4-F8 naming sites |
-| 9 | Acceptance requiring the renamed application | `gooztty` | Verify final names/paths/resources/terminal identity, notification identity and activation where applicable, signed artifacts, fresh/side-by-side installation and removal, and the final integrated runtime |
+| 7 | Owner-run release after F8 | `windows` | After steps 1-6 and their acceptance checks, the repository owner performs the release under the current Ghostty name, before branch cutover. This schedule does not authorize the agent to build packages, sign, tag or publish |
+| 8 | Branch workflow (rebranding Phase 2), immediately before the rename | `windows` → `gooztty` | First complete build/distribution/output name indirection on `windows` with unchanged values and the pre-cutover upstream synchronization checks below. Decide the default branch, route PRs by responsibility, create `gooztty` on instruction, and update branch-specific AGENTS/documentation. F4-F8 do not depend on this step |
+| 9 | Integrate the Gooztty name (rebranding Phases 5-8) | `gooztty` | Select the agreed product-name values using the mechanisms already implemented on `windows`; apply the icon, installer identity and documentation changes, and verify build/UI/configuration/terminal/distribution outputs including F4-F8 naming sites |
+| 10 | Acceptance requiring the renamed application | `gooztty` | Verify final names/paths/resources/terminal identity, notification identity and activation where applicable, signed artifacts, fresh/side-by-side installation and removal, and the final integrated runtime |
+
+Step 1 is Done (2026-10-16). The owner's reproduction and trace confirmed
+that the IME position remains at the old origin after asynchronous terminal
+output advances the cursor. A correction now follows the cursor during
+composition. Win32 tests, controlled asynchronous-position/lifecycle checks
+and window-state regression passed. The owner confirmed that the corrected
+build no longer overlaps; the probe recorded `庭にはにわ` and exit 0. See the
+[diagnostic record](windows-port-log.md#2026-10-16-partial-ime-commit-diagnostics-48).
 
 #### Additional work before the rename
 
@@ -1475,8 +1487,8 @@ does not have to wait for the preceding feature's implementation.
 |---|---|
 | Real-hardware verification (#5-#10) | On the existing-name build: 144/192 DPI, high contrast, screen readers, actual sleep/resume, several-hour endurance and real GPU-loss recovery. Schedule with the required hardware and owner-operated checks; fix Windows-support defects on `windows` |
 | F4-F8 specifications | Resolve open decisions early, before implementing each feature. Separate any new-name-dependent integration from upstream-compatible Windows behavior |
-| Build, distribution and output name indirection | Implement on `windows` with `ghostty` values before step 7. Extend the runtime name module to build/resource generation, installed outputs, CLI parsing and PowerShell tooling; decide how tools receive the shared values. Verify unchanged names, paths and behavior before cutover. Preserve source-file names and other exceptions listed in the rebranding plan |
-| Upstream synchronization before cutover | Before step 7, check the upstream state, select and record the integration revision, synchronize through `main` into `windows`, and pass the build/tests and affected runtime checks. Record the range and results in the port log; reconcile Zig/dependency changes with #50. The 2026-10-12 baseline alone does not satisfy this later check |
+| Build, distribution and output name indirection | Implement on `windows` with `ghostty` values before step 8. Extend the runtime name module to build/resource generation, installed outputs, CLI parsing and PowerShell tooling; decide how tools receive the shared values. Verify unchanged names, paths and behavior before cutover. Preserve source-file names and other exceptions listed in the rebranding plan |
+| Upstream synchronization before cutover | Before step 8, check the upstream state, select and record the integration revision, synchronize through `main` into `windows`, and pass the build/tests and affected runtime checks. Record the range and results in the port log; reconcile Zig/dependency changes with #50. The 2026-10-12 baseline alone does not satisfy this later check |
 | Rename preparation | Inventory naming sites including F4-F8, prepare icon assets, and draft migration instructions and acceptance cases. This does not apply the product rename or require early creation of `gooztty` |
 | Zig migration (#50) | Advance investigation and preparation on `windows`; migration and regression checks require upstream's Zig 0.17 support to be complete. This schedule does not assert that the prerequisite is met |
 | Other recorded acceptance gaps | Track Windows 10, search-specific physical IME/mixed-DPI checks, OpenGL, forced Acrylic fallback, terminal/divider capture loss and remaining accessibility checks against their existing evidence. Schedule checks when their environments are available; the completion of historical phases does not prove these checks passed |
@@ -1489,7 +1501,7 @@ Windows 10 acceptance from the historical Phase 1-6 completion labels.
 
 #### Verification after the rename
 
-Step 9 uses the renamed build and covers:
+Step 10 uses the renamed build and covers:
 
 - Product names and icons in the UI, CLI, file properties and accessibility.
 - Configuration/resource paths, terminal identity, shell integration and
@@ -1891,8 +1903,8 @@ create `gooztty` when requested, decide the default branch and pull-request
 target, and perform the documentation/AGENTS cutover described in the
 [rebranding plan](windows-rebranding-plan.md#12-branch-tiers).
 
-Under the revised schedule, that branch workflow is Section 7 step 7:
-after #48 and F4-F8, with the name-indirection and upstream-synchronization
+Under the revised schedule, that branch workflow is Section 7 step 8:
+after #48, F4-F8 and the owner-run release, with the name-indirection and upstream-synchronization
 prerequisites above satisfied. It is not the next overall project task.
 
 The name indirection is a fork-owned `src/brand.zig` usable by the runtime and
@@ -1902,7 +1914,7 @@ IPC pipe prefix, the recovery test environment variables, the Gaussian effect
 class string); `IpcProtocol.zig`'s `GHTYIPC1` signature is referenced from it
 without changing its bytes. Build and distribution sites (executable name,
 `ghostty.rc`, resource layout, release and installer scripts, test scripts)
-remain pending and are explicitly scheduled before step 7. Their implementation
+remain pending and are explicitly scheduled before step 8. Their implementation
 stays on `windows`; the product values remain `ghostty` until the rename.
 
 Verification: every split commit runs the build, the Win32 Zig tests, and
@@ -2678,14 +2690,15 @@ limit was exercised. IPC timeout and creation-failure rollback (#49) now
 have a separate follow-up row below. OpenGL,
 forced Acrylic fallback, terminal/divider capture loss, broader accessibility
 acceptance and the ISO-only AltGr+< key remain outside the recorded final
-pass. The partial IME commit defect (#48) is tracked separately.
+pass. The partial IME commit correction (#48) has its own verification row.
 
 | Category | Test item | Current |
 |---|---|---|
+| Input | Partial IME commit overlap (#48) | Done (2026-10-16). The trace confirmed that the terminal cursor moved after the commit notification while the IMM composition point stayed at the old origin. Cursor tracking during composition corrects the placement. Normal and diagnostic Debug builds passed 128/128 steps; Win32 tests passed 182 with one skipped; six controlled placement/lifecycle groups and window-state regressions passed. The owner confirmed no overlap during physical Japanese IME partial commit; the probe recorded `庭にはにわ`, matching UTF-8 bytes, exit 0 and no crash/leak marker. See the [port log](windows-port-log.md#2026-10-16-partial-ime-commit-diagnostics-48) for hashes and logs |
 | Win32 lifecycle | Creation rollback (#49) and IPC UI timeout | 2026-10-15, follow-up verified as working-tree changes based on `653033b4c`: 33 creation cases plus four IPC cases passed, no forced termination/crash/leak diagnostics or observed process leftovers. Ordinary-build test controls were rejected; normal tab creation/exit, window-state and four modal-action cases passed. Win32 tests with and without hooks each passed 182 tests, one skipped; the full suite before the fallback-layout correction passed 4039 tests with 63 skipped, 91/91 steps, exit 0. The port log explains the misleading `failed command:` line from the Zig runner. Image inspection exposed a reserved strip with no tab bar; a native-geometry assertion reproduced it. After correction, hook-enabled Win32 tests passed 182 tests, one skipped; both owner-run desktop Debug builds passed 128/128 steps including `tic`, all 37 capture-enabled cases passed with zero fallback insets, and all four images passed inspection. Normal-build control rejection also passed. Desktop acceptance is complete for this scope. The later full suite during `.15` preparation included the correction: 4040 passed, 62 skipped, 91/91 steps, exit 0. #49 remains open as of 2026-10-16. See the [port log](windows-port-log.md#2026-10-15-creation-rollback-and-ipc-ui-timeout-49) for hashes, logs and injection limits |
 | Win32 review fixes | Modal lifetime and accessible names | 2026-10-14: Debug 128/128, Win32 179 passed/one skipped, four modal-action scenarios, eight config-diagnostic scenarios, window-state and three file-drop modes passed. Rename plus shell exit: baseline exit 3, fixed exit 0. Native key/pointer checks preserved close target after an earlier tab exited; new-tab/renamed focused names and reordered tab metadata matched. Owner confirmed Narrator title speech and automatic new-tab final-title announcement; broad COM/WinEvent and terminal-content acceptance remain open; see the port log |
 | Configuration | Diagnostic dialog lifetime | Fixed by displaying queued diagnostics outside core callbacks on 2026-10-14. Baseline owner-close reproduced exit 3; final Debug build, Win32 tests (178 passed, one skipped), eight diagnostic lifecycle scenarios, and normal window regression passed. Captures inspected; all final GUI cases exited 0 without forced termination and no dedicated processes remained. See the port log |
-| Win32 restructuring | Final verification pass (#12) | On 2026-10-15 at `92d3a5d25`: full Zig test suite (91/91 steps, 4037 passed, 62 skipped), window-state with palette checks, parity, context-menu and a 20-run soak (20/20) passed, all exits 0 without forced termination. Owner-operated physical check of tabs, splits, Japanese IME (terminal and tab-title dialog), a 96/120 DPI move and IPC `+new-tab` passed with exit 0. The overlay-scrollbar check, blocked by another window in the unmodified script on both this and the previous executable, passed with the topmost copy (exit 0). Follow-up fixtures passed for file drop, palette jumps, float-on-top, reset window size, the configuration editor, startup maximize/fullscreen and IPC `+new-tab` arguments (`--title`, `--working-directory`, and an `-e` command distinguished from the default shell). An owner-operated German-layout check passed AltGr symbols (`@€{[]}\~`), Ctrl+Alt equivalence, dead keys (`âé`) and Ctrl+C, exit 0. Grouped manual checks covered keyboard/IME, dragging, DPI/layout, recovery and IPC, and a later owner-operated check covered physical mouse input and appearance (blur application and paste logged; the rest owner-confirmed), exit 0. IPC timeout and injected creation failures (#49) were left for the follow-up above; #48 remains open |
+| Win32 restructuring | Final verification pass (#12) | On 2026-10-15 at `92d3a5d25`: full Zig test suite (91/91 steps, 4037 passed, 62 skipped), window-state with palette checks, parity, context-menu and a 20-run soak (20/20) passed, all exits 0 without forced termination. Owner-operated physical check of tabs, splits, Japanese IME (terminal and tab-title dialog), a 96/120 DPI move and IPC `+new-tab` passed with exit 0. The overlay-scrollbar check, blocked by another window in the unmodified script on both this and the previous executable, passed with the topmost copy (exit 0). Follow-up fixtures passed for file drop, palette jumps, float-on-top, reset window size, the configuration editor, startup maximize/fullscreen and IPC `+new-tab` arguments (`--title`, `--working-directory`, and an `-e` command distinguished from the default shell). An owner-operated German-layout check passed AltGr symbols (`@€{[]}\~`), Ctrl+Alt equivalence, dead keys (`âé`) and Ctrl+C, exit 0. Grouped manual checks covered keyboard/IME, dragging, DPI/layout, recovery and IPC, and a later owner-operated check covered physical mouse input and appearance (blur application and paste logged; the rest owner-confirmed), exit 0. IPC timeout and injected creation failures (#49) were left for the follow-up above; #48 was unresolved in this run and later passed the separate correction checks above |
 | Win32 restructuring | `IpcHandler.zig` extraction (#12) | Debug build, Win32 tests (179 passed, one skipped), IPC `+new-tab` (tab created, client exit 0, fallback reported) and no-server client output matched the previous executable; window-state with palette checks, parity, four modal-action cases and eight config-diagnostic cases passed on 2026-10-15; these GUI regressions all exited 0 without forced termination. The IPC test servers were ended by their own PID after the `Close Terminal?` check, and the no-server client exited 1 as expected. Parity initially failed on both executables while the system cursor was suppressed and passed after the owner moved the mouse. IPC timeout, `+new-tab` arguments and grouped manual acceptance remain |
 | Win32 restructuring | `WndProc.zig` extraction (#12) | Debug build, Win32 tests (179 passed, one skipped), window-state with palette checks, GPU recovery and power resume on a hook build, the split/tab command check, parity, four modal-action cases, eight config-diagnostic cases and the context-menu check passed on 2026-10-15; all exits 0 without forced termination. The moved window procedure is identical apart from `pub`. File drop in this run, physical input and grouped manual acceptance remain |
 | Win32 restructuring | `Actions.zig` extraction (#12) | Debug build, Win32 tests (179 passed, one skipped), window-state with palette checks, the split/tab command check, parity, four modal-action cases and eight config-diagnostic cases passed on 2026-10-15; all exits 0 without forced termination. The dispatch body differs from HEAD only in its name. Actions without a regression path and grouped manual acceptance remain |
@@ -2720,7 +2733,7 @@ pass. The partial IME commit defect (#48) is tracked separately.
 | Release | `1.3.2-windows.12` | Source: `0327dbce1`. ReleaseFast metadata and combined F1/F2 regression passed; final soak 20/20 (119.596 s). Signed installer, staged executable, and uninstaller signatures Valid and upgrade from `.11`, installed runtime, uninstallation cleanup, config preservation, and reinstallation verified. The published installer was re-downloaded with matching size/hash and a Valid timestamped signature. The first installed scrollbar-history measurement timed out; an unchanged rerun passed |
 | Release | `1.3.2-windows.13` | Source: `v1.3.2-windows.13` (`9a45da6f7`). ReleaseFast build passed 128/128 steps and reports `1.3.2-windows.13`, numeric `1.3.2.13`, x64 WindowsGui, ReleaseFast. CLI version and default-keybinding checks exited 0. Signed staged executable and installer signatures are Valid and timestamped; the uninstaller was signed during compilation. The published installer size and SHA-256 match the local artifact. Owner confirmed real display and basic input plus installation, upgrade from `.12`, and uninstallation on real hardware. A separate installed-tree inspection remains |
 | Release | `1.3.2-windows.14` | Source: `v1.3.2-windows.14` (`cdfeab50c`) for Win32 input mode (#43). Source verification passed targeted/libghostty-vt/full tests and physical input through bundled and OS ConPTY. ReleaseFast passed 128/128 steps and reports `1.3.2-windows.14`, numeric `1.3.2.14`, x64 WindowsGui, ReleaseFast. CLI checks exited 0. The staged executable and installer signatures are Valid and timestamped; the uninstaller was signed during compilation. The published installer was downloaded again with matching size and SHA-256 and a Valid timestamped signature. The owner confirmed installation, upgrade, installed-runtime execution, and uninstallation on real hardware |
-| Release | `1.3.2-windows.15` | Final full Zig suite: 4040 passed, 62 skipped, 91/91 steps, exit 0. ReleaseFast build passed 128/128 steps; unsigned distribution passed CLI, hook rejection, window-state/palette, parity, modal/config-diagnostic/context-menu checks and 20/20 soak. Local staged executable and installer signatures were Valid and timestamped; signed CLI and hook rejection passed. Owner confirmed upgrade, uninstall/install, terminal display, keyboard, mouse and Japanese IME. #48 remains open. See the release notes for capture limitations and evidence |
+| Release | `1.3.2-windows.15` | Final full Zig suite: 4040 passed, 62 skipped, 91/91 steps, exit 0. ReleaseFast build passed 128/128 steps; unsigned distribution passed CLI, hook rejection, window-state/palette, parity, modal/config-diagnostic/context-menu checks and 20/20 soak. Local staged executable and installer signatures were Valid and timestamped; signed CLI and hook rejection passed. Owner confirmed upgrade, uninstall/install, terminal display, keyboard, mouse and Japanese IME. #48 was present in this build; the subsequent correction is recorded in the separate input row. See the release notes for capture limitations and evidence |
 | Fonts | Configured family matching (#1) | 2026-09-28: missing-family warnings reached diagnostic stderr; English family names, localized Yu Gothic records, typographic family records, full-name rejection, and agreement between `+list-fonts --family` and configured discovery were measured. The Windows guide documents exact-name checking. No code change was required |
 | Fonts | Configured style selection (#2) | 2026-09-28: targeted Windows tests selected Arial Regular/Bold/Italic/Bold Italic and rejected a missing explicit style; Moralerspace Neon selected separate Regular/Bold files and synthesized missing italic styles. Captured Latin and Japanese output showed the four distinct styles without missing glyphs or visible cell overflow. System fallback remains unchanged |
 | Fonts | Fallback size adjustment (#3) | 2026-09-28: Cascadia Code NF with automatic/explicit BIZ UDGothic passed at 12/16/24 pt and 96/120/144/192 DPI; Noto Sans JP passed at 16 pt and 96 DPI. Moralerspace Neon supplied the real primary `ic_width` glyph `水` while missing `龘` exercised a separate `微軟正黑體` fallback. Two-cell placement, baseline, and clipping were normal. The configured/fallback size asymmetry remains the upstream `.none`/`.ic_width` behavior, so no code or setting was added |

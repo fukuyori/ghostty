@@ -139,6 +139,11 @@ pub fn init(
     else
         false);
 
+    @import("ImeDiagnostics.zig").init(if (environ.get(brand.env_prefix ++ "TEST_IME_TRACE")) |value|
+        std.mem.eql(u8, value, "1")
+    else
+        false);
+
     self.* = .{
         .core_app = core_app,
         .config = config_ptr,
