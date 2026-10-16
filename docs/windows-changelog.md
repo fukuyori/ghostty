@@ -11,6 +11,12 @@ known issues, and known limitations of each version; the
 
 ### Documentation
 
+- Apply the corrected roadmap review: schedule pending build/distribution
+  name indirection and verified upstream synchronization before cutover;
+  separate F8 feature acceptance from new-name integration; link F6 snapshot
+  compatibility conditions; reconcile later verification evidence, status
+  labels and code references. Record remaining environment and distribution
+  decisions without changing implementation or release policy.
 - Clarify branch responsibilities: upstream-feature Windows support,
   including F4-F8, and port fixes belong on `windows`; branding and features
   or behavior extensions absent from upstream belong on `gooztty`. Classify

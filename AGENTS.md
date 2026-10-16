@@ -24,8 +24,11 @@ tooling around them.
   on `windows` first, including those found while running Gooztty. Fix rename
   and Gooztty-specific defects on `gooztty`; never merge it into `windows`.
 - F4-F8 proceed on `windows` before the rename. Create `gooztty` immediately
-  before rename implementation, when instructed. Branch creation, naming
-  changes, and feature implementation are separate actions.
+  before rename implementation, when instructed, after completing the
+  build/distribution/output name-indirection mechanisms with unchanged
+  Ghostty values and verifying the pre-cutover upstream synchronization.
+  Branch creation, naming changes, and feature implementation are separate
+  actions.
 
 See `docs/windows-rebranding-plan.md` Section 1.2 for the full boundary and
 `docs/windows-roadmap.md` Section 7 for the schedule.
@@ -101,6 +104,10 @@ the exit code.
   `docs/windows-roadmap.md` (implementation status and verification matrix),
   `docs/windows-release-notes.md`, `docs/windows-changelog.md`, and
   `docs/version-update-checklist.md`
+- Windows development records: `docs/windows-port-log.md` (synchronization,
+  implementation decisions and verification evidence),
+  `docs/windows-upstream-feature-plan.md` (feature scope and acceptance), and
+  `docs/windows-rebranding-plan.md` (branch responsibilities and rename plan)
 
 Keep changes to shared core files minimal and guarded by
 `builtin.os.tag == .windows` or `build_config`, so that upstream merges stay

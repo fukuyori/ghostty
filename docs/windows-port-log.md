@@ -5,6 +5,35 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-16: Roadmap review and pre-cutover prerequisites
+
+Claude Code CLI reviewed `7b2c255fb`; a follow-up covered the initially unread
+roadmap sections and reassessed the findings. This entry records documentation
+changes only, not implementation or newly executed runtime verification.
+
+- The current sequence is #48 and F4-F8 on `windows`, followed by branch
+  cutover immediately before the rename. Earlier entries' "next rebranding
+  phase" or "next step" describe the plan at those checkpoints; use the
+  [current schedule](windows-roadmap.md#schedule-before-and-after-the-rename)
+  for execution order.
+- Runtime name indirection exists, but the build/distribution/output scope
+  remains a separate task on `windows` with unchanged `ghostty` values.
+  The executable build name and PowerShell release paths still use literal
+  product names. This task and upstream synchronization with verification
+  are explicit pre-cutover prerequisites; the completed Win32 file
+  restructuring stays complete.
+- F8 acceptance uses the current product identity. New-name registration
+  and activation are revalidated after renaming. F6 links to the #43 mode-bit
+  compatibility review if its design adopts persistent terminal snapshots.
+- Verification rows now reference the later physical mouse, tab and
+  high-contrast reports without asserting unrecorded component coverage.
+  Windows 10 and other environment-dependent gaps remain pending. The
+  emergency-distribution route during rename implementation remains an
+  owner decision; no release policy was changed.
+- Feature status labels and the current action-dispatch reference were
+  reconciled. Historical evidence and withdrawn review claims were not
+  rewritten as current defects.
+
 ## 2026-10-16: Preview .15 verification reconciliation
 
 - The saved `zig-out/logs/windows15-full-zig-test.log` reports 91/91 steps

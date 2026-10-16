@@ -1274,9 +1274,9 @@ checks; this roadmap owns ordering and status.
 | 3 | F3 | Explorer file/directory drop into a pane | [#32](https://github.com/fukuyori/ghostty/issues/32) | Done | Owner captured single/multiple PowerShell drops without Enter, `%`/`!` rejection warnings, cmd double quoting without Enter, and right-split-only delivery in development builds. Normal Explorer could not drop into an elevated test window. A real drag held over a Debug target until its scheduled shell exit confirmed clean target-window closure and cancellation without Explorer errors |
 | Independent | F4 | Taskbar progress from `progress_report` and `progress-style` | [#33](https://github.com/fukuyori/ghostty/issues/33) | Not started | Decide active-pane policy; verify normal, paused, error, indeterminate, and cleared states with a controlled sequence and a real emitting app |
 | Independent | F5 | HTML and mixed clipboard output | [#34](https://github.com/fukuyori/ghostty/issues/34) | Not started | Settle plain fallback for HTML-only copies; verify CF_HTML offsets, Japanese text, rich/plain paste, and existing OSC 52 behavior |
-| Later design | F6 | Session save/restore: `window-save-state` | [#35](https://github.com/fukuyori/ghostty/issues/35) | Not started | Decide Windows defaults, saved scope, format, startup precedence, invalid state, and working-directory limits before implementation |
+| Later design | F6 | Session save/restore: `window-save-state` | [#35](https://github.com/fukuyori/ghostty/issues/35) | Not started | Decide Windows defaults, saved scope, format, startup precedence, invalid state, and working-directory limits before implementation; if persisting terminal snapshots, resolve the #43 mode-bit ordering and snapshot-compatibility concern first |
 | Later design | F7 | Quick terminal and `global:` bindings | [#24](https://github.com/fukuyori/ghostty/issues/24) | Not started | Decide Win32 semantics for each setting; verify hotkey conflicts, focus, reload, multiple monitors, and clean exit |
-| Later design | F8 | Desktop and command-finish notifications | [#21](https://github.com/fukuyori/ghostty/issues/21) | Not started | Separate OSC notifications from shell-dependent command completion; verify policy, delivery, activation, and unavailable notifications |
+| Later design | F8 | Desktop and command-finish notifications | [#21](https://github.com/fukuyori/ghostty/issues/21) | Not started | Separate OSC notifications from shell-dependent command completion; verify policy, delivery, activation, and unavailable notifications using the current product identity. Revalidate new-name registration/activation separately in Section 7 step 9 |
 
 At the 2026-09-26 checkpoint, F3's main normal-window Explorer scenarios had
 real input evidence and the elevated-window limit had been observed. F1 and F2
@@ -1409,6 +1409,12 @@ tests. Section 9 gives the common verification floor. Phase 7 is Done only
 when F1-F8 each pass their acceptance gate and the verification matrix and
 feature plan reflect the results.
 
+These gates cover upstream-compatible Windows behavior with the current
+product identity. F8 must verify notification registration and activation
+for that identity where required by its chosen API. Revalidation with the
+new Gooztty identity belongs to Section 7 step 9 and is recorded separately;
+it does not replace the Windows-feature acceptance checks.
+
 Other shared capabilities remain candidates: tab overview, structural
 undo/redo, and the background-opacity toggle. Their value and compatibility
 scope must be reassessed after F1-F8; they are not part of Phase 7 completion.
@@ -1455,8 +1461,8 @@ packaging. Resolve open specifications before implementing the affected item.
 | 4 | F6 session save/restore (#35) | `windows` | Decide scope, format, save timing and startup precedence before implementation; verify restoration and failure handling |
 | 5 | F7 quick terminal/global bindings (#24) | `windows` | Decide hotkey conflicts, focus and monitor behavior before implementation; verify with real keys and another foreground app |
 | 6 | F8 desktop/command-finish notifications (#21) | `windows` | Decide API, shell reporting, install-state requirements and click behavior; implement and verify upstream-compatible Windows support. New Gooztty identity integration is separate |
-| 7 | Branch workflow (rebranding Phase 2), immediately before the rename | `windows` → `gooztty` | Decide the default branch, route PRs by responsibility, create `gooztty` on instruction, and update branch-specific AGENTS/documentation. F4-F8 do not depend on this step |
-| 8 | Integrate the Gooztty name (rebranding Phases 5-8) | `gooztty` | Apply the agreed name/icon to build, UI, configuration, terminal identity, distribution tooling and documentation; include F4-F8 naming sites |
+| 7 | Branch workflow (rebranding Phase 2), immediately before the rename | `windows` → `gooztty` | First complete build/distribution/output name indirection on `windows` with unchanged values and the pre-cutover upstream synchronization checks below. Decide the default branch, route PRs by responsibility, create `gooztty` on instruction, and update branch-specific AGENTS/documentation. F4-F8 do not depend on this step |
+| 8 | Integrate the Gooztty name (rebranding Phases 5-8) | `gooztty` | Select the agreed product-name values using the mechanisms already implemented on `windows`; apply the icon, installer identity and documentation changes, and verify build/UI/configuration/terminal/distribution outputs including F4-F8 naming sites |
 | 9 | Acceptance requiring the renamed application | `gooztty` | Verify final names/paths/resources/terminal identity, notification identity and activation where applicable, signed artifacts, fresh/side-by-side installation and removal, and the final integrated runtime |
 
 #### Additional work before the rename
@@ -1469,11 +1475,17 @@ does not have to wait for the preceding feature's implementation.
 |---|---|
 | Real-hardware verification (#5-#10) | On the existing-name build: 144/192 DPI, high contrast, screen readers, actual sleep/resume, several-hour endurance and real GPU-loss recovery. Schedule with the required hardware and owner-operated checks; fix Windows-support defects on `windows` |
 | F4-F8 specifications | Resolve open decisions early, before implementing each feature. Separate any new-name-dependent integration from upstream-compatible Windows behavior |
+| Build, distribution and output name indirection | Implement on `windows` with `ghostty` values before step 7. Extend the runtime name module to build/resource generation, installed outputs, CLI parsing and PowerShell tooling; decide how tools receive the shared values. Verify unchanged names, paths and behavior before cutover. Preserve source-file names and other exceptions listed in the rebranding plan |
+| Upstream synchronization before cutover | Before step 7, check the upstream state, select and record the integration revision, synchronize through `main` into `windows`, and pass the build/tests and affected runtime checks. Record the range and results in the port log; reconcile Zig/dependency changes with #50. The 2026-10-12 baseline alone does not satisfy this later check |
 | Rename preparation | Inventory naming sites including F4-F8, prepare icon assets, and draft migration instructions and acceptance cases. This does not apply the product rename or require early creation of `gooztty` |
 | Zig migration (#50) | Advance investigation and preparation on `windows`; migration and regression checks require upstream's Zig 0.17 support to be complete. This schedule does not assert that the prerequisite is met |
+| Other recorded acceptance gaps | Track Windows 10, search-specific physical IME/mixed-DPI checks, OpenGL, forced Acrylic fallback, terminal/divider capture loss and remaining accessibility checks against their existing evidence. Schedule checks when their environments are available; the completion of historical phases does not prove these checks passed |
 
 Unavailable hardware and upstream prerequisites remain explicit pending
 conditions; they do not turn these items into rename-dependent work.
+Windows 10 remains unverified. Its relationship to the Windows 10/11
+criterion in Section 3 remains an open acceptance decision; do not infer
+Windows 10 acceptance from the historical Phase 1-6 completion labels.
 
 #### Verification after the rename
 
@@ -1537,8 +1549,10 @@ Goals:
    `scripts/test-windows-context-menu.ps1`, `scripts/test-windows-soak.ps1`,
    and a GUI check of tabs, splits, IME, DPI, and IPC.
 5. The name indirection is placed on `windows` (rebranding plan, Section 2,
-   decided 2026-10-12). Add it during this step with `ghostty` values, so
-   that the baseline exists before `gooztty` is created.
+   decided 2026-10-12). Runtime identifiers were centralized during the
+   restructuring. Build, distribution and output-name indirection remains
+   a separate pre-cutover task in Section 7, with `ghostty` values unchanged.
+   Its remaining scope does not reopen the completed file restructuring.
 
 The concrete file split was recorded on 2026-10-12, after the first two
 splits (`WindowState.zig` for #45 and `ShellOpen.zig` for #36), and revised
@@ -1877,6 +1891,10 @@ create `gooztty` when requested, decide the default branch and pull-request
 target, and perform the documentation/AGENTS cutover described in the
 [rebranding plan](windows-rebranding-plan.md#12-branch-tiers).
 
+Under the revised schedule, that branch workflow is Section 7 step 7:
+after #48 and F4-F8, with the name-indirection and upstream-synchronization
+prerequisites above satisfied. It is not the next overall project task.
+
 The name indirection is a fork-owned `src/brand.zig` usable by the runtime and
 the build, holding the current `ghostty` values. Runtime identifiers move to
 it first (window classes, display name and titles, branded dialog text, the
@@ -1884,7 +1902,8 @@ IPC pipe prefix, the recovery test environment variables, the Gaussian effect
 class string); `IpcProtocol.zig`'s `GHTYIPC1` signature is referenced from it
 without changing its bytes. Build and distribution sites (executable name,
 `ghostty.rc`, resource layout, release and installer scripts, test scripts)
-follow in separate commits. Values do not change in Phase 1.
+remain pending and are explicitly scheduled before step 7. Their implementation
+stays on `windows`; the product values remain `ghostty` until the rename.
 
 Verification: every split commit runs the build, the Win32 Zig tests, and
 `scripts/test-windows-window-state.ps1` against the new executable. Manual
@@ -2719,7 +2738,7 @@ pass. The partial IME commit defect (#48) is tracked separately.
 | Input | Shift+Insert clipboard paste (#37) | 2026-09-28: Windows retains `paste_from_clipboard` instead of replacing it with unsupported selection paste. The targeted default-keybinding test and Debug build passed; physical Shift+Insert pasted `SHIFT_INSERT_37_OK` exactly once and displayed PASS |
 | Input | Shift text in Kitty keyboard disambiguation mode | 2026-09-17: consumed-modifier and encoding tests passed; actual `:`, `?`, and `!` input in antigravity confirmed by the owner |
 | Input | Numpad digits and operators | 2026-09-17: `0`, `1`, `.`, and `+` arrive once in normal, Kitty disambiguation, and application keypad modes (before: twice); actual numpad input confirmed by the owner |
-| Input | Mouse and clipboard | `1.3.2-windows.11`: OSC 22 cursor shapes, hide/restore on typing, and blank-row context-menu behavior tested on Debug and ReleaseFast builds. Physical pointer/input regression remains |
+| Input | Mouse and clipboard | `1.3.2-windows.11`: OSC 22 cursor shapes, hide/restore on typing, and blank-row context-menu behavior tested on Debug and ReleaseFast builds. The 2026-10-15 grouped manual check subsequently covered physical selection, copy/paste, wheel and pane focus: selection and paste have logged evidence; double/triple click, wheel and focus are owner-confirmed. See the final restructuring row and port log; terminal/divider capture-loss acceptance remains separate |
 | Terminal | ConPTY resize | `1.3.2-windows.11`: backend disables scrollback pull; reset/resize unit regression and eight native resize cycles with search/input continuity passed; Debug and ReleaseFast coverage |
 | Terminal | ConPTY read failure handling (#39) | 2026-09-28: targeted error classification and Win32 exec tests passed. A normal child exit and closing the abnormal-exit display after forced child termination both ended Ghostty with status 0 and no leftover processes; the standard window-state check also exited cleanly. Live `ReadFile` error injection was not performed |
 | Shell | OSC 7 cwd inheritance | `1.3.2-windows.11`: native local-drive paths supported for windows, tabs and splits; Unicode/space paths and remote/Unix-path rejection tested on Debug and ReleaseFast builds. WSL/MSYS translation remains unsupported |
@@ -2734,9 +2753,9 @@ pass. The partial IME commit defect (#48) is tracked separately.
 | Pane | Create, move, resize, close | Basically verified |
 | Pane | Mouse drag of dividers | Verified in the executable binary |
 | Pane | Normal and hover rendering of dividers | Verified in the 96 DPI executable binary |
-| GUI | High contrast rendering | Implemented for dividers, tab bar, and title bar, real environment verification needed |
+| GUI | High contrast rendering | Implemented for dividers, tab bar and title bar. F1/F2 high-contrast display was owner-confirmed on 2026-09-26; the 2026-10-15 grouped check also includes owner-reported high contrast on/off. That report does not enumerate divider/tab-bar/title-bar checks individually; reconcile those component checks against #6 before marking its full scope complete |
 | GUI state | Split zoom state display | Verified in the executable binary |
-| Tab | Key operations | Default bindings verified, regression verification of actual operation needed |
+| Tab | Key operations | Default bindings verified. Controlled tab-command regression and owner-operated tab checks passed during the 2026-10-15 restructuring acceptance; see the final verification row and port log. The grouped report is not an exhaustive per-binding checklist; record any remaining binding-specific gaps separately |
 | Tab | Accessibility | Individual tabs checked via MSAA; terminal child names and drag-reorder metadata corrected on 2026-10-14 and inspected through Computer Use. Earlier owner title speech failed; after the fix, the owner confirmed title speech and automatic new-tab final-title announcement. Tab-role/ordinal, broad COM and terminal-content acceptance remain open |
 | Tab | Tab bar rendering | Verified |
 | Tab | All tab bar click operations | Verified |

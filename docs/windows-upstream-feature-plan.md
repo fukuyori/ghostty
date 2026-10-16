@@ -36,7 +36,7 @@ Distinguish information about public noctty `1.3.130` from code in the local `1.
 
 The investigation covered feature entry points, main logic, state management, and parts of related tests. It did not audit all code, build or run tests, or compare behavior on a real machine. A test's presence is not evidence that it passes or that real behavior works. Value and effort below are code-review estimates, not measurements or schedule commitments.
 
-Roadmap Phases 1-6 record earlier milestones. This plan expands feature coverage afterward without changing their historical completion records. It does not replace the rebranding priority (#31) or pending hardware checks.
+Roadmap Phases 1-6 record earlier milestones. This plan expands feature coverage afterward without changing their historical completion records. Under the 2026-10-16 schedule, F4-F8 precede branch cutover and the rename (#31); pending hardware checks are also scheduled before the rename when their environments are available.
 
 ## 3. Priority and Development Units
 
@@ -47,9 +47,9 @@ Roadmap Phases 1-6 record earlier milestones. This plan expands feature coverage
 | F3 | File drag and drop | Enter long or multiple paths from Explorer | Medium to high | Implemented; PowerShell/cmd quoting, rejection, pane targeting, elevated-window restriction, and target-window closure checked | [#32](https://github.com/fukuyori/ghostty/issues/32) |
 | F4 | Taskbar progress | See supported applications' progress outside the terminal | Low to medium | Not started | [#33](https://github.com/fukuyori/ghostty/issues/33) |
 | F5 | HTML clipboard output | Paste formatted terminal output into documents | Low to medium | Not started | [#34](https://github.com/fukuyori/ghostty/issues/34) |
-| F6 | Session save and restore | Reduce rebuilding tabs, splits, and working locations | High | Awaiting design | [#35](https://github.com/fukuyori/ghostty/issues/35) |
-| F7 | Quick terminal and global bindings | Invoke the terminal from another app | High | Awaiting design | [#24](https://github.com/fukuyori/ghostty/issues/24) |
-| F8 | Desktop and command-finish notifications | Report long-running command completion | Medium to high; depends on shell reporting | Awaiting design | [#21](https://github.com/fukuyori/ghostty/issues/21) |
+| F6 | Session save and restore | Reduce rebuilding tabs, splits, and working locations | High | Not started | [#35](https://github.com/fukuyori/ghostty/issues/35) |
+| F7 | Quick terminal and global bindings | Invoke the terminal from another app | High | Not started | [#24](https://github.com/fukuyori/ghostty/issues/24) |
+| F8 | Desktop and command-finish notifications | Report long-running command completion | Medium to high; depends on shell reporting | Not started | [#21](https://github.com/fukuyori/ghostty/issues/21) |
 
 On 2026-09-23, the plan was added to existing #17, #23, #24, and #21, and #32-#35 were created. Broader issue #25 also covers progress and command-finish notifications, so #33 and #21 link to it. Existing #15 separately tracks the quick-terminal CLI/IPC path.
 
@@ -301,6 +301,12 @@ Upstream depends on the macOS restoration mechanism. Noctty uses its own JSON fo
 
 First design Windows defaults for `window-save-state`, save timing, format and migration, and restoration scope for windows, tabs, splits, titles, and working directories. Consider precedence against `-e` and an explicit startup directory, corruption and interrupted writes, missing directories, and changed monitor layouts.
 
+If the selected scope includes persistent terminal snapshots, first resolve
+the mode 9001 bit-43/upstream ordering and snapshot-format compatibility
+concern recorded under #43 in the [roadmap](windows-roadmap.md). Record that
+decision before fixing the persistence format. This is conditional; it does
+not add terminal snapshots to the agreed scope by itself.
+
 Do not present this as resuming running processes. Current PowerShell integration does not automatically report the working directory, so the exit-time directory may be unavailable. Exclude noctty-specific history snapshots and named layouts.
 
 ### F7: Quick Terminal and Global Bindings
@@ -312,6 +318,12 @@ Noctty substitutes ordinary focus acquisition for exclusive-input requests in on
 ### F8: Desktop and Command-Finish Notifications
 
 Treat `desktop_notification` and `command_finished` separately. Preserve upstream enable/disable, focus conditions, elapsed-time thresholds, and notification actions. Decide Windows notification API use, install-state requirements, click destinations, and unavailable-notification behavior first.
+
+Verify registration and activation for the current product identity on
+`windows` where required by the chosen API. The new Gooztty identity is
+revalidated after the rename in roadmap step 9. Record that integration
+check separately from F8's Windows-feature acceptance; do not defer current
+identity checks merely because a later rename is planned.
 
 Command-finish notifications require shell integration or OSC 133 start/end data. Adding notification UI alone cannot detect arbitrary PowerShell command completion. Do not add noctty-specific automatic PowerShell integration under this plan.
 
@@ -349,12 +361,13 @@ Update this plan, `windows.md`, `windows-roadmap.md`, and `windows-changelog.md`
 
 ## 9. Code References
 
-Local references use the commits in Section 2.
+Historical investigation references use the commits in Section 2. Rows
+marked "Current" point to the working-tree layout after Win32 restructuring.
 
 | Target | Reference |
 |---|---|
 | Upstream config and actions | [`Config.zig`](../src/config/Config.zig), [`action.zig`](../src/apprt/action.zig), [`Binding.zig`](../src/input/Binding.zig) |
-| Current Win32 action handling | [`App.zig`](../src/apprt/win32/App.zig) `performAction` |
+| Current Win32 action handling | [`Actions.zig`](../src/apprt/win32/Actions.zig) `perform`, called by [`App.zig`](../src/apprt/win32/App.zig) `performAction` |
 | Upstream palette | [GTK `command_palette.zig`](../src/apprt/gtk/class/command_palette.zig) `collectRegularCommands`, `isActionSupportedOnGtk` |
 | Upstream file drop | [GTK `surface.zig`](../src/apprt/gtk/class/surface.zig) `dtDrop` |
 | Shared-core history, progress, HTML | [`Surface.zig`](../src/Surface.zig) `updateScrollbar`, `progress_report`, clipboard-format generation |
