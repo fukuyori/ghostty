@@ -9,11 +9,17 @@ known issues, and known limitations of each version; the
 
 ## Unreleased
 
-No changes recorded yet.
+### Documentation
 
-## 1.3.2-windows.15 (preparing)
+- Reconcile the `.15` final full-suite results across the release notes,
+  roadmap, rebranding plan and port log. Record the next
+  branch-workflow step and distinguish completed #49 verification from its
+  still-open issue status. Keep publication status in GitHub Releases rather
+  than duplicating it in the documentation.
 
-Prepared from `9c89f4057`; release-artifact verification is recorded in the
+## 1.3.2-windows.15
+
+Includes changes through `9c89f4057`; release-artifact verification is recorded in the
 [release notes](windows-release-notes.md#132-windows15).
 
 ### Added
@@ -30,8 +36,9 @@ Prepared from `9c89f4057`; release-artifact verification is recorded in the
   capture-enabled checks in one run, preserving failed-stage results and
   leaving image inspection to a separate review record. Verification of
   this scope is complete. After the final layout correction, Win32 tests
-  passed 182 tests with one skipped; the full Zig suite's 4039 passes and
-  63 skips were recorded before that correction and were not rerun afterwards.
+  passed 182 tests with one skipped. The subsequent full Zig suite during
+  `.15` preparation included that correction: 4040 passed, 62 skipped,
+  91/91 steps, exit 0. Issue #49 remains open as of 2026-10-16.
 - Handle upstream's `resize_window` action (`CSI 8 ; rows ; cols t`) on Win32
   ([#45](https://github.com/fukuyori/ghostty/issues/45)). With
   `vt-window-resize-allowed = true`, a window with a single terminal resizes

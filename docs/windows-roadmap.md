@@ -1,6 +1,6 @@
 # Ghostty Windows Production-Readiness Roadmap
 
-- Last updated: 2026-10-14
+- Last updated: 2026-10-16
 - Target branch: `windows`; this roadmap moves to `gooztty` when that branch is created (see Section 2)
 - Baseline commit: `132a5d078` (`docs: add Windows implementation roadmap`)
 - Phase breakdown basis: the six phases agreed in the conversation as of 2026-09-14
@@ -35,9 +35,9 @@ order, or status changes.
 
 | Branch | Purpose | Status |
 |---|---|---|
-| `main` | Mirror upstream `main` without Windows-specific changes | Exists locally and on `origin`; `origin/main` has not yet been synchronized |
+| `main` | Mirror upstream `main` without Windows-specific changes | Local and `origin/main` are at `6d53bafb1`, the completed 2026-10-12 synchronization baseline (checked 2026-10-16) |
 | `windows` | Keep the Windows port in step with upstream: merge `main`, and make the changes needed for upstream code to build and run on Windows. Until `gooztty` exists it is also the development and release branch | Current working branch |
-| `gooztty` | Long-lived branch created from `windows`: the rename, Gooztty's own features, releases, and user-facing documentation | Not yet created; created after the upstream synchronization and the Win32 apprt restructuring |
+| `gooztty` | Long-lived branch created from `windows`: the rename, Gooztty's own features, releases, and user-facing documentation | Not yet created; prerequisite upstream synchronization and Win32 apprt restructuring are complete; branch workflow is next |
 | `rebrand/gozitty` | Provisional rename branch, superseded by `gooztty` | Local branch from `windows` at `d440594ab`; not pushed; deleted only on request |
 
 - The three-tier structure was decided on 2026-10-12. Changes flow one way:
@@ -50,10 +50,12 @@ order, or status changes.
 - Upstream synchronization comes before the rename (decided 2026-10-11).
   Smooth upstream merges after the rename are the rebrand's top priority;
   the rules are in Section 1.1 of the
-  [rebranding plan](windows-rebranding-plan.md). As of 2026-10-11 `windows`
-  is 223 commits behind upstream `main` (merge base `bd1c82bc5`), and a
-  trial merge conflicts in `src/renderer.zig`, `src/renderer/OpenGL.zig`, and
-  `src/renderer/backend.zig`. Upstream no longer builds or tests core on
+  [rebranding plan](windows-rebranding-plan.md). The prerequisite synchronization
+  completed on 2026-10-12: 238 upstream commits through `6d53bafb1` were
+  integrated into `windows` via `main`, with verification recorded in the
+  [port log](windows-port-log.md). This is the completed synchronization
+  baseline, not a claim that it includes later upstream commits.
+  Upstream no longer builds or tests core on
   Windows ([ghostty-org/ghostty#14608](https://github.com/ghostty-org/ghostty/pull/14608)),
   so each synchronization must restore the Windows build and tests itself.
 - Keep the GitHub repository named `fukuyori/ghostty` for now (decided
@@ -131,8 +133,7 @@ owner built the signed installer, which reports `1.3.2-windows.10` with a
 Valid signature. The earlier preview, `1.3.2-windows.9`, fixes numpad digits
 and operators being entered twice.
 
-The earlier preview `1.3.2-windows.12` was published on 2026-09-26
-from source commit `0327dbce1`. It adds the native command palette, per-pane
+The earlier preview `1.3.2-windows.12` uses source commit `0327dbce1`. It adds the native command palette, per-pane
 overlay scrollbars, and Explorer file and directory drops. Debug, real-input,
 high-contrast, mixed-DPI, ReleaseFast regression, soak, signed installer,
 upgrade, uninstallation, and reinstallation evidence is recorded in Phase 7
@@ -141,7 +142,7 @@ and the release notes. The signed installer is available on
 This preview retains the current product name;
 rebranding remains tracked separately in [#31](https://github.com/fukuyori/ghostty/issues/31).
 
-The working-tree Windows preview is `1.3.2-windows.15`, being prepared from
+The working-tree Windows version is `1.3.2-windows.15`, including changes through
 `9c89f4057` before the Gooztty rename. The ReleaseFast build and automated
 unsigned-distribution checks passed, including 20 soak iterations. The signed
 installer and staged executable have Valid timestamped signatures; signed
@@ -149,14 +150,14 @@ CLI and hook-rejection checks passed. On 2026-10-15 the owner reported
 completing upgrade, uninstallation and installation checks, then confirmed
 terminal display, keyboard, mouse and Japanese IME operation in the installed
 preview. These are owner-reported results; the known IME defect (#48) remains
-open. This version has not been published. See the
+open. See the
 [release notes](windows-release-notes.md#132-windows15) for evidence and the
 limits of the captured-image checks.
 The full Zig suite was rerun after the final fallback-layout correction:
 4040 passed, 62 skipped, 91/91 steps succeeded and exit 0.
 
-The latest published Windows preview is `1.3.2-windows.14`, published from
-`v1.3.2-windows.14` (`cdfeab50c`) on 2026-09-29. It adds DEC private mode 9001
+The preceding Windows preview is `1.3.2-windows.14`
+(`cdfeab50c`). It adds DEC private mode 9001
 so ConPTY receives native Win32 key records and preserves the physical identity
 of Ctrl+Space. Source, unit, and physical-input verification passed before the
 version bump; ReleaseFast, signing, packaging, and signed-installer verification
@@ -542,7 +543,7 @@ Completion criteria:
 
 ### Phase 6: Release Quality
 
-Status: **Done** (preview build `1.3.2-windows.6` published)
+Status: **Done** (preview build `1.3.2-windows.6`)
 
 Implemented:
 
@@ -1423,6 +1424,14 @@ The details are in the [port log](windows-port-log.md). Upstream's new
 ([#45](https://github.com/fukuyori/ghostty/issues/45)); it started the
 incremental Win32 apprt split with `WindowState.zig`.
 
+Phase 1 completed on 2026-10-15 and #12 is closed. The follow-up rollback
+and IPC checks are complete, although #49 remains open.
+As of 2026-10-16, Phase 2 is next: decide the default
+branch and pull-request target, create `gooztty` when requested, and carry
+out the documentation/AGENTS cutover. The branch is absent locally and on
+`origin`; the product rename has not started. The partial IME commit defect
+[#48](https://github.com/fukuyori/ghostty/issues/48) remains separate work.
+
 The ordered queue below continues on `windows` until `gooztty` is created.
 After that, the remaining Phase 7 features (F4-F8: #33, #34, #35, #24, #21)
 are new features and are implemented on `gooztty`. Real-hardware
@@ -1799,8 +1808,11 @@ steps. Image inspection found a reserved strip after tab-bar creation
 failure; after correction, both desktop builds, all 37 cases and four
 capture inspections passed. Verification of this controlled-failure scope
 is complete. After the final layout correction, hook-enabled Win32 tests
-passed 182 tests with one skipped; the unfiltered suite was not rerun after
-that correction. Verification used working-tree changes based on `653033b4c`. See the
+passed 182 tests with one skipped. The subsequent unfiltered suite during
+`.15` preparation included that correction: 4040 passed, 62 skipped,
+91/91 steps, exit 0. Issue #49 remains open as of 2026-10-16.
+The controlled-failure verification used working-tree changes based on
+`653033b4c`. See the
 [port log](windows-port-log.md#2026-10-15-creation-rollback-and-ipc-ui-timeout-49).
 Of the grouped manual checks described under "Verification" below, the
 input (keyboard, IME, dragging), display (DPI, layout, recovery) and IPC
@@ -2599,7 +2611,7 @@ pass. The partial IME commit defect (#48) is tracked separately.
 
 | Category | Test item | Current |
 |---|---|---|
-| Win32 lifecycle | Creation rollback (#49) and IPC UI timeout | 2026-10-15, follow-up verified as working-tree changes based on `653033b4c`: 33 creation cases plus four IPC cases passed, no forced termination/crash/leak diagnostics or observed process leftovers. Ordinary-build test controls were rejected; normal tab creation/exit, window-state and four modal-action cases passed. Win32 tests with and without hooks each passed 182 tests, one skipped; the full suite before the fallback-layout correction passed 4039 tests with 63 skipped, 91/91 steps, exit 0. The port log explains the misleading `failed command:` line from the Zig runner. Image inspection exposed a reserved strip with no tab bar; a native-geometry assertion reproduced it. After correction, hook-enabled Win32 tests passed 182 tests, one skipped; both owner-run desktop Debug builds passed 128/128 steps including `tic`, all 37 capture-enabled cases passed with zero fallback insets, and all four images passed inspection. Normal-build control rejection also passed. Desktop acceptance is complete for this scope; no issue closure or release is recorded. See the [port log](windows-port-log.md#2026-10-15-creation-rollback-and-ipc-ui-timeout-49) for hashes, logs and injection limits |
+| Win32 lifecycle | Creation rollback (#49) and IPC UI timeout | 2026-10-15, follow-up verified as working-tree changes based on `653033b4c`: 33 creation cases plus four IPC cases passed, no forced termination/crash/leak diagnostics or observed process leftovers. Ordinary-build test controls were rejected; normal tab creation/exit, window-state and four modal-action cases passed. Win32 tests with and without hooks each passed 182 tests, one skipped; the full suite before the fallback-layout correction passed 4039 tests with 63 skipped, 91/91 steps, exit 0. The port log explains the misleading `failed command:` line from the Zig runner. Image inspection exposed a reserved strip with no tab bar; a native-geometry assertion reproduced it. After correction, hook-enabled Win32 tests passed 182 tests, one skipped; both owner-run desktop Debug builds passed 128/128 steps including `tic`, all 37 capture-enabled cases passed with zero fallback insets, and all four images passed inspection. Normal-build control rejection also passed. Desktop acceptance is complete for this scope. The later full suite during `.15` preparation included the correction: 4040 passed, 62 skipped, 91/91 steps, exit 0. #49 remains open as of 2026-10-16. See the [port log](windows-port-log.md#2026-10-15-creation-rollback-and-ipc-ui-timeout-49) for hashes, logs and injection limits |
 | Win32 review fixes | Modal lifetime and accessible names | 2026-10-14: Debug 128/128, Win32 179 passed/one skipped, four modal-action scenarios, eight config-diagnostic scenarios, window-state and three file-drop modes passed. Rename plus shell exit: baseline exit 3, fixed exit 0. Native key/pointer checks preserved close target after an earlier tab exited; new-tab/renamed focused names and reordered tab metadata matched. Owner confirmed Narrator title speech and automatic new-tab final-title announcement; broad COM/WinEvent and terminal-content acceptance remain open; see the port log |
 | Configuration | Diagnostic dialog lifetime | Fixed by displaying queued diagnostics outside core callbacks on 2026-10-14. Baseline owner-close reproduced exit 3; final Debug build, Win32 tests (178 passed, one skipped), eight diagnostic lifecycle scenarios, and normal window regression passed. Captures inspected; all final GUI cases exited 0 without forced termination and no dedicated processes remained. See the port log |
 | Win32 restructuring | Final verification pass (#12) | On 2026-10-15 at `92d3a5d25`: full Zig test suite (91/91 steps, 4037 passed, 62 skipped), window-state with palette checks, parity, context-menu and a 20-run soak (20/20) passed, all exits 0 without forced termination. Owner-operated physical check of tabs, splits, Japanese IME (terminal and tab-title dialog), a 96/120 DPI move and IPC `+new-tab` passed with exit 0. The overlay-scrollbar check, blocked by another window in the unmodified script on both this and the previous executable, passed with the topmost copy (exit 0). Follow-up fixtures passed for file drop, palette jumps, float-on-top, reset window size, the configuration editor, startup maximize/fullscreen and IPC `+new-tab` arguments (`--title`, `--working-directory`, and an `-e` command distinguished from the default shell). An owner-operated German-layout check passed AltGr symbols (`@€{[]}\~`), Ctrl+Alt equivalence, dead keys (`âé`) and Ctrl+C, exit 0. Grouped manual checks covered keyboard/IME, dragging, DPI/layout, recovery and IPC, and a later owner-operated check covered physical mouse input and appearance (blur application and paste logged; the rest owner-confirmed), exit 0. IPC timeout and injected creation failures (#49) were left for the follow-up above; #48 remains open |
@@ -2633,15 +2645,16 @@ pass. The partial IME commit defect (#48) is tracked separately.
 | Release | `1.3.2-windows.8` | Input tests, Win32 tests with hooks, Debug build, and actual antigravity input passed as reported by the owner. ReleaseFast CLI and executable/installer version metadata verified locally; staged executable and installer signatures Valid |
 | Release | `1.3.2-windows.10` | Terminfo registration in the user's home. Unit tests (3840/3902, 62 skipped) and registration against an empty, an occupied, and a leftover-temporary-file destination passed on a Debug build launched from `D:`; `tput longname` and `tput colors` then resolved from `D:`. ReleaseFast version metadata verified, window-state regression and 20-iteration soak (20/20, 115.4 s) passed on the distribution build. Signed installer built by the owner; installer and staged executable signatures Valid. GPU recovery and power resume not run (needs a test-hook build) |
 | Release | `1.3.2-windows.9` | Numpad double-input fix. Win32 tests with hooks, window-state regression, and recorded numpad input passed on a Debug build; actual numpad input confirmed by the owner; ReleaseFast CLI and version metadata verified; regression on the distribution and test-hook ReleaseFast builds and 20-iteration soak (20/20) passed. Signed installer built by the owner; installer and staged executable signatures Valid |
-| Release | `1.3.2-windows.11` | Published 2026-09-22, source `969d637e3`. ReleaseFast metadata/runtime and native regressions passed; final soak 20/20 (119.3 s), no process or temporary-state leftovers. Signed installer and staged executable signatures Valid. Earlier cursor/startup-row timeouts remain unexplained; physical IME/mixed DPI and installation/upgrade/uninstallation remain unverified |
-| Release | `1.3.2-windows.12` | Published 2026-09-26, source `0327dbce1`. ReleaseFast metadata and combined F1/F2 regression passed; final soak 20/20 (119.596 s). Signed installer, staged executable, and uninstaller signatures Valid and upgrade from `.11`, installed runtime, uninstallation cleanup, config preservation, and reinstallation verified. The published installer was re-downloaded with matching size/hash and a Valid timestamped signature. The first installed scrollbar-history measurement timed out; an unchanged rerun passed |
-| Release | `1.3.2-windows.13` | Published 2026-09-28 from `v1.3.2-windows.13` (`9a45da6f7`). ReleaseFast build passed 128/128 steps and reports `1.3.2-windows.13`, numeric `1.3.2.13`, x64 WindowsGui, ReleaseFast. CLI version and default-keybinding checks exited 0. Signed staged executable and installer signatures are Valid and timestamped; the uninstaller was signed during compilation. The published installer size and SHA-256 match the local artifact. Owner confirmed real display and basic input plus installation, upgrade from `.12`, and uninstallation on real hardware. A separate installed-tree inspection remains |
-| Release | `1.3.2-windows.14` | Published 2026-09-29 from `v1.3.2-windows.14` (`cdfeab50c`) for Win32 input mode (#43). Source verification passed targeted/libghostty-vt/full tests and physical input through bundled and OS ConPTY. ReleaseFast passed 128/128 steps and reports `1.3.2-windows.14`, numeric `1.3.2.14`, x64 WindowsGui, ReleaseFast. CLI checks exited 0. The staged executable and installer signatures are Valid and timestamped; the uninstaller was signed during compilation. The published installer was downloaded again with matching size and SHA-256 and a Valid timestamped signature. The owner confirmed installation, upgrade, installed-runtime execution, and uninstallation on real hardware |
+| Release | `1.3.2-windows.11` | Source: `969d637e3`. ReleaseFast metadata/runtime and native regressions passed; final soak 20/20 (119.3 s), no process or temporary-state leftovers. Signed installer and staged executable signatures Valid. Earlier cursor/startup-row timeouts remain unexplained; physical IME/mixed DPI and installation/upgrade/uninstallation remain unverified |
+| Release | `1.3.2-windows.12` | Source: `0327dbce1`. ReleaseFast metadata and combined F1/F2 regression passed; final soak 20/20 (119.596 s). Signed installer, staged executable, and uninstaller signatures Valid and upgrade from `.11`, installed runtime, uninstallation cleanup, config preservation, and reinstallation verified. The published installer was re-downloaded with matching size/hash and a Valid timestamped signature. The first installed scrollbar-history measurement timed out; an unchanged rerun passed |
+| Release | `1.3.2-windows.13` | Source: `v1.3.2-windows.13` (`9a45da6f7`). ReleaseFast build passed 128/128 steps and reports `1.3.2-windows.13`, numeric `1.3.2.13`, x64 WindowsGui, ReleaseFast. CLI version and default-keybinding checks exited 0. Signed staged executable and installer signatures are Valid and timestamped; the uninstaller was signed during compilation. The published installer size and SHA-256 match the local artifact. Owner confirmed real display and basic input plus installation, upgrade from `.12`, and uninstallation on real hardware. A separate installed-tree inspection remains |
+| Release | `1.3.2-windows.14` | Source: `v1.3.2-windows.14` (`cdfeab50c`) for Win32 input mode (#43). Source verification passed targeted/libghostty-vt/full tests and physical input through bundled and OS ConPTY. ReleaseFast passed 128/128 steps and reports `1.3.2-windows.14`, numeric `1.3.2.14`, x64 WindowsGui, ReleaseFast. CLI checks exited 0. The staged executable and installer signatures are Valid and timestamped; the uninstaller was signed during compilation. The published installer was downloaded again with matching size and SHA-256 and a Valid timestamped signature. The owner confirmed installation, upgrade, installed-runtime execution, and uninstallation on real hardware |
+| Release | `1.3.2-windows.15` | Final full Zig suite: 4040 passed, 62 skipped, 91/91 steps, exit 0. ReleaseFast build passed 128/128 steps; unsigned distribution passed CLI, hook rejection, window-state/palette, parity, modal/config-diagnostic/context-menu checks and 20/20 soak. Local staged executable and installer signatures were Valid and timestamped; signed CLI and hook rejection passed. Owner confirmed upgrade, uninstall/install, terminal display, keyboard, mouse and Japanese IME. #48 remains open. See the release notes for capture limitations and evidence |
 | Fonts | Configured family matching (#1) | 2026-09-28: missing-family warnings reached diagnostic stderr; English family names, localized Yu Gothic records, typographic family records, full-name rejection, and agreement between `+list-fonts --family` and configured discovery were measured. The Windows guide documents exact-name checking. No code change was required |
 | Fonts | Configured style selection (#2) | 2026-09-28: targeted Windows tests selected Arial Regular/Bold/Italic/Bold Italic and rejected a missing explicit style; Moralerspace Neon selected separate Regular/Bold files and synthesized missing italic styles. Captured Latin and Japanese output showed the four distinct styles without missing glyphs or visible cell overflow. System fallback remains unchanged |
 | Fonts | Fallback size adjustment (#3) | 2026-09-28: Cascadia Code NF with automatic/explicit BIZ UDGothic passed at 12/16/24 pt and 96/120/144/192 DPI; Noto Sans JP passed at 16 pt and 96 DPI. Moralerspace Neon supplied the real primary `ic_width` glyph `水` while missing `龘` exercised a separate `微軟正黑體` fallback. Two-cell placement, baseline, and clipping were normal. The configured/fallback size asymmetry remains the upstream `.none`/`.ic_width` behavior, so no code or setting was added |
 | Fonts | Automatic fallback (#42) | 2026-09-28: DirectWrite `MapCharacters` implementation, UTF-16 scalar test, targeted Windows discovery test, and Debug build passed. With Consolas primary, `+show-face` selected `Yu Gothic UI` for U+65E5 and `MingLiU-ExtB` for U+20000, both with exit 0. Captured 12/24 pt output showed Japanese, U+9F98, and U+20000 glyphs without replacement boxes, clipping, boundary failure, or overlap. A Japanese path reproduced the FreeType path failure and passed through the memory fallback, including deferred-to-loaded ownership. A four-thread test passed through the serialized shared DirectWrite objects |
-| Distribution | Inno Setup installer | Creation, signing, and publication verified; the published asset carries a valid Authenticode signature |
+| Distribution | Inno Setup installer | Creation and signing verified; the installer carries a valid Authenticode signature |
 | Version info | CLI version display | Verified with the Release build |
 | Version info | Windows file properties | String version, numeric version, and Debug flag verified for Debug and Release |
 | Startup | Diagnostic log and exit code capture | Verified for both normal and failing CLI |

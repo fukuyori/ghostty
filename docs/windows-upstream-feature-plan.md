@@ -334,7 +334,7 @@ Select relevant checks per feature under the [roadmap verification criteria](win
 
 Record the commit, build configuration, executable, OS, DPI, shell, distinction between automated and manual checks, results, logs/images, and unknowns. Do not conflate controlled, real-machine, and distributed-artifact evidence.
 
-Update this plan, `windows.md`, `windows-roadmap.md`, and `windows-changelog.md` with implementation. Roadmap Phase 7 is authoritative for F1-F8 priority, status, and issues; update the corresponding sections here at the same time. On publication, record actually included features, checks, and limitations in `windows-release-notes.md`. Do not append unpublished changes to an old release. Version changes, commits, tags, pushes, and packaging require separate requests.
+Update this plan, `windows.md`, `windows-roadmap.md`, and `windows-changelog.md` with implementation. Roadmap Phase 7 is authoritative for F1-F8 priority, status, and issues; update the corresponding sections here at the same time. Record each version's included features, checks, and limitations in `windows-release-notes.md` as the work is completed. Track publication status only in GitHub Releases. Do not append changes for a new version to an old version's entry. Version changes, commits, tags, pushes, and packaging require separate requests.
 
 ## 9. Code References
 

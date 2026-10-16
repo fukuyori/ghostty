@@ -25,10 +25,15 @@ For a Windows-preview-only increment, update these files together:
 
 - `dist/windows/version.txt`: the new preview number.
 - `docs/windows-changelog.md`: changes assigned to that preview.
-- `docs/windows-release-notes.md`: preparation/release status, verification,
+- `docs/windows-release-notes.md`: included changes, verification,
   and limitations. Distinguish prior Debug checks from distribution checks.
-- `docs/windows-roadmap.md`: working-tree version, published version, and
-  remaining release work.
+- `docs/windows-roadmap.md`: implementation progress, verification results,
+  and remaining development work.
+
+The repository owner handles releases. GitHub Releases is the source for
+publication status; do not duplicate published/unpublished status in these
+documents or require a documentation update solely because a release is
+published. Record changes and verification when the work is done.
 
 Keep `build.zig.zon` and `lib_version` unchanged when only incrementing the
 Windows preview sequence. Historical release entries retain their versions.

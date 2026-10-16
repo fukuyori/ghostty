@@ -5,11 +5,28 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-16: Preview .15 verification reconciliation
+
+- The saved `zig-out/logs/windows15-full-zig-test.log` reports 91/91 steps
+  succeeded, 4040/4102 tests passed and 62 skipped; the accompanying
+  `windows15-full-zig-test-exit.txt` records exit 0. This `.15` preparation
+  run includes the final fallback-layout correction and supersedes the
+  earlier full-suite verification gap in the lifecycle entry below.
+- #12 is closed. #49 remains open despite its completed controlled-failure
+  verification; #48 remains the separately tracked partial IME commit defect.
+- Upstream synchronization through `6d53bafb1` and Win32 restructuring are
+  complete. `gooztty` is absent locally and on `origin`; the next rebranding
+  phase is the branch workflow described in the
+  [rebranding plan](windows-rebranding-plan.md#5-work-sequence-and-exit-criteria).
+- This was a documentation reconciliation using saved logs and current
+  Git/GitHub metadata. No tests were rerun.
+
 ## 2026-10-15: Creation rollback and IPC UI timeout (#49)
 
 Follow-up on `windows`, verified as working-tree changes based on `653033b4c`.
 This is separate from the restructuring acceptance at `92d3a5d25` below.
-Issue #49 remains open; this entry does not record an issue closure or release.
+Issue #49 remains open as of 2026-10-16. The later full-suite result is
+recorded above.
 
 Verification is complete for the controlled rollback and IPC timeout scope
 described below, including the final fallback-layout correction.
@@ -21,13 +38,14 @@ described below, including the final fallback-layout correction.
 | Ordinary-build hook rejection | Passed |
 | Representative display checks | Four captures inspected; the 32-pixel fallback strip is resolved |
 | Win32 tests after the layout correction | Hooks enabled: 182 passed, one skipped, 91/91 steps, exit 0 |
-| Unfiltered Zig suite | Before the layout correction: 4039 passed, 63 skipped, 91/91 steps, exit 0; not rerun after that correction |
+| Unfiltered Zig suite | Before the layout correction: 4039 passed, 63 skipped, 91/91 steps, exit 0. Subsequently, `.15` preparation included the correction: 4040 passed, 62 skipped, 91/91 steps, exit 0 (see the 2026-10-16 entry above) |
 
 Final desktop evidence is `lifecycle-acceptance-20261015-185443-952.json`
-and its separate `*-visual-review.json`. The completion judgment uses the
-post-correction Win32 tests and desktop checks; it does not claim a full
-suite run on the final source. Saved failures and earlier test results are
-retained below to distinguish them from final acceptance.
+and its separate `*-visual-review.json`. The original completion judgment
+used the post-correction Win32 tests and desktop checks; the full-suite run
+on the final source followed during `.15` preparation. Saved failures and
+earlier test results are retained below to distinguish them from final
+acceptance.
 
 ### Reproduction and fixes
 

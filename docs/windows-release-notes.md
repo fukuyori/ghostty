@@ -7,10 +7,14 @@ versions with their commits, the
 numbering rules, the [User Guide](windows.md) for configuration and known
 limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 
+Publication status is maintained in
+[GitHub Releases](https://github.com/fukuyori/ghostty/releases). These notes
+record each version's changes, verification results and limitations.
+
 ## 1.3.2-windows.15
 
-- Status: locally built, signed and owner-accepted; not published.
-- Source: `windows` at `9c89f4057`, plus the preview version/documentation update.
+- Source: `v1.3.2-windows.15` (`fa5815ddb`), including the changes through
+  `9c89f4057` and the preview version/documentation update.
 - Base version: upstream Ghostty 1.3.2 series (`1.3.2-dev`).
 - Product name: Ghostty. The Gooztty rename remains a separate later change.
 
@@ -106,12 +110,8 @@ CLI checks above and does not establish a fix for the known IME defect below.
 ## 1.3.2-windows.14
 
 - Released: 2026-09-29
-- Published: 2026-09-29
 - Source: `v1.3.2-windows.14` (`cdfeab50c`)
 - Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
-- Status: published preview. The ReleaseFast distribution and signed installer
-  were built and verified locally, then the published installer was downloaded
-  again and verified.
 
 ### Changes Since 1.3.2-windows.13
 
@@ -170,13 +170,8 @@ execution, and uninstallation on real hardware.
 ## 1.3.2-windows.13
 
 - Released: 2026-09-28
-- Published: 2026-09-28
 - Source: `v1.3.2-windows.13` (`9a45da6f7`)
 - Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
-- Status: published preview. The ReleaseFast distribution and signed installer
-  were built and verified locally. This release improves Windows font
-  handling, fixes input, renderer, and ConPTY correctness issues, and adds
-  scoped `+new-tab -e` IPC.
 
 ### Changes Since 1.3.2-windows.12
 
@@ -239,7 +234,6 @@ for this preview. The signed installer is published at the
 ## 1.3.2-windows.12
 
 - Prepared: 2026-09-26
-- Published: 2026-09-26 ([GitHub Release](https://github.com/fukuyori/ghostty/releases/tag/v1.3.2-windows.12))
 - Source tag: `v1.3.2-windows.12` (`0327dbce1`)
 - Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
 - Status: preview. This release adds the first three Phase 7 features to the
@@ -313,11 +307,8 @@ documentation-only change after the source tag.
 ## 1.3.2-windows.11
 
 - Prepared: 2026-09-22
-- Published: 2026-09-22 ([GitHub Release](https://github.com/fukuyori/ghostty/releases/tag/v1.3.2-windows.11))
 - Source tag: `v1.3.2-windows.11` (`969d637e3`)
 - Base version: upstream Ghostty 1.3.2 series (the in-development `1.3.2-dev`)
-- Status: preview. The ReleaseFast build and signed installer were verified
-  locally, and the installer is published on GitHub Releases.
 
 ### Changes Since 1.3.2-windows.10
 

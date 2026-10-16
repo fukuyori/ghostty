@@ -1,6 +1,7 @@
 # Windows Rebranding Plan
 
 - Created: 2026-09-23
+- Last updated: 2026-10-16
 - Scope: the `windows` and `gooztty` branches of `fukuyori/ghostty`; this plan is maintained on `windows` until `gooztty` is created, then on `gooztty`
 - Status: Planning. The product name is Gooztty (initially selected as Gozitty on 2026-10-11; changed to Gooztty on 2026-10-13), and [the ghoultty image](../dist/windows/ghoultty-icon-candidate.png) was selected as the Gooztty application icon on 2026-10-13. Production icon generation and display validation remain. On 2026-10-11 the coexistence and shared-configuration requirement was dropped: the renamed application keeps no `ghostty` name in its files, configuration, environment, or terminal identifiers. Smooth upstream synchronization after the rename takes priority (Section 1.1). On 2026-10-12 the branch structure changed to three tiers: `main` mirrors upstream, `windows` keeps the Windows port in step with upstream, and a new long-lived `gooztty` branch carries the rename and Gooztty's own features (Section 1.2). Implementation starts only after `windows` has been synchronized with upstream (Phase 0) and the incremental restructuring of `src/apprt/win32` has been completed (Phase 1). Phase 0 was completed on 2026-10-12. Phase 1 started the same day with `WindowState.zig` and was completed on 2026-10-15, with final verification at `92d3a5d25` and subsequent owner-operated checks recorded in the [port log](windows-port-log.md#2026-10-15-win32-apprt-restructuring-final-verification-12). Phase 2 (branch workflow) is next; `gooztty` has not been created. The provisional `rebrand/gozitty` branch exists locally and has not been pushed; it is replaced by `gooztty` in Phase 2. The naming decisions and prerequisite restructuring are complete; rebranding code changes and distribution validation have not begun.
 - Tracking: [Issue #31](https://github.com/fukuyori/ghostty/issues/31), [Windows roadmap](windows-roadmap.md)
@@ -156,15 +157,24 @@ passed, and the discovered rollback defects were fixed. The verification used wo
 failure; after correction, both desktop builds passed 128/128 steps, all 37
 cases passed again and four captures passed inspection. Verification of
 this scope is complete. The final layout correction passed hook-enabled
-Win32 tests (182 passed, one skipped); the unfiltered suite was last run
-before that correction (see
-the [port log](windows-port-log.md#2026-10-15-creation-rollback-and-ipc-ui-timeout-49)).
+Win32 tests (182 passed, one skipped). The subsequent unfiltered suite during
+`.15` preparation included that correction: 4040 passed, 62 skipped,
+91/91 steps, exit 0 (see the
+[release notes](windows-release-notes.md#132-windows15)). Issue #49 remains
+open as of 2026-10-16; verification completion does not record its closure.
 The earlier extraction records also retain limits for OpenGL,
 forced Acrylic fallback, terminal/divider capture loss and broader
 COM/WinEvent/screen-reader acceptance. The ISO-only AltGr+< key was not
 tested. The partial IME commit defect is tracked separately in
 [#48](https://github.com/fukuyori/ghostty/issues/48). These limits and the
 distinction between logged results and owner reports remain in the port log.
+
+As of 2026-10-16, local and remote `windows` point to `fa5815ddb`,
+and `gooztty` does not exist locally
+or on `origin`. Phase 2 is therefore the next step: decide the default branch
+and pull-request target, create `gooztty` when requested, and update the
+branch-specific documentation and `AGENTS.md`. No branch cutover or rename
+implementation is recorded by this documentation update.
 
 0. **Upstream synchronization:** Bring upstream into `main`, then merge it into `windows`. Resolve the renderer conflicts and restore the Windows build and tests before any other work. Record the result in `docs/windows-port-log.md` (created by this phase) and the roadmap.
 1. **Restructure `src/apprt/win32`:** Split `App.zig` and related files on `windows` so that the code that follows upstream APIs is isolated, Gooztty's features can be added as new files, and Win32 identifiers have one definition (roadmap issue #12). The split is incremental (decided 2026-10-12): whenever a change on `windows` modifies `src/apprt/win32`, the code it touches is first moved to its own file in a separate behavior-preserving commit, never inside a merge commit; groups that no change has touched are split in a final pass. The name indirection lives on `windows` (Section 2, decided 2026-10-12); add it in this phase with `ghostty` values. The first split, `WindowState.zig`, was made on 2026-10-12 together with `resize_window` (#45). Behavior must not change. This phase is complete before `gooztty` is created, because splitting continued afterwards would conflict at every `windows` → `gooztty` merge. The roadmap's "Win32 apprt restructuring" records the layout, the completion condition, and the checks.
@@ -174,7 +184,7 @@ distinction between logged results and owner reports remain in the port log.
 5. **Change Windows build and UI:** Update EXE, icon, resources, Win32 strings and identifiers, and CLI output. User-facing names in shared code change for all platforms without Windows-only conditionals (Section 2), through the fork-owned name module (Section 1.1).
 6. **Change configuration and terminal identity:** Switch the configuration location, `TERM` and terminfo, environment variables, shell integration, resource layout, and terminal-reported names, following the rules in Section 1.1. Do not add automatic settings migration.
 7. **Change distribution and migration:** Update Release and Inno scripts, signing targets, layout, the new AppId, and removal. Do not reuse the old Ghostty directory. Do not delete the old installation's files or shortcuts; the README covers manual removal.
-8. **Document and verify during development:** Update current instructions, configuration paths, attribution, and migration differences on `gooztty`. Record results and open checks in #31, the roadmap, and changelog. Put actual distribution results in release notes only when publishing.
+8. **Document and verify during development:** Update current instructions, configuration paths, attribution, and migration differences on `gooztty`. Record results and open checks in #31, the roadmap, and changelog. Record actual distribution verification results in release notes when the checks are completed; keep publication status in GitHub Releases.
 9. **Repository name:** Keep `fukuyori/ghostty` for now (decided 2026-10-11). A repository rename is outside this rebrand; if one is decided later, verify old and new URLs, issues, and `origin` fetch/push targets, and update documentation and installer URLs. Keep accidental pushes to `upstream` and `mattn` disabled.
 10. **Pre-release acceptance:** On the final `gooztty` candidate, perform one real-machine pass for fresh install, install alongside an existing Ghostty preview, and uninstall. Do not repeat these at every development step.
 
