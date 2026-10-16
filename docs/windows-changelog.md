@@ -11,6 +11,15 @@ known issues, and known limitations of each version; the
 
 ### Documentation
 
+- Clarify branch responsibilities: upstream-feature Windows support,
+  including F4-F8, and port fixes belong on `windows`; branding and features
+  or behavior extensions absent from upstream belong on `gooztty`. Classify
+  by purpose, not implementation date, and split mixed changes accordingly.
+- Reschedule name-independent fixes, real-hardware verification, F4-F8 and
+  rename preparation before the product rename. Move branch cutover to
+  immediately before rename implementation, and reserve final identity,
+  installer and integrated-runtime acceptance for the renamed build. Record
+  open specifications and external prerequisites without starting implementation.
 - Reconcile the `.15` final full-suite results across the release notes,
   roadmap, rebranding plan and port log. Record the next
   branch-workflow step and distinguish completed #49 verification from its

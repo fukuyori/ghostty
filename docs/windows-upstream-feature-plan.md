@@ -1,7 +1,7 @@
 # Windows Upstream Feature Development Plan
 
-- Created and updated: 2026-09-23
-- Scope: the `windows` branch of `fukuyori/ghostty`
+- Created: 2026-09-23; updated: 2026-10-16
+- Scope: upstream-feature Windows support on `windows`, including F4-F8; `gooztty` receives these changes through merges
 - Status: F1-F3 implementation and acceptance checks are complete; F4-F8 remain
 - Related: [Windows roadmap](windows-roadmap.md), [user guide](windows.md)
 - Source of truth for progress, priority, and issues: [roadmap Phase 7](windows-roadmap.md#phase-7-upstream-feature-coverage-on-windows). This document records feature-specific design questions and acceptance criteria.
@@ -53,7 +53,18 @@ Roadmap Phases 1-6 record earlier milestones. This plan expands feature coverage
 
 On 2026-09-23, the plan was added to existing #17, #23, #24, and #21, and #32-#35 were created. Broader issue #25 also covers progress and command-finish notifications, so #33 and #21 link to it. Existing #15 separately tracks the quick-terminal CLI/IPC path.
 
-The recommended order is F1 → F2 → F3. F4 and F5 can be inserted as smaller independent increments. Design F6-F8 after validating the initial features. This is a value-and-effort order, not a strict implementation dependency.
+F1-F3 are complete. The revised 2026-10-16 schedule advances F4-F8 before
+the product rename: design the remaining features early, then implement
+F4 → F5 → F6 → F7 → F8 on `windows`. They implement upstream Ghostty
+features on Windows and are not Gooztty-specific. Neither branch cutover
+nor renaming is a prerequisite. This is a priority
+order, not a strict implementation dependency. Resolve each feature's open
+specifications before its implementation. Only integration checks requiring
+the new application identity, paths or installer wait for the renamed build;
+this may include F8 notification registration and activation. The
+[roadmap schedule](windows-roadmap.md#schedule-before-and-after-the-rename)
+defines the sequence and external prerequisites. This planning update does
+not start feature implementation.
 
 ## 4. Initial Features: Scope and Completion Criteria
 

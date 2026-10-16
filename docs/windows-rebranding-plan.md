@@ -3,7 +3,7 @@
 - Created: 2026-09-23
 - Last updated: 2026-10-16
 - Scope: the `windows` and `gooztty` branches of `fukuyori/ghostty`; this plan is maintained on `windows` until `gooztty` is created, then on `gooztty`
-- Status: Planning. The product name is Gooztty (initially selected as Gozitty on 2026-10-11; changed to Gooztty on 2026-10-13), and [the ghoultty image](../dist/windows/ghoultty-icon-candidate.png) was selected as the Gooztty application icon on 2026-10-13. Production icon generation and display validation remain. On 2026-10-11 the coexistence and shared-configuration requirement was dropped: the renamed application keeps no `ghostty` name in its files, configuration, environment, or terminal identifiers. Smooth upstream synchronization after the rename takes priority (Section 1.1). On 2026-10-12 the branch structure changed to three tiers: `main` mirrors upstream, `windows` keeps the Windows port in step with upstream, and a new long-lived `gooztty` branch carries the rename and Gooztty's own features (Section 1.2). Implementation starts only after `windows` has been synchronized with upstream (Phase 0) and the incremental restructuring of `src/apprt/win32` has been completed (Phase 1). Phase 0 was completed on 2026-10-12. Phase 1 started the same day with `WindowState.zig` and was completed on 2026-10-15, with final verification at `92d3a5d25` and subsequent owner-operated checks recorded in the [port log](windows-port-log.md#2026-10-15-win32-apprt-restructuring-final-verification-12). Phase 2 (branch workflow) is next; `gooztty` has not been created. The provisional `rebrand/gozitty` branch exists locally and has not been pushed; it is replaced by `gooztty` in Phase 2. The naming decisions and prerequisite restructuring are complete; rebranding code changes and distribution validation have not begun.
+- Status: Planning. The product name is Gooztty (initially selected as Gozitty on 2026-10-11; changed to Gooztty on 2026-10-13), and [the ghoultty image](../dist/windows/ghoultty-icon-candidate.png) was selected as the Gooztty application icon on 2026-10-13. Production icon generation and display validation remain. On 2026-10-11 the coexistence and shared-configuration requirement was dropped: the renamed application keeps no `ghostty` name in its files, configuration, environment, or terminal identifiers. Smooth upstream synchronization after the rename takes priority (Section 1.1). On 2026-10-12 the branch structure changed to three tiers: `main` mirrors upstream, `windows` keeps the Windows port in step with upstream, and a new long-lived `gooztty` branch carries the rename and Gooztty's own features (Section 1.2). Implementation starts only after `windows` has been synchronized with upstream (Phase 0) and the incremental restructuring of `src/apprt/win32` has been completed (Phase 1). Phase 0 was completed on 2026-10-12. Phase 1 started the same day with `WindowState.zig` and was completed on 2026-10-15, with final verification at `92d3a5d25` and subsequent owner-operated checks recorded in the [port log](windows-port-log.md#2026-10-15-win32-apprt-restructuring-final-verification-12). The 2026-10-16 schedule advances name-independent fixes, verification, F4-F8 and preparation before the rename (Section 5). F4-F8 are assigned to `windows`; Phase 2 (branch workflow) moves to immediately before rename implementation. `gooztty` has not been created. The provisional `rebrand/gozitty` branch exists locally and has not been pushed; it is replaced by `gooztty` in Phase 2. The naming decisions and prerequisite restructuring are complete; rebranding code changes and distribution validation have not begun.
 - Tracking: [Issue #31](https://github.com/fukuyori/ghostty/issues/31), [Windows roadmap](windows-roadmap.md)
 
 ## 1. Purpose and Boundaries
@@ -32,21 +32,33 @@ Fork-only code (`src/apprt/win32/`, `scripts/`, and the fork's own files under `
 
 ### 1.2 Branch Tiers
 
-Decided 2026-10-12. Changes flow in one direction only: upstream → `main` → `windows` → `gooztty`.
+Three tiers were decided on 2026-10-12; their responsibilities were clarified
+on 2026-10-16. Changes flow in one direction only:
+upstream → `main` → `windows` → `gooztty`.
 
 | Branch | Holds | Does not hold |
 |---|---|---|
 | `main` | A mirror of upstream `main` | Any fork change |
-| `windows` | The Windows port: upstream merges, the changes needed for upstream code to build and run on Windows, and the Windows features already present when `gooztty` is created (the base) | The rename, new features, releases |
-| `gooztty` | The rename, Gooztty's own features added after the base, releases, and the user-facing documentation | Nothing is merged back into `windows` |
+| `windows` | Upstream synchronization; Windows implementations of upstream Ghostty features, including F4-F8; port defects, infrastructure and regression tests | Gooztty branding and features or behavior extensions not provided by upstream Ghostty |
+| `gooztty` | The product rename; features or behavior extensions not provided by upstream Ghostty; product distribution and user-facing documentation | Upstream-feature Windows support is implemented on `windows` and merged in; nothing is merged back into `windows` |
 
-- **Boundary.** `windows` takes the changes required for upstream code to build or run on Windows, defect fixes in the inherited base features, and behavior-preserving infrastructure decided for it (the Phase 1 restructuring and the name indirection in Section 2). Everything else belongs on `gooztty`: the name, new features, and enhancements or behavior changes to inherited features. Phase 7 features not yet implemented when `gooztty` is created (F4-F8 in the [roadmap](windows-roadmap.md)) are new features and are developed on `gooztty`.
-- **Fix routing.** A defect in the port or in an inherited base feature is fixed on `windows`, even when it is found on `gooztty`, and reaches `gooztty` through the next `windows` → `gooztty` merge. When that fix is urgent, it may additionally be cherry-picked from `windows` to `gooztty`; never in the other direction. Defects in Gooztty's own code are fixed on `gooztty`.
-- **Verification.** `windows` keeps a passing Debug build and Zig test suite. Each change on `windows` also passes the regression checks for the areas it touches (for example `scripts/test-windows-window-state.ps1`, `test-windows-parity.ps1`, `test-windows-soak.ps1`, and a GUI check of the affected display and input), so that a defect can be attributed to the port or to Gooztty. Product and release acceptance, including real-hardware checks, are done on `gooztty`.
-- **Own features.** Gooztty's features are added as new files under `src/apprt/win32/` (or other fork-owned locations) and registered from existing files with the smallest possible change, so that later `windows` merges rarely touch them.
-- **Documentation.** After `gooztty` is created, the README, `docs/windows*.md` (except `docs/windows-port-log.md`), the roadmap, release notes, changelog, and `docs/version-update-checklist.md` are maintained on `gooztty`. `windows` records its synchronization results and the evidence for its port fixes only in `docs/windows-port-log.md`, which `gooztty` never edits, so the log merges without conflicts. When such an entry reaches `gooztty`, the roadmap's status and verification entries are updated there in the same merge or an immediately following documentation change. `README.md` exists in upstream: on `windows`, resolve README conflicts by keeping the `windows` text; on `gooztty`, by keeping the `gooztty` text and porting relevant upstream changes by hand.
+- **Boundary.** Classify work by its purpose, not by when it is implemented or which file it touches. Making an upstream Ghostty feature usable on Windows belongs on `windows`, even if it needs a new Win32 implementation, Windows-specific design decisions, or work after `gooztty` exists. Gooztty-specific means a product rename or a feature/behavior extension not provided by upstream; it does not mean "not yet implemented on Windows." F4-F8 are upstream-feature Windows support and belong on `windows`. The name-indirection infrastructure remains on `windows` with `ghostty` values; selecting the Gooztty values belongs on `gooztty`.
+- **Mixed or unclear scope.** Separate upstream-compatible Windows behavior from any Gooztty-only extension before implementation, and put each part on its owning branch. A Windows-specific API, storage mechanism or UI adaptation alone does not make a feature Gooztty-specific. When the intended behavior is unclear, resolve that specification first instead of assigning the whole feature by its development date.
+- **Fix routing.** A defect in the port or in any upstream-feature Windows implementation is fixed on `windows`, regardless of when that implementation was added, even when it is found on `gooztty`, and reaches `gooztty` through the next `windows` → `gooztty` merge. When that fix is urgent, it may additionally be cherry-picked from `windows` to `gooztty`; never in the other direction. Defects in the rename or Gooztty-specific behavior are fixed on `gooztty`.
+- **Verification.** `windows` keeps a passing Debug build and Zig test suite. Each change on `windows` also passes the regression checks for the areas it touches (for example `scripts/test-windows-window-state.ps1`, `test-windows-parity.ps1`, `test-windows-soak.ps1`, and a GUI check of the affected display and input), so that a defect can be attributed to the port or to Gooztty. Windows-support feature checks run on `windows` before and after the rename; `gooztty` additionally verifies the integrated product after merging those changes. Final product and distribution acceptance uses the renamed `gooztty` build; rerun checks affected by the new identity and final integration.
+- **Own features.** Features and behavior extensions not provided by upstream are implemented on `gooztty`, preferably as new files under `src/apprt/win32/` (or other fork-owned locations) with minimal wiring changes. F4-F8 are not in this category. Windows-support work continues on `windows` for the lifetime of both branches.
+- **Documentation.** After `gooztty` is created, the README, `docs/windows*.md` (except `docs/windows-port-log.md`), the roadmap, release notes, changelog, and `docs/version-update-checklist.md` are maintained on `gooztty`. `windows` records its synchronization results, Windows-support implementations, design decisions and verification evidence in `docs/windows-port-log.md`, which `gooztty` never edits, so the log merges without conflicts. When such an entry reaches `gooztty`, the roadmap's status and verification entries are updated there in the same merge or an immediately following documentation change. `README.md` exists in upstream: on `windows`, resolve README conflicts by keeping the `windows` text; on `gooztty`, by keeping the `gooztty` text and porting relevant upstream changes by hand.
 - **Releases and versions.** Releases are built from `gooztty`; `windows` publishes nothing after `gooztty` is created, and existing `1.3.2-windows.N` tags remain records of the old name. `dist/windows/version.txt` is edited only on `gooztty` from then on; `windows` leaves it as it was at the cutover, so it does not conflict. Gooztty continues the existing `X.Y.Z-windows.N` sequence while the base stays the same. After each `windows` → `gooztty` merge, check that the numeric base in `version.txt` still matches `build.zig.zon` (required by `scripts/windows-version.ps1`) and reconcile it on `gooztty` when upstream changed the base, following `docs/version-update-checklist.md`. Tags stay unique across the repository.
-- **Cutover.** Creating `gooztty` also requires deciding the GitHub default branch and the pull-request target (open; decide in Phase 2) and updating `AGENTS.md` on each branch to describe that branch's role. Until the cutover, the current rules (development and releases on `windows`) remain in effect.
+- **Cutover and PR routing.** Create `gooztty` immediately before rename implementation, after the advance Windows-support work. The GitHub default branch remains an open decision for Phase 2; PR targets follow the responsibility of the change (`windows` for upstream-feature Windows support, `gooztty` for branding and independent extensions), regardless of the default. Update `AGENTS.md` on each branch at cutover. Until then, current development and distribution stay on `windows`.
+
+| Example | Owning branch | Reason |
+|---|---|---|
+| F4 taskbar progress; F5 HTML clipboard | `windows` | Windows implementations of upstream features |
+| F6 session save/restore; F7 quick terminal/global bindings; F8 notifications | `windows` | Windows implementations of upstream feature contracts; settle Windows-specific design without classifying the whole feature as an independent extension |
+| IME partial-commit defect (#48), renderer/ConPTY defects | `windows` | Windows port correctness, including defects first observed in Gooztty |
+| Gooztty name, icon, configuration namespace, terminal identity and installer identity | `gooztty` | Product branding and its integration |
+| A proposed feature or behavior extension absent from upstream | `gooztty` | Independent product functionality; specify it separately from upstream-compatible support |
+| Generic Windows notification implementation plus Gooztty-specific registration | Split | Implement reusable upstream behavior on `windows`; apply the new product identity on `gooztty` |
 
 ## 2. Decisions and Open Questions
 
@@ -130,24 +142,58 @@ Old-name occurrences are classified one by one rather than replaced in bulk. Con
 
 ## 5. Work Sequence and Exit Criteria
 
-Synchronize with upstream first (decided 2026-10-11), restructure `src/apprt/win32` on `windows` incrementally until it is complete, then create the long-lived `gooztty` branch from that `windows` and implement the rename there (decided 2026-10-12). The GitHub repository keeps the name `fukuyori/ghostty` for now. A provisional `rebrand/gozitty` branch was created locally from `windows` at `d440594ab` on 2026-10-11 and has not been pushed; it predates the synchronization and is replaced by `gooztty` in Phase 2.
+Synchronize with upstream first (decided 2026-10-11), restructure `src/apprt/win32` on `windows` incrementally until it is complete, then advance the remaining Windows support on `windows`. Under the clarified 2026-10-16 schedule, create the long-lived `gooztty` branch immediately before implementing the rename; it is not a prerequisite for F4-F8. The GitHub repository keeps the name `fukuyori/ghostty` for now. A provisional `rebrand/gozitty` branch was created locally from `windows` at `d440594ab` on 2026-10-11 and has not been pushed; it predates the synchronization and is replaced by `gooztty` in Phase 2.
 
 Workload is a relative estimate based on the number and difficulty of changes, not a time measurement.
+Phase numbers below identify the existing rebranding work packages; they
+are not the full project's new chronological schedule. Use the
+[roadmap schedule](windows-roadmap.md#schedule-before-and-after-the-rename)
+for execution order.
+
+### Advance work before rename integration
+
+The planned order is: diagnose/fix #48 and implement F4-F8 on `windows`,
+then perform branch cutover immediately before the rename.
+Clarify F4-F8 specifications early; implement each only after its open
+decisions are resolved. Existing-feature hardware checks (#5-#10), rename
+inventory, icon preparation and migration/verification drafts also move
+ahead of name integration. Track Zig migration (#50) by its upstream
+prerequisite, not by the rename date.
+
+New features must use the fork's name indirection rather than introducing
+new scattered product identifiers. Review their configuration, storage,
+notification and shell-integration naming sites before the rename. Preserve
+the existing rule that inherited defects are fixed on `windows` first.
+
+### Work requiring the renamed build
+
+After the advance work, apply the agreed rename across build/UI,
+configuration/terminal identity, distribution tooling and documentation
+(Phases 5-8 below). Only the checks requiring those integrated changes wait
+for this build: final names, icon display, paths, resource lookup, terminal
+responses, notification registration/activation where identity-dependent,
+signed installer/uninstaller artifacts, fresh and side-by-side installation,
+removal, and final runtime integration. Feature implementation itself is
+not postponed merely because the name has not changed. Hardware or upstream
+prerequisites that remain unavailable are recorded separately; they are not
+reclassified as name-dependent work.
+
+### Rebranding work packages
 
 | Phase | Workload | Notes |
 |---|---|---|
 | 0. Upstream synchronization | Done | Completed 2026-10-12: 238 upstream commits through `6d53bafb1`, recorded in `docs/windows-port-log.md`. Estimated as large: about 223 upstream commits as of 2026-10-11; a trial merge conflicts in `src/renderer.zig`, `src/renderer/OpenGL.zig`, and `src/renderer/backend.zig`; upstream no longer builds core on Windows, so build breakage is unpredictable |
 | 1. Restructure `src/apprt/win32` | Done | Completed 2026-10-15 at `92d3a5d25`; #12 is closed. Every layout group has its own file, and `App.zig` retains lifecycle, ownership lookups and wiring. Full Zig tests (4037 passed, 62 skipped), window-state, parity, context-menu, 20/20 soak, overlay-scrollbar and follow-up action/IPC checks passed. Owner-operated checks cover tabs, splits, Japanese IME, German AltGr, mixed DPI, physical mouse input and appearance; GPU/power recovery was checked on a hook build during extraction. See the [roadmap](windows-roadmap.md#win32-apprt-restructuring) and [port log](windows-port-log.md#2026-10-15-win32-apprt-restructuring-final-verification-12) for evidence and remaining limits |
-| 2. Branch workflow | Small | Next, not started: create `gooztty` from the restructured `windows` when requested, decide the default branch and pull-request target, and perform the documentation/AGENTS cutover (Section 1.2). Delete the provisional `rebrand/gozitty` only on request |
+| 2. Branch workflow | Small | Not started; after the advance Windows-support work, immediately before rename implementation: create `gooztty` from the restructured `windows` when requested, decide the default branch and pull-request target, and perform the documentation/AGENTS cutover (Section 1.2). Delete the provisional `rebrand/gozitty` only on request |
 | 3. Resolve specifications | Done | Initial naming decisions recorded on 2026-10-11, updated to Gooztty on 2026-10-13; the name indirection lives on `windows` (decided 2026-10-12) |
-| 4. Prepare implementation | Small | The impact inventory already covers most occurrences |
-| 5. Build and UI | Medium | Mostly fork-only code (Win32 UI, resources, scripts); the executable name in `src/build/GhosttyExe.zig` and other build files are shared and count as shared-code changes |
+| 4. Prepare implementation | Small | Advance before the rename: refresh the impact inventory for F4-F8, prepare migration instructions and acceptance cases |
+| 5. Build and UI | Medium | Rename integration after the advance work below. Mostly fork-only code (Win32 UI, resources, scripts); the executable name in `src/build/GhosttyExe.zig` and other build files are shared and count as shared-code changes |
 | 6. Configuration and terminal identity | Large | Small edits across about 15-20 shared files plus build- or output-time rewriting for shell integration, CLI help, the configuration template, and generated completions and editor files |
 | 7. Distribution | Medium | Inno script with the new AppId, release and installer scripts, signing targets, test scripts |
 | 8. Documentation and development checks | Medium | README migration section, user guide, checklist, changelog; check for leftover `ghostty` names |
 | 9. Repository name | None | Out of scope |
 | 10. Pre-release acceptance | Medium | One real-machine pass by the repository owner, on `gooztty` |
-| Icon | Medium | Generate the production icon resources from the selected ghoultty image and verify their sizes before Phase 5 completes |
+| Icon | Medium | Prepare production icon resources and verify sizes before rename integration; verify their in-app display with the renamed build |
 
 Phase 1 completion follows the roadmap's restructuring definition; it does
 not close every verification item. A later follow-up added IPC UI timeout
@@ -169,16 +215,15 @@ tested. The partial IME commit defect is tracked separately in
 [#48](https://github.com/fukuyori/ghostty/issues/48). These limits and the
 distinction between logged results and owner reports remain in the port log.
 
-As of 2026-10-16, local and remote `windows` point to `fa5815ddb`,
-and `gooztty` does not exist locally
-or on `origin`. Phase 2 is therefore the next step: decide the default branch
-and pull-request target, create `gooztty` when requested, and update the
-branch-specific documentation and `AGENTS.md`. No branch cutover or rename
-implementation is recorded by this documentation update.
+F4-F8 have no dependency on branch cutover or renaming: implement them on
+`windows`. Immediately before rename implementation, decide the default
+branch, configure PR routing by the responsibilities above, create `gooztty`
+when instructed, and update branch-specific documentation and `AGENTS.md`.
+This schedule revision does not create the branch or start implementation.
 
 0. **Upstream synchronization:** Bring upstream into `main`, then merge it into `windows`. Resolve the renderer conflicts and restore the Windows build and tests before any other work. Record the result in `docs/windows-port-log.md` (created by this phase) and the roadmap.
 1. **Restructure `src/apprt/win32`:** Split `App.zig` and related files on `windows` so that the code that follows upstream APIs is isolated, Gooztty's features can be added as new files, and Win32 identifiers have one definition (roadmap issue #12). The split is incremental (decided 2026-10-12): whenever a change on `windows` modifies `src/apprt/win32`, the code it touches is first moved to its own file in a separate behavior-preserving commit, never inside a merge commit; groups that no change has touched are split in a final pass. The name indirection lives on `windows` (Section 2, decided 2026-10-12); add it in this phase with `ghostty` values. The first split, `WindowState.zig`, was made on 2026-10-12 together with `resize_window` (#45). Behavior must not change. This phase is complete before `gooztty` is created, because splitting continued afterwards would conflict at every `windows` → `gooztty` merge. The roadmap's "Win32 apprt restructuring" records the layout, the completion condition, and the checks.
-2. **Branch workflow:** Inspect history and the working tree, then create `gooztty` from the restructured `windows`. Perform the cutover in Section 1.2: decide the default branch and pull-request target, update `AGENTS.md` on both branches, and move documentation ownership to `gooztty`. The provisional `rebrand/gozitty` is deleted only on request. From then on, follow Section 1.2: bring upstream into `main`, merge `main` into `windows`, then merge `windows` into `gooztty`. Never merge `gooztty` into `windows`. Do not force-push. Pushing `gooztty` requires a separate request.
+2. **Branch workflow:** After the advance Windows-support work and immediately before rename implementation, inspect history and the working tree, then create `gooztty` from `windows`. Perform the cutover in Section 1.2: decide the default branch and pull-request target, update `AGENTS.md` on both branches, and move documentation ownership to `gooztty`. The provisional `rebrand/gozitty` is deleted only on request. From then on, follow Section 1.2: bring upstream into `main`, merge `main` into `windows`, then merge `windows` into `gooztty`. Never merge `gooztty` into `windows`. Do not force-push. Pushing `gooztty` requires a separate request.
 3. **Resolve specifications:** The initial naming decisions were recorded on 2026-10-11 in #31; the product name and identifier spelling changed to Gooztty on 2026-10-13. Record any decision that the implementation reveals in #31 and this plan. Resolve any uncertainty about the naming request before distribution.
 4. **Prepare implementation:** Record the old installation, PATH, shortcuts, configuration, and terminfo state. Inventory every `ghostty` occurrence and classify it as rename or keep (Section 3).
 5. **Change Windows build and UI:** Update EXE, icon, resources, Win32 strings and identifiers, and CLI output. User-facing names in shared code change for all platforms without Windows-only conditionals (Section 2), through the fork-owned name module (Section 1.1).

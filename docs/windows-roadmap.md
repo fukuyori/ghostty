@@ -36,9 +36,18 @@ order, or status changes.
 | Branch | Purpose | Status |
 |---|---|---|
 | `main` | Mirror upstream `main` without Windows-specific changes | Local and `origin/main` are at `6d53bafb1`, the completed 2026-10-12 synchronization baseline (checked 2026-10-16) |
-| `windows` | Keep the Windows port in step with upstream: merge `main`, and make the changes needed for upstream code to build and run on Windows. Until `gooztty` exists it is also the development and release branch | Current working branch |
-| `gooztty` | Long-lived branch created from `windows`: the rename, Gooztty's own features, releases, and user-facing documentation | Not yet created; prerequisite upstream synchronization and Win32 apprt restructuring are complete; branch workflow is next |
+| `windows` | Track upstream via `main`, implement upstream Ghostty features on Windows (including F4-F8), and fix port defects. This responsibility continues after `gooztty` is created. Until cutover it also handles the current product distribution | Current working branch |
+| `gooztty` | Long-lived branch created from `windows`: the rename, features or behavior extensions not provided by upstream Ghostty, product distribution, and user-facing documentation | Not yet created; branch workflow follows the advance Windows-support work, immediately before rename implementation |
 | `rebrand/gozitty` | Provisional rename branch, superseded by `gooztty` | Local branch from `windows` at `d440594ab`; not pushed; deleted only on request |
+
+Branch ownership follows purpose, not implementation date: Windows support
+for an upstream Ghostty feature belongs on `windows`, even when that support
+is newly implemented after `gooztty` exists. Gooztty-specific work means the
+rename or functionality beyond upstream's feature contract. F4-F8 belong on
+`windows`; a Windows-specific API or design does not change that ownership.
+Separate mixed changes by responsibility and resolve unclear behavior before
+implementation. Section 1.2 of the [rebranding plan](windows-rebranding-plan.md)
+contains examples and fix/PR routing rules.
 
 - The three-tier structure was decided on 2026-10-12. Changes flow one way:
   upstream → `main` → `windows` → `gooztty`; `gooztty` is never merged into
@@ -1260,9 +1269,9 @@ checks; this roadmap owns ordering and status.
 
 | Order | ID | Feature and upstream contract | Issue | Status | Entry and acceptance gate |
 |---|---|---|---|---|---|
-| 1 | F1 | Command palette: `toggle_command_palette`, `command-palette-entry` | [#17](https://github.com/fukuyori/ghostty/issues/17) | Implemented | Controlled display, Up/Down, dismiss/focus, IME process-key suppression, config reload, and owner-window closure checks passed; owner confirmed real Up/Down, new-tab action, open-tab jump, physical Japanese IME conversion Enter without command execution, readable high contrast, and scaled unclipped controls at 125% DPI |
-| 2 | F2 | Per-pane scrollbar: `scrollbar = system / never`, `scroll_to_row` | [#23](https://github.com/fukuyori/ghostty/issues/23) | Implemented | Controlled reveal, captured thumb pixels, auto-hide, `never`/`system` config reload, key/wheel/search position sync, split independence, alternate-screen transitions, exact controlled drag, output/pane-close drag races, empty/reached-limit history, and maximize/restore tracking passed; owner confirmed real-pointer drag and auto-hide, a distinguishable high-contrast thumb, and correctly scaled overlay geometry at 125% DPI |
-| 3 | F3 | Explorer file/directory drop into a pane | [#32](https://github.com/fukuyori/ghostty/issues/32) | Implemented | Owner captured single/multiple PowerShell drops without Enter, `%`/`!` rejection warnings, cmd double quoting without Enter, and right-split-only delivery in development builds. Normal Explorer could not drop into an elevated test window. A real drag held over a Debug target until its scheduled shell exit confirmed clean target-window closure and cancellation without Explorer errors |
+| 1 | F1 | Command palette: `toggle_command_palette`, `command-palette-entry` | [#17](https://github.com/fukuyori/ghostty/issues/17) | Done | Controlled display, Up/Down, dismiss/focus, IME process-key suppression, config reload, and owner-window closure checks passed; owner confirmed real Up/Down, new-tab action, open-tab jump, physical Japanese IME conversion Enter without command execution, readable high contrast, and scaled unclipped controls at 125% DPI |
+| 2 | F2 | Per-pane scrollbar: `scrollbar = system / never`, `scroll_to_row` | [#23](https://github.com/fukuyori/ghostty/issues/23) | Done | Controlled reveal, captured thumb pixels, auto-hide, `never`/`system` config reload, key/wheel/search position sync, split independence, alternate-screen transitions, exact controlled drag, output/pane-close drag races, empty/reached-limit history, and maximize/restore tracking passed; owner confirmed real-pointer drag and auto-hide, a distinguishable high-contrast thumb, and correctly scaled overlay geometry at 125% DPI |
+| 3 | F3 | Explorer file/directory drop into a pane | [#32](https://github.com/fukuyori/ghostty/issues/32) | Done | Owner captured single/multiple PowerShell drops without Enter, `%`/`!` rejection warnings, cmd double quoting without Enter, and right-split-only delivery in development builds. Normal Explorer could not drop into an elevated test window. A real drag held over a Debug target until its scheduled shell exit confirmed clean target-window closure and cancellation without Explorer errors |
 | Independent | F4 | Taskbar progress from `progress_report` and `progress-style` | [#33](https://github.com/fukuyori/ghostty/issues/33) | Not started | Decide active-pane policy; verify normal, paused, error, indeterminate, and cleared states with a controlled sequence and a real emitting app |
 | Independent | F5 | HTML and mixed clipboard output | [#34](https://github.com/fukuyori/ghostty/issues/34) | Not started | Settle plain fallback for HTML-only copies; verify CF_HTML offsets, Japanese text, rich/plain paste, and existing OSC 52 behavior |
 | Later design | F6 | Session save/restore: `window-save-state` | [#35](https://github.com/fukuyori/ghostty/issues/35) | Not started | Decide Windows defaults, saved scope, format, startup precedence, invalid state, and working-directory limits before implementation |
@@ -1406,15 +1415,13 @@ scope must be reassessed after F1-F8; they are not part of Phase 7 completion.
 
 ## 7. Next Steps
 
-Special project outside the ordered implementation queue: rebranding as
-Gooztty [#31](https://github.com/fukuyori/ghostty/issues/31). The
-[rebranding plan](windows-rebranding-plan.md) records its decisions,
-compatibility boundary, work sequence, and acceptance checks. The Gooztty name and selected application icon were decided on 2026-10-13. The work order (revised 2026-10-12)
-is: synchronize `windows` with upstream (plan Phase 0), restructure
-`src/apprt/win32` on `windows` incrementally and finish it (plan Phase 1,
-described below), create the long-lived `gooztty` branch from that
-`windows` (plan Phase 2), then implement the rename on `gooztty`. Smooth upstream merges after the rename
-take priority over other rebranding goals.
+The schedule was revised on 2026-10-16: fix #48 and implement F4-F8 on
+`windows` before the rename. Create `gooztty` immediately before rename
+implementation, then verify the renamed product. Branch creation is not a
+prerequisite for upstream-feature Windows support. The
+[rebranding plan](windows-rebranding-plan.md) retains
+the naming decisions, compatibility boundary and rename acceptance checks
+for [#31](https://github.com/fukuyori/ghostty/issues/31).
 
 Phase 0 was completed on 2026-10-12: upstream through `6d53bafb1` was merged
 into `windows`, and the build, Zig tests, and window-state regression pass.
@@ -1424,20 +1431,64 @@ The details are in the [port log](windows-port-log.md). Upstream's new
 ([#45](https://github.com/fukuyori/ghostty/issues/45)); it started the
 incremental Win32 apprt split with `WindowState.zig`.
 
-Phase 1 completed on 2026-10-15 and #12 is closed. The follow-up rollback
-and IPC checks are complete, although #49 remains open.
-As of 2026-10-16, Phase 2 is next: decide the default
-branch and pull-request target, create `gooztty` when requested, and carry
-out the documentation/AGENTS cutover. The branch is absent locally and on
-`origin`; the product rename has not started. The partial IME commit defect
-[#48](https://github.com/fukuyori/ghostty/issues/48) remains separate work.
+Completed work is excluded from the remaining schedule:
 
-The ordered queue below continues on `windows` until `gooztty` is created.
-After that, the remaining Phase 7 features (F4-F8: #33, #34, #35, #24, #21)
-are new features and are implemented on `gooztty`. Real-hardware
-verification of existing features (#5-#10) is done with the product build
-from `gooztty`; a defect it finds in an inherited Windows feature is fixed on
-`windows` first and verified there with the relevant regression scripts.
+| Work | Status | Evidence / issue handling |
+|---|---|---|
+| Upstream baseline synchronization | Done | Through `6d53bafb1`; details in the port log |
+| Win32 apprt restructuring | Done | Completed 2026-10-15; #12 closed |
+| F1 command palette, F2 scrollbar, F3 file/directory drop | Done | Implementation and acceptance verification complete |
+| Creation rollback and IPC timeout verification | Done | 37 controlled cases verified; #49 issue closure is separate |
+
+### Schedule before and after the rename
+
+This is a dependency-based sequence, not a calendar or effort estimate.
+It records planned work only; this revision does not start implementation,
+create branches, change GitHub settings, or authorize commits, pushes or
+packaging. Resolve open specifications before implementing the affected item.
+
+| Order | Work | Branch | Completion condition / dependency |
+|---|---|---|---|
+| 1 | Diagnose and fix partial IME commit overlap (#48) | `windows` | Reproduce, correlate IME messages and cursor/placement logs, establish the cause, then verify the fix with regression checks and physical Japanese IME operation |
+| 2 | F4 taskbar progress (#33) | `windows` | Resolve multi-pane state selection, implement and verify progress states, cleanup and a supporting application |
+| 3 | F5 HTML clipboard (#34) | `windows` | Resolve plain/HTML/mixed behavior, implement and verify CF_HTML offsets and actual paste destinations |
+| 4 | F6 session save/restore (#35) | `windows` | Decide scope, format, save timing and startup precedence before implementation; verify restoration and failure handling |
+| 5 | F7 quick terminal/global bindings (#24) | `windows` | Decide hotkey conflicts, focus and monitor behavior before implementation; verify with real keys and another foreground app |
+| 6 | F8 desktop/command-finish notifications (#21) | `windows` | Decide API, shell reporting, install-state requirements and click behavior; implement and verify upstream-compatible Windows support. New Gooztty identity integration is separate |
+| 7 | Branch workflow (rebranding Phase 2), immediately before the rename | `windows` → `gooztty` | Decide the default branch, route PRs by responsibility, create `gooztty` on instruction, and update branch-specific AGENTS/documentation. F4-F8 do not depend on this step |
+| 8 | Integrate the Gooztty name (rebranding Phases 5-8) | `gooztty` | Apply the agreed name/icon to build, UI, configuration, terminal identity, distribution tooling and documentation; include F4-F8 naming sites |
+| 9 | Acceptance requiring the renamed application | `gooztty` | Verify final names/paths/resources/terminal identity, notification identity and activation where applicable, signed artifacts, fresh/side-by-side installation and removal, and the final integrated runtime |
+
+#### Additional work before the rename
+
+These items can proceed alongside the ordered work as their prerequisites
+become available. The F4-F8 order is a priority order; specification work
+does not have to wait for the preceding feature's implementation.
+
+| Work | Timing and prerequisites |
+|---|---|
+| Real-hardware verification (#5-#10) | On the existing-name build: 144/192 DPI, high contrast, screen readers, actual sleep/resume, several-hour endurance and real GPU-loss recovery. Schedule with the required hardware and owner-operated checks; fix Windows-support defects on `windows` |
+| F4-F8 specifications | Resolve open decisions early, before implementing each feature. Separate any new-name-dependent integration from upstream-compatible Windows behavior |
+| Rename preparation | Inventory naming sites including F4-F8, prepare icon assets, and draft migration instructions and acceptance cases. This does not apply the product rename or require early creation of `gooztty` |
+| Zig migration (#50) | Advance investigation and preparation on `windows`; migration and regression checks require upstream's Zig 0.17 support to be complete. This schedule does not assert that the prerequisite is met |
+
+Unavailable hardware and upstream prerequisites remain explicit pending
+conditions; they do not turn these items into rename-dependent work.
+
+#### Verification after the rename
+
+Step 9 uses the renamed build and covers:
+
+- Product names and icons in the UI, CLI, file properties and accessibility.
+- Configuration/resource paths, terminal identity, shell integration and
+  notification identity/activation where affected by the new name.
+- Signed distribution artifacts, fresh installation, coexistence with the
+  old Ghostty installation, and removal without affecting the old product.
+- Final integrated runtime checks and regression checks affected by renaming.
+
+Retain earlier feature evidence; do not treat every completed feature as
+unverified solely because the name changes. Release operations remain with
+the repository owner, and publication status remains in GitHub Releases.
 
 ### Win32 apprt restructuring
 
@@ -1842,7 +1893,8 @@ IME, mouse, divider and tab-bar dragging), display (DPI, layout, appearance,
 recovery with `-TestGpuRecovery` and `-TestPowerResume`), and IPC (real
 `+new-tab` requests); the final pass runs the checks listed in goal 4.
 
-The ordered implementation queue is:
+The following list retains the earlier implementation sequence and its
+completion evidence. For remaining work, use the revised schedule above.
 
 1. [#40](https://github.com/fukuyori/ghostty/issues/40): Ctrl+Space double
    sending. Implemented and acceptance-verified at `5d3c06231`; the issue can

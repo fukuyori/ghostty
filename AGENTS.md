@@ -7,6 +7,29 @@ branch. The macOS and Linux apps are not built or tested here; upstream owns
 them. Work in this repository targets Win32, D3D11, and the PowerShell
 tooling around them.
 
+## Branch Responsibilities
+
+- `main` mirrors upstream without fork-specific changes.
+- `windows` owns upstream synchronization, Windows support for upstream
+  Ghostty features (including F4-F8), port fixes, and the infrastructure and
+  tests needed for that support. This continues after `gooztty` is created.
+- `gooztty` owns the product rename and features or behavior extensions not
+  provided by upstream Ghostty. A feature being new to Windows does not make
+  it Gooztty-specific. Windows-specific code implementing upstream behavior
+  belongs on `windows`.
+- Classify changes by purpose, not implementation date or file location.
+  Split mixed work into a Windows-support change and a Gooztty-specific
+  change. Resolve unclear scope before implementation.
+- Changes flow upstream → `main` → `windows` → `gooztty`. Fix port defects
+  on `windows` first, including those found while running Gooztty. Fix rename
+  and Gooztty-specific defects on `gooztty`; never merge it into `windows`.
+- F4-F8 proceed on `windows` before the rename. Create `gooztty` immediately
+  before rename implementation, when instructed. Branch creation, naming
+  changes, and feature implementation are separate actions.
+
+See `docs/windows-rebranding-plan.md` Section 1.2 for the full boundary and
+`docs/windows-roadmap.md` Section 7 for the schedule.
+
 ## Commands
 
 All commands run from the repository root in PowerShell.
