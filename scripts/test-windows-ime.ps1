@@ -9,6 +9,10 @@ dedicated probe records completed lines and their UTF-8 bytes for comparison.
 Compose niwanihaniwa, convert, commit only the leading segment, pause to
 inspect the remaining composition, then commit it and press Enter. F10 quits.
 This is diagnostic collection, not an automated acceptance test.
+For focus-resume coverage, also switch to another app while composing,
+return and partially commit; record whether the IME kept, committed or
+cancelled the composition. Check output-heavy/TUI and resize/DPI scenarios
+separately; a successful basic partial commit does not establish those cases.
 #>
 [CmdletBinding()]
 param(
@@ -20,6 +24,10 @@ param(
 $ErrorActionPreference = 'Stop'
 if ($Probe) {
     if (-not $RecordPath) { throw '-RecordPath is required with -Probe.' }
+    $selfProcess = [Diagnostics.Process]::GetCurrentProcess()
+    [ordered]@{ Pid = $PID; StartTimeUtc = $selfProcess.StartTime.ToUniversalTime().ToString('o') } |
+        ConvertTo-Json | Set-Content -LiteralPath "$RecordPath.process.json.tmp" -Encoding utf8
+    Move-Item -LiteralPath "$RecordPath.process.json.tmp" -Destination "$RecordPath.process.json"
     [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
     [Console]::TreatControlCAsInput = $true
     [Console]::Write(([char]27).ToString() + ']2;IME partial commit check' + [char]7)
@@ -87,12 +95,36 @@ try {
     $env:GHOSTTY_TEST_IME_TRACE = $previousTrace
 }
 Write-Host "IME check PID $($process.Id), evidence: $directory"
+$null = $process.Handle
+$probeProcess = $null
+$observeWatch = [Diagnostics.Stopwatch]::StartNew()
+while (-not $process.HasExited -and $observeWatch.Elapsed.TotalSeconds -lt 10) {
+    if (Test-Path -LiteralPath "$record.process.json") {
+        $childRecord = Get-Content -LiteralPath "$record.process.json" -Raw | ConvertFrom-Json
+        $candidate = Get-Process -Id $childRecord.Pid -ErrorAction SilentlyContinue
+        if ($candidate -and $candidate.StartTime.ToUniversalTime().Ticks -eq ([DateTime]$childRecord.StartTimeUtc).ToUniversalTime().Ticks) {
+            $null = $candidate.Handle
+            $probeProcess = $candidate
+            break
+        }
+    }
+    Start-Sleep -Milliseconds 50
+}
 $process.WaitForExit()
+if ($probeProcess -and -not $probeProcess.HasExited) { $null = $probeProcess.WaitForExit(5000) }
 $result = [ordered]@{
     Pid = $process.Id
     Executable = $exe
     Sha256 = $hash
     ExitCode = $process.ExitCode
+    Commit = (& git -C $root rev-parse HEAD)
+    Command = $PSCommandPath
+    Arguments = @{ Executable = $Executable }
+    TraceEnvironment = 'GHOSTTY_TEST_IME_TRACE=1'
+    MainProcessExited = $process.HasExited
+    ObservedProbePid = if ($probeProcess) { $probeProcess.Id } else { $null }
+    ProbeExited = if ($probeProcess) { $probeProcess.HasExited } else { $null }
+    RemainingObservedProcessIds = @(@($process, $probeProcess) | Where-Object { $_ -and -not $_.HasExited } | ForEach-Object { $_.Id })
     TracePresent = [bool](Select-String -LiteralPath $stderr -SimpleMatch 'win32_ime_trace' -Quiet)
     CrashOrLeak = [bool](Select-String -LiteralPath $stderr -Pattern 'Segmentation fault|panic:|leaked:' -Quiet)
     EvidenceDirectory = $directory

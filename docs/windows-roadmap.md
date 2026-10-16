@@ -2799,6 +2799,21 @@ git diff --check
 - GUI changes are not considered done on a successful build alone. Check the
   actual display or captured images.
 - Input changes are verified by real-hardware key, mouse, and IME operation.
+- For IME placement changes, run `./scripts/verify-windows-ime.ps1`. It
+  records HEAD, the working-tree patch and changed-file hashes, exact
+  commands, executable hashes and exit codes for normal/hook builds and
+  Win32 tests, controlled placement/lifecycle checks and both window-state
+  regressions. `./scripts/test-windows-ime-position.ps1` can run the
+  controlled checks separately on a hook build. Timer dispatch after
+  cancellation tests the inactive guard, not OS timer removal or actual
+  queued-message delivery. `-SimulateCloseTimeout` deliberately fails to
+  verify owned-process cleanup; it must report forced termination and must
+  not report successful window closure.
+  Run `./scripts/test-windows-ime.ps1` separately for physical partial
+  commit. Also record whether composition survives focus loss/return before
+  testing a subsequent partial commit. Output-heavy/TUI, resize/DPI and
+  other-IME cases need separate evidence; the basic MS-IME result does not
+  establish them. Never distribute a hook build.
 - Window lifecycle changes are verified for leftover processes and exit
   codes.
 - For creation rollback or IPC request lifetime changes, build with

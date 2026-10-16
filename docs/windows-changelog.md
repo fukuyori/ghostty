@@ -20,6 +20,12 @@ known issues, and known limitations of each version; the
 
 ### Diagnostics
 
+- Clarify the #48 verification evidence and add a reproducible IME
+  verification runner with source/command/hash records. Extend controlled
+  checks to close a composing split/tab while retaining a responsive pane,
+  record successful closure only after exit, track probe processes, and
+  recover owned processes on failure. Add a deliberate cleanup-timeout
+  scenario and include the IME scripts in the verification requirements.
 - Add opt-in message, cursor and IMM composition-position tracing for #48,
   enabled only with `-Dwin32-test-hooks=true` and
   `GHOSTTY_TEST_IME_TRACE=1`. Add `scripts/test-windows-ime.ps1` for a

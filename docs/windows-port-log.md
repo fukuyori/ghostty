@@ -5,6 +5,65 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-16: IME review follow-up (#48)
+
+Claude Code CLI reviewed `604034f7a`. It reported six P3 findings about
+test/report precision and coverage, no confirmed P1/P2 defect, and two
+unverified runtime hypotheses. This follow-up changes test tooling and
+documentation; the application sources under `src/` remain at `604034f7a`.
+
+- Clarified which earlier checks preceded the final diagnostic-dispatch
+  exclusion. The earlier main-PID absence check is identified explicitly;
+  it was not a child-process-tree check or a field in the old session JSON.
+- Renamed the cancellation test to describe synchronous timer dispatch.
+  It verifies the inactive guard; it does not establish OS timer removal
+  or actual queued-message delivery. No synthetic flag is treated as proof
+  that `KillTimer` removed an OS timer.
+- Added composing split/tab closure with the original pane retained and
+  responsive. Successful window closure is recorded only after exit and
+  crash/leak checks. Probe process records include start times; the runner
+  retains process handles and reports observed probe exits and leftovers.
+  On a close timeout it force-terminates only its own recorded processes,
+  reports `ForcedTermination`, and keeps the overall test failed.
+- Added `verify-windows-ime.ps1` and listed both IME checks in AGENTS and
+  roadmap section 9. The runner saves HEAD, working-tree patch/changed-file
+  hashes, commands, exit codes and executable hashes. The unchanged
+  application source was rebuilt and retested with the updated scripts:
+  `zig-out/logs/ime-verification-20261016-195608-194/summary.json` records all
+  seven stages passing, with `AutomatedPassed=true`. Normal and hook Debug
+  builds passed 128/128 steps; both Win32 test configurations passed 182
+  tests with one skipped (91/91 steps). Both window-state regressions exited
+  0 without forced termination. Documentation result entries were added
+  after this run; the recorded script hashes identify what was executed.
+- The expanded placement regression passed all eight check groups:
+  `zig-out/test-fixtures/ime-position-20261016-195901-768/result.json`, exit
+  0, no forced termination, no crash/leak marker and no observed survivors
+  among the main process and three probes. Diagnostic executable SHA-256:
+  `0DAA9277BB8E705C3B536F6EBF19F87EB5E9FD4594BA66D3E3E2D2137FA128E3`.
+- Failure-cleanup verification on the final script used
+  `-SimulateCloseTimeout`. The run intentionally failed, recorded one
+  forced termination and no observed survivors, and did not list window
+  closure as successful. Evidence:
+  `zig-out/test-fixtures/ime-position-20261016-195945-018/result.json`.
+- An input-free launch/close check of `test-windows-ime.ps1` saved
+  `MainProcessExited=true`, `ProbeExited=true`, no observed survivors and
+  exit 0 in `zig-out/test-fixtures/ime-20261016-195935-398/session.json`.
+  It tests the new lifecycle records, not physical IME input; no trace was
+  expected without composition. The earlier owner-operated visual result
+  below remains the physical partial-commit acceptance evidence.
+- During script development, a first run incorrectly treated a matching
+  probe PID as reused: `ConvertFrom-Json` already returned a DateTime, and
+  reparsing its string representation lost time/zone precision. Preserving
+  the DateTime value fixed the comparison; later successful and forced-exit
+  runs above exercised it. The failed run is retained at
+  `zig-out/test-fixtures/ime-position-20261016-195446-472/result.json`.
+
+Focus loss/return with a retained native composition and output-heavy/TUI
+composition remain unverified hypotheses, not confirmed defects. Physical
+focus-resume, resize/DPI and other-IME scenarios are now explicit separate
+manual checks. The synthetic lifecycle cases do not establish those native
+IME behaviors, and no speculative application change was made for them.
+
 ## 2026-10-16: Partial IME commit diagnostics (#48)
 
 - Started schedule step 1 on the owner's instruction. Before correction,
@@ -55,8 +114,10 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   messages still reach `DefWindowProc`, preserving the native clause UI
   and the existing committed-character delivery.
 - `scripts/test-windows-ime-position.ps1` exercises two delayed PTY cursor
-  moves during one composition, end/focus cancellation (including queued
-  timer messages), restart and close while composing. The opt-in diagnostic
+  moves during one composition, end/focus cancellation (including synchronous
+  timer-message dispatch after cancellation), restart and close while composing.
+  This checks the inactive guard, not OS timer removal or queued delivery.
+  The opt-in diagnostic
   query (`WM_USER + 113`, integer correlation ID only) records IMM readback
   and tracking state. All six check groups passed with exit 0 and no
   crash/leak marker; evidence is in
@@ -64,8 +125,9 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   the diagnostic dispatch from normal builds, all six groups passed again
   in `zig-out/test-fixtures/ime-position-20261016-165446-667/`; the diagnostic
   executable hash is `59116E1B21218C43BD9FAA36901317068964DC49FC556E3835528BA641947DC8`.
-  The corrected build also passed Win32 tests (182 passed, one skipped)
-  and window-state regression (exit 0, no forced termination); logs are
+  Before the final diagnostic-dispatch exclusion, the corrected code passed
+  Win32 tests (182 passed, one skipped) and the diagnostic executable passed
+  window-state regression (exit 0, no forced termination); logs are
   `zig-out/logs/ime-fix-tests.log` and `ime-fix-window-state.log`.
 - Final normal and diagnostic Debug builds passed 128/128 steps each
   (`ime-fix-normal-build.log` and `ime-fix-build.log` in `zig-out/logs`).
@@ -82,7 +144,9 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   composition end, subsequent character records show `tracking=false`.
   The probe saved `庭にはにわ` with UTF-8
   `E5BAADE381ABE381AFE381ABE3828F`. The process exited with code 0, no
-  crash/leak marker and no remaining test process. Schedule step 1 is Done.
+  crash/leak marker. A separate `Get-Process -Id 19164 -ErrorAction SilentlyContinue`
+  check returned no process; this checked the main test PID, not its child
+  process tree, and was not saved in `session.json`. Schedule step 1 is Done.
 - On the owner's instruction, issue #48 was closed as completed on
   2026-10-16 after this acceptance. The correction and documentation were
   still local working-tree changes at closure; no commit or push was

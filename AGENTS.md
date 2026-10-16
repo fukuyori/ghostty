@@ -79,6 +79,13 @@ the ones it refers to.
   manual Alt+Tab, taskbar, and snap results.
 - **Startup diagnostics:** `.\scripts\run-windows-diagnostics.ps1` captures
   stdout, stderr, and the exit code from the GUI subsystem executable.
+- **IME placement:** `.\scripts\verify-windows-ime.ps1` builds/tests both
+  normal and hook variants, runs placement/lifecycle and window regressions,
+  and records source state, commands, hashes and exit codes. The controlled
+  check is `.\scripts\test-windows-ime-position.ps1` on a hook build.
+  Use `.\scripts\test-windows-ime.ps1` separately for physical Japanese IME
+  partial commit and focus-resume checks; automated placement readback does
+  not establish visual behavior. Never distribute the hook build.
 
 GUI changes are not complete on a successful build alone; confirm the actual
 display or a captured image. Input changes need real key, mouse, and IME
