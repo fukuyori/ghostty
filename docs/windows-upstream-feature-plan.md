@@ -2,7 +2,7 @@
 
 - Created: 2026-09-23; updated: 2026-10-17
 - Scope: upstream-feature Windows support on `windows`, including F4-F8; `gooztty` receives these changes through merges
-- Status: F1-F5 implementation and acceptance checks are complete; F4 runtime acceptance remains; F6-F8 remain
+- Status: F1-F5 implementation and acceptance checks are complete; F4 runtime acceptance remains; F6 implementation is complete and real-machine acceptance remains; F7-F8 remain
 - Related: [Windows roadmap](windows-roadmap.md), [user guide](windows.md)
 - Source of truth for progress, priority, and issues: [roadmap Phase 7](windows-roadmap.md#phase-7-upstream-feature-coverage-on-windows). This document records feature-specific design questions and acceptance criteria.
 
@@ -47,7 +47,7 @@ Roadmap Phases 1-6 record earlier milestones. This plan expands feature coverage
 | F3 | File drag and drop | Enter long or multiple paths from Explorer | Medium to high | Implemented; PowerShell/cmd quoting, rejection, pane targeting, elevated-window restriction, and target-window closure checked | [#32](https://github.com/fukuyori/ghostty/issues/32) |
 | F4 | Taskbar progress | See supported applications' progress outside the terminal | Low to medium | In progress; Win32 OSC 9;4 handling and taskbar API wired, runtime acceptance pending | [#33](https://github.com/fukuyori/ghostty/issues/33) |
 | F5 | HTML clipboard output | Paste formatted terminal output into documents | Low to medium | Implemented and accepted; HTML-only/mixed clipboard formats, CF_HTML offsets, Word rich-text paste, Notepad plain-text paste, and OSC 52 write verified | [#34](https://github.com/fukuyori/ghostty/issues/34) |
-| F6 | Session save and restore | Reduce rebuilding tabs, splits, and working locations | High | Not started | [#35](https://github.com/fukuyori/ghostty/issues/35) |
+| F6 | Session save and restore | Reduce rebuilding tabs, splits, and working locations | High | Implemented; model tests and alternate-prefix Debug build passed, real-machine acceptance pending | [#35](https://github.com/fukuyori/ghostty/issues/35) |
 | F7 | Quick terminal and global bindings | Invoke the terminal from another app | High | Not started | [#24](https://github.com/fukuyori/ghostty/issues/24) |
 | F8 | Desktop and command-finish notifications | Report long-running command completion | Medium to high; depends on shell reporting | Not started | [#21](https://github.com/fukuyori/ghostty/issues/21) |
 
@@ -297,17 +297,32 @@ The shared core emits only `text/html` for `copy_to_clipboard:html`, and both `t
 
 ### F6: Session Save and Restore
 
-Upstream depends on the macOS restoration mechanism. Noctty uses its own JSON format and profile management; do not adopt that implementation.
+Windows implements `window-save-state = always` as an opt-in. `default` and
+`never` do not save or restore on Windows. On normal application exit, a
+versioned JSON file under the Ghostty XDG state directory records window
+placement, tabs, split-tree direction and ratios, active tab and pane, tab and
+surface titles, and working directories reported by the terminal through
+OSC 7. Shells that do not report directory changes restore their process
+startup directory; PowerShell currently does not report `cd` changes. The file
+is written atomically. Missing, invalid, incompatible, or oversized state is
+ignored and startup falls back to the normal initial window. Unavailable saved
+paths use the configured working directory when it exists, otherwise the
+inherited startup directory. Windows clamps restored windows to a currently
+available monitor work area.
 
-First design Windows defaults for `window-save-state`, save timing, format and migration, and restoration scope for windows, tabs, splits, titles, and working directories. Consider precedence against `-e` and an explicit startup directory, corruption and interrupted writes, missing directories, and changed monitor layouts.
+An explicit startup command (`-e` or `--command`) or configured/CLI
+`working-directory` skips restore and save for that launch. Restoration starts
+new terminal processes; it does not resume running processes or restore
+terminal contents, scrollback, or history. The feature does not serialize
+terminal snapshots, so the conditional mode 9001/snapshot compatibility issue
+under #43 does not block this scope. Noctty-specific history snapshots and
+named layouts remain excluded.
 
-If the selected scope includes persistent terminal snapshots, first resolve
-the mode 9001 bit-43/upstream ordering and snapshot-format compatibility
-concern recorded under #43 in the [roadmap](windows-roadmap.md). Record that
-decision before fixing the persistence format. This is conditional; it does
-not add terminal snapshots to the agreed scope by itself.
-
-Do not present this as resuming running processes. Current PowerShell integration does not automatically report the working directory, so the exit-time directory may be unavailable. Exclude noctty-specific history snapshots and named layouts.
+Automated state-model tests cover version and shape validation, nested split
+ratios, Unicode working directories, and invalid input. Real-machine
+acceptance must cover a normal-exit/relaunch cycle with multiple windows, tabs,
+and nested splits; active focus and working directories; absent directories;
+monitor changes; corrupt state; and the command/directory startup overrides.
 
 ### F7: Quick Terminal and Global Bindings
 

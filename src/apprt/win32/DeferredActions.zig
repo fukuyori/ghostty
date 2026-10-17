@@ -14,6 +14,7 @@ pub const Close = struct {
     confirm: bool = false,
     all: bool = false,
     quit: bool = false,
+    snapshot_session: bool = false,
 
     pub fn add(self: *Close, alloc: std.mem.Allocator, surface: *Surface) !void {
         const core = surface.core_surface orelse return;
@@ -128,6 +129,13 @@ fn close(app: *App, request: Close) void {
                 win32.L("The terminal still has a running process. If you close the terminal the process will be killed.");
             const style: win32.MESSAGEBOX_STYLE = .{ .YESNO = 1, .ICONHAND = 1, .ICONQUESTION = 1, .DEFBUTTON2 = 1 };
             if (win32.MessageBoxW(hwnd, message, caption, style) != win32.IDYES) return;
+        }
+    }
+    if (request.snapshot_session) {
+        app.persistSession();
+        for (request.ids.items) |id| {
+            const surface = resolve(app, id) orelse continue;
+            if (app.windowForSurface(surface)) |window| window.session_close_snapshot = true;
         }
     }
     if (request.quit) {

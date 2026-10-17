@@ -5,6 +5,37 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-17: Windows session save and restore (F6, #35)
+
+- Added opt-in `window-save-state = always` support. The Windows default
+  (`default`) and `never` do not persist state. Closing windows atomically
+  updates versioned JSON under the Ghostty XDG state directory before the
+  final window is removed; shutdown also saves any windows still open;
+  `-e`, `--command`, and explicitly configured or CLI `working-directory`
+  startup overrides bypass both restore and save.
+- State includes window placement and maximized status, tab order and active
+  tab, split directions and ratios, focused panes, tab/surface titles, and
+  working directories reported through OSC 7. The owner confirmed that
+  restored tabs and splits appeared, but all pane directories were the home
+  directory. PowerShell was not reporting `cd` changes, so this is the saved
+  process startup directory; per-pane `cd` restoration remains unverified for
+  PowerShell. Relaunch starts new terminal processes;
+  terminal contents, scrollback, and process state are not persisted. Missing
+  saved directories use configured or inherited startup behavior, and windows
+  are clamped to an available monitor work area.
+- Added state validation for schema version, dimensions, tree depth, node and
+  tab limits, ratios, and string sizes; invalid or incompatible state falls
+  back to a regular initial window. The fallback now reinitializes the window
+  list after teardown. Restored surface titles are seeded as dynamic titles,
+  and malformed or non-absolute saved paths are rejected before filesystem
+  access. Writes use an atomic replacement. Unit tests for nested split/Unicode
+  round trips, invalid input, file save/load, and invalid directory paths
+  passed. The filtered Win32 test suite passed.
+- The alternate-prefix Debug build and the default `zig build` passed. The
+  `session`, `directoryExists`, and filtered Win32 test runs passed, as did
+  `git diff --check`. Real-machine title-update, save/relaunch,
+  monitor-change, and CLI-override acceptance remain pending.
+
 ## 2026-10-17: HTML clipboard output (F5, #34)
 
 - The shared core provides only `text/html` for `copy_to_clipboard:html` and

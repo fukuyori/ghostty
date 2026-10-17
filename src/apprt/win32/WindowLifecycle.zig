@@ -36,6 +36,8 @@ pub const Options = struct {
     shell_integration: ?configpkg.Config.ShellIntegration = null,
     working_directory: ?[:0]const u8 = null,
     title: ?[:0]const u8 = null,
+    /// Restored terminal titles are an initial value, not a static config title.
+    dynamic_title: bool = false,
 
     pub fn fromOverrides(overrides: Overrides) Options {
         return .{
@@ -91,7 +93,11 @@ fn initCoreSurface(
         try config.@"working-directory".?.finalize(config.arenaAlloc());
     }
     if (opts.title) |title| {
-        config.title = try config.arenaAlloc().dupeZ(u8, title);
+        if (opts.dynamic_title) {
+            config.title = null;
+        } else {
+            config.title = try config.arenaAlloc().dupeZ(u8, title);
+        }
     }
     surface.file_drop_shell = try FileDrop.classify(
         config.arenaAlloc(),
@@ -121,6 +127,7 @@ fn initCoreSurface(
     };
 
     surface.core_surface = core_surface;
+    if (opts.dynamic_title) if (opts.title) |title| try surface.setTitle(title);
     try TestHooks.fail(.core_ready);
 
     // The initial_size action can resize the native windows while the core
@@ -271,6 +278,15 @@ pub fn newSplit(
     target: apprt.Target,
     direction: apprt.action.SplitDirection,
 ) !bool {
+    return newSplitWithOptions(self, target, direction, .{});
+}
+
+pub fn newSplitWithOptions(
+    self: *App,
+    target: apprt.Target,
+    direction: apprt.action.SplitDirection,
+    opts: Options,
+) !bool {
     const existing = App.targetSurface(target) orelse {
         log.warn("new_split targeted the application", .{});
         return false;
@@ -326,7 +342,7 @@ pub fn newSplit(
     }
 
     try TestHooks.fail(.split_owned);
-    try initCoreSurface(self, surface, .{}, .split);
+    try initCoreSurface(self, surface, opts, .split);
     WindowLayout.layoutWindow(self, window);
     _ = win32.SetFocus(surface.hwnd);
     log.info("created Win32 split direction={s} surfaces={d}", .{
@@ -372,6 +388,8 @@ pub fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
     };
     SplitDivider.clearPointer(window);
     const close_window = window.totalSurfaceCount() == 1;
+    const save_before_window_close = close_window and !window.session_close_snapshot;
+    if (save_before_window_close) self.persistSession();
     const tab_surface_count = window.surfaceCountFor(surface) orelse return;
     const close_tab = !close_window and tab_surface_count == 1;
     if (close_tab) {
@@ -423,6 +441,12 @@ pub fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
         }
         self.alloc.destroy(surface);
         std.debug.assert(removeWindow(self, window));
+        if (self.windows.items.len > 0) {
+            const closing_only_snapshotted_windows = for (self.windows.items) |remaining| {
+                if (!remaining.session_close_snapshot) break false;
+            } else true;
+            if (!closing_only_snapshotted_windows) self.persistSession();
+        }
         window.deinit(self.alloc);
         self.alloc.destroy(window);
         return;
@@ -580,7 +604,7 @@ fn tabSelectedForClose(
 }
 
 pub fn closeOwnedWindow(self: *App, window: *Window) bool {
-    var request: DeferredActions.Close = .{};
+    var request: DeferredActions.Close = .{ .snapshot_session = true };
     var surfaces = window.surfaceIterator();
     while (surfaces.next()) |surface| {
         request.add(self.alloc, surface) catch |err| {
@@ -598,7 +622,7 @@ pub fn closeAllWindows(self: *App) bool {
 }
 
 pub fn queueCloseAll(self: *App, quit: bool) bool {
-    var request: DeferredActions.Close = .{ .all = true, .quit = quit };
+    var request: DeferredActions.Close = .{ .all = true, .quit = quit, .snapshot_session = true };
     for (self.windows.items) |window| {
         var surfaces = window.surfaceIterator();
         while (surfaces.next()) |surface| {

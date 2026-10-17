@@ -59,6 +59,8 @@ host_backdrop_active: bool = false,
 dwm_backdrop_active: bool = false,
 taskbar_progress_applied: ?TaskbarProgress.Report = null,
 taskbar_progress_applied_valid: bool = false,
+/// The complete layout was snapshotted before a whole-window close began.
+session_close_snapshot: bool = false,
 
 pub fn init(
     alloc: std.mem.Allocator,

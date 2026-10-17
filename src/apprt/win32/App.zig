@@ -44,6 +44,7 @@ const Mouse = @import("Mouse.zig");
 const NativeWindow = @import("NativeWindow.zig");
 const Recovery = @import("Recovery.zig");
 const TaskbarProgress = @import("TaskbarProgress.zig");
+const SessionPersistence = @import("SessionPersistence.zig");
 const IpcHandler = @import("IpcHandler.zig");
 const IpcProtocol = @import("IpcProtocol.zig");
 const IpcTransport = @import("IpcTransport.zig");
@@ -66,6 +67,7 @@ comptime {
     _ = NativeWindow;
     _ = Recovery;
     _ = TaskbarProgress;
+    _ = SessionPersistence;
     _ = WindowAppearance;
     _ = WindowLayout;
     _ = WindowCommands;
@@ -105,6 +107,8 @@ pending_opens: ShellOpen.Queue = .empty,
 /// Owned diagnostic text displayed only after core callbacks have returned.
 pending_config_diagnostics: ConfigActions.DiagnosticQueue = .{},
 pending_actions: DeferredActions.Queue = .empty,
+session_state_path: ?[]u8 = null,
+session_persistence_allowed: bool = false,
 
 pub fn init(
     self: *App,
@@ -118,6 +122,12 @@ pub fn init(
     errdefer alloc.destroy(config_ptr);
     config_ptr.* = try Config.load(alloc);
     errdefer config_ptr.deinit();
+    const explicit_startup_options = try hasExplicitStartupOptions(alloc, config_ptr);
+    const session_state_path = SessionPersistence.statePath(alloc) catch |err| state_path: {
+        log.warn("session state path unavailable: {}", .{err});
+        break :state_path null;
+    };
+    errdefer if (session_state_path) |path| alloc.free(path);
     var environ = try global.environMap();
     defer environ.deinit();
     // The regression hooks exist only in builds made with
@@ -155,6 +165,8 @@ pub fn init(
         .high_contrast = WindowAppearance.highContrastEnabled(),
         .test_device_recovery = test_device_recovery,
         .test_device_recovery_failures = test_device_recovery_failures,
+        .session_state_path = session_state_path,
+        .session_persistence_allowed = !explicit_startup_options,
     };
     self.taskbar_progress_runtime.init();
     errdefer self.windows.deinit(self.alloc);
@@ -172,7 +184,31 @@ pub fn init(
         break :server null;
     };
     errdefer if (self.ipc_server) |server| server.deinit();
-    try WindowLifecycle.createWindow(self, .{});
+    var restored = false;
+    log.debug("session startup mode={s} allowed={}", .{
+        @tagName(self.config.@"window-save-state"),
+        self.session_persistence_allowed,
+    });
+    if (self.session_persistence_allowed and self.config.@"window-save-state" == .always) {
+        if (self.session_state_path) |path| {
+            restored = SessionPersistence.restore(self, path) catch |err| restore_error: {
+                log.warn("session restore failed; starting with the default window: {}", .{err});
+                WindowLifecycle.destroyAll(self);
+                // destroyAll deinitializes the backing allocation. Restore
+                // an appendable empty list before creating the fallback.
+                self.windows = .empty;
+                break :restore_error false;
+            };
+            if (restored) {
+                log.info("session restored windows={d}", .{self.windows.items.len});
+            } else {
+                log.info("no saved session; starting with the default window", .{});
+            }
+        }
+    } else {
+        log.debug("session restore skipped", .{});
+    }
+    if (!restored) try WindowLifecycle.createWindow(self, .{});
     ConfigActions.showConfigDiagnostics(self, .app, self.config);
 }
 
@@ -267,12 +303,42 @@ pub fn terminate(self: *App) void {
     ShellOpen.discardPending(self);
     ConfigActions.discardDiagnostics(self);
     DeferredActions.discard(self);
+    if (self.session_persistence_allowed and self.config.@"window-save-state" == .always) {
+        if (self.windows.items.len > 0) self.persistSession();
+    }
     WindowLifecycle.destroyAll(self);
     self.destroyWakeupWindow();
     self.taskbar_progress_runtime.deinit();
     self.backdrop_runtime.deinit();
     self.config.deinit();
     self.alloc.destroy(self.config);
+    if (self.session_state_path) |path| self.alloc.free(path);
+}
+
+pub fn persistSession(self: *App) void {
+    if (!self.session_persistence_allowed or self.config.@"window-save-state" != .always) return;
+    const path = self.session_state_path orelse return;
+    SessionPersistence.save(self, path) catch |err| {
+        log.warn("session save failed: {}", .{err});
+        return;
+    };
+    log.debug("session state saved windows={d}", .{self.windows.items.len});
+}
+
+fn hasExplicitStartupOptions(alloc: Allocator, config: *const Config) !bool {
+    if (config.@"initial-command" != null or config.hasExplicitWorkingDirectory()) return true;
+    var iter: std.process.Args.Iterator = try .initAllocator(global.args(), alloc);
+    defer iter.deinit();
+    _ = iter.next(); // argv[0]
+    while (iter.next()) |arg| {
+        if (std.mem.eql(u8, arg, "-e") or
+            std.mem.eql(u8, arg, "--command") or
+            std.mem.startsWith(u8, arg, "--command=") or
+            std.mem.startsWith(u8, arg, "--initial-command=") or
+            std.mem.eql(u8, arg, "--working-directory") or
+            std.mem.startsWith(u8, arg, "--working-directory=")) return true;
+    }
+    return false;
 }
 
 pub fn wakeup(self: *App) void {

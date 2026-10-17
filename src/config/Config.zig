@@ -2302,7 +2302,16 @@ keybind: Keybinds = .{},
 ///
 /// The default value is `default`.
 ///
-/// This is currently only supported on macOS. This has no effect on Linux.
+/// On Windows, `default` does not save or restore state. Set this to `always`
+/// to save window layout on normal application exit and restore it at the next
+/// launch. Windows restores windows, tabs, split layout, focus, titles, and
+/// working directories reported through OSC 7. Shells that do not report
+/// directory changes (including the current PowerShell integration) restore
+/// the process startup directory. Terminal processes and scrollback are not
+/// restored. An explicit startup command or working-directory setting takes
+/// precedence and skips session restore and save for that launch.
+///
+/// This has no effect on Linux.
 @"window-save-state": WindowSaveState = .default,
 
 /// Resize the window in discrete increments of the focused surface's cell size.
@@ -4065,6 +4074,37 @@ pub fn load(alloc_gpa: Allocator) !Config {
     try result.finalize();
 
     return result;
+}
+
+/// Whether a config file or CLI argument explicitly selected a working
+/// directory. The finalized value alone cannot answer this because the
+/// platform default is also resolved during config loading.
+pub fn hasExplicitWorkingDirectory(self: *const Config) bool {
+    for (self._replay_steps.items) |step| switch (step) {
+        .arg => |arg| {
+            if (std.mem.startsWith(u8, arg, "--working-directory=")) return true;
+        },
+        .conditional_arg => |arg| {
+            if (!std.mem.startsWith(u8, arg.arg, "--working-directory=")) continue;
+            for (arg.conditions) |condition| {
+                if (!self._conditional_state.match(condition)) break;
+            } else return true;
+        },
+        else => {},
+    };
+    return false;
+}
+
+test "detects an explicit working directory independently of platform defaults" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+    var config = try Config.default(alloc);
+    defer config.deinit();
+    try testing.expect(!config.hasExplicitWorkingDirectory());
+
+    var iter: TestIterator = .{ .data = &.{"--working-directory=C:\\work"} };
+    try config.loadIter(alloc, &iter);
+    try testing.expect(config.hasExplicitWorkingDirectory());
 }
 
 pub fn default(alloc_gpa: Allocator) Allocator.Error!Config {

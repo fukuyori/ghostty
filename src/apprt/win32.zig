@@ -16,6 +16,8 @@ const native_window = @import("win32/NativeWindow.zig");
 const recovery = @import("win32/Recovery.zig");
 const split_divider = @import("win32/SplitDivider.zig");
 const split_tree = @import("win32/SplitTree.zig");
+const session_state = @import("win32/SessionState.zig");
+const session_persistence = @import("win32/SessionPersistence.zig");
 const tab_bar_accessibility = @import("win32/TabBarAccessibility.zig");
 const tab_bar_controller = @import("win32/TabBarController.zig");
 const tab_titles = @import("win32/TabTitles.zig");
@@ -40,6 +42,8 @@ test {
     _ = recovery;
     _ = split_divider;
     _ = split_tree;
+    _ = session_state;
+    _ = session_persistence;
     _ = tab_bar_accessibility;
     _ = tab_bar_controller;
     _ = tab_titles;
