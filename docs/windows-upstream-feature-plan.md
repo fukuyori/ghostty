@@ -2,7 +2,7 @@
 
 - Created: 2026-09-23; updated: 2026-10-17
 - Scope: upstream-feature Windows support on `windows`, including F4-F8; `gooztty` receives these changes through merges
-- Status: F1-F6 implementation and acceptance checks are complete; F7 is implemented and awaits real-key acceptance; F8 remains
+- Status: F1-F7 implementation and acceptance checks are complete; F8 remains
 - Related: [Windows roadmap](windows-roadmap.md), [user guide](windows.md)
 - Source of truth for progress, priority, and issues: [roadmap Phase 7](windows-roadmap.md#phase-7-upstream-feature-coverage-on-windows). This document records feature-specific design questions and acceptance criteria.
 
@@ -48,7 +48,7 @@ Roadmap Phases 1-6 record earlier milestones. This plan expands feature coverage
 | F4 | Taskbar progress | See supported applications' progress outside the terminal | Low to medium | Implemented; owner confirms real-taskbar acceptance is complete | [#33](https://github.com/fukuyori/ghostty/issues/33) |
 | F5 | HTML clipboard output | Paste formatted terminal output into documents | Low to medium | Implemented and accepted; HTML-only/mixed clipboard formats, CF_HTML offsets, Word rich-text paste, Notepad plain-text paste, and OSC 52 write verified | [#34](https://github.com/fukuyori/ghostty/issues/34) |
 | F6 | Session save and restore | Reduce rebuilding tabs, splits, and working locations | High | Implemented and accepted; owner-confirmed multi-window/per-pane cwd, invalid state, unavailable paths, focused-pane/active-tab/title restoration, off-screen placement clamp, and configured/CLI working-directory plus CLI command overrides verified. Active-window selection and physical monitor disconnect were not tested | [#35](https://github.com/fukuyori/ghostty/issues/35) |
-| F7 | Quick terminal and global bindings | Invoke the terminal from another app | High | Implemented; build, Win32 tests and a controlled `WM_HOTKEY`-driven run pass; real-key acceptance pending | [#24](https://github.com/fukuyori/ghostty/issues/24) |
+| F7 | Quick terminal and global bindings | Invoke the terminal from another app | High | Implemented and accepted; owner-run real-key checks covered toggling from other applications, focus return, taskbar/Alt+Tab exclusion, splits and shell exit, disabled-binding reporting including a conflict, autohide, reload with `none`, mouse-screen placement on a 125% monitor, virtual desktops, zero-window lifetime, and unreachable-quit confirmation. Layout switching was omitted; monitor disconnect not tested | [#24](https://github.com/fukuyori/ghostty/issues/24) |
 | F8 | Desktop and command-finish notifications | Report long-running command completion | Medium to high; depends on shell reporting | Not started | [#21](https://github.com/fukuyori/ghostty/issues/21) |
 
 On 2026-09-23, the plan was added to existing #17, #23, #24, and #21, and #32-#35 were created. Broader issue #25 also covers progress and command-finish notifications, so #33 and #21 link to it. Existing #15 separately tracks the quick-terminal CLI/IPC path.
@@ -347,7 +347,7 @@ Decided Windows semantics (implemented 2026-10-17; the per-setting table is in t
 - With a registered global keybinding and `quit-after-last-window-closed = false`, the application stays running without windows.
 - `+toggle-quick-terminal` stays out of scope (#15).
 
-Acceptance remaining: real keys from another application, conflicts, JIS/US layouts and IME, focus return, autohide, `none` interactivity, splits and shell exit, close-all/quit, zero-window lifetime, multiple monitors and mixed DPI, taskbar/Alt+Tab exclusion, virtual desktops, and clean exit.
+Owner-run acceptance on 2026-10-17 passed with real keys; see the port log for the steps. Keyboard-layout switching was omitted by the owner, and a physical monitor disconnect was not tested. A switch to another virtual desktop leaves the quick terminal on the desktop where it was shown.
 
 ### F8: Desktop and Command-Finish Notifications
 

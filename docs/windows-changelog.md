@@ -15,10 +15,13 @@ known issues, and known limitations of each version; the
   terminal (`toggle_quick_terminal`, F7 #24): a single captionless topmost
   tool window placed in the monitor work area by the `quick-terminal-*`
   settings, excluded from session save and `toggle_visibility`, with focus
-  return, autohide and `GHOSTTY_QUICK_TERMINAL=1`. Debug build and Win32 tests
-  pass; a controlled run driven by posted `WM_HOTKEY` messages confirmed show,
-  hide, reuse, the environment variable and a clean exit. Real-key and
-  owner-run acceptance checks remain pending.
+  return, autohide and `GHOSTTY_QUICK_TERMINAL=1`. A global binding that
+  cannot be registered is disabled and listed in the configuration error
+  dialog. Debug build and Win32 tests pass, and owner-run real-key
+  acceptance passed, including conflicts, autohide, reload, a 125% monitor,
+  virtual desktops and the unreachable-quit confirmation. Autohide no longer
+  hides the quick terminal when Ghostty itself returns the focus after a
+  reload to `keyboard-interactivity = none`.
 - Handle OSC 9;4 progress reports in the Windows taskbar using
   `ITaskbarList3`, aggregating panes and tabs with Windows Terminal's state
   priority. Build and focused aggregation test pass; the owner confirms

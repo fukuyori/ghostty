@@ -931,7 +931,7 @@ Shells in the quick terminal get `GHOSTTY_QUICK_TERMINAL=1`.
 | `quick-terminal-autohide` | Hides when another window, including another Ghostty window, is activated. Dialogs owned by the quick terminal do not hide it. Default `false` |
 | `quick-terminal-keyboard-interactivity` | `on-demand` takes focus when shown; `none` does not take keyboard focus when shown, clicked, or split, and a reload to `none` gives up the focus it has; `exclusive` behaves like `on-demand`, because Windows cannot withhold input from other applications |
 | `quick-terminal-animation-duration` | Not supported; the window appears and hides immediately |
-| `quick-terminal-space-behavior`, `gtk-quick-terminal-*` | Ignored |
+| `quick-terminal-space-behavior`, `gtk-quick-terminal-*` | Ignored. Switching virtual desktops leaves the quick terminal on the desktop where it was shown |
 
 Maximize, fullscreen, decoration, and resize actions do not apply to the quick
 terminal. Its placement is recomputed on configuration reload, DPI change, and

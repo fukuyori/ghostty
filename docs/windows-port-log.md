@@ -111,12 +111,40 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 - The unreachable-quit confirmation was built and passes the Win32 tests (189
   passed, 1 skipped); it was not exercised at runtime because opening the
   quick terminal without a registered global keybinding needs real key input.
-- Not yet verified: real key presses from another application, conflicts with
-  other applications, layout changes, focus return, autohide, `none`
-  interactivity, splits and shell exit in the quick terminal, close-all/quit
-  with a hidden quick terminal, zero-window lifetime, multiple monitors and
-  mixed DPI, taskbar/Alt+Tab exclusion as seen by the user, and virtual
-  desktops.
+- Owner-run acceptance on 2026-10-17 with the Debug build, an isolated
+  configuration, and real keys (Ctrl+Shift+F12 toggle, Ctrl+Shift+F11 quit,
+  Ctrl+Shift+F10 reload), all passed: show over another application with
+  typing; holding the chord toggles once; explicit hide returns to the
+  previous application and, from a normal Ghostty window, to that window; no
+  taskbar button or Alt+Tab entry; split right, `new_tab` ignored, Alt+F4
+  hides and keeps the splits, `exit` closes one pane, the last `exit`
+  destroys the window and the next toggle starts a new shell; the process
+  stays after the last normal window closes and the toggle still works;
+  global `quit` exits with no leftover child process. With a helper process
+  holding Ctrl+Shift+F9, the startup dialog listed `global:ctrl+shift+f9`
+  (already used) and `global:ctrl+numpad_enter` (indistinguishable) as
+  disabled, and neither opened a window when pressed in Ghostty. Autohide
+  hid the quick terminal for another application and for a normal Ghostty
+  window. Reload moved a shown quick terminal from top/40% to bottom/30%,
+  switching to `keyboard-interactivity = none` returned typing to the
+  previous application, and neither clicking nor re-showing took keyboard
+  focus; reverting and reloading restored top placement and focus.
+  `quick-terminal-screen = mouse` placed it across the top of the pointer's
+  monitor, including the 125% monitor with correctly scaled text, without
+  following the pointer while shown, and clear of the taskbar. Switching
+  virtual desktops left it on the desktop where it was shown. With every
+  normal window closed, reloading a configuration with no global keybinding
+  and an unknown setting showed an ownerless foreground error dialog and
+  then the unreachable-quit confirmation; declining showed the quick
+  terminal, and Alt+F4 followed by confirming quit exited Ghostty.
+  Keyboard-layout switching was omitted by the owner.
+- Fix from acceptance step 19: reloading to `keyboard-interactivity = none`
+  with autohide enabled hid the quick terminal, because returning the focus
+  to the previous application deactivated it. Focus released by Ghostty
+  itself no longer triggers autohide; the repeated step passed.
+- Not verified: keyboard-layout switching (omitted by the owner), a
+  physical monitor disconnect while shown, Release-build behavior, and
+  Windows 10.
 
 ## 2026-10-17: Windows session save and restore (F6, #35)
 

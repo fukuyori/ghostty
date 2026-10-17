@@ -30,6 +30,9 @@ pub const State = struct {
     screen: Config.QuickTerminalScreen = .main,
     /// Guards against autohide while the window is already being hidden.
     hiding: bool = false,
+    /// Set while Ghostty itself moves the focus away, which is not a
+    /// reason to autohide.
+    releasing_focus: bool = false,
 };
 
 pub const HideReason = enum { explicit, autohide };
@@ -168,7 +171,7 @@ fn takeRestoreTarget(app: *App, window: *Window, reason: HideReason) ?win32.HWND
 
 /// WM_ACTIVATE for the quick terminal window.
 pub fn activationChanged(app: *App, window: *Window, active: bool, other: ?win32.HWND) void {
-    if (active) return;
+    if (active or app.quick_terminal.releasing_focus) return;
     if (other) |hwnd| {
         if (ownedBy(hwnd, window.hwnd)) return;
     }
@@ -201,6 +204,8 @@ pub fn refresh(app: *App, window: *Window) void {
 /// Give up keyboard focus after a reload to `keyboard-interactivity = none`.
 fn releaseFocus(app: *App, window: *Window) void {
     if (win32.GetForegroundWindow() != window.hwnd) return;
+    app.quick_terminal.releasing_focus = true;
+    defer app.quick_terminal.releasing_focus = false;
     if (takeRestoreTarget(app, window, .explicit)) |hwnd| {
         if (win32.SetForegroundWindow(hwnd) != 0) return;
     }
