@@ -15,6 +15,16 @@ known issues, and known limitations of each version; the
   `ITaskbarList3`, aggregating panes and tabs with Windows Terminal's state
   priority. Build and focused aggregation test pass; real taskbar display and
   supporting-application checks remain pending.
+- Register terminal HTML output as Windows `HTML Format` (CF_HTML), retaining
+  the selected semantics: HTML-only for `copy_to_clipboard:html`, and HTML
+  plus plain text for `mixed`. UTF-8 byte-offset tests and the Debug build
+  pass. The owner confirmed Japanese text, line breaks and red text styling
+  in Word. Direct inspection confirmed HTML-only registers `HTML Format`
+  without `UnicodeText`, with valid UTF-8 byte offsets and Japanese/LF
+  fragment content; `mixed` registers both `HTML Format` and `UnicodeText`,
+  with the expected sample content in both representations. The mixed copy
+  pasted all three lines into Notepad. OSC 52 wrote the expected plain-text
+  value without registering HTML.
 - Follow the terminal cursor throughout native IME composition (#48),
   including asynchronous cursor movement after a partial commit. Stop
   tracking on composition end, focus loss and surface destruction.

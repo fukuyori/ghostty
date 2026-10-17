@@ -470,11 +470,14 @@ pub fn setClipboard(
     if (confirm and !self.confirmClipboardAccess(.write)) return;
 
     const text = clipboardTextContent(contents);
-    if (contents.len > 0 and text == null) return error.UnsupportedClipboardContent;
+    const html = htmlClipboardContent(contents);
+    if (contents.len > 0 and text == null and html == null) return error.UnsupportedClipboardContent;
 
-    var hglobal: isize = 0;
+    var text_hglobal: isize = 0;
+    var html_hglobal: isize = 0;
     defer {
-        if (hglobal != 0) _ = win32.GlobalFree(hglobal);
+        if (text_hglobal != 0) _ = win32.GlobalFree(text_hglobal);
+        if (html_hglobal != 0) _ = win32.GlobalFree(html_hglobal);
     }
     if (text) |value| {
         const alloc = self.core().alloc;
@@ -484,22 +487,48 @@ pub fn setClipboard(
         const utf16 = try std.unicode.utf8ToUtf16LeAllocZ(alloc, normalized);
         defer alloc.free(utf16);
 
-        hglobal = win32.GlobalAlloc(
+        text_hglobal = win32.GlobalAlloc(
             win32.GMEM_MOVEABLE,
             (utf16.len + 1) * @sizeOf(u16),
         );
-        if (hglobal == 0) {
+        if (text_hglobal == 0) {
             log.err("GlobalAlloc failed: err={d}", .{@intFromEnum(win32.GetLastError())});
             return error.Win32Clipboard;
         }
 
-        const raw = win32.GlobalLock(hglobal) orelse {
+        const raw = win32.GlobalLock(text_hglobal) orelse {
             log.err("GlobalLock failed: err={d}", .{@intFromEnum(win32.GetLastError())});
             return error.Win32Clipboard;
         };
         const dst: [*]u16 = @ptrCast(@alignCast(raw));
         @memcpy(dst[0 .. utf16.len + 1], utf16.ptr[0 .. utf16.len + 1]);
-        _ = win32.GlobalUnlock(hglobal);
+        _ = win32.GlobalUnlock(text_hglobal);
+    }
+    var html_format: ?u32 = null;
+    if (html) |value| {
+        const alloc = self.core().alloc;
+        const cf_html = try makeCfHtml(alloc, value);
+        defer alloc.free(cf_html);
+
+        html_format = win32.RegisterClipboardFormatW(std.unicode.utf8ToUtf16LeStringLiteral("HTML Format"));
+        if (html_format.? == 0) {
+            log.err("RegisterClipboardFormatW(HTML Format) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            return error.Win32Clipboard;
+        }
+
+        html_hglobal = win32.GlobalAlloc(win32.GMEM_MOVEABLE, cf_html.len + 1);
+        if (html_hglobal == 0) {
+            log.err("GlobalAlloc(HTML Format) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            return error.Win32Clipboard;
+        }
+        const raw = win32.GlobalLock(html_hglobal) orelse {
+            log.err("GlobalLock(HTML Format) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            return error.Win32Clipboard;
+        };
+        const dst: [*]u8 = @ptrCast(raw);
+        @memcpy(dst[0..cf_html.len], cf_html);
+        dst[cf_html.len] = 0;
+        _ = win32.GlobalUnlock(html_hglobal);
     }
 
     if (!self.openClipboard()) {
@@ -516,16 +545,27 @@ pub fn setClipboard(
     }
 
     // No representations means clear the destination clipboard.
-    if (text == null) return;
+    if (text_hglobal == 0 and html_hglobal == 0) return;
 
-    const handle: win32.HANDLE = @ptrFromInt(@as(usize, @bitCast(hglobal)));
-    if (win32.SetClipboardData(@intFromEnum(win32.CF_UNICODETEXT), handle) == null) {
-        log.err("SetClipboardData failed: err={d}", .{@intFromEnum(win32.GetLastError())});
-        return error.Win32Clipboard;
+    if (text_hglobal != 0) {
+        const handle: win32.HANDLE = @ptrFromInt(@as(usize, @bitCast(text_hglobal)));
+        if (win32.SetClipboardData(@intFromEnum(win32.CF_UNICODETEXT), handle) == null) {
+            log.err("SetClipboardData(CF_UNICODETEXT) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            return error.Win32Clipboard;
+        }
+        // SetClipboardData transfers ownership to Windows on success.
+        text_hglobal = 0;
     }
 
-    // SetClipboardData transfers ownership to Windows on success.
-    hglobal = 0;
+    if (html_hglobal != 0) {
+        const handle: win32.HANDLE = @ptrFromInt(@as(usize, @bitCast(html_hglobal)));
+        if (win32.SetClipboardData(html_format.?, handle) == null) {
+            log.err("SetClipboardData(HTML Format) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            return error.Win32Clipboard;
+        }
+        // SetClipboardData transfers ownership to Windows on success.
+        html_hglobal = 0;
+    }
 }
 
 const ClipboardAccess = enum { read, write };
@@ -586,6 +626,57 @@ fn clipboardTextContent(contents: []const apprt.ClipboardContent) ?[]const u8 {
         if (terminal.clipboard.isTextMime(content.mime)) return content.data;
     }
     return null;
+}
+
+fn htmlClipboardContent(contents: []const apprt.ClipboardContent) ?[]const u8 {
+    for (contents) |content| {
+        if (std.mem.eql(u8, content.mime, "text/html")) return content.data;
+    }
+    return null;
+}
+
+const cf_html_header_template =
+    "Version:1.0\r\n" ++
+    "StartHTML:0000000000\r\n" ++
+    "EndHTML:0000000000\r\n" ++
+    "StartFragment:0000000000\r\n" ++
+    "EndFragment:0000000000\r\n";
+const cf_html_context_prefix = "<html><body><!--StartFragment-->";
+const cf_html_context_suffix = "<!--EndFragment--></body></html>";
+
+fn writeCfHtmlOffset(output: []u8, field: []const u8, value: usize) error{InvalidCfHtmlOffset}!void {
+    const field_start = std.mem.indexOf(u8, output, field).? + field.len;
+    const digits = output[field_start..][0..10];
+    if (value > 9_999_999_999) return error.InvalidCfHtmlOffset;
+    var remaining = value;
+    for (0..digits.len) |i| {
+        digits[digits.len - i - 1] = @as(u8, '0') + @as(u8, @intCast(remaining % 10));
+        remaining /= 10;
+    }
+}
+
+fn makeCfHtml(alloc: std.mem.Allocator, html: []const u8) ![]u8 {
+    const start_html = cf_html_header_template.len;
+    const start_fragment = start_html + cf_html_context_prefix.len;
+    const end_fragment = start_fragment + html.len;
+    const end_html = end_fragment + cf_html_context_suffix.len;
+    const total_len = end_html;
+    const result = try alloc.alloc(u8, total_len);
+    errdefer alloc.free(result);
+
+    @memcpy(result[0..cf_html_header_template.len], cf_html_header_template);
+    try writeCfHtmlOffset(result, "StartHTML:", start_html);
+    try writeCfHtmlOffset(result, "EndHTML:", end_html);
+    try writeCfHtmlOffset(result, "StartFragment:", start_fragment);
+    try writeCfHtmlOffset(result, "EndFragment:", end_fragment);
+
+    var offset = cf_html_header_template.len;
+    @memcpy(result[offset..][0..cf_html_context_prefix.len], cf_html_context_prefix);
+    offset += cf_html_context_prefix.len;
+    @memcpy(result[offset..][0..html.len], html);
+    offset += html.len;
+    @memcpy(result[offset..][0..cf_html_context_suffix.len], cf_html_context_suffix);
+    return result;
 }
 
 /// Convert Windows clipboard line endings to the terminal's LF convention.
@@ -687,6 +778,43 @@ test "Win32 clipboard selects the first text representation" {
         .{ .mime = "UTF8_STRING", .data = "text" },
     };
     try std.testing.expectEqualStrings("text", clipboardTextContent(&contents).?);
+}
+
+fn cfHtmlOffset(document: []const u8, field: []const u8) !usize {
+    const start = (std.mem.indexOf(u8, document, field) orelse return error.MissingField) + field.len;
+    return try std.fmt.parseInt(usize, document[start..][0..10], 10);
+}
+
+test "Win32 CF_HTML offsets count UTF-8 bytes" {
+    const alloc = std.testing.allocator;
+    const html = "<div>庭 🪴<br>line 2 &amp;\nnext line\n</div>";
+    const document = try makeCfHtml(alloc, html);
+    defer alloc.free(document);
+
+    const start_html = try cfHtmlOffset(document, "StartHTML:");
+    const end_html = try cfHtmlOffset(document, "EndHTML:");
+    const start_fragment = try cfHtmlOffset(document, "StartFragment:");
+    const end_fragment = try cfHtmlOffset(document, "EndFragment:");
+    try std.testing.expectEqual(cf_html_header_template.len, start_html);
+    try std.testing.expectEqual(document.len, end_html);
+    try std.testing.expectEqualStrings(html, document[start_fragment..end_fragment]);
+    try std.testing.expect(std.mem.startsWith(u8, document, "Version:1.0\r\n"));
+    try std.testing.expect(std.mem.endsWith(u8, document, cf_html_context_suffix));
+}
+
+test "Win32 clipboard chooses HTML and text representations independently" {
+    const html_only = [_]apprt.ClipboardContent{
+        .{ .mime = "text/html", .data = "<b>html</b>" },
+    };
+    try std.testing.expectEqual(@as(?[]const u8, null), clipboardTextContent(&html_only));
+    try std.testing.expectEqualStrings("<b>html</b>", htmlClipboardContent(&html_only).?);
+
+    const mixed = [_]apprt.ClipboardContent{
+        .{ .mime = "text/plain", .data = "plain" },
+        .{ .mime = "text/html", .data = "<b>html</b>" },
+    };
+    try std.testing.expectEqualStrings("plain", clipboardTextContent(&mixed).?);
+    try std.testing.expectEqualStrings("<b>html</b>", htmlClipboardContent(&mixed).?);
 }
 
 test "Win32 content scale follows monitor DPI" {

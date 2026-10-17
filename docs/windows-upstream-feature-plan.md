@@ -2,7 +2,7 @@
 
 - Created: 2026-09-23; updated: 2026-10-17
 - Scope: upstream-feature Windows support on `windows`, including F4-F8; `gooztty` receives these changes through merges
-- Status: F1-F3 implementation and acceptance checks are complete; F4 implementation is in progress; F5-F8 remain
+- Status: F1-F5 implementation and acceptance checks are complete; F4 runtime acceptance remains; F6-F8 remain
 - Related: [Windows roadmap](windows-roadmap.md), [user guide](windows.md)
 - Source of truth for progress, priority, and issues: [roadmap Phase 7](windows-roadmap.md#phase-7-upstream-feature-coverage-on-windows). This document records feature-specific design questions and acceptance criteria.
 
@@ -46,7 +46,7 @@ Roadmap Phases 1-6 record earlier milestones. This plan expands feature coverage
 | F2 | Scrollbar | Locate and navigate long scrollback | Medium | Implemented; overlay lifecycle, position sync, split and alternate-screen behavior, drag races, history limits, resize tracking, real-pointer drag, high contrast, and mixed-DPI display verified | [#23](https://github.com/fukuyori/ghostty/issues/23) |
 | F3 | File drag and drop | Enter long or multiple paths from Explorer | Medium to high | Implemented; PowerShell/cmd quoting, rejection, pane targeting, elevated-window restriction, and target-window closure checked | [#32](https://github.com/fukuyori/ghostty/issues/32) |
 | F4 | Taskbar progress | See supported applications' progress outside the terminal | Low to medium | In progress; Win32 OSC 9;4 handling and taskbar API wired, runtime acceptance pending | [#33](https://github.com/fukuyori/ghostty/issues/33) |
-| F5 | HTML clipboard output | Paste formatted terminal output into documents | Low to medium | Not started | [#34](https://github.com/fukuyori/ghostty/issues/34) |
+| F5 | HTML clipboard output | Paste formatted terminal output into documents | Low to medium | Implemented and accepted; HTML-only/mixed clipboard formats, CF_HTML offsets, Word rich-text paste, Notepad plain-text paste, and OSC 52 write verified | [#34](https://github.com/fukuyori/ghostty/issues/34) |
 | F6 | Session save and restore | Reduce rebuilding tabs, splits, and working locations | High | Not started | [#35](https://github.com/fukuyori/ghostty/issues/35) |
 | F7 | Quick terminal and global bindings | Invoke the terminal from another app | High | Not started | [#24](https://github.com/fukuyori/ghostty/issues/24) |
 | F8 | Desktop and command-finish notifications | Report long-running command completion | Medium to high; depends on shell reporting | Not started | [#21](https://github.com/fukuyori/ghostty/issues/21) |
@@ -286,13 +286,12 @@ The shared core passes `progress_report` to Win32. `TaskbarProgress.zig` maps OS
 
 ### F5: HTML Clipboard Output
 
-The shared core generates HTML for `copy_to_clipboard:html` and mixed output. Current Win32 writes only `CF_UNICODETEXT` and does not register HTML.
+The shared core emits only `text/html` for `copy_to_clipboard:html`, and both `text/plain` and `text/html` for `mixed`. The normal macOS write path registers the MIME representations it receives, so Windows registers only HTML for the `html` format and both representations for `mixed`; it does not synthesize a plain-text fallback. Windows uses the registered `HTML Format` clipboard format and CF_HTML UTF-8 byte offsets.
 
-- Connect upstream-generated HTML to Windows `HTML Format` (CF_HTML).
-- Compare plain, mixed, and HTML behavior with upstream. Decide any plain-text fallback instead of guessing its content.
-- Validate CF_HTML headers with UTF-8 byte offsets, Japanese text, newlines, and special characters.
-- Inspect actual paste results in rich-text and plain-text destinations.
-- Preserve existing copy and OSC 52 behavior.
+- Implemented `HTML Format` (CF_HTML) registration, HTML-only and mixed writes, and UTF-8 byte-offset generation. The offset test covers Japanese text, non-BMP Unicode, and literal LF bytes in the HTML fragment.
+- Repeatable terminal sample and OSC 52 probe: run [`test-windows-html-clipboard.ps1`](../scripts/test-windows-html-clipboard.ps1) in Ghostty, select only its three output lines, and invoke the configured HTML or mixed copy binding; run it with `-TestOsc52` to send a known OSC 52 clipboard value.
+- The owner tested the rich-text paste in Word; Japanese text, line breaks, and red terminal text styling appeared. Direct inspection after `copy_to_clipboard:html` found only `HTML Format` (no `UnicodeText`). After `mixed`, both `HTML Format` and `UnicodeText` were present. Both CF_HTML payloads had valid header fields and UTF-8 byte offsets, and their fragments and the plain-text representation contained the Japanese sample, red-text sample, second line, and literal LF.
+- Mixed paste into Notepad displayed all three expected lines. The `-TestOsc52` script run through Ghostty's `-e` command path wrote `OSC52 clipboard regression`; direct clipboard inspection found that exact Unicode text and no HTML format.
 
 ## 6. Later Design Work
 

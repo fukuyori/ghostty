@@ -5,6 +5,42 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-17: HTML clipboard output (F5, #34)
+
+- The shared core provides only `text/html` for `copy_to_clipboard:html` and
+  both `text/plain` and `text/html` for `mixed`. The macOS write path
+  registers the supplied MIME representations, so the Windows port follows
+  that behavior and does not synthesize a plain-text fallback.
+- Implemented Windows `HTML Format` (CF_HTML) registration with UTF-8 byte
+  offsets. The offset test covers Japanese text, a non-BMP character, and
+  literal LF bytes. `zig build test '-Dtest-filter=CF_HTML'` passed after
+  adding LF coverage; the MIME-selection test, Debug `zig build`, `zig fmt`,
+  and `git diff --check` also passed.
+- Added `scripts/test-windows-html-clipboard.ps1` as a repeatable manual
+  fixture. Running it under Windows PowerShell 5.1 printed the three test
+  lines with Japanese text and red foreground as intended. Its `-TestOsc52`
+  option sends a known OSC 52 clipboard-write value for the remaining
+  regression check.
+- Claude Code reviewed the supplied working-tree diff. It found no
+  high-severity defect and identified inconsistent F5 status text and a test
+  description that claimed newline coverage before the test contained a
+  literal newline; these documentation and test records are now aligned.
+- The owner tested rich-text paste in Word; the visible paste retained
+  Japanese text, line breaks, and red terminal text styling. Direct clipboard
+  inspection after the HTML-only binding returned only `HTML Format`, no
+  `UnicodeText`; after `mixed`, both formats were present. Both CF_HTML
+  payloads had a Version 1.0 header, four valid offsets, and fragments
+  containing the Japanese sample, red-text sample, second line, and literal
+  LF. The mixed plain-text representation contained the same sample lines.
+  The owner pasted the mixed copy into Notepad and confirmed all three lines.
+- Ran `scripts/test-windows-html-clipboard.ps1 -TestOsc52` inside Ghostty via
+  its `-e` command path. The clipboard contained exactly
+  `OSC52 clipboard regression` as Unicode text and did not contain
+  `HTML Format`, confirming the existing OSC 52 plain-text write path.
+- Partial registration remains possible: if `CF_UNICODETEXT` is accepted
+  and the subsequent HTML registration fails, text stays on the clipboard
+  while the operation reports an error. This failure path was not injected.
+
 ## 2026-10-16: IME review follow-up (#48)
 
 Claude Code CLI reviewed `604034f7a`. It reported six P3 findings about
