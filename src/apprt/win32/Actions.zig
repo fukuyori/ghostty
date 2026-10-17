@@ -73,6 +73,10 @@ pub fn perform(
             return true;
         },
         .renderer_health => return try Recovery.recoverRenderer(target, value),
+        .progress_report => {
+            const surface = App.targetSurface(target) orelse return false;
+            return self.setTaskbarProgress(surface, value);
+        },
         .config_change => return try ConfigActions.configChange(self, target, value),
         else => return false,
     }

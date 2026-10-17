@@ -56,6 +56,7 @@ scrollbar: ?*@import("Scrollbar.zig") = null,
 file_drop_shell: FileDrop.Shell = .unsupported,
 mouse_shape: terminal.MouseShape = .text,
 mouse_visible: bool = true,
+taskbar_progress: ?@import("TaskbarProgress.zig").Report = null,
 
 /// Adjustable Host Backdrop composition layer attached below this surface's
 /// renderer target on the same child HWND.

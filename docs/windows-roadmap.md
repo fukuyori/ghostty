@@ -96,7 +96,7 @@ conditions must be met.
 6. Layout does not break on DPI changes, multiple monitors, maximize,
    minimize, or restore.
 7. Release builds can be produced with a reproducible script.
-8. The real-hardware test items for Windows 10/11 are satisfied and known
+8. The real-hardware test items for the supported Windows version are satisfied and known
    limitations are documented.
 
 ## 4. Status Notation
@@ -1256,7 +1256,7 @@ Completion criteria:
 ### Phase 7: Upstream Feature Coverage on Windows
 
 Status: **In progress**. F1-F3 implementation and acceptance checks are
-complete. F4-F8 have not begun.
+complete. F4 implementation is in progress; F5-F8 have not begun.
 This is a new phase after the six
 completed production-readiness phases. It is not part of the historical
 `1.3.2-windows.11` distribution evidence.
@@ -1274,7 +1274,7 @@ checks; this roadmap owns ordering and status.
 | 1 | F1 | Command palette: `toggle_command_palette`, `command-palette-entry` | [#17](https://github.com/fukuyori/ghostty/issues/17) | Done | Controlled display, Up/Down, dismiss/focus, IME process-key suppression, config reload, and owner-window closure checks passed; owner confirmed real Up/Down, new-tab action, open-tab jump, physical Japanese IME conversion Enter without command execution, readable high contrast, and scaled unclipped controls at 125% DPI |
 | 2 | F2 | Per-pane scrollbar: `scrollbar = system / never`, `scroll_to_row` | [#23](https://github.com/fukuyori/ghostty/issues/23) | Done | Controlled reveal, captured thumb pixels, auto-hide, `never`/`system` config reload, key/wheel/search position sync, split independence, alternate-screen transitions, exact controlled drag, output/pane-close drag races, empty/reached-limit history, and maximize/restore tracking passed; owner confirmed real-pointer drag and auto-hide, a distinguishable high-contrast thumb, and correctly scaled overlay geometry at 125% DPI |
 | 3 | F3 | Explorer file/directory drop into a pane | [#32](https://github.com/fukuyori/ghostty/issues/32) | Done | Owner captured single/multiple PowerShell drops without Enter, `%`/`!` rejection warnings, cmd double quoting without Enter, and right-split-only delivery in development builds. Normal Explorer could not drop into an elevated test window. A real drag held over a Debug target until its scheduled shell exit confirmed clean target-window closure and cancellation without Explorer errors |
-| Independent | F4 | Taskbar progress from `progress_report` and `progress-style` | [#33](https://github.com/fukuyori/ghostty/issues/33) | Not started | Decide active-pane policy; verify normal, paused, error, indeterminate, and cleared states with a controlled sequence and a real emitting app |
+| Independent | F4 | Taskbar progress from `progress_report` and `progress-style` | [#33](https://github.com/fukuyori/ghostty/issues/33) | In progress | Win32 OSC 9;4 and ITaskbarList3 integration; aggregates every pane and tab by Windows Terminal priority; verify real taskbar display, state transitions and cleanup |
 | Independent | F5 | HTML and mixed clipboard output | [#34](https://github.com/fukuyori/ghostty/issues/34) | Not started | Settle plain fallback for HTML-only copies; verify CF_HTML offsets, Japanese text, rich/plain paste, and existing OSC 52 behavior |
 | Later design | F6 | Session save/restore: `window-save-state` | [#35](https://github.com/fukuyori/ghostty/issues/35) | Not started | Decide Windows defaults, saved scope, format, startup precedence, invalid state, and working-directory limits before implementation; if persisting terminal snapshots, resolve the #43 mode-bit ordering and snapshot-compatibility concern first |
 | Later design | F7 | Quick terminal and `global:` bindings | [#24](https://github.com/fukuyori/ghostty/issues/24) | Not started | Decide Win32 semantics for each setting; verify hotkey conflicts, focus, reload, multiple monitors, and clean exit |
@@ -1459,7 +1459,7 @@ packaging. Resolve open specifications before implementing the affected item.
 | Order | Work | Branch | Completion condition / dependency |
 |---|---|---|---|
 | 1 | Diagnose and fix partial IME commit overlap (#48) | `windows` | Done — cause confirmed from the reproduction trace; cursor-following correction, automated regressions and owner-operated Japanese IME acceptance passed on 2026-10-16 |
-| 2 | F4 taskbar progress (#33) | `windows` | Resolve multi-pane state selection, implement and verify progress states, cleanup and a supporting application |
+| 2 | F4 taskbar progress (#33) | `windows` | Implementation wired; verify real taskbar display, state transitions, cleanup and a supporting application |
 | 3 | F5 HTML clipboard (#34) | `windows` | Resolve plain/HTML/mixed behavior, implement and verify CF_HTML offsets and actual paste destinations |
 | 4 | F6 session save/restore (#35) | `windows` | Decide scope, format, save timing and startup precedence before implementation; verify restoration and failure handling |
 | 5 | F7 quick terminal/global bindings (#24) | `windows` | Decide hotkey conflicts, focus and monitor behavior before implementation; verify with real keys and another foreground app |
@@ -1485,19 +1485,17 @@ does not have to wait for the preceding feature's implementation.
 
 | Work | Timing and prerequisites |
 |---|---|
-| Real-hardware verification (#5-#10) | On the existing-name build: 144/192 DPI, high contrast, screen readers, actual sleep/resume, several-hour endurance and real GPU-loss recovery. Schedule with the required hardware and owner-operated checks; fix Windows-support defects on `windows` |
+| Real-hardware verification (#5-#10) | On the existing-name build: 144/192 DPI, high contrast, screen readers, actual sleep/resume, several-hour endurance and real GPU-loss recovery. Sleep/resume is confirmed working by the owner (2026-10-17). Windows 10 is outside the support target. Real GPU-loss reproduction and the several-hour soak procedure remain unscheduled until reproducible steps are available; continue other checks when hardware is available |
 | F4-F8 specifications | Resolve open decisions early, before implementing each feature. Separate any new-name-dependent integration from upstream-compatible Windows behavior |
 | Build, distribution and output name indirection | Implement on `windows` with `ghostty` values before step 8. Extend the runtime name module to build/resource generation, installed outputs, CLI parsing and PowerShell tooling; decide how tools receive the shared values. Verify unchanged names, paths and behavior before cutover. Preserve source-file names and other exceptions listed in the rebranding plan |
 | Upstream synchronization before cutover | Before step 8, check the upstream state, select and record the integration revision, synchronize through `main` into `windows`, and pass the build/tests and affected runtime checks. Record the range and results in the port log; reconcile Zig/dependency changes with #50. The 2026-10-12 baseline alone does not satisfy this later check |
 | Rename preparation | Inventory naming sites including F4-F8, prepare icon assets, and draft migration instructions and acceptance cases. This does not apply the product rename or require early creation of `gooztty` |
 | Zig migration (#50) | Advance investigation and preparation on `windows`; migration and regression checks require upstream's Zig 0.17 support to be complete. This schedule does not assert that the prerequisite is met |
-| Other recorded acceptance gaps | Track Windows 10, search-specific physical IME/mixed-DPI checks, OpenGL, forced Acrylic fallback, terminal/divider capture loss and remaining accessibility checks against their existing evidence. Schedule checks when their environments are available; the completion of historical phases does not prove these checks passed |
+| Other recorded acceptance gaps | Track search-specific physical IME/mixed-DPI checks, OpenGL, forced Acrylic fallback, terminal/divider capture loss and remaining accessibility checks against their existing evidence. Schedule checks when their environments are available; the completion of historical phases does not prove these checks passed. Windows 10 is unsupported and excluded from acceptance |
 
 Unavailable hardware and upstream prerequisites remain explicit pending
-conditions; they do not turn these items into rename-dependent work.
-Windows 10 remains unverified. Its relationship to the Windows 10/11
-criterion in Section 3 remains an open acceptance decision; do not infer
-Windows 10 acceptance from the historical Phase 1-6 completion labels.
+conditions; they do not turn these items into rename-dependent work. Windows
+10 is outside the support target; acceptance criteria apply to Windows 11.
 
 #### Verification after the rename
 
@@ -2781,9 +2779,9 @@ pass. The partial IME commit correction (#48) has its own verification row.
 | DPI | Monitor movement between different DPIs | Automatically verified across 4 monitors at 96 DPI and 120 DPI |
 | Window | Maximize, minimize, restore | Automatically regression verified in a dedicated Release process |
 | Windows shell | Snap, Alt+Tab, taskbar eligibility | All 6 manual operation items verified with the fixed Release |
-| Resume | Sleep | Recovery of all renderers via power notifications automatically verified with the Release build, real hardware sleep not verified |
+| Resume | Sleep | Owner confirmed real-machine sleep/resume works (2026-10-17); controlled power-notification checks also pass |
 | OS | Windows 11 | Basically verified in the development environment |
-| OS | Windows 10 | Not verified |
+| OS | Windows 10 | Unsupported; excluded from acceptance |
 
 ## 9. Verification for Each Change
 

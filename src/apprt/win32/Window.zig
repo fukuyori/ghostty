@@ -11,6 +11,7 @@ const win32 = @import("win32").everything;
 const Surface = @import("Surface.zig");
 const Tab = @import("Tab.zig");
 const TabBar = @import("TabBar.zig");
+const TaskbarProgress = @import("TaskbarProgress.zig");
 
 pub const Rect = Tab.Rect;
 pub const LeafRect = Tab.LeafRect;
@@ -56,6 +57,8 @@ host_backdrop_active: bool = false,
 /// Fixed DWM Acrylic is used for the complete top-level window only when the
 /// adjustable Host Backdrop composition path is unavailable.
 dwm_backdrop_active: bool = false,
+taskbar_progress_applied: ?TaskbarProgress.Report = null,
+taskbar_progress_applied_valid: bool = false,
 
 pub fn init(
     alloc: std.mem.Allocator,

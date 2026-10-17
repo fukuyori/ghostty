@@ -308,7 +308,10 @@ pub fn configChange(
             const config = try value.config.clone(self.alloc);
             self.config.deinit();
             self.config.* = config;
-            for (self.windows.items) |window| WindowLayout.layoutWindow(self, window);
+            for (self.windows.items) |window| {
+                WindowLayout.layoutWindow(self, window);
+                self.updateTaskbarProgress(window);
+            }
         },
     }
     return true;

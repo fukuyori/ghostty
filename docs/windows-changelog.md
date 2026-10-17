@@ -11,6 +11,10 @@ known issues, and known limitations of each version; the
 
 ### Changed
 
+- Handle OSC 9;4 progress reports in the Windows taskbar using
+  `ITaskbarList3`, aggregating panes and tabs with Windows Terminal's state
+  priority. Build and focused aggregation test pass; real taskbar display and
+  supporting-application checks remain pending.
 - Follow the terminal cursor throughout native IME composition (#48),
   including asynchronous cursor movement after a partial commit. Stop
   tracking on composition end, focus loss and surface destruction.
@@ -35,6 +39,9 @@ known issues, and known limitations of each version; the
 
 ### Documentation
 
+- Record owner confirmation that real-machine sleep/resume works, exclude
+  Windows 10 from the support target, and leave real GPU-loss and long-soak
+  verification unscheduled until reproducible procedures are available.
 - Schedule an owner-run release from `windows` after F8 acceptance and
   before branch cutover, retaining the current Ghostty name for that release.
 - Apply the corrected roadmap review: schedule pending build/distribution

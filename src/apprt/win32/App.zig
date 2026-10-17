@@ -43,6 +43,7 @@ const Keyboard = @import("Keyboard.zig");
 const Mouse = @import("Mouse.zig");
 const NativeWindow = @import("NativeWindow.zig");
 const Recovery = @import("Recovery.zig");
+const TaskbarProgress = @import("TaskbarProgress.zig");
 const IpcHandler = @import("IpcHandler.zig");
 const IpcProtocol = @import("IpcProtocol.zig");
 const IpcTransport = @import("IpcTransport.zig");
@@ -64,6 +65,7 @@ comptime {
     _ = Mouse;
     _ = NativeWindow;
     _ = Recovery;
+    _ = TaskbarProgress;
     _ = WindowAppearance;
     _ = WindowLayout;
     _ = WindowCommands;
@@ -91,6 +93,7 @@ thread_id: u32,
 wakeup_hwnd: ?win32.HWND = null,
 windows: WindowList = .empty,
 backdrop_runtime: Backdrop.Runtime = .{},
+taskbar_progress_runtime: TaskbarProgress.Runtime = .{},
 high_contrast: bool = false,
 test_device_recovery: bool = false,
 test_device_recovery_failures: u32 = 0,
@@ -153,8 +156,10 @@ pub fn init(
         .test_device_recovery = test_device_recovery,
         .test_device_recovery_failures = test_device_recovery_failures,
     };
+    self.taskbar_progress_runtime.init();
     errdefer self.windows.deinit(self.alloc);
     errdefer self.backdrop_runtime.deinit();
+    errdefer self.taskbar_progress_runtime.deinit();
 
     try registerWindowClass();
     self.wakeup_hwnd = createWakeupWindow(self) catch |err| wakeup: {
@@ -264,6 +269,7 @@ pub fn terminate(self: *App) void {
     DeferredActions.discard(self);
     WindowLifecycle.destroyAll(self);
     self.destroyWakeupWindow();
+    self.taskbar_progress_runtime.deinit();
     self.backdrop_runtime.deinit();
     self.config.deinit();
     self.alloc.destroy(self.config);
@@ -290,6 +296,49 @@ pub fn windowForSurface(self: *App, surface: *const Surface) ?*Window {
         if (window.contains(surface)) return window;
     }
     return null;
+}
+
+pub fn updateTaskbarProgress(self: *App, window: *Window) void {
+    if (!self.config.@"progress-style") {
+        var surfaces = window.surfaceIterator();
+        while (surfaces.next()) |surface| surface.taskbar_progress = null;
+    }
+    var combined: ?TaskbarProgress.Report = null;
+    if (self.config.@"progress-style") {
+        var surfaces = window.surfaceIterator();
+        while (surfaces.next()) |surface| {
+            combined = TaskbarProgress.combine(combined, surface.taskbar_progress);
+        }
+    }
+    if (window.taskbar_progress_applied_valid and TaskbarProgress.eql(window.taskbar_progress_applied, combined)) return;
+    if (self.taskbar_progress_runtime.update(window.hwnd, combined)) {
+        window.taskbar_progress_applied = combined;
+        window.taskbar_progress_applied_valid = true;
+    }
+}
+
+pub fn setTaskbarProgress(
+    self: *App,
+    surface: *Surface,
+    report: @import("../../terminal/osc.zig").Command.ProgressReport,
+) bool {
+    if (!self.config.@"progress-style") return true;
+    const previous = surface.taskbar_progress;
+    surface.taskbar_progress = if (report.state == .remove) null else .{
+        .state = report.state,
+        .progress = switch (report.state) {
+            .set => report.progress orelse 0,
+            .indeterminate => if (previous) |old| old.progress else 0,
+            .@"error", .pause => blk: {
+                const supplied = report.progress orelse 0;
+                if (supplied > 0) break :blk supplied;
+                break :blk if (previous) |old| if (old.progress > 0) old.progress else 10 else 10;
+            },
+            .remove => 0,
+        },
+    };
+    if (self.windowForSurface(surface)) |window| self.updateTaskbarProgress(window);
+    return true;
 }
 
 pub fn surfaceIsFocused(self: *App, surface: *const Surface) bool {

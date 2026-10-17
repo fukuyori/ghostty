@@ -1,8 +1,8 @@
 # Windows Upstream Feature Development Plan
 
-- Created: 2026-09-23; updated: 2026-10-16
+- Created: 2026-09-23; updated: 2026-10-17
 - Scope: upstream-feature Windows support on `windows`, including F4-F8; `gooztty` receives these changes through merges
-- Status: F1-F3 implementation and acceptance checks are complete; F4-F8 remain
+- Status: F1-F3 implementation and acceptance checks are complete; F4 implementation is in progress; F5-F8 remain
 - Related: [Windows roadmap](windows-roadmap.md), [user guide](windows.md)
 - Source of truth for progress, priority, and issues: [roadmap Phase 7](windows-roadmap.md#phase-7-upstream-feature-coverage-on-windows). This document records feature-specific design questions and acceptance criteria.
 
@@ -45,7 +45,7 @@ Roadmap Phases 1-6 record earlier milestones. This plan expands feature coverage
 | F1 | Command palette | Search and run many existing actions | Medium | Implemented; controlled UI, reload safety, owner-confirmed navigation, physical IME confirmation, high contrast, and mixed-DPI display passed | [#17](https://github.com/fukuyori/ghostty/issues/17) |
 | F2 | Scrollbar | Locate and navigate long scrollback | Medium | Implemented; overlay lifecycle, position sync, split and alternate-screen behavior, drag races, history limits, resize tracking, real-pointer drag, high contrast, and mixed-DPI display verified | [#23](https://github.com/fukuyori/ghostty/issues/23) |
 | F3 | File drag and drop | Enter long or multiple paths from Explorer | Medium to high | Implemented; PowerShell/cmd quoting, rejection, pane targeting, elevated-window restriction, and target-window closure checked | [#32](https://github.com/fukuyori/ghostty/issues/32) |
-| F4 | Taskbar progress | See supported applications' progress outside the terminal | Low to medium | Not started | [#33](https://github.com/fukuyori/ghostty/issues/33) |
+| F4 | Taskbar progress | See supported applications' progress outside the terminal | Low to medium | In progress; Win32 OSC 9;4 handling and taskbar API wired, runtime acceptance pending | [#33](https://github.com/fukuyori/ghostty/issues/33) |
 | F5 | HTML clipboard output | Paste formatted terminal output into documents | Low to medium | Not started | [#34](https://github.com/fukuyori/ghostty/issues/34) |
 | F6 | Session save and restore | Reduce rebuilding tabs, splits, and working locations | High | Not started | [#35](https://github.com/fukuyori/ghostty/issues/35) |
 | F7 | Quick terminal and global bindings | Invoke the terminal from another app | High | Not started | [#24](https://github.com/fukuyori/ghostty/issues/24) |
@@ -278,11 +278,10 @@ Completion criteria:
 
 ### F4: Taskbar Progress
 
-The shared core passes `progress_report` to Win32, which currently does not handle it. Reflect upstream `progress-style` states in the Windows taskbar.
+The shared core passes `progress_report` to Win32. `TaskbarProgress.zig` maps OSC 9;4 to `ITaskbarList3`; taskbar state is aggregated across every pane in the window and every tab using Windows Terminal's priority order: error, pause, normal, indeterminate, clear. `progress-style = false` clears the stored reports. The taskbar report remains until OSC 9;4 clear or its surface closes, matching Windows Terminal's explicit clear behavior.
 
 - Handle normal, paused, error, indeterminate, and cleared states.
-- Determine which pane's state represents a multi-pane window using upstream policy.
-- Verify value range, active-pane changes, cleanup after exit, and API failure.
+- Verify state and percentage mapping, report changes across panes/tabs, cleanup after exit, configuration reload, and API failure.
 - Test both a controlled progress sequence and a real supporting app. Do not claim automatic support for apps that emit no progress.
 
 ### F5: HTML Clipboard Output

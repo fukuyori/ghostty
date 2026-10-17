@@ -438,6 +438,7 @@ pub fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
         TabBarController.invalidate(window);
     }
     WindowLayout.layoutWindow(self, window);
+    self.updateTaskbarProgress(window);
 }
 
 fn destroyTabAt(self: *App, window: *Window, index: usize) bool {
@@ -474,6 +475,7 @@ fn destroyTabAt(self: *App, window: *Window, index: usize) bool {
         self.alloc.destroy(surface);
     }
 
+    self.updateTaskbarProgress(window);
     WindowLayout.layoutWindow(self, window);
     _ = win32.SetFocus(focus.hwnd);
     focus.syncTitle();
