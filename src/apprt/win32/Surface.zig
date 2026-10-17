@@ -47,6 +47,9 @@ gpu_recovery_cycles: u32 = 0,
 /// loop. The core can ask to close a surface more than once before the
 /// posted request runs; only the first request may be delivered.
 close_requested: bool = false,
+/// Set when closing every window. The quick terminal's last pane is then
+/// destroyed instead of hidden.
+force_close: bool = false,
 width: u32 = 800,
 height: u32 = 600,
 cursor_pos: apprt.CursorPos = .{ .x = 0, .y = 0 },
@@ -746,8 +749,16 @@ fn normalizeClipboardWrite(alloc: std.mem.Allocator, text: []const u8) ![]u8 {
     return result;
 }
 
-pub fn defaultTermioEnv(_: *Self) !std.process.Environ.Map {
-    return try global.environMap();
+pub fn defaultTermioEnv(self: *Self) !std.process.Environ.Map {
+    var env = try global.environMap();
+    errdefer env.deinit();
+    // Matches the macOS and GTK quick terminals.
+    if (self.app) |app| {
+        if (app.windowForSurface(self)) |window| {
+            if (window.quick) try env.put(brand.env_prefix ++ "QUICK_TERMINAL", "1");
+        }
+    }
+    return env;
 }
 
 pub fn redrawInspector(_: *Self) void {}

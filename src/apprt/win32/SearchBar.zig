@@ -8,6 +8,7 @@ const apprt = @import("../../apprt.zig");
 const App = @import("App.zig");
 const WindowLayout = @import("WindowLayout.zig");
 const Surface = @import("Surface.zig");
+const QuickTerminal = @import("QuickTerminal.zig");
 const input = @import("../../input.zig");
 const log = std.log.scoped(.win32_search);
 
@@ -94,6 +95,7 @@ pub fn start(self: *Self, needle: [:0]const u8) !void {
 }
 
 pub fn focus(self: *Self) void {
+    if (!QuickTerminal.allowsFocus(self.surface)) return;
     const edit = win32.GetDlgItem(self.hwnd.?, edit_id);
     _ = win32.SetFocus(edit);
     _ = win32.SendMessageW(edit, win32.EM_SETSEL, 0, -1);
@@ -104,7 +106,7 @@ pub fn stop(self: *Self) void {
     self.total = null;
     self.selected = null;
     _ = win32.ShowWindow(self.hwnd.?, win32.SW_HIDE);
-    _ = win32.SetFocus(self.surface.hwnd);
+    if (QuickTerminal.allowsFocus(self.surface)) _ = win32.SetFocus(self.surface.hwnd);
 }
 
 pub fn updateStatus(self: *Self) void {

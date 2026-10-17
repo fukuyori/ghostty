@@ -7,6 +7,7 @@ const App = @import("App.zig");
 const CommandPalette = @import("CommandPalette.zig");
 const ConfigActions = @import("ConfigActions.zig");
 const Mouse = @import("Mouse.zig");
+const QuickTerminal = @import("QuickTerminal.zig");
 const Recovery = @import("Recovery.zig");
 const SearchBar = @import("SearchBar.zig");
 const ShellOpen = @import("ShellOpen.zig");
@@ -21,12 +22,31 @@ pub fn perform(
     comptime action: apprt.Action.Key,
     value: apprt.Action.Value(action),
 ) !bool {
+    // The quick terminal's geometry and frame come from its settings.
+    switch (action) {
+        .toggle_maximize,
+        .toggle_fullscreen,
+        .toggle_window_decorations,
+        .float_window,
+        .initial_size,
+        .reset_window_size,
+        .resize_window,
+        => if (quickTarget(self, target)) return false,
+        else => {},
+    }
+
     switch (action) {
         .quit => return WindowLifecycle.queueCloseAll(self, true),
         .quit_timer => {
-            if (value == .start) win32.PostQuitMessage(0);
+            // With a working global keybinding the application keeps running
+            // without windows unless configured to quit, so the binding can
+            // still summon the quick terminal.
+            const stay = !self.config.@"quit-after-last-window-closed" and
+                self.global_hotkeys.count() > 0;
+            if (value == .start and !stay) win32.PostQuitMessage(0);
             return true;
         },
+        .toggle_quick_terminal => return try QuickTerminal.toggle(self),
         .set_title => return try TabTitles.setTitle(target, value),
         .set_tab_title => return try TabTitles.setTabTitle(self, target, value),
         .start_search => return try SearchBar.startSearch(self, target, value),
@@ -80,4 +100,10 @@ pub fn perform(
         .config_change => return try ConfigActions.configChange(self, target, value),
         else => return false,
     }
+}
+
+fn quickTarget(self: *App, target: apprt.Target) bool {
+    const surface = App.targetSurface(target) orelse return false;
+    const window = self.windowForSurface(surface) orelse return false;
+    return window.quick;
 }

@@ -9,7 +9,10 @@ const CommandPalette = @import("CommandPalette.zig");
 const FileDrop = @import("FileDrop.zig");
 const Keyboard = @import("Keyboard.zig");
 const Mouse = @import("Mouse.zig");
+const QuickTerminal = @import("QuickTerminal.zig");
 const Recovery = @import("Recovery.zig");
+const App = @import("App.zig");
+const Window = @import("Window.zig");
 const SplitDivider = @import("SplitDivider.zig");
 const Surface = @import("Surface.zig");
 const TabBarAccessibility = @import("TabBarAccessibility.zig");
@@ -25,6 +28,23 @@ pub fn getSurface(hwnd: win32.HWND) ?*Surface {
     const ptr = win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA);
     if (ptr == 0) return null;
     return @ptrFromInt(@as(usize, @bitCast(ptr)));
+}
+
+const QuickTerminalWindow = struct { app: *App, window: *Window };
+
+/// The quick terminal, if `hwnd` is its top-level window.
+fn quickTerminalWindow(hwnd: win32.HWND) ?QuickTerminalWindow {
+    const surface = getSurface(hwnd) orelse return null;
+    if (hwnd != surface.windowHwnd()) return null;
+    const app = surface.rtApp();
+    const window = app.windowForHwnd(hwnd) orelse return null;
+    if (!window.quick) return null;
+    return .{ .app = app, .window = window };
+}
+
+fn refreshQuickTerminal(hwnd: win32.HWND) void {
+    const quick = quickTerminalWindow(hwnd) orelse return;
+    QuickTerminal.refresh(quick.app, quick.window);
 }
 
 pub fn wndProc(
@@ -108,7 +128,43 @@ pub fn wndProc(
         win32.WM_POWERBROADCAST => return Recovery.powerBroadcast(hwnd, wparam),
         win32.WM_SIZE => return WindowLayout.sizeChanged(hwnd, lparam),
         win32.WM_MOVE => return WindowLayout.moved(hwnd),
-        win32.WM_DPICHANGED => return WindowLayout.dpiChanged(hwnd, wparam, lparam),
+        win32.WM_DPICHANGED => {
+            const result = WindowLayout.dpiChanged(hwnd, wparam, lparam);
+            refreshQuickTerminal(hwnd);
+            return result;
+        },
+        win32.WM_DISPLAYCHANGE => {
+            refreshQuickTerminal(hwnd);
+            return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
+        },
+        win32.WM_ACTIVATE => {
+            if (quickTerminalWindow(hwnd)) |quick| {
+                const state: u16 = @truncate(wparam);
+                const other: ?win32.HWND = if (lparam == 0) null else @ptrFromInt(@as(usize, @bitCast(lparam)));
+                QuickTerminal.activationChanged(quick.app, quick.window, state != win32.WA_INACTIVE, other);
+            }
+            return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
+        },
+        win32.WM_MOUSEACTIVATE => {
+            if (getSurface(hwnd)) |surface| {
+                const app = surface.rtApp();
+                if (app.windowForSurface(surface)) |window| {
+                    if (QuickTerminal.keyboardDisabled(app, window)) return win32.MA_NOACTIVATE;
+                }
+            }
+            return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
+        },
+        win32.WM_INPUTLANGCHANGE => {
+            // Global keybindings were translated with the previous keyboard
+            // layout. The notification reaches the focused terminal child,
+            // and DefWindowProc forwards it only downward, so every window
+            // checks; the layout comparison keeps this to one registration.
+            if (getSurface(hwnd)) |surface| {
+                const app = surface.rtApp();
+                if (app.global_hotkeys.layoutChanged()) app.reregisterGlobalHotkeys();
+            }
+            return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
+        },
         win32.WM_SETFOCUS, win32.WM_KILLFOCUS => {
             if (getSurface(hwnd)) |surface| {
                 if (hwnd == surface.windowHwnd()) {
@@ -117,7 +173,7 @@ pub fn wndProc(
                             window.focusedSurface()
                         else
                             surface;
-                        _ = win32.SetFocus(focus.hwnd);
+                        if (QuickTerminal.allowsFocus(focus)) _ = win32.SetFocus(focus.hwnd);
                     }
                 } else if (hwnd == surface.hwnd) {
                     if (msg == win32.WM_SETFOCUS) {
@@ -166,7 +222,11 @@ pub fn wndProc(
             }
             return 0;
         },
-        win32.WM_SETTINGCHANGE, win32.WM_SYSCOLORCHANGE, win32.WM_THEMECHANGED => return WindowAppearance.refreshTheme(hwnd),
+        win32.WM_SETTINGCHANGE, win32.WM_SYSCOLORCHANGE, win32.WM_THEMECHANGED => {
+            // WM_SETTINGCHANGE also reports work-area (taskbar) changes.
+            if (msg == win32.WM_SETTINGCHANGE) refreshQuickTerminal(hwnd);
+            return WindowAppearance.refreshTheme(hwnd);
+        },
         win32.WM_IME_STARTCOMPOSITION,
         win32.WM_IME_COMPOSITION,
         win32.WM_IME_ENDCOMPOSITION,

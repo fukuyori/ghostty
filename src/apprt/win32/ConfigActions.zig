@@ -8,8 +8,10 @@ const apprt = @import("../../apprt.zig");
 const brand = @import("../../brand.zig");
 const configpkg = @import("../../config.zig");
 const Config = configpkg.Config;
+const cli = @import("../../cli.zig");
 const global = @import("../../global.zig");
 const App = @import("App.zig");
+const QuickTerminal = @import("QuickTerminal.zig");
 const WindowLayout = @import("WindowLayout.zig");
 const Surface = @import("Surface.zig");
 const Scrollbar = @import("Scrollbar.zig");
@@ -22,7 +24,8 @@ const WindowState = @import("WindowState.zig");
 const log = std.log.scoped(.win32);
 
 const DiagnosticRequest = struct {
-    parent: win32.HWND,
+    /// Null shows an ownerless dialog, for example while no window is open.
+    parent: ?win32.HWND,
     message: [:0]u16,
 };
 
@@ -31,7 +34,7 @@ const DiagnosticRequest = struct {
 pub const DiagnosticQueue = struct {
     pending: std.ArrayListUnmanaged(DiagnosticRequest) = .empty,
 
-    fn add(self: *DiagnosticQueue, alloc: Allocator, parent: win32.HWND, message: []const u8) !void {
+    fn add(self: *DiagnosticQueue, alloc: Allocator, parent: ?win32.HWND, message: []const u8) !void {
         const wide = try std.unicode.utf8ToUtf16LeAllocZ(alloc, message);
         errdefer alloc.free(wide);
         try self.pending.append(alloc, .{ .parent = parent, .message = wide });
@@ -64,8 +67,17 @@ pub fn reloadConfig(
 
     var config = try Config.load(self.alloc);
     defer config.deinit();
+    // Unregistrable global keybindings are removed before the core sees the
+    // configuration and are reported with its diagnostics.
+    switch (target) {
+        .app => _ = self.global_hotkeys.register(self.alloc, self.wakeup_hwnd, &config),
+        .surface => self.global_hotkeys.removeUnregistered(self.alloc, &config),
+    }
     try updateConfig(self, target, &config);
     showConfigDiagnostics(self, target, &config);
+    // The reload can remove the last global keybinding, the only way to
+    // reach a hidden quick terminal or a windowless application.
+    if (target == .app) self.quitIfUnreachable();
 }
 
 fn updateConfig(
@@ -89,14 +101,33 @@ pub fn showConfigDiagnostics(
     config: *const Config,
 ) void {
     const hwnd = switch (target) {
-        .app => if (self.windows.items.len > 0)
-            self.windows.items[0].hwnd
-        else
-            return,
+        .app => appDiagnosticOwner(self),
         .surface => |surface| surface.rt_surface.windowHwnd(),
     };
 
-    const message = formatConfigDiagnostics(self.alloc, config) catch |err| {
+    queueDiagnostics(self, hwnd, config._diagnostics.items());
+}
+
+/// Queue only the diagnostics added to `config` after index `start`, for
+/// example global keybindings disabled after a keyboard layout change.
+pub fn showDiagnosticsSince(self: *App, config: *const Config, start: usize) void {
+    const diagnostics = config._diagnostics.items();
+    if (start >= diagnostics.len) return;
+    queueDiagnostics(self, appDiagnosticOwner(self), diagnostics[start..]);
+}
+
+/// A visible window owns app-wide diagnostics. With none (the application
+/// can run windowless with a global keybinding, or with only a hidden quick
+/// terminal) the dialog is ownerless rather than skipped.
+fn appDiagnosticOwner(self: *App) ?win32.HWND {
+    for (self.windows.items) |window| {
+        if (win32.IsWindowVisible(window.hwnd) != 0) return window.hwnd;
+    }
+    return null;
+}
+
+fn queueDiagnostics(self: *App, hwnd: ?win32.HWND, diagnostics: []const cli.Diagnostic) void {
+    const message = formatConfigDiagnostics(self.alloc, diagnostics) catch |err| {
         log.warn("failed to format configuration diagnostics: {}", .{err});
         return;
     } orelse return;
@@ -149,7 +180,9 @@ pub fn drainDiagnostics(self: *App) void {
         // A shell or close request may have destroyed the owner while this
         // request waited. Never parent a dialog to another app or keep a dead
         // window's diagnostics open without an owner.
-        if (self.windowForHwnd(request.parent) == null) continue;
+        if (request.parent) |parent| {
+            if (self.windowForHwnd(parent) == null) continue;
+        }
         displayDiagnostic(request);
     }
 }
@@ -165,15 +198,15 @@ fn displayDiagnostic(request: DiagnosticRequest) void {
     const caption = std.unicode.utf8ToUtf16LeStringLiteral(
         brand.display_name ++ " Configuration Error",
     );
-    const style: win32.MESSAGEBOX_STYLE = .{ .ICONHAND = 1 };
+    // An ownerless dialog would otherwise open behind the active application.
+    const style: win32.MESSAGEBOX_STYLE = .{ .ICONHAND = 1, .SETFOREGROUND = @intFromBool(request.parent == null) };
     _ = win32.MessageBoxW(request.parent, request.message, caption, style);
 }
 
 fn formatConfigDiagnostics(
     alloc: Allocator,
-    config: *const Config,
+    diagnostics: []const cli.Diagnostic,
 ) Allocator.Error!?[:0]u8 {
-    const diagnostics = config._diagnostics.items();
     if (diagnostics.len == 0) return null;
 
     var buffer: std.Io.Writer.Allocating = .init(alloc);
@@ -295,11 +328,15 @@ pub fn configChange(
     switch (target) {
         .surface => |core| {
             const state = App.windowStateSurface(core.rt_surface);
-            const decorated = value.config.@"window-decoration" != .none;
-            if (!WindowState.setWindowDecorations(state, decorated)) {
-                log.warn("failed to apply window-decoration setting", .{});
+            // The quick terminal keeps its captionless frame.
+            const quick = if (self.windowForSurface(state)) |window| window.quick else false;
+            if (!quick) {
+                const decorated = value.config.@"window-decoration" != .none;
+                if (!WindowState.setWindowDecorations(state, decorated)) {
+                    log.warn("failed to apply window-decoration setting", .{});
+                }
+                Titlebar.apply(state.windowHwnd(), value.config, self.high_contrast);
             }
-            Titlebar.apply(state.windowHwnd(), value.config, self.high_contrast);
             WindowAppearance.updateWindowBackgroundBlur(state, value.config);
             try configureScrollbar(self, core.rt_surface, value.config);
             if (self.windowForSurface(state)) |window| WindowLayout.layoutWindow(self, window);
@@ -309,6 +346,7 @@ pub fn configChange(
             self.config.deinit();
             self.config.* = config;
             for (self.windows.items) |window| {
+                if (window.quick) QuickTerminal.refresh(self, window);
                 WindowLayout.layoutWindow(self, window);
                 self.updateTaskbarProgress(window);
             }
@@ -348,13 +386,19 @@ test "Win32 diagnostic queue owns text and preserves request order" {
 
     const first = queue.take().?;
     defer alloc.free(first.message);
-    try std.testing.expectEqual(first_parent, first.parent);
+    try std.testing.expectEqual(first_parent, first.parent.?);
     try std.testing.expectEqualSlices(u16, &.{ 'b', 'a', 'd' }, first.message);
     const second = queue.take().?;
     defer alloc.free(second.message);
-    try std.testing.expectEqual(second_parent, second.parent);
+    try std.testing.expectEqual(second_parent, second.parent.?);
     try std.testing.expectEqualSlices(u16, std.unicode.utf8ToUtf16LeStringLiteral("設定エラー"), second.message);
     try std.testing.expect(queue.take() == null);
+
+    // An app-wide report while no window is visible has no owner.
+    try queue.add(alloc, null, "windowless");
+    const ownerless = queue.take().?;
+    defer alloc.free(ownerless.message);
+    try std.testing.expect(ownerless.parent == null);
 }
 
 test "Win32 diagnostic queue discards pending text and can be reused" {
@@ -409,7 +453,7 @@ test "format Win32 config diagnostics for display" {
 
     const message = (try formatConfigDiagnostics(
         testing.allocator,
-        &config,
+        config._diagnostics.items(),
     )).?;
     defer testing.allocator.free(message);
 
@@ -428,7 +472,7 @@ test "omit empty Win32 config diagnostics" {
 
     try testing.expectEqual(
         @as(?[:0]u8, null),
-        try formatConfigDiagnostics(testing.allocator, &config),
+        try formatConfigDiagnostics(testing.allocator, config._diagnostics.items()),
     );
 }
 

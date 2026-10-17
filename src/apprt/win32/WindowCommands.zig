@@ -5,6 +5,7 @@ const std = @import("std");
 const win32 = @import("win32").everything;
 const apprt = @import("../../apprt.zig");
 const App = @import("App.zig");
+const QuickTerminal = @import("QuickTerminal.zig");
 const SplitDivider = @import("SplitDivider.zig");
 const TabBarAccessibility = @import("TabBarAccessibility.zig");
 const TabBarController = @import("TabBarController.zig");
@@ -38,6 +39,9 @@ pub fn gotoWindow(
             .previous => (start + self.windows.items.len - offset) % self.windows.items.len,
         };
         const candidate = self.windows.items[index];
+        // The quick terminal has its own toggle and is not a window cycle
+        // destination.
+        if (candidate.quick) continue;
         if (win32.IsWindowVisible(candidate.hwnd) == 0) continue;
         if (win32.IsIconic(candidate.hwnd) != 0) continue;
         return WindowState.presentSurface(candidate.focusedSurface());
@@ -107,7 +111,7 @@ pub fn activateWindowTab(self: *App, window: *Window) void {
     );
     WindowLayout.layoutWindow(self, window);
     focus.syncTitle();
-    _ = win32.SetFocus(focus.hwnd);
+    if (QuickTerminal.allowsFocus(focus)) _ = win32.SetFocus(focus.hwnd);
     TabBarAccessibility.sync(self, window, true, false);
 }
 
@@ -165,7 +169,7 @@ pub fn gotoSplit(
         win32.GWLP_USERDATA,
         @bitCast(@intFromPtr(focus)),
     );
-    _ = win32.SetFocus(focus.hwnd);
+    if (QuickTerminal.allowsFocus(focus)) _ = win32.SetFocus(focus.hwnd);
     focus.syncTitle();
     return true;
 }

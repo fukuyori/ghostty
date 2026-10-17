@@ -7,6 +7,7 @@ const App = @import("App.zig");
 const Surface = @import("Surface.zig");
 const TabTitles = @import("TabTitles.zig");
 const FileDrop = @import("FileDrop.zig");
+const QuickTerminal = @import("QuickTerminal.zig");
 const log = std.log.scoped(.win32);
 
 pub const Close = struct {
@@ -15,6 +16,9 @@ pub const Close = struct {
     all: bool = false,
     quit: bool = false,
     snapshot_session: bool = false,
+    /// Show the quick terminal again when the confirmation is declined,
+    /// so the sessions it kept remain reachable.
+    show_quick_on_cancel: bool = false,
 
     pub fn add(self: *Close, alloc: std.mem.Allocator, surface: *Surface) !void {
         const core = surface.core_surface orelse return;
@@ -114,21 +118,36 @@ pub fn drain(app: *App) void {
 }
 
 fn close(app: *App, request: Close) void {
+    // Prefer a visible owner so the confirmation is not parented to a
+    // hidden quick terminal.
     const parent = parent: {
+        var hidden: ?win32.HWND = null;
         for (request.ids.items) |id| {
-            if (resolve(app, id)) |surface| break :parent surface.windowHwnd();
+            const surface = resolve(app, id) orelse continue;
+            const hwnd = surface.windowHwnd();
+            if (win32.IsWindowVisible(hwnd) != 0) break :parent hwnd;
+            if (hidden == null) hidden = hwnd;
         }
-        break :parent null;
+        break :parent hidden;
     };
     if (parent) |hwnd| {
         if (request.confirm) {
-            const caption = if (request.all) win32.L("Close All Windows?") else win32.L("Close Terminal?");
-            const message = if (request.all)
+            const caption = if (request.show_quick_on_cancel)
+                win32.L("Quit?")
+            else if (request.all) win32.L("Close All Windows?") else win32.L("Close Terminal?");
+            const message = if (request.show_quick_on_cancel)
+                win32.L("With no other window and no global keybinding, the hidden quick terminal cannot be shown again. Quit and terminate its sessions?")
+            else if (request.all)
                 win32.L("All terminal sessions will be terminated. Close all windows?")
             else
                 win32.L("The terminal still has a running process. If you close the terminal the process will be killed.");
             const style: win32.MESSAGEBOX_STYLE = .{ .YESNO = 1, .ICONHAND = 1, .ICONQUESTION = 1, .DEFBUTTON2 = 1 };
-            if (win32.MessageBoxW(hwnd, message, caption, style) != win32.IDYES) return;
+            if (win32.MessageBoxW(hwnd, message, caption, style) != win32.IDYES) {
+                if (request.show_quick_on_cancel) {
+                    if (QuickTerminal.find(app)) |window| QuickTerminal.show(app, window);
+                }
+                return;
+            }
         }
     }
     if (request.snapshot_session) {
@@ -145,7 +164,12 @@ fn close(app: *App, request: Close) void {
     // A modal loop can remove/reorder tabs or destroy/recreate windows. Close
     // only surviving members of the original selection, using stable IDs.
     for (request.ids.items) |id| {
-        if (resolve(app, id)) |surface| app.requestSurfaceClose(surface, false);
+        if (resolve(app, id)) |surface| {
+            // Closing every window destroys the quick terminal instead of
+            // hiding it.
+            if (request.all) surface.force_close = true;
+            app.requestSurfaceClose(surface, false);
+        }
     }
 }
 

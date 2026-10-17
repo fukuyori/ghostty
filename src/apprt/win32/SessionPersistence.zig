@@ -274,22 +274,27 @@ fn clampRect(rect: *win32.RECT, work: win32.RECT) void {
     rect.bottom = rect.top + bounded_height;
 }
 
+/// The quick terminal is never saved or restored, matching upstream.
 pub fn save(app: *App, path: []const u8) !void {
-    if (app.windows.items.len == 0) {
+    const count = app.normalWindowCount();
+    if (count == 0) {
         try clear(path);
         return;
     }
-    if (app.windows.items.len > State.max_windows) return error.TooManyWindows;
+    if (count > State.max_windows) return error.TooManyWindows;
 
     var arena: std.heap.ArenaAllocator = .init(app.alloc);
     defer arena.deinit();
     const alloc = arena.allocator();
-    const windows = try alloc.alloc(State.Window, app.windows.items.len);
+    const windows = try alloc.alloc(State.Window, count);
     var active_window: usize = 0;
     const foreground = win32.GetForegroundWindow();
-    for (app.windows.items, 0..) |window, wi| {
+    var wi: usize = 0;
+    for (app.windows.items) |window| {
+        if (window.quick) continue;
         if (window.hwnd == foreground) active_window = wi;
         windows[wi] = try captureWindow(alloc, window);
+        wi += 1;
     }
     try State.save(app.alloc, path, .{ .windows = windows, .active_window = active_window });
 }

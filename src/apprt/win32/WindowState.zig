@@ -542,9 +542,11 @@ pub fn presentSurface(surface: *Surface) bool {
     return true;
 }
 
+/// The quick terminal owns its own visibility and is skipped by every pass.
 pub fn toggleVisibility(self: *App) bool {
     var restore_any = false;
     for (self.windows.items) |window| {
+        if (window.quick) continue;
         const state = window.stateSurface();
         if (state.hidden_by_visibility_toggle) {
             restore_any = true;
@@ -556,6 +558,7 @@ pub fn toggleVisibility(self: *App) bool {
         var first: ?*Surface = null;
         var focus: ?*Surface = null;
         for (self.windows.items) |window| {
+            if (window.quick) continue;
             const state = window.stateSurface();
             if (!state.hidden_by_visibility_toggle) continue;
             state.hidden_by_visibility_toggle = false;
@@ -571,6 +574,7 @@ pub fn toggleVisibility(self: *App) bool {
     const focused = self.core_app.focusedSurface();
     if (focused) |core| {
         for (self.windows.items) |window| {
+            if (window.quick) continue;
             var surfaces = window.surfaceIterator();
             while (surfaces.next()) |surface| {
                 if (surface.core_surface != core) continue;
@@ -582,6 +586,7 @@ pub fn toggleVisibility(self: *App) bool {
 
     var hidden_any = false;
     for (self.windows.items) |window| {
+        if (window.quick) continue;
         const state = window.stateSurface();
         if (win32.IsWindowVisible(window.hwnd) == 0) continue;
         state.hidden_by_visibility_toggle = true;

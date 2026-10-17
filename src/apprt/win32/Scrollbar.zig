@@ -7,6 +7,7 @@ const win32 = @import("win32").everything;
 const Config = @import("../../config/Config.zig");
 const terminal = @import("../../terminal/main.zig");
 const Surface = @import("Surface.zig");
+const QuickTerminal = @import("QuickTerminal.zig");
 const log = std.log.scoped(.win32_scrollbar);
 
 const class_name = win32.L(brand.windows.window_class_prefix ++ "OverlayScrollbar");
@@ -244,7 +245,7 @@ fn wndProc(hwnd: win32.HWND, msg: u32, wparam: win32.WPARAM, lparam: win32.LPARA
     const self = selfFor(hwnd) orelse return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
     switch (msg) {
         win32.WM_LBUTTONDOWN => {
-            _ = win32.SetFocus(self.surface.hwnd);
+            if (QuickTerminal.allowsFocus(self.surface)) _ = win32.SetFocus(self.surface.hwnd);
             self.reveal();
             const y = mouseY(lparam);
             const t = self.thumb();

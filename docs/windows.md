@@ -885,6 +885,68 @@ from normal Explorer. Use a non-elevated Ghostty window for Explorer drops.
 These controls are under development. The [feature plan](windows-upstream-feature-plan.md)
 records their remaining input, DPI, and accessibility checks.
 
+## Quick Terminal and Global Keybindings (Unreleased)
+
+A keybinding with the `global:` prefix works while another application is in
+front. Bind `toggle_quick_terminal` to show and hide the quick terminal from
+anywhere; there is no default binding:
+
+```ini
+keybind = global:ctrl+grave_accent=toggle_quick_terminal
+```
+
+Windows registers each global binding with `RegisterHotKey`. A global binding
+that cannot be registered is disabled: it does not work anywhere, including
+inside Ghostty, and the configuration error dialog lists it with the reason
+at startup, on configuration reload, and after a keyboard layout change makes
+it unusable. This applies to bindings with more than one action, to key
+combinations already registered by another application or reserved by
+Windows (such as `Win+L`), and to the keys below. Left and right modifiers are
+not distinguished. Write the keys that are pressed: character keys are
+translated with the current keyboard layout, and a character that needs Shift
+or AltGr on that layout (such as `:` on a US layout) is disabled; write
+`ctrl+shift+;` instead of `ctrl+:`. Keys Windows cannot tell apart by
+virtual key are disabled too: numpad Enter (same as Enter) and the
+numpad digits and decimal key (their key code depends on NumLock). Page Up,
+Page Down, Home, End, Insert, Delete, and the arrow keys are registered, and
+also fire from the numpad while NumLock is off. Holding the combination
+performs the action once.
+
+The quick terminal is a single window without a title bar, taskbar button, or
+Alt+Tab entry, and stays above other windows while shown. Its shell and splits
+keep running while it is hidden. Closing the window or its last running pane
+hides it; it is destroyed when its last shell exits or when all windows are
+closed, and the next toggle starts a new one. It has no tabs, is not saved by
+`window-save-state`, and is skipped by `toggle_visibility` and `goto_window`.
+When it is hidden explicitly, the window that was in front before it appeared,
+including another Ghostty window, is activated again if the quick terminal
+still had the focus.
+Shells in the quick terminal get `GHOSTTY_QUICK_TERMINAL=1`.
+
+| Setting | Windows behavior |
+|---|---|
+| `quick-terminal-position` | Edge or center of the monitor work area (the desktop without the taskbar) |
+| `quick-terminal-size` | As upstream; sizes in `px` are device pixels. For `center`, a single size sets the width on a landscape monitor and the height on a portrait one, which is what upstream computes |
+| `quick-terminal-screen` | `main` is the primary monitor, `mouse` the monitor under the pointer when shown; `macos-menu-bar` behaves like `main`. Changing it in a reload moves a shown quick terminal |
+| `quick-terminal-autohide` | Hides when another window, including another Ghostty window, is activated. Dialogs owned by the quick terminal do not hide it. Default `false` |
+| `quick-terminal-keyboard-interactivity` | `on-demand` takes focus when shown; `none` does not take keyboard focus when shown, clicked, or split, and a reload to `none` gives up the focus it has; `exclusive` behaves like `on-demand`, because Windows cannot withhold input from other applications |
+| `quick-terminal-animation-duration` | Not supported; the window appears and hides immediately |
+| `quick-terminal-space-behavior`, `gtk-quick-terminal-*` | Ignored |
+
+Maximize, fullscreen, decoration, and resize actions do not apply to the quick
+terminal. Its placement is recomputed on configuration reload, DPI change, and
+monitor or taskbar changes.
+
+With at least one registered global keybinding and
+`quit-after-last-window-closed = false` (the Windows default), Ghostty keeps
+running after its last window closes so the binding can still open the quick
+terminal; use the `quit` action to exit. Without a registered global
+keybinding, Ghostty exits after its last window closes, as before. If only a
+hidden quick terminal remains, it could never be shown again, so Ghostty
+quits; when a process is still running it asks first, and declining shows the
+quick terminal again. The
+`+toggle-quick-terminal` command is not supported on Windows.
+
 ## Known Limitations
 
 - Basic operation has been verified on Windows 11, but Windows 10 is not

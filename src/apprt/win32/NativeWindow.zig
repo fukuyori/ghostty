@@ -191,14 +191,32 @@ fn loadWindowIcon(
 }
 
 pub fn createWindow() !win32.HWND {
+    return createTopLevel(nativeWindowExStyle(), topLevelWindowStyle());
+}
+
+/// Captionless popup used by the quick terminal. The caller supplies the
+/// extended style (tool window, topmost, optional no-activate) and places
+/// the window before showing it.
+pub fn createQuickWindow(ex_style: win32.WINDOW_EX_STYLE) !win32.HWND {
+    const popup: u32 = 0x80000000;
+    const clip_children: u32 = 0x02000000;
+    return createTopLevel(ex_style, @bitCast(popup | clip_children));
+}
+
+/// Base extended style for top-level windows; see nativeWindowExStyle.
+pub fn baseExStyle() win32.WINDOW_EX_STYLE {
+    return nativeWindowExStyle();
+}
+
+fn createTopLevel(ex_style: win32.WINDOW_EX_STYLE, style: win32.WINDOW_STYLE) !win32.HWND {
     try TestHooks.fail(.parent_hwnd);
     const hinstance = win32.GetModuleHandleW(null);
 
     return win32.CreateWindowExW(
-        nativeWindowExStyle(),
+        ex_style,
         window_class_name,
         default_window_title,
-        topLevelWindowStyle(),
+        style,
         win32.CW_USEDEFAULT,
         win32.CW_USEDEFAULT,
         800,

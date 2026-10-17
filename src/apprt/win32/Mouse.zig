@@ -5,6 +5,7 @@ const input = @import("../../input.zig");
 const App = @import("App.zig");
 const ContextMenu = @import("ContextMenu.zig");
 const Keyboard = @import("Keyboard.zig");
+const QuickTerminal = @import("QuickTerminal.zig");
 const win32 = @import("win32").everything;
 const terminal = @import("../../terminal/main.zig");
 const Surface = @import("Surface.zig");
@@ -170,7 +171,13 @@ pub fn handleMouseButton(
         // pane, which makes the clicked pane look unresponsive. The surface
         // WM_SETFOCUS handler updates the window's active tab and focused
         // surface, so the tab bar follows along.
-        if (win32.GetFocus() != hwnd) _ = win32.SetFocus(hwnd);
+        // A quick terminal with keyboard interactivity `none` never takes
+        // keyboard focus.
+        const keep_focus = if (surface.rtApp().windowForSurface(surface)) |window|
+            QuickTerminal.keyboardDisabled(surface.rtApp(), window)
+        else
+            false;
+        if (!keep_focus and win32.GetFocus() != hwnd) _ = win32.SetFocus(hwnd);
 
         if (surface.mouse_buttons_down == 0) _ = win32.SetCapture(hwnd);
         surface.mouse_buttons_down |= event.bit;

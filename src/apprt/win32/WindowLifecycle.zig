@@ -14,6 +14,7 @@ const DeferredActions = @import("DeferredActions.zig");
 const FileDrop = @import("FileDrop.zig");
 const NativeWindow = @import("NativeWindow.zig");
 const Overrides = @import("Overrides.zig");
+const QuickTerminal = @import("QuickTerminal.zig");
 const SplitDivider = @import("SplitDivider.zig");
 const Surface = @import("Surface.zig");
 const TabBarAccessibility = @import("TabBarAccessibility.zig");
@@ -38,6 +39,9 @@ pub const Options = struct {
     title: ?[:0]const u8 = null,
     /// Restored terminal titles are an initial value, not a static config title.
     dynamic_title: bool = false,
+    /// Create the quick terminal window. It is left hidden for
+    /// QuickTerminal to place and show.
+    quick: bool = false,
 
     pub fn fromOverrides(overrides: Overrides) Options {
         return .{
@@ -103,7 +107,9 @@ fn initCoreSurface(
         config.arenaAlloc(),
         if (self.core_app.first) config.@"initial-command" orelse config.command else config.command,
     );
-    if (context == .window) {
+    // The quick terminal's geometry and frame come from its own settings.
+    const quick = if (self.windowForSurface(surface)) |window| window.quick else false;
+    if (context == .window and !quick) {
         surface.default_maximized = config.maximize;
         surface.default_fullscreen = config.fullscreen != .false;
         if (!WindowState.setWindowDecorations(
@@ -157,7 +163,10 @@ pub fn createWindow(self: *App, opts: Options) !void {
     const window = try self.alloc.create(Window);
     errdefer self.alloc.destroy(window);
 
-    const window_hwnd = try NativeWindow.createWindow();
+    const window_hwnd = if (opts.quick)
+        try NativeWindow.createQuickWindow(QuickTerminal.exStyle(self.config, NativeWindow.baseExStyle()))
+    else
+        try NativeWindow.createWindow();
     errdefer _ = win32.DestroyWindow(window_hwnd);
 
     const surface_hwnd = try NativeWindow.createSurface(window_hwnd);
@@ -168,11 +177,13 @@ pub fn createWindow(self: *App, opts: Options) !void {
 
     window.* = try Window.init(self.alloc, window_hwnd, surface);
     errdefer window.deinit(self.alloc);
+    window.quick = opts.quick;
 
     // The tab bar is an auxiliary window. Every consumer tolerates a null
     // handle, so a creation failure (USER handle exhaustion, for example)
     // degrades to a window without a tab bar instead of no window at all.
-    const tab_bar_hwnd: ?win32.HWND = NativeWindow.createTabBar(window_hwnd) catch |err| tab_bar: {
+    // The quick terminal has no tabs and therefore no tab bar.
+    const tab_bar_hwnd: ?win32.HWND = if (opts.quick) null else NativeWindow.createTabBar(window_hwnd) catch |err| tab_bar: {
         log.warn("tab bar unavailable for this window; continuing without it: {}", .{err});
         break :tab_bar null;
     };
@@ -213,7 +224,7 @@ pub fn createWindow(self: *App, opts: Options) !void {
     try initCoreSurface(self, surface, opts, .window);
     TabBarAccessibility.sync(self, window, false, false);
     WindowLayout.layoutWindow(self, window);
-    WindowState.showWindow(surface);
+    if (!opts.quick) WindowState.showWindow(surface);
 }
 
 pub fn newTab(self: *App, target: apprt.Target) !bool {
@@ -229,6 +240,11 @@ pub fn newTabWithOptions(self: *App, target: apprt.Target, opts: Options) !bool 
         log.warn("new_tab targeted an unowned surface", .{});
         return false;
     };
+    if (window.quick) {
+        // Like macOS, the quick terminal has no tabs.
+        log.info("new_tab is not supported in the quick terminal", .{});
+        return false;
+    }
     const previous_tab = window.active_tab;
     const previous_native_focus = win32.GetFocus();
     errdefer {
@@ -344,7 +360,7 @@ pub fn newSplitWithOptions(
     try TestHooks.fail(.split_owned);
     try initCoreSurface(self, surface, opts, .split);
     WindowLayout.layoutWindow(self, window);
-    _ = win32.SetFocus(surface.hwnd);
+    if (!QuickTerminal.keyboardDisabled(self, window)) _ = win32.SetFocus(surface.hwnd);
     log.info("created Win32 split direction={s} surfaces={d}", .{
         @tagName(direction),
         window.activeSurfaceCount(),
@@ -371,6 +387,19 @@ pub fn requestSurfaceClose(surface: *Surface, confirm: bool) void {
 }
 
 pub fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
+    if (self.windowForSurface(surface)) |window| {
+        // Closing the quick terminal's last pane hides it while its shell
+        // still runs, like macOS. Its exit, or closing every window,
+        // destroys it.
+        if (window.quick and window.totalSurfaceCount() == 1 and !surface.force_close) {
+            const exited = if (surface.core_surface) |core| core.child_exited else true;
+            if (!exited) {
+                QuickTerminal.hide(self, window, .explicit);
+                return;
+            }
+        }
+    }
+
     if (confirm) {
         var request: DeferredActions.Close = .{ .confirm = true };
         request.add(self.alloc, surface) catch |err| {
@@ -388,7 +417,8 @@ pub fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
     };
     SplitDivider.clearPointer(window);
     const close_window = window.totalSurfaceCount() == 1;
-    const save_before_window_close = close_window and !window.session_close_snapshot;
+    // The quick terminal is never part of the saved session.
+    const save_before_window_close = close_window and !window.session_close_snapshot and !window.quick;
     if (save_before_window_close) self.persistSession();
     const tab_surface_count = window.surfaceCountFor(surface) orelse return;
     const close_tab = !close_window and tab_surface_count == 1;
@@ -436,6 +466,7 @@ pub fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
     }
 
     if (close_window) {
+        if (window.quick) QuickTerminal.destroying(self, window);
         if (win32.DestroyWindow(window.hwnd) == 0) {
             log.warn("DestroyWindow(window) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         }
@@ -443,19 +474,20 @@ pub fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
         std.debug.assert(removeWindow(self, window));
         if (self.windows.items.len > 0) {
             const closing_only_snapshotted_windows = for (self.windows.items) |remaining| {
-                if (!remaining.session_close_snapshot) break false;
+                if (!remaining.session_close_snapshot and !remaining.quick) break false;
             } else true;
             if (!closing_only_snapshotted_windows) self.persistSession();
         }
         window.deinit(self.alloc);
         self.alloc.destroy(window);
+        QuickTerminal.quitIfUnreachable(self);
         return;
     }
 
     const focus = next_focus.?;
     self.alloc.destroy(surface);
     if (in_active_tab) {
-        _ = win32.SetFocus(focus.hwnd);
+        if (QuickTerminal.allowsFocus(focus)) _ = win32.SetFocus(focus.hwnd);
     } else {
         // The background tab's own focused surface was already advanced by
         // Tab.removeSurface; only its title in the tab bar can change.
@@ -604,6 +636,12 @@ fn tabSelectedForClose(
 }
 
 pub fn closeOwnedWindow(self: *App, window: *Window) bool {
+    if (window.quick) {
+        // Closing the quick terminal window hides it without ending its
+        // shells, so there is nothing to confirm.
+        QuickTerminal.hide(self, window, .explicit);
+        return true;
+    }
     var request: DeferredActions.Close = .{ .snapshot_session = true };
     var surfaces = window.surfaceIterator();
     while (surfaces.next()) |surface| {
@@ -622,7 +660,12 @@ pub fn closeAllWindows(self: *App) bool {
 }
 
 pub fn queueCloseAll(self: *App, quit: bool) bool {
-    var request: DeferredActions.Close = .{ .all = true, .quit = quit, .snapshot_session = true };
+    return queueCloseAllWith(self, .{ .all = true, .quit = quit, .snapshot_session = true });
+}
+
+/// Close every surface with the given request flags.
+pub fn queueCloseAllWith(self: *App, base: DeferredActions.Close) bool {
+    var request = base;
     for (self.windows.items) |window| {
         var surfaces = window.surfaceIterator();
         while (surfaces.next()) |surface| {

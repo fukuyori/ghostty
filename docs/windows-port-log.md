@@ -5,6 +5,119 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-17: Quick terminal and global keybindings (F7, #24)
+
+- The specification was decided by a read-only Codex review of upstream
+  macOS/GTK behavior and the Win32 runtime, then spot-checked against the
+  source (macOS autohide on same-app focus changes and the `calculate()`
+  centered-axis behavior were confirmed). Two additions or differences: a
+  hidden quick terminal with no other window and no registered global
+  keybinding is unreachable, so the application quits through the `quit`
+  confirmation path (owner decision on 2026-10-17; declining shows the quick
+  terminal again); and unicode triggers that need Shift or AltGr are rejected
+  instead of registered with those modifiers (owner decision on 2026-10-17:
+  the registered keys must match the written binding).
+- Owner decision on 2026-10-17: a `global:` binding that cannot be registered
+  is disabled entirely and reported. `GlobalHotkeys.register` removes every
+  rejected trigger (invalid translation, multiple actions, chord collision,
+  `RegisterHotKey` failure, missing message window) from the configuration
+  before the core receives it and appends a `keybind` diagnostic, so the
+  existing configuration error dialog shows it at startup and reload; a
+  layout change that disables bindings reapplies the configuration and shows
+  only the new diagnostics. Single-surface reloads drop global bindings that
+  are not registered. Win32 never changes the conditional configuration state
+  at runtime, so a configuration replay cannot restore a removed binding.
+  Verified with a unit test (removal, untouched ordinary bindings, diagnostic
+  text), Win32 tests (190 passed, 1 skipped), and a run with
+  `global:ctrl+numpad_enter` whose startup dialog was captured listing the
+  binding as disabled while the valid bindings registered; exit code 0.
+- `GlobalHotkeys.zig` registers every single-action `global:` leaf of the root
+  keybinding set with `RegisterHotKey` (`MOD_NOREPEAT`) on the message-only
+  wakeup window, like GTK's selection. Physical triggers map through the
+  Windows scan code and `MapVirtualKeyExW`; unicode triggers through
+  `VkKeyScanExW`, rejecting characters that need modifiers (a trigger must
+  name the pressed keys). Lock modifiers, modifier-only keys, `catch_all`, and
+  triggers that collapse to the same native chord are rejected. Every
+  rejected or failed binding is removed from the configuration and reported
+  (see the owner decision above); the first implementation's focused fallback
+  no longer exists.
+  Identifiers carry a registration generation, so a queued `WM_HOTKEY` from a
+  replaced configuration is ignored; actions are cloned into the registration
+  and again before dispatch through `performAllAction`. Re-registration runs
+  on app config changes and `WM_INPUTLANGCHANGE`; unregistration precedes
+  wakeup-window destruction.
+- `QuickTerminal.zig` creates one `WS_POPUP` tool window with `WS_EX_TOPMOST`
+  (and `WS_EX_NOACTIVATE` for `keyboard-interactivity = none`) and no tab bar.
+  Window close, `close_window`, single-tab `close_tab`, and closing the last
+  running pane hide it; shell exit destroys it; close-all marks surfaces for
+  forced destruction. It is filtered from session save (including the active
+  index and the terminate/last-window save paths), `toggle_visibility`, and
+  `goto_window`; `new_tab` and geometry actions are rejected. The confirmation
+  for closing everything prefers a visible owner.
+- `quit_timer` no longer quits when a global keybinding is registered and
+  `quit-after-last-window-closed` is false. A hidden quick terminal with no
+  other window and no registration quits the app, since it would be
+  unreachable.
+- Verification on 2026-10-17: `zig build`, `zig build test -Dtest-filter=Win32`
+  (189 passed, 1 skipped) and the hook-enabled equivalent (same counts); five
+  new tests cover modifier translation, layout-independent physical keys,
+  rejected triggers, chord collisions, and work-area geometry including
+  negative coordinates, clamping and the centered axis. Synthetic
+  `keybd_event` input from the agent shell did not trigger any registered
+  hotkey, including one registered by a standalone test process, so the
+  controlled GUI run posted `WM_HOTKEY` to the instance's own wakeup window
+  instead. It confirmed registration of both test bindings, a topmost tool
+  popup at the work-area top edge with 40% height, hide, reuse of the same
+  window, `GHOSTTY_QUICK_TERMINAL=1` in the quick shell only (captured), that a
+  stale identifier is ignored, and a `quit` exit code 0 with no leftover child
+  process. Foreground activation could not be observed because the process
+  was started from a background shell.
+- Codex review follow-up (2026-10-17): surface-scoped global actions now
+  snapshot surface IDs before dispatch, because `CoreApp.performAllAction`
+  iterates its surface list while synchronous Win32 splits can grow it;
+  `persistSession` no longer saves (and clears) an empty session when only the
+  quick terminal remains; `WM_INPUTLANGCHANGE` is handled on terminal children
+  and re-registers only when the layout differs; physical triggers whose VK is
+  shared with another key (numpad Enter) or NumLock-dependent (numpad digits)
+  are rejected, while navigation keys are accepted; reload to
+  `keyboard-interactivity = none` releases focus and new splits do not take
+  it; a changed `quick-terminal-screen` reselects the monitor; and explicit
+  hide restores any previous foreground window, including another Ghostty
+  window. Not changed: suppression of ordinary key messages for registered
+  chords, pending real-key evidence of whether Windows delivers them.
+  Re-verification: `zig build`, Win32 tests (189 passed, 1 skipped) in normal
+  and hook-enabled configurations, the posted-`WM_HOTKEY` run again (show,
+  hide, reuse, stale identifier, exit 0, no leftover process), and a global
+  `new_split:right` posted three times that grew the quick terminal from one
+  to eight panes, each splitting only the panes present at dispatch, with
+  `GHOSTTY_QUICK_TERMINAL=1` in every pane (captured).
+- Second Codex review follow-up (2026-10-17): reachability is reevaluated
+  after an app reload and after layout re-registration, so removing the last
+  global keybinding quits a windowless application or routes a hidden quick
+  terminal through the quit confirmation; `keyboard-interactivity = none` now
+  guards every programmatic focus path (pane close, split navigation,
+  scrollbar and search controls, top-level focus forwarding); app-wide
+  configuration diagnostics use a visible window or an ownerless foreground
+  dialog instead of being dropped when no window is visible; and the message
+  loop compares the keyboard layout each iteration because
+  `WM_INPUTLANGCHANGE` does not reach search, command-palette, or dialog
+  controls. A binding removed for one layout returns only on configuration
+  reload. Re-verification: Win32 tests (190 passed, 1 skipped) in normal and
+  hook-enabled configurations; the posted-`WM_HOTKEY` run (show, hide, reuse,
+  global split from one to eight panes, stale identifier, exit 0, no
+  leftover process), in which the foreground moved to the quick terminal on
+  show and back to the previously active normal Ghostty window on hide; and
+  the invalid-binding run (startup dialog, exit 0).
+- The unreachable-quit confirmation was built and passes the Win32 tests (189
+  passed, 1 skipped); it was not exercised at runtime because opening the
+  quick terminal without a registered global keybinding needs real key input.
+- Not yet verified: real key presses from another application, conflicts with
+  other applications, layout changes, focus return, autohide, `none`
+  interactivity, splits and shell exit in the quick terminal, close-all/quit
+  with a hidden quick terminal, zero-window lifetime, multiple monitors and
+  mixed DPI, taskbar/Alt+Tab exclusion as seen by the user, and virtual
+  desktops.
+
 ## 2026-10-17: Windows session save and restore (F6, #35)
 
 - Added opt-in `window-save-state = always` support. The Windows default

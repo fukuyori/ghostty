@@ -39,6 +39,8 @@ const WndProc = @import("WndProc.zig");
 const ShellOpen = @import("ShellOpen.zig");
 const CommandPalette = @import("CommandPalette.zig");
 const FileDrop = @import("FileDrop.zig");
+const GlobalHotkeys = @import("GlobalHotkeys.zig");
+const QuickTerminal = @import("QuickTerminal.zig");
 const Keyboard = @import("Keyboard.zig");
 const Mouse = @import("Mouse.zig");
 const NativeWindow = @import("NativeWindow.zig");
@@ -62,6 +64,8 @@ comptime {
     _ = ConfigActions;
     _ = CommandPalette;
     _ = FileDrop;
+    _ = GlobalHotkeys;
+    _ = QuickTerminal;
     _ = Keyboard;
     _ = Mouse;
     _ = NativeWindow;
@@ -109,6 +113,8 @@ pending_config_diagnostics: ConfigActions.DiagnosticQueue = .{},
 pending_actions: DeferredActions.Queue = .empty,
 session_state_path: ?[]u8 = null,
 session_persistence_allowed: bool = false,
+global_hotkeys: GlobalHotkeys = .{},
+quick_terminal: QuickTerminal.State = .{},
 
 pub fn init(
     self: *App,
@@ -179,6 +185,10 @@ pub fn init(
         break :wakeup null;
     };
     errdefer self.destroyWakeupWindow();
+    // Before any surface copies the configuration: unregistrable global
+    // keybindings are removed from it and reported with its diagnostics.
+    _ = self.global_hotkeys.register(self.alloc, self.wakeup_hwnd, self.config);
+    errdefer self.global_hotkeys.unregister();
     self.ipc_server = IpcTransport.Server.init(self.alloc, self, IpcHandler.ipcHandler) catch |err| server: {
         log.warn("IPC service unavailable: {}", .{err});
         break :server null;
@@ -210,6 +220,76 @@ pub fn init(
     }
     if (!restored) try WindowLifecycle.createWindow(self, .{});
     ConfigActions.showConfigDiagnostics(self, .app, self.config);
+}
+
+/// Register the `global:` keybindings again after a keyboard layout change.
+/// Bindings that no longer translate are removed from the configuration,
+/// which is then reapplied to every surface, and reported.
+pub fn reregisterGlobalHotkeys(self: *App) void {
+    const before = self.config._diagnostics.items().len;
+    if (self.global_hotkeys.register(self.alloc, self.wakeup_hwnd, self.config) == 0) return;
+    // Queue the report first: applying the configuration replaces it.
+    ConfigActions.showDiagnosticsSince(self, self.config, before);
+    self.core_app.updateConfig(self, self.config) catch |err| {
+        log.warn("failed to apply disabled global keybindings: {}", .{err});
+    };
+    self.quitIfUnreachable();
+}
+
+/// Quit when nothing can bring a window back: no window remains and no
+/// global keybinding is registered, or only a hidden quick terminal remains
+/// (which confirms running processes first).
+pub fn quitIfUnreachable(self: *App) void {
+    if (self.global_hotkeys.count() > 0) return;
+    if (self.windows.items.len == 0) {
+        log.info("no window and no global keybinding remain; quitting", .{});
+        win32.PostQuitMessage(0);
+        return;
+    }
+    QuickTerminal.quitIfUnreachable(self);
+}
+
+fn performGlobalHotkey(self: *App, id: usize) void {
+    const action = self.global_hotkeys.actionFor(id) orelse return;
+    // The action can reload the configuration, which replaces the
+    // registration that owns it. Perform a private copy.
+    var arena: std.heap.ArenaAllocator = .init(self.alloc);
+    defer arena.deinit();
+    const owned = action.clone(arena.allocator()) catch |err| {
+        log.warn("global keybinding action failed: {}", .{err});
+        return;
+    };
+    switch (owned.scope()) {
+        .app => self.core_app.performAllAction(self, owned) catch |err| {
+            log.warn("global keybinding action failed: {}", .{err});
+        },
+        // CoreApp.performAllAction iterates its surface list directly, but
+        // Win32 creates splits synchronously and can grow that list during
+        // the loop. Snapshot the IDs and resolve each one before dispatch;
+        // surfaces created by the action do not join this dispatch.
+        .surface => {
+            const ids = arena.allocator().alloc(u64, self.core_app.surfaces.items.len) catch |err| {
+                log.warn("global keybinding action failed: {}", .{err});
+                return;
+            };
+            for (self.core_app.surfaces.items, ids) |surface, *surface_id| surface_id.* = surface.core().id;
+            for (ids) |surface_id| {
+                const core = self.core_app.findSurfaceByID(surface_id) orelse continue;
+                _ = core.performBindingAction(owned) catch |err| {
+                    log.warn("global keybinding action failed on surface id={x}: {}", .{ surface_id, err });
+                };
+            }
+        },
+    }
+}
+
+/// Windows other than the quick terminal.
+pub fn normalWindowCount(self: *const App) usize {
+    var count: usize = 0;
+    for (self.windows.items) |window| {
+        if (!window.quick) count += 1;
+    }
+    return count;
 }
 
 fn createWakeupWindow(self: *App) !win32.HWND {
@@ -247,6 +327,14 @@ fn wakeupWndProc(
         return 0;
     }
     if (msg == IpcHandler.WM_IPC_REQUEST and lparam != 0) return IpcHandler.dispatch(hwnd, lparam);
+    if (msg == win32.WM_HOTKEY) {
+        const ptr = win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA);
+        if (ptr != 0) {
+            const app: *App = @ptrFromInt(@as(usize, @bitCast(ptr)));
+            app.performGlobalHotkey(wparam);
+        }
+        return 0;
+    }
     return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
 }
 
@@ -258,6 +346,10 @@ pub fn run(self: *App) !void {
         ConfigActions.drainDiagnostics(self);
         ShellOpen.drain(self);
         DeferredActions.drain(self);
+        // WM_INPUTLANGCHANGE does not reach every focused control (search
+        // and command palette edits, dialogs), so also compare the layout
+        // here; the comparison makes this a no-op without a change.
+        if (self.global_hotkeys.layoutChanged()) self.reregisterGlobalHotkeys();
 
         var msg: win32.MSG = std.mem.zeroes(win32.MSG);
         const ret = win32.GetMessageW(&msg, null, 0, 0);
@@ -304,9 +396,10 @@ pub fn terminate(self: *App) void {
     ConfigActions.discardDiagnostics(self);
     DeferredActions.discard(self);
     if (self.session_persistence_allowed and self.config.@"window-save-state" == .always) {
-        if (self.windows.items.len > 0) self.persistSession();
+        if (self.normalWindowCount() > 0) self.persistSession();
     }
     WindowLifecycle.destroyAll(self);
+    self.global_hotkeys.unregister();
     self.destroyWakeupWindow();
     self.taskbar_progress_runtime.deinit();
     self.backdrop_runtime.deinit();
@@ -317,6 +410,9 @@ pub fn terminate(self: *App) void {
 
 pub fn persistSession(self: *App) void {
     if (!self.session_persistence_allowed or self.config.@"window-save-state" != .always) return;
+    // With only the quick terminal left, keep the snapshot taken when the
+    // last normal window closed instead of saving an empty session.
+    if (self.normalWindowCount() == 0) return;
     const path = self.session_state_path orelse return;
     SessionPersistence.save(self, path) catch |err| {
         log.warn("session save failed: {}", .{err});
