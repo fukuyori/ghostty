@@ -94,6 +94,17 @@ source /Applications/Ghostty.app/Contents/Resources/ghostty/shell-integration/nu
 use ghostty *
 ```
 
+### PowerShell
+
+On Windows, Ghostty automatically enables the PowerShell integration for
+interactive `pwsh` and `powershell` sessions. It wraps the existing `prompt`
+function and reports native drive locations through OSC 7 before each prompt.
+Other providers, UNC paths, and device paths are ignored. Command, file,
+encoded-command, and server modes are left unchanged. Integration script
+execution errors are contained, so a restrictive execution policy does not
+prevent the shell from starting. Ghostty does not change the user's execution
+policy.
+
 ### Zsh
 
 Automatic [Zsh](https://www.zsh.org/) integration works by temporarily setting

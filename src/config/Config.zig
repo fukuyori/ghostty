@@ -2305,11 +2305,12 @@ keybind: Keybinds = .{},
 /// On Windows, `default` does not save or restore state. Set this to `always`
 /// to save window layout on normal application exit and restore it at the next
 /// launch. Windows restores windows, tabs, split layout, focus, titles, and
-/// working directories reported through OSC 7. Shells that do not report
-/// directory changes (including the current PowerShell integration) restore
-/// the process startup directory. Terminal processes and scrollback are not
-/// restored. An explicit startup command or working-directory setting takes
-/// precedence and skips session restore and save for that launch.
+/// working directories reported through OSC 7. Interactive PowerShell on
+/// Windows reports native drive locations automatically; shells without a
+/// reporting integration restore the process startup directory. Terminal
+/// processes and scrollback are not restored. An explicit startup command or
+/// working-directory setting takes precedence and skips session restore and
+/// save for that launch.
 ///
 /// This has no effect on Linux.
 @"window-save-state": WindowSaveState = .default,
@@ -8979,6 +8980,9 @@ pub const MiddleClickAction = enum {
 };
 
 /// Shell integration values
+///
+/// `powershell` is supported on Windows. In `detect` mode, Ghostty
+/// automatically enables it for interactive `pwsh` and `powershell` shells.
 pub const ShellIntegration = enum {
     none,
     detect,
@@ -8986,6 +8990,7 @@ pub const ShellIntegration = enum {
     elvish,
     fish,
     nushell,
+    powershell,
     zsh,
 };
 

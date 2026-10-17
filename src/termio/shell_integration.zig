@@ -16,6 +16,7 @@ pub const Shell = enum {
     elvish,
     fish,
     nushell,
+    powershell,
     zsh,
 };
 
@@ -73,6 +74,13 @@ pub fn setup(
             env,
         ),
 
+        .powershell => try setupPowerShell(
+            alloc_arena,
+            command,
+            resource_dir,
+            env,
+        ),
+
         .elvish, .fish => xdg: {
             if (!try setupXdgDataDirs(alloc_arena, resource_dir, env)) return null;
             break :xdg try command.clone(alloc_arena);
@@ -98,13 +106,19 @@ test "force shell" {
     inline for (@typeInfo(Shell).@"enum".fields) |field| {
         const shell = @field(Shell, field.name);
 
+        if (shell == .powershell and comptime builtin.os.tag != .windows) continue;
+
         var res: TmpResourcesDir = try .init(shell);
         defer res.deinit();
 
+        const command: config.Command = if (shell == .powershell)
+            .{ .shell = "pwsh.exe" }
+        else
+            .{ .shell = "sh" };
         const result = try setup(
             alloc,
             res.path,
-            .{ .shell = "sh" },
+            command,
             &env,
             shell,
         );
@@ -161,6 +175,12 @@ fn detectShell(alloc: Allocator, command: config.Command) !?Shell {
     if (std.mem.eql(u8, "elvish", exe)) return .elvish;
     if (std.mem.eql(u8, "fish", exe)) return .fish;
     if (std.mem.eql(u8, "nu", exe)) return .nushell;
+    if (comptime builtin.os.tag == .windows) {
+        if (std.ascii.eqlIgnoreCase(exe, "pwsh.exe") or
+            std.ascii.eqlIgnoreCase(exe, "powershell.exe") or
+            std.ascii.eqlIgnoreCase(exe, "pwsh") or
+            std.ascii.eqlIgnoreCase(exe, "powershell")) return .powershell;
+    }
     if (std.mem.eql(u8, "zsh", exe)) return .zsh;
 
     return null;
@@ -175,6 +195,12 @@ test detectShell {
     try testing.expectEqual(.elvish, try detectShell(alloc, .{ .shell = "elvish" }));
     try testing.expectEqual(.fish, try detectShell(alloc, .{ .shell = "fish" }));
     try testing.expectEqual(.nushell, try detectShell(alloc, .{ .shell = "nu" }));
+    if (comptime builtin.os.tag == .windows) {
+        try testing.expectEqual(.powershell, try detectShell(alloc, .{ .shell = "pwsh.exe" }));
+        try testing.expectEqual(.powershell, try detectShell(alloc, .{ .shell = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" }));
+    } else {
+        try testing.expect(try detectShell(alloc, .{ .shell = "pwsh.exe" }) == null);
+    }
     try testing.expectEqual(.zsh, try detectShell(alloc, .{ .shell = "zsh" }));
 
     if (comptime builtin.target.os.tag.isDarwin()) {
@@ -842,6 +868,140 @@ fn setupNushell(
     return .{ .shell = try alloc.dupeZ(u8, cmd.buffer.written()) };
 }
 
+/// Automatically load the PowerShell integration for interactive shells.
+/// PowerShell's prompt function reports the current native drive location via
+/// OSC 7. Commands and file/server modes keep their original startup behavior.
+fn setupPowerShell(
+    alloc: Allocator,
+    command: config.Command,
+    resource_dir: []const u8,
+    env: *EnvMap,
+) !?config.Command {
+    if (comptime builtin.os.tag != .windows) return null;
+
+    var args: std.ArrayListUnmanaged([:0]const u8) = .empty;
+    var iter = try command.argIterator(alloc);
+    defer iter.deinit();
+
+    const exe = iter.next() orelse return null;
+    const exe_name = std.fs.path.basename(exe);
+    if (!std.ascii.eqlIgnoreCase(exe_name, "pwsh.exe") and
+        !std.ascii.eqlIgnoreCase(exe_name, "powershell.exe") and
+        !std.ascii.eqlIgnoreCase(exe_name, "pwsh") and
+        !std.ascii.eqlIgnoreCase(exe_name, "powershell")) return null;
+    try args.append(alloc, try alloc.dupeZ(u8, exe));
+
+    var no_exit = false;
+    while (iter.next()) |arg| {
+        // These modes run a command/script or host a server instead of
+        // presenting an interactive prompt. Do not alter their semantics.
+        if (std.ascii.eqlIgnoreCase(arg, "-command") or
+            std.ascii.eqlIgnoreCase(arg, "-c") or
+            std.ascii.eqlIgnoreCase(arg, "-commandwithargs") or
+            std.ascii.eqlIgnoreCase(arg, "-file") or
+            std.ascii.eqlIgnoreCase(arg, "-f") or
+            std.ascii.eqlIgnoreCase(arg, "-encodedcommand") or
+            std.ascii.eqlIgnoreCase(arg, "-ec") or
+            std.ascii.eqlIgnoreCase(arg, "-e") or
+            std.ascii.eqlIgnoreCase(arg, "-noninteractive") or
+            std.ascii.eqlIgnoreCase(arg, "-noni") or
+            std.ascii.eqlIgnoreCase(arg, "-servermode") or
+            std.ascii.eqlIgnoreCase(arg, "-sshservermode") or
+            std.ascii.eqlIgnoreCase(arg, "-configurationname") or
+            std.ascii.eqlIgnoreCase(arg, "-custompipename") or
+            std.mem.eql(u8, arg, "--%")) return null;
+
+        if (std.ascii.eqlIgnoreCase(arg, "-noexit")) no_exit = true;
+        try args.append(alloc, try alloc.dupeZ(u8, arg));
+    }
+
+    var path_buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
+    const script_path = try std.fmt.bufPrint(
+        &path_buf,
+        "{s}/shell-integration/powershell/ghostty-integration.ps1",
+        .{resource_dir},
+    );
+    const file = std.Io.Dir.openFileAbsolute(global.io(), script_path, .{}) catch |err| {
+        log.warn("unable to open {s}: {}", .{ script_path, err });
+        return null;
+    };
+    file.close(global.io());
+
+    try env.put("GHOSTTY_SHELL_INTEGRATION_POWERSHELL", script_path);
+    if (!no_exit) try args.append(alloc, "-NoExit");
+    try args.append(alloc, "-Command");
+    try args.append(alloc, "try { . $env:GHOSTTY_SHELL_INTEGRATION_POWERSHELL } catch { }");
+    return .{ .direct = try args.toOwnedSlice(alloc) };
+}
+
+test "PowerShell integration loads only for interactive startup" {
+    if (comptime builtin.os.tag != .windows) return error.SkipZigTest;
+
+    const testing = std.testing;
+    var arena: ArenaAllocator = .init(testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    var res: TmpResourcesDir = try .init(.powershell);
+    defer res.deinit();
+    var env = EnvMap.init(alloc);
+    defer env.deinit();
+
+    const integrated = try setupPowerShell(
+        alloc,
+        .{ .shell = "pwsh.exe -NoProfile" },
+        res.path,
+        &env,
+    );
+    try testing.expect(integrated != null);
+    const integrated_args = integrated.?.direct;
+    try testing.expectEqual(@as(usize, 5), integrated_args.len);
+    try testing.expectEqualStrings("pwsh.exe", integrated_args[0]);
+    try testing.expectEqualStrings("-NoProfile", integrated_args[1]);
+    try testing.expectEqualStrings("-NoExit", integrated_args[2]);
+    try testing.expectEqualStrings("-Command", integrated_args[3]);
+    try testing.expectEqualStrings(
+        "try { . $env:GHOSTTY_SHELL_INTEGRATION_POWERSHELL } catch { }",
+        integrated_args[4],
+    );
+    try testing.expectEqualStrings(
+        try std.fmt.allocPrint(alloc, "{s}/ghostty-integration.ps1", .{res.shell_path}),
+        env.get("GHOSTTY_SHELL_INTEGRATION_POWERSHELL").?,
+    );
+
+    var no_exit_env = EnvMap.init(alloc);
+    defer no_exit_env.deinit();
+    const with_no_exit = try setupPowerShell(
+        alloc,
+        .{ .shell = "pwsh.exe -NoProfile -NoExit" },
+        res.path,
+        &no_exit_env,
+    );
+    const no_exit_args = with_no_exit.?.direct;
+    try testing.expectEqual(@as(usize, 5), no_exit_args.len);
+    try testing.expectEqualStrings("-NoExit", no_exit_args[2]);
+
+    var command_env = EnvMap.init(alloc);
+    defer command_env.deinit();
+    try testing.expect(try setupPowerShell(
+        alloc,
+        .{ .shell = "pwsh.exe -Command Get-Location" },
+        res.path,
+        &command_env,
+    ) == null);
+    try testing.expectEqual(0, command_env.count());
+
+    var file_env = EnvMap.init(alloc);
+    defer file_env.deinit();
+    try testing.expect(try setupPowerShell(
+        alloc,
+        .{ .shell = "pwsh.exe -File script.ps1" },
+        res.path,
+        &file_env,
+    ) == null);
+    try testing.expectEqual(0, file_env.count());
+}
+
 test "nushell" {
     const testing = std.testing;
     var arena = ArenaAllocator.init(testing.allocator);
@@ -1038,6 +1198,10 @@ const TmpResourcesDir = struct {
         switch (shell) {
             .bash => try tmp_dir.dir.writeFile(std.testing.io, .{
                 .sub_path = "shell-integration/bash/ghostty.bash",
+                .data = "",
+            }),
+            .powershell => try tmp_dir.dir.writeFile(std.testing.io, .{
+                .sub_path = "shell-integration/powershell/ghostty-integration.ps1",
                 .data = "",
             }),
             else => {},

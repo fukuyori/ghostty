@@ -15,14 +15,21 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   startup overrides bypass both restore and save.
 - State includes window placement and maximized status, tab order and active
   tab, split directions and ratios, focused panes, tab/surface titles, and
-  working directories reported through OSC 7. The owner confirmed that
-  restored tabs and splits appeared, but all pane directories were the home
-  directory. PowerShell was not reporting `cd` changes, so this is the saved
-  process startup directory; per-pane `cd` restoration remains unverified for
-  PowerShell. Relaunch starts new terminal processes;
-  terminal contents, scrollback, and process state are not persisted. Missing
-  saved directories use configured or inherited startup behavior, and windows
-  are clamped to an available monitor work area.
+  working directories reported through OSC 7. In the initial acceptance run,
+  the owner confirmed that restored tabs and splits appeared, but all pane
+  directories were the home directory because PowerShell did not yet report
+  `cd` changes. Automatic PowerShell integration now reports native drive
+  locations before each prompt; OSC 7 output and preservation of the prior
+  prompt were verified under PowerShell 7 and Windows PowerShell 5.1. Full
+  Ghostty save/relaunch acceptance for per-pane directories remains pending.
+  Shell detection, interactive argument construction, and non-interactive-mode
+  exclusions passed targeted tests. The alternate-prefix Debug build passed
+  and installed the integration script with the shell resources at
+  `zig-out/powershell-integration-check`.
+  Relaunch starts new terminal processes; terminal contents, scrollback, and
+  process state are not persisted. Missing saved directories use configured or
+  inherited startup behavior, and windows are clamped to an available monitor
+  work area.
 - Added state validation for schema version, dimensions, tree depth, node and
   tab limits, ratios, and string sizes; invalid or incompatible state falls
   back to a regular initial window. The fallback now reinitializes the window

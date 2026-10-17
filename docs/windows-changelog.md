@@ -27,10 +27,11 @@ known issues, and known limitations of each version; the
   value without registering HTML.
 - Add opt-in Windows session save and restore using versioned JSON and atomic
   replacement. The saved state covers window placement, tabs, split trees,
-  focus, titles, and reported working directories; it starts new terminal
-  processes and does not restore process or terminal contents. Automated
-  state-model tests and the alternate-prefix Debug build pass; real-machine
-  acceptance remains pending.
+  focus, titles, and OSC 7-reported working directories. Automatic PowerShell
+  integration reports native drive directory changes before each prompt. It
+  starts new terminal processes and does not restore process or terminal
+  contents. PowerShell 7 and Windows PowerShell 5.1 integration checks and
+  automated tests pass; full real-machine session acceptance remains pending.
 - Follow the terminal cursor throughout native IME composition (#48),
   including asynchronous cursor movement after a partial commit. Stop
   tracking on composition end, focus loss and surface destruction.

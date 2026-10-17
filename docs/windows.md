@@ -384,33 +384,40 @@ Windows session restoration is opt-in. Add this to `config.ghostty`:
 window-save-state = always
 ```
 
+Interactive `pwsh` and `powershell` sessions are detected automatically and
+report native drive directory changes before each prompt. UNC and device paths
+are not reported. Command, file, encoded-command, and server modes keep their
+original startup behavior. Set `shell-integration = none` to disable automatic
+integration. If PowerShell's execution policy blocks the integration script,
+Ghostty leaves the policy unchanged and PowerShell starts without directory
+reporting.
+
 For a temporary test, run these commands in PowerShell:
 
 ```powershell
-zig build --prefix zig-out/f6-session-check
-$exe = (Resolve-Path .\zig-out\f6-session-check\bin\ghostty.exe).Path
+zig build --prefix zig-out/powershell-integration-check
+$exe = (Resolve-Path .\zig-out\powershell-integration-check\bin\ghostty.exe).Path
 Start-Process -FilePath $exe -ArgumentList '--window-save-state=always' -Wait
 ```
 
 After closing Ghostty normally and reopening it, Ghostty restores the windows,
 tabs, split layout, focus, and titles. It restores a pane's working directory
-only when the shell reports it through OSC 7. PowerShell does not currently
-report directory changes, so its saved directory remains the process startup
-directory; `cd` changes are not restored. Each pane starts a new terminal
-process; running processes and terminal contents are not restored. Missing or
-unavailable saved directories use the configured working directory when it
-exists, otherwise the inherited startup directory. Windows moves restored
-windows onto an available monitor if the saved display is gone. The state file is stored at
+when the shell reports it through OSC 7. PowerShell is integrated automatically
+for interactive sessions and reports native drive directory changes before each
+prompt when its execution policy allows the integration script. Each pane
+starts a new terminal process; running processes and terminal contents are not
+restored. Missing or unavailable saved directories use the configured working
+directory when it exists, otherwise the inherited startup directory. Windows
+moves restored windows onto an available monitor if the saved display is gone.
+The state file is stored at
 `%LOCALAPPDATA%\ghostty\windows\session.json` by default, or
 under `XDG_STATE_HOME\ghostty\windows\session.json` when that variable is set.
 
-To check it, create one window with multiple tabs and a nested split. Use a
-shell that reports OSC 7 directory changes to check per-pane directories;
-PowerShell only checks the recorded startup directory until its shell
-integration reports `cd` changes. Close all Ghostty windows normally; the
+To check it, create one window with multiple tabs and a nested split, then set
+different directories in the panes. Close all Ghostty windows normally; the
 PowerShell command waits for the app to exit. Then run the same command again.
-Confirm that the tabs, split layout, and titles return. Then repeat with two
-windows to check multi-window restoration. Do not add
+Confirm that the tabs, split layout, titles, and per-pane directories return.
+Then repeat with two windows to check multi-window restoration. Do not add
 `-e`, `--command`, or an explicit `working-directory`: those options skip
 restore and leave the saved session unchanged. The default
 `window-save-state = default` does not enable Windows persistence.

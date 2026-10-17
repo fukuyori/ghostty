@@ -302,9 +302,10 @@ Windows implements `window-save-state = always` as an opt-in. `default` and
 versioned JSON file under the Ghostty XDG state directory records window
 placement, tabs, split-tree direction and ratios, active tab and pane, tab and
 surface titles, and working directories reported by the terminal through
-OSC 7. Shells that do not report directory changes restore their process
-startup directory; PowerShell currently does not report `cd` changes. The file
-is written atomically. Missing, invalid, incompatible, or oversized state is
+OSC 7. Interactive PowerShell on Windows reports native drive directories
+changes automatically; shells without a reporting integration restore their
+process startup directory. The file is written atomically. Missing, invalid,
+incompatible, or oversized state is
 ignored and startup falls back to the normal initial window. Unavailable saved
 paths use the configured working directory when it exists, otherwise the
 inherited startup directory. Windows clamps restored windows to a currently
@@ -340,7 +341,7 @@ revalidated after the rename in roadmap step 10. Record that integration
 check separately from F8's Windows-feature acceptance; do not defer current
 identity checks merely because a later rename is planned.
 
-Command-finish notifications require shell integration or OSC 133 start/end data. Adding notification UI alone cannot detect arbitrary PowerShell command completion. Do not add noctty-specific automatic PowerShell integration under this plan.
+Command-finish notifications require shell integration or OSC 133 start/end data. Adding notification UI alone cannot detect arbitrary PowerShell command completion. F6 adds only the PowerShell cwd reporting needed for session restoration; do not expand that integration into command-completion reporting as part of F8.
 
 ## 7. Other Candidates and Exclusions
 
