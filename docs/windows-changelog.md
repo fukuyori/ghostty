@@ -13,8 +13,8 @@ known issues, and known limitations of each version; the
 
 - Handle OSC 9;4 progress reports in the Windows taskbar using
   `ITaskbarList3`, aggregating panes and tabs with Windows Terminal's state
-  priority. Build and focused aggregation test pass; real taskbar display and
-  supporting-application checks remain pending.
+  priority. Build and focused aggregation test pass; the owner confirms
+  real-taskbar acceptance is complete.
 - Register terminal HTML output as Windows `HTML Format` (CF_HTML), retaining
   the selected semantics: HTML-only for `copy_to_clipboard:html`, and HTML
   plus plain text for `mixed`. UTF-8 byte-offset tests and the Debug build
@@ -31,7 +31,9 @@ known issues, and known limitations of each version; the
   integration reports native drive directory changes before each prompt. It
   starts new terminal processes and does not restore process or terminal
   contents. PowerShell 7 and Windows PowerShell 5.1 integration checks and
-  automated tests pass; full real-machine session acceptance remains pending.
+  automated tests pass. The owner confirmed normal-exit/relaunch with two
+  windows and distinct PowerShell working directories. Remaining real-machine
+  checks are listed in the Windows roadmap.
 - Follow the terminal cursor throughout native IME composition (#48),
   including asynchronous cursor movement after a partial commit. Stop
   tracking on composition end, focus loss and surface destruction.

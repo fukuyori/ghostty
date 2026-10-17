@@ -128,8 +128,9 @@ work in this document at the same time.
 | 7 | Upstream feature coverage on Windows (F1-F8) | In progress | Not estimated |
 
 The original six production-readiness phases are done. Phase 7 has completed
-F1-F5 implementation and acceptance verification. F4 runtime acceptance
-remains; F6 implementation is complete and real-machine acceptance remains; F7-F8 have not begun. Its scope does not change
+F1-F5 implementation and acceptance verification. F6 implementation and
+basic real-machine save/relaunch checks are complete; edge-case acceptance
+remains. F7-F8 have not begun. Its scope does not change
 the historical completion status of Phases 1-6. On 2026-09-15 the first preview build
 `1.3.2-windows.1` (tag `v1.3.2-windows.1`) was finalized after passing
 Release verification, and later previews followed. The preceding Windows
@@ -1257,9 +1258,10 @@ Completion criteria:
 ### Phase 7: Upstream Feature Coverage on Windows
 
 Status: **In progress**. F1-F5 implementation and acceptance checks are
-complete. F4 runtime acceptance remains; F6 implementation is complete and
-real-machine acceptance remains;
-F7-F8 have not begun.
+complete. F6 implementation, per-pane working-directory, and multi-window
+save/relaunch checks are complete; unavailable-path, monitor-change,
+corrupt-state, focus, and startup-override acceptance remain. F7-F8 have not
+begun.
 This is a new phase after the six
 completed production-readiness phases. It is not part of the historical
 `1.3.2-windows.11` distribution evidence.
@@ -1277,9 +1279,9 @@ checks; this roadmap owns ordering and status.
 | 1 | F1 | Command palette: `toggle_command_palette`, `command-palette-entry` | [#17](https://github.com/fukuyori/ghostty/issues/17) | Done | Controlled display, Up/Down, dismiss/focus, IME process-key suppression, config reload, and owner-window closure checks passed; owner confirmed real Up/Down, new-tab action, open-tab jump, physical Japanese IME conversion Enter without command execution, readable high contrast, and scaled unclipped controls at 125% DPI |
 | 2 | F2 | Per-pane scrollbar: `scrollbar = system / never`, `scroll_to_row` | [#23](https://github.com/fukuyori/ghostty/issues/23) | Done | Controlled reveal, captured thumb pixels, auto-hide, `never`/`system` config reload, key/wheel/search position sync, split independence, alternate-screen transitions, exact controlled drag, output/pane-close drag races, empty/reached-limit history, and maximize/restore tracking passed; owner confirmed real-pointer drag and auto-hide, a distinguishable high-contrast thumb, and correctly scaled overlay geometry at 125% DPI |
 | 3 | F3 | Explorer file/directory drop into a pane | [#32](https://github.com/fukuyori/ghostty/issues/32) | Done | Owner captured single/multiple PowerShell drops without Enter, `%`/`!` rejection warnings, cmd double quoting without Enter, and right-split-only delivery in development builds. Normal Explorer could not drop into an elevated test window. A real drag held over a Debug target until its scheduled shell exit confirmed clean target-window closure and cancellation without Explorer errors |
-| Independent | F4 | Taskbar progress from `progress_report` and `progress-style` | [#33](https://github.com/fukuyori/ghostty/issues/33) | In progress | Win32 OSC 9;4 and ITaskbarList3 integration; aggregates every pane and tab by Windows Terminal priority; verify real taskbar display, state transitions and cleanup |
+| Independent | F4 | Taskbar progress from `progress_report` and `progress-style` | [#33](https://github.com/fukuyori/ghostty/issues/33) | Done | Win32 OSC 9;4 and ITaskbarList3 integration; aggregates every pane and tab by Windows Terminal priority; owner confirms real-taskbar acceptance complete |
 | Independent | F5 | HTML and mixed clipboard output | [#34](https://github.com/fukuyori/ghostty/issues/34) | Done | HTML-only/mixed formats and CF_HTML offsets passed; Word preserved red styling, Notepad accepted all mixed lines, and OSC 52 wrote the expected plain text |
-| Independent | F6 | Session save/restore: `window-save-state` | [#35](https://github.com/fukuyori/ghostty/issues/35) | In progress | Opt-in versioned JSON saves window placement, tabs, split trees, focus, titles, and OSC 7-reported working directories on normal exit; interactive PowerShell reports native drive cwd automatically; terminal processes/content are not resumed; model tests and alternate-prefix Debug build passed, real-machine acceptance pending |
+| Independent | F6 | Session save/restore: `window-save-state` | [#35](https://github.com/fukuyori/ghostty/issues/35) | In progress | Opt-in versioned JSON saves window placement, tabs, split trees, focus, titles, and OSC 7-reported working directories on normal exit; owner confirmed two windows with distinct PowerShell working directories restored after relaunch; unavailable-path, monitor-change, corrupt-state, focus, and startup-override acceptance remain |
 | Later design | F7 | Quick terminal and `global:` bindings | [#24](https://github.com/fukuyori/ghostty/issues/24) | Not started | Decide Win32 semantics for each setting; verify hotkey conflicts, focus, reload, multiple monitors, and clean exit |
 | Later design | F8 | Desktop and command-finish notifications | [#21](https://github.com/fukuyori/ghostty/issues/21) | Not started | Separate OSC notifications from shell-dependent command completion; verify policy, delivery, activation, and unavailable notifications using the current product identity. Revalidate new-name registration/activation separately in Section 7 step 10 |
 
@@ -1462,9 +1464,9 @@ packaging. Resolve open specifications before implementing the affected item.
 | Order | Work | Branch | Completion condition / dependency |
 |---|---|---|---|
 | 1 | Diagnose and fix partial IME commit overlap (#48) | `windows` | Done — cause confirmed from the reproduction trace; cursor-following correction, automated regressions and owner-operated Japanese IME acceptance passed on 2026-10-16 |
-| 2 | F4 taskbar progress (#33) | `windows` | Implementation wired; verify real taskbar display, state transitions, cleanup and a supporting application |
+| 2 | F4 taskbar progress (#33) | `windows` | Done — owner confirms real-taskbar acceptance is complete |
 | 3 | F5 HTML clipboard (#34) | `windows` | Done — HTML-only/mixed formats and CF_HTML offsets confirmed on the real clipboard; Word rich-text, Notepad plain-text, and OSC 52 checks passed |
-| 4 | F6 session save/restore (#35) | `windows` | Implementation, state-model/file tests, filtered Win32 tests, and Debug builds passed; real-machine relaunch, override and monitor-change acceptance pending |
+| 4 | F6 session save/restore (#35) | `windows` | Implementation and automated checks passed; owner confirmed per-pane PowerShell cwd and multi-window save/relaunch. Unavailable-path, monitor-change, corrupt-state, focus, and startup-override acceptance remain |
 | 5 | F7 quick terminal/global bindings (#24) | `windows` | Decide hotkey conflicts, focus and monitor behavior before implementation; verify with real keys and another foreground app |
 | 6 | F8 desktop/command-finish notifications (#21) | `windows` | Decide API, shell reporting, install-state requirements and click behavior; implement and verify upstream-compatible Windows support. New Gooztty identity integration is separate |
 | 7 | Owner-run release after F8 | `windows` | After steps 1-6 and their acceptance checks, the repository owner performs the release under the current Ghostty name, before branch cutover. This schedule does not authorize the agent to build packages, sign, tag or publish |
@@ -2720,7 +2722,7 @@ pass. The partial IME commit correction (#48) has its own verification row.
 | Win32 restructuring | `Recovery.zig` extraction (#12) | Normal and hook-enabled Debug builds, Win32 tests (174 passed, one skipped), normal window regression, three controlled GPU recoveries with two injected failures per surface, and power recovery across three surfaces passed on 2026-10-14. Duplicate resume suppressed; disabled-hook probes returned zero. Post-recovery capture inspected. Actual device loss/system suspend remain unverified; see the port log |
 | Win32 restructuring | `ConfigActions.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), and unmodified window-state regression passed on 2026-10-14. Extended palette/scrollbar checks passed with test-window stacking adjusted for captures; dedicated diagnostics/reload/editor checks passed. Captures inspected; grouped manual checks remain. See the port log for scope and evidence |
 | Win32 restructuring | `TabTitles.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), window-state regression, and controlled title actions/dialog/tab-switch checks passed on 2026-10-14. Dialog and renamed-window captures inspected; both GUI checks exited 0 without forced termination. Grouped manual checks remain; see the port log |
-| Feature expansion | Phase 7, F1-F8 | F1-F3 implementation and acceptance checks passed, including physical IME, real-pointer, high-contrast, mixed-DPI, Explorer quoting, pane targeting, and target-window closure. F5 implementation, offset tests, HTML-only/mixed clipboard inspection, Word rich-text paste, Notepad plain-text paste, and OSC 52 verification passed. F4 runtime acceptance remains. F6 model tests and alternate-prefix Debug build passed; real-machine acceptance remains. F7-F8 have not begun. See Section 6 and the feature development plan |
+| Feature expansion | Phase 7, F1-F8 | F1-F5 implementation and acceptance checks passed; F4 real-taskbar acceptance is owner-confirmed. F6 model tests, alternate-prefix Debug build, and per-pane PowerShell cwd plus multi-window save/relaunch passed; unavailable-path, monitor-change, corrupt-state, focus, and startup-override checks remain. F7-F8 have not begun. See Section 6 and the feature development plan |
 | Startup | Debug build startup | Verified |
 | Startup | Release build startup | PE, resources, CLI, and a dedicated GUI process verified |
 | Release | `1.3.2-windows.1` | Regression, 20-iteration soak, and CLI verified with the distribution and regression Release builds. Signing at distribution time |

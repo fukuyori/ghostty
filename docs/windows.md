@@ -413,11 +413,29 @@ The state file is stored at
 `%LOCALAPPDATA%\ghostty\windows\session.json` by default, or
 under `XDG_STATE_HOME\ghostty\windows\session.json` when that variable is set.
 
+To clear the saved session, close every Ghostty window first, then remove the
+state file:
+
+```powershell
+$stateFile = if ($env:XDG_STATE_HOME) {
+    Join-Path $env:XDG_STATE_HOME 'ghostty\windows\session.json'
+} else {
+    Join-Path $env:LOCALAPPDATA 'ghostty\windows\session.json'
+}
+Remove-Item -LiteralPath $stateFile -ErrorAction SilentlyContinue
+```
+
+There is no dedicated clear-history option. Setting
+`window-save-state = never` disables saving and restoring; it does not remove
+an existing state file. If `always` remains enabled, a new session is saved
+again when Ghostty exits normally.
+
 To check it, create one window with multiple tabs and a nested split, then set
 different directories in the panes. Close all Ghostty windows normally; the
 PowerShell command waits for the app to exit. Then run the same command again.
 Confirm that the tabs, split layout, titles, and per-pane directories return.
-Then repeat with two windows to check multi-window restoration. Do not add
+Multi-window save/relaunch with distinct PowerShell directories has also been
+confirmed. Do not add
 `-e`, `--command`, or an explicit `working-directory`: those options skip
 restore and leave the saved session unchanged. The default
 `window-save-state = default` does not enable Windows persistence.

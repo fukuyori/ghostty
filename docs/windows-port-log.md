@@ -20,12 +20,18 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   directories were the home directory because PowerShell did not yet report
   `cd` changes. Automatic PowerShell integration now reports native drive
   locations before each prompt; OSC 7 output and preservation of the prior
-  prompt were verified under PowerShell 7 and Windows PowerShell 5.1. Full
-  Ghostty save/relaunch acceptance for per-pane directories remains pending.
+  prompt were verified under PowerShell 7 and Windows PowerShell 5.1. On
+  2026-10-17, two real-machine normal-exit/relaunch checks confirmed distinct
+  split-pane directories were saved and restored (`C:\tmp` with `D:\home`,
+  then `D:\home\source\go` with `D:\home\source\rust`).
   Shell detection, interactive argument construction, and non-interactive-mode
   exclusions passed targeted tests. The alternate-prefix Debug build passed
   and installed the integration script with the shell resources at
   `zig-out/powershell-integration-check`.
+  In a later check with the rebuilt executable, the owner saved two windows
+  with different working directories (`C:\Users\n_fuk\Dropbox` and
+  `D:\home`) and confirmed that both were restored after relaunch. This
+  completes the real-machine multi-window save/relaunch check.
   Relaunch starts new terminal processes; terminal contents, scrollback, and
   process state are not persisted. Missing saved directories use configured or
   inherited startup behavior, and windows are clamped to an available monitor
@@ -40,8 +46,19 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   passed. The filtered Win32 test suite passed.
 - The alternate-prefix Debug build and the default `zig build` passed. The
   `session`, `directoryExists`, and filtered Win32 test runs passed, as did
-  `git diff --check`. Real-machine title-update, save/relaunch,
-  monitor-change, and CLI-override acceptance remain pending.
+  `git diff --check`. Real-machine title-update, monitor-change, and
+  CLI-override acceptance remain pending.
+- There is no dedicated session-history clearing option. With Ghostty fully
+  closed, remove `%LOCALAPPDATA%\ghostty\windows\session.json` (or
+  `$env:XDG_STATE_HOME\ghostty\windows\session.json` when
+  `XDG_STATE_HOME` is set). `window-save-state = never` disables future
+  saving and restoration but does not delete an existing state file.
+
+## 2026-10-17: Taskbar progress (F4, #33) acceptance status
+
+- The owner confirms F4's real-taskbar acceptance was completed earlier. The
+  roadmap's pending runtime-acceptance status was stale. No new F4 runtime test
+  was performed in this update.
 
 ## 2026-10-17: HTML clipboard output (F5, #34)
 
