@@ -33,9 +33,9 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   `D:\home`) and confirmed that both were restored after relaunch. This
   completes the real-machine multi-window save/relaunch check.
   Relaunch starts new terminal processes; terminal contents, scrollback, and
-  process state are not persisted. Missing saved directories use configured or
-  inherited startup behavior, and windows are clamped to an available monitor
-  work area.
+  process state are not persisted. If a saved directory is unavailable, the
+  shell starts in its normal startup directory. Windows are clamped to an
+  available monitor work area.
 - Added state validation for schema version, dimensions, tree depth, node and
   tab limits, ratios, and string sizes; invalid or incompatible state falls
   back to a regular initial window. The fallback now reinitializes the window
@@ -46,8 +46,23 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   passed. The filtered Win32 test suite passed.
 - The alternate-prefix Debug build and the default `zig build` passed. The
   `session`, `directoryExists`, and filtered Win32 test runs passed, as did
-  `git diff --check`. Real-machine title-update, monitor-change, and
-  CLI-override acceptance remain pending.
+  `git diff --check`. Additional isolated Windows runtime checks with the
+  rebuilt Debug executable confirmed:
+  - Invalid JSON logs a restore failure, opens the default window, exits
+    normally, and replaces the invalid state with a valid saved session.
+  - An unavailable saved directory falls back to the shell's startup
+    directory. The restored focused pane (index 1), active tab (index 1), and
+    tab title were observed. The active top-level window was not verified.
+  - A saved window rectangle at `(100000, 100000)` is clamped inside the
+    current monitor work area. This exercises the missing-monitor placement
+    fallback with an off-screen saved position; a physical monitor disconnect
+    was not performed.
+  - Configured and CLI `working-directory`, and CLI `--command`, each log
+    that restoration is skipped. For the CLI `working-directory` and
+    `--command` checks, saved-state SHA-256 remained unchanged after exit.
+- F6 acceptance is complete for the scoped Windows behavior. The off-screen
+  placement fixture covers restoration when saved coordinates are outside
+  available monitor work areas; physical monitor hot-unplug was not tested.
 - There is no dedicated session-history clearing option. With Ghostty fully
   closed, remove `%LOCALAPPDATA%\ghostty\windows\session.json` (or
   `$env:XDG_STATE_HOME\ghostty\windows\session.json` when

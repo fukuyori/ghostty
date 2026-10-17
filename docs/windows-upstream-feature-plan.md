@@ -2,7 +2,7 @@
 
 - Created: 2026-09-23; updated: 2026-10-17
 - Scope: upstream-feature Windows support on `windows`, including F4-F8; `gooztty` receives these changes through merges
-- Status: F1-F5 implementation and acceptance checks are complete; F6 implementation, per-pane cwd, and multi-window real-machine save/relaunch checks are complete, with edge-case acceptance remaining; F7-F8 remain
+- Status: F1-F6 implementation and acceptance checks are complete; F7-F8 remain
 - Related: [Windows roadmap](windows-roadmap.md), [user guide](windows.md)
 - Source of truth for progress, priority, and issues: [roadmap Phase 7](windows-roadmap.md#phase-7-upstream-feature-coverage-on-windows). This document records feature-specific design questions and acceptance criteria.
 
@@ -47,7 +47,7 @@ Roadmap Phases 1-6 record earlier milestones. This plan expands feature coverage
 | F3 | File drag and drop | Enter long or multiple paths from Explorer | Medium to high | Implemented; PowerShell/cmd quoting, rejection, pane targeting, elevated-window restriction, and target-window closure checked | [#32](https://github.com/fukuyori/ghostty/issues/32) |
 | F4 | Taskbar progress | See supported applications' progress outside the terminal | Low to medium | Implemented; owner confirms real-taskbar acceptance is complete | [#33](https://github.com/fukuyori/ghostty/issues/33) |
 | F5 | HTML clipboard output | Paste formatted terminal output into documents | Low to medium | Implemented and accepted; HTML-only/mixed clipboard formats, CF_HTML offsets, Word rich-text paste, Notepad plain-text paste, and OSC 52 write verified | [#34](https://github.com/fukuyori/ghostty/issues/34) |
-| F6 | Session save and restore | Reduce rebuilding tabs, splits, and working locations | High | Implemented; model tests, alternate-prefix Debug build, per-pane PowerShell cwd, and multi-window save/relaunch passed; edge-case acceptance remains | [#35](https://github.com/fukuyori/ghostty/issues/35) |
+| F6 | Session save and restore | Reduce rebuilding tabs, splits, and working locations | High | Implemented and accepted; owner-confirmed multi-window/per-pane cwd, invalid state, unavailable paths, focused-pane/active-tab/title restoration, off-screen placement clamp, and configured/CLI working-directory plus CLI command overrides verified. Active-window selection and physical monitor disconnect were not tested | [#35](https://github.com/fukuyori/ghostty/issues/35) |
 | F7 | Quick terminal and global bindings | Invoke the terminal from another app | High | Not started | [#24](https://github.com/fukuyori/ghostty/issues/24) |
 | F8 | Desktop and command-finish notifications | Report long-running command completion | Medium to high; depends on shell reporting | Not started | [#21](https://github.com/fukuyori/ghostty/issues/21) |
 
@@ -306,10 +306,9 @@ OSC 7. Interactive PowerShell on Windows reports native drive directories
 changes automatically; shells without a reporting integration restore their
 process startup directory. The file is written atomically. Missing, invalid,
 incompatible, or oversized state is
-ignored and startup falls back to the normal initial window. Unavailable saved
-paths use the configured working directory when it exists, otherwise the
-inherited startup directory. Windows clamps restored windows to a currently
-available monitor work area.
+ignored and startup falls back to the normal initial window. When a saved path
+is unavailable, the shell starts in its normal startup directory. Windows
+clamps restored windows to a currently available monitor work area.
 
 An explicit startup command (`-e` or `--command`) or configured/CLI
 `working-directory` skips restore and save for that launch. Restoration starts
@@ -320,13 +319,18 @@ under #43 does not block this scope. Noctty-specific history snapshots and
 named layouts remain excluded.
 
 Automated state-model tests cover version and shape validation, nested split
-ratios, Unicode working directories, and invalid input. Real-machine
-acceptance confirmed normal-exit/relaunch with multiple windows and distinct
-per-pane PowerShell working directories. Remaining checks: active focus,
-absent directories, monitor changes, corrupt state, and command/directory
-startup overrides. There is no dedicated history-clear option; close Ghostty
-and remove the saved `session.json`. `window-save-state = never` prevents
-future save/restore but leaves an existing file in place.
+ratios, Unicode working directories, and invalid input. Owner-run acceptance
+confirmed normal-exit/relaunch with multiple windows and distinct per-pane
+PowerShell working directories. Isolated Windows runtime checks confirmed
+invalid-state fallback, unavailable-path fallback, focused-pane, active-tab,
+and tab-title restoration, placement clamping for off-screen saved coordinates,
+and skipped restoration for configured/CLI `working-directory` and CLI
+`--command` overrides. The saved-state hash remained unchanged for the CLI
+override checks. Active top-level window selection and a physical monitor
+disconnect were not tested. There is no dedicated history-clear option; close
+Ghostty and remove the saved `session.json`.
+`window-save-state = never` prevents future save/restore but leaves an existing
+file in place.
 
 ### F7: Quick Terminal and Global Bindings
 

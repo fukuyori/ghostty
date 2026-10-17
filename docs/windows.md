@@ -406,9 +406,9 @@ when the shell reports it through OSC 7. PowerShell is integrated automatically
 for interactive sessions and reports native drive directory changes before each
 prompt when its execution policy allows the integration script. Each pane
 starts a new terminal process; running processes and terminal contents are not
-restored. Missing or unavailable saved directories use the configured working
-directory when it exists, otherwise the inherited startup directory. Windows
-moves restored windows onto an available monitor if the saved display is gone.
+restored. If a saved directory is unavailable, the shell starts in its normal
+startup directory. Windows moves restored windows onto an available monitor if
+the saved display is gone.
 The state file is stored at
 `%LOCALAPPDATA%\ghostty\windows\session.json` by default, or
 under `XDG_STATE_HOME\ghostty\windows\session.json` when that variable is set.
