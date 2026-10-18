@@ -147,8 +147,10 @@ work are in the [Windows roadmap](docs/windows-roadmap.md).
 
 The Windows build reads the same configuration file format as upstream
 Ghostty, from `%LOCALAPPDATA%\ghostty\config.ghostty`, but not every option
-has an effect on Windows. As of `1.3.2-windows.16`, the 212 upstream options
-break down as follows:
+has an effect on Windows. As of `1.3.2-windows.16`, 136 of the 212 upstream
+options (64%) can be used on Windows (◎ and ○), and 144 (68%) including the
+8 that work in part. Leaving out the 44 options that only concern other
+platforms, 136 of 168 (81%) can be used. The options break down as follows:
 
 | Status | Options | Meaning |
 |---|---:|---|
