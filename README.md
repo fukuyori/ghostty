@@ -13,6 +13,8 @@
     ·
     <a href="docs/windows.md">User Guide</a>
     ·
+    <a href="#configuration-support">Configuration</a>
+    ·
     <a href="docs/windows-release-notes.md">Release Notes</a>
     ·
     <a href="docs/windows-changelog.md">Changelog</a>
@@ -63,9 +65,6 @@ Portable release build:
 See the [Windows release notes](docs/windows-release-notes.md) for preview
 versions, contents, and verification results, and the
 [changelog](docs/windows-changelog.md) for what changed between them.
-[Configuration support on Windows](docs/windows-config-support.md) lists
-every configuration option with its Windows status, including the options
-that are not implemented.
 
 Checking the version of a build or an installation (`ghostty.exe` is a GUI
 application, so pipe its output to have PowerShell wait for it and print it):
@@ -143,6 +142,37 @@ refactoring are tracked as
 Configuration, default keybindings, diagnostics, and known limitations are in
 the [Windows user guide](docs/windows.md); implemented items and remaining
 work are in the [Windows roadmap](docs/windows-roadmap.md).
+
+## Configuration Support
+
+The Windows build reads the same configuration file format as upstream
+Ghostty, from `%LOCALAPPDATA%\ghostty\config.ghostty`, but not every option
+has an effect on Windows. As of `1.3.2-windows.16`, the 212 upstream options
+break down as follows:
+
+| Status | Options | Meaning |
+|---|---:|---|
+| ◎ | 41 | Works on Windows, with a recorded runtime check |
+| ○ | 95 | Works on Windows, judged from the code |
+| △ | 8 | Works in part |
+| ✕ | 24 | Not implemented on Windows; setting it has no effect |
+| - | 44 | Not applicable: macOS, GTK, Linux, X11 or Wayland only |
+
+Notable gaps:
+
+- Not implemented: dimming of unfocused splits and `split-divider-color`,
+  initial window position, `window-inherit-font-size`, resize overlay,
+  `focus-follows-mouse`, `undo-timeout`, link previews, custom shaders
+  ([#14](https://github.com/fukuyori/ghostty/issues/14)), and the audio
+  bell.
+- Partial: `light:`/`dark:` theme pairs always use the light theme, only the
+  `discrete` value of `mouse-scroll-multiplier` applies, there is no
+  selection clipboard for `copy-on-select = primary` or middle-click paste,
+  the automatic PowerShell integration reports only the working directory,
+  and `bell-features` supports `system`, `attention` and `title`.
+
+See [Configuration support on Windows](docs/windows-config-support.md) for
+every option with its status and notes.
 
 ## Crash Reports and Diagnostics
 

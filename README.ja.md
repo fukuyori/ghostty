@@ -13,6 +13,8 @@
     ·
     <a href="docs/windows.md">ユーザーガイド</a>
     ·
+    <a href="#設定の対応状況">設定</a>
+    ·
     <a href="docs/windows-release-notes.md">リリースノート</a>
     ·
     <a href="docs/windows-changelog.md">変更履歴</a>
@@ -63,8 +65,6 @@ zig build
 
 プレビュー版の内容と検証結果は [Windows リリースノート](docs/windows-release-notes.md)、
 版ごとの変更は[変更履歴](docs/windows-changelog.md)を参照してください。
-[Windows での設定の対応状況](docs/windows-config-support.ja.md)には、
-未実装のものを含む全設定項目の Windows での対応状況をまとめています。
 
 ビルドやインストール済みのバージョンの確認(`ghostty.exe` は GUI
 アプリケーションなので、出力をパイプで渡して PowerShell に完了を待たせて表示します):
@@ -139,6 +139,36 @@ Windows ビルドはプレビュー版です。Windows 11 で、144/192 DPI、�
 設定、既定のキーバインド、診断、既知の制限は
 [Windows ユーザーガイド](docs/windows.md)に、実装済みの項目と残りの作業は
 [Windows ロードマップ](docs/windows-roadmap.md)にあります。
+
+## 設定の対応状況
+
+Windows ビルドは upstream の Ghostty と同じ形式の設定ファイルを
+`%LOCALAPPDATA%\ghostty\config.ghostty` から読みますが、すべての設定項目が
+Windows で効くわけではありません。`1.3.2-windows.16` 時点で、upstream の
+212 項目の内訳は次のとおりです。
+
+| 状態 | 項目数 | 意味 |
+|---|---:|---|
+| ◎ | 41 | Windows で使える。動作確認の記録がある |
+| ○ | 95 | Windows で使える(コードから判断) |
+| △ | 8 | 一部だけ使える |
+| ✕ | 24 | Windows では未実装。設定しても効果がない |
+| - | 44 | 対象外。macOS、GTK、Linux、X11、Wayland だけの設定 |
+
+主な未対応の点:
+
+- 未実装: フォーカスのない分割ペインを暗くする設定と `split-divider-color`、
+  ウィンドウの初期位置、`window-inherit-font-size`、サイズ変更時のサイズ表示、
+  `focus-follows-mouse`、`undo-timeout`、リンクのプレビュー、カスタムシェーダー
+  ([#14](https://github.com/fukuyori/ghostty/issues/14))、音声のベル。
+- 一部だけ: `light:`/`dark:` のテーマの組み合わせは常にライト側になる、
+  `mouse-scroll-multiplier` は `discrete` の値だけ効く、`copy-on-select = primary`
+  と中クリックの貼り付けに使う選択範囲用のクリップボードがない、PowerShell の
+  自動統合は作業ディレクトリだけを通知する、`bell-features` は `system`、
+  `attention`、`title` に対応。
+
+全項目の状態と備考は
+[Windows での設定の対応状況](docs/windows-config-support.ja.md)を参照してください。
 
 ## クラッシュレポートと診断
 
