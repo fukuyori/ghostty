@@ -221,8 +221,8 @@ this scope is complete. The final layout correction passed hook-enabled
 Win32 tests (182 passed, one skipped). The subsequent unfiltered suite during
 `.15` preparation included that correction: 4040 passed, 62 skipped,
 91/91 steps, exit 0 (see the
-[release notes](windows-release-notes.md#132-windows15)). Issue #49 remains
-open as of 2026-10-16; verification completion does not record its closure.
+[release notes](windows-release-notes.md#132-windows15)). Issue #49 was
+closed on 2026-10-18.
 The earlier extraction records also retain limits for OpenGL,
 forced Acrylic fallback, terminal/divider capture loss and broader
 COM/WinEvent/screen-reader acceptance. The ISO-only AltGr+< key was not

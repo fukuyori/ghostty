@@ -545,10 +545,10 @@ Key commits:
 Follow-up work is tracked as issues:
 
 - [#4](https://github.com/fukuyori/ghostty/issues/4): right-click does not open a context menu (fixed for `1.3.2-windows.6`)
-- [#6](https://github.com/fukuyori/ghostty/issues/6): verify the GUI with high contrast enabled
-- [#5](https://github.com/fukuyori/ghostty/issues/5): verify the GUI at 144 and 192 DPI on real hardware
-- [#7](https://github.com/fukuyori/ghostty/issues/7): verify tab accessibility with a screen reader
-- [#8](https://github.com/fukuyori/ghostty/issues/8): verify rendering and input after a real sleep and resume
+- [#6](https://github.com/fukuyori/ghostty/issues/6): verify the GUI with high contrast enabled (verified 2026-10-14; closed)
+- [#5](https://github.com/fukuyori/ghostty/issues/5): verify the GUI at 144 and 192 DPI on real hardware (owner-reported 2026-10-18; closed)
+- [#7](https://github.com/fukuyori/ghostty/issues/7): verify tab accessibility with a screen reader (owner-reported 2026-10-18; closed)
+- [#8](https://github.com/fukuyori/ghostty/issues/8): verify rendering and input after a real sleep and resume (confirmed by the owner on 2026-10-17; closed)
 
 Completion criteria:
 
@@ -1244,8 +1244,8 @@ published as a release asset.
 
 Follow-up work is tracked as issues:
 
-- [#5](https://github.com/fukuyori/ghostty/issues/5): verify the GUI at 144 and 192 DPI on real hardware
-- [#8](https://github.com/fukuyori/ghostty/issues/8): verify rendering and input after a real sleep and resume
+- [#5](https://github.com/fukuyori/ghostty/issues/5): verify the GUI at 144 and 192 DPI on real hardware (owner-reported 2026-10-18; closed)
+- [#8](https://github.com/fukuyori/ghostty/issues/8): verify rendering and input after a real sleep and resume (confirmed by the owner on 2026-10-17; closed)
 - [#9](https://github.com/fukuyori/ghostty/issues/9): run a soak test lasting several hours
 - [#10](https://github.com/fukuyori/ghostty/issues/10): verify recovery from a real GPU device loss or driver failure
 - [#11](https://github.com/fukuyori/ghostty/issues/11): decide whether background-blur is supported or a limitation
@@ -1460,7 +1460,7 @@ Completed work is excluded from the remaining schedule:
 | Upstream baseline synchronization | Done | Through `6d53bafb1`; details in the port log |
 | Win32 apprt restructuring | Done | Completed 2026-10-15; #12 closed |
 | F1 command palette, F2 scrollbar, F3 file/directory drop | Done | Implementation and acceptance verification complete |
-| Creation rollback and IPC timeout verification | Done | 37 controlled cases verified; #49 issue closure is separate |
+| Creation rollback and IPC timeout verification | Done | 37 controlled cases verified; #49 closed on 2026-10-18 |
 
 ### Schedule before and after the rename
 
@@ -1498,7 +1498,7 @@ does not have to wait for the preceding feature's implementation.
 
 | Work | Timing and prerequisites |
 |---|---|
-| Real-hardware verification (#5-#10) | On the existing-name build: 144/192 DPI, high contrast, screen readers, actual sleep/resume, several-hour endurance and real GPU-loss recovery. Sleep/resume is confirmed working by the owner (2026-10-17). Windows 10 is outside the support target. Real GPU-loss reproduction and the several-hour soak procedure remain unscheduled until reproducible steps are available; continue other checks when hardware is available |
+| Real-hardware verification (#5-#10) | On the existing-name build: 144/192 DPI, high contrast, screen readers, actual sleep/resume, several-hour endurance and real GPU-loss recovery. Sleep/resume is confirmed working by the owner (2026-10-17). High contrast was verified on 2026-10-14; the owner reported 144/192 DPI title bar, tab bar and divider checks and Narrator tab selection-state speech on 2026-10-18 (#5-#8 closed). Windows 10 is outside the support target. Real GPU-loss reproduction and the several-hour soak procedure remain unscheduled until reproducible steps are available; continue other checks when hardware is available |
 | F4-F8 specifications | Resolve open decisions early, before implementing each feature. Separate any new-name-dependent integration from upstream-compatible Windows behavior |
 | Build, distribution and output name indirection | Implement on `windows` with `ghostty` values before step 8. Extend the runtime name module to build/resource generation, installed outputs, CLI parsing and PowerShell tooling; decide how tools receive the shared values. Verify unchanged names, paths and behavior before cutover. Preserve source-file names and other exceptions listed in the rebranding plan |
 | Upstream synchronization before cutover | Before step 8, check the upstream state, select and record the integration revision, synchronize through `main` into `windows`, and pass the build/tests and affected runtime checks. Record the range and results in the port log; reconcile Zig/dependency changes with #50. The 2026-10-12 baseline alone does not satisfy this later check |
@@ -1898,7 +1898,7 @@ capture inspections passed. Verification of this controlled-failure scope
 is complete. After the final layout correction, hook-enabled Win32 tests
 passed 182 tests with one skipped. The subsequent unfiltered suite during
 `.15` preparation included that correction: 4040 passed, 62 skipped,
-91/91 steps, exit 0. Issue #49 remains open as of 2026-10-16.
+91/91 steps, exit 0. Issue #49 was closed on 2026-10-18.
 The controlled-failure verification used working-tree changes based on
 `653033b4c`. See the
 [port log](windows-port-log.md#2026-10-15-creation-rollback-and-ipc-ui-timeout-49).
@@ -1986,16 +1986,20 @@ completion evidence. For remaining work, use the revised schedule above.
     from panicking when a plain-text URL is Ctrl+clicked. Fixed on
     2026-10-12; see "Debug panic on plain-text URLs: #47" below.
 14. Phase 7 F4 [#33](https://github.com/fukuyori/ghostty/issues/33): taskbar
-   progress.
+   progress — implemented and accepted; closed on 2026-10-18.
 15. Phase 7 F5 [#34](https://github.com/fukuyori/ghostty/issues/34): HTML and
-   mixed clipboard output.
+   mixed clipboard output — implemented and accepted; closed on 2026-10-18.
 16. Phase 7 F6 [#35](https://github.com/fukuyori/ghostty/issues/35): session
-   save and restore — implemented and accepted; see Section 6 and the feature
-   development plan for the tested scope and remaining untested edge cases.
+   save and restore — implemented and accepted; closed on 2026-10-18. See
+   Section 6 and the feature development plan for the tested scope and
+   remaining untested edge cases.
 17. Phase 7 F7 [#24](https://github.com/fukuyori/ghostty/issues/24): quick
-   terminal and `global:` bindings, beginning with its design decisions.
+   terminal and `global:` bindings — implemented and accepted; closed on
+   2026-10-18.
 18. Phase 7 F8 [#21](https://github.com/fukuyori/ghostty/issues/21): desktop
-    and command-finish notifications, beginning with its design decisions.
+    and command-finish notifications — implemented and accepted, including
+    the bell ([#22](https://github.com/fukuyori/ghostty/issues/22)); both
+    closed on 2026-10-18.
 
 #47 follows #36 and precedes F4. It does not affect releases (verified with a
 ReleaseFast build), but it crashes the Debug build on an ordinary link click,
@@ -2038,10 +2042,10 @@ Physical search IME input and mixed-DPI presentation remain unverified.
 
 Real-hardware verification in the user's environment:
 
-- [#5](https://github.com/fukuyori/ghostty/issues/5): GUI at 144 and 192 DPI
-- [#6](https://github.com/fukuyori/ghostty/issues/6): high contrast
-- [#7](https://github.com/fukuyori/ghostty/issues/7): tab accessibility with a screen reader
-- [#8](https://github.com/fukuyori/ghostty/issues/8): real sleep and resume
+- [#5](https://github.com/fukuyori/ghostty/issues/5): GUI at 144 and 192 DPI (owner-reported 2026-10-18; closed)
+- [#6](https://github.com/fukuyori/ghostty/issues/6): high contrast (verified 2026-10-14; closed)
+- [#7](https://github.com/fukuyori/ghostty/issues/7): tab accessibility with a screen reader (owner-reported 2026-10-18; closed)
+- [#8](https://github.com/fukuyori/ghostty/issues/8): real sleep and resume (confirmed by the owner on 2026-10-17; closed)
 - [#9](https://github.com/fukuyori/ghostty/issues/9): multi-hour soak
 - [#10](https://github.com/fukuyori/ghostty/issues/10): real GPU device loss or driver failure
 
@@ -2707,7 +2711,7 @@ pass. The partial IME commit correction (#48) has its own verification row.
 | Category | Test item | Current |
 |---|---|---|
 | Input | Partial IME commit overlap (#48) | Done (2026-10-16). The trace confirmed that the terminal cursor moved after the commit notification while the IMM composition point stayed at the old origin. Cursor tracking during composition corrects the placement. Normal and diagnostic Debug builds passed 128/128 steps; Win32 tests passed 182 with one skipped; six controlled placement/lifecycle groups and window-state regressions passed. The owner confirmed no overlap during physical Japanese IME partial commit; the probe recorded `庭にはにわ`, matching UTF-8 bytes, exit 0 and no crash/leak marker. See the [port log](windows-port-log.md#2026-10-16-partial-ime-commit-diagnostics-48) for hashes and logs |
-| Win32 lifecycle | Creation rollback (#49) and IPC UI timeout | 2026-10-15, follow-up verified as working-tree changes based on `653033b4c`: 33 creation cases plus four IPC cases passed, no forced termination/crash/leak diagnostics or observed process leftovers. Ordinary-build test controls were rejected; normal tab creation/exit, window-state and four modal-action cases passed. Win32 tests with and without hooks each passed 182 tests, one skipped; the full suite before the fallback-layout correction passed 4039 tests with 63 skipped, 91/91 steps, exit 0. The port log explains the misleading `failed command:` line from the Zig runner. Image inspection exposed a reserved strip with no tab bar; a native-geometry assertion reproduced it. After correction, hook-enabled Win32 tests passed 182 tests, one skipped; both owner-run desktop Debug builds passed 128/128 steps including `tic`, all 37 capture-enabled cases passed with zero fallback insets, and all four images passed inspection. Normal-build control rejection also passed. Desktop acceptance is complete for this scope. The later full suite during `.15` preparation included the correction: 4040 passed, 62 skipped, 91/91 steps, exit 0. #49 remains open as of 2026-10-16. See the [port log](windows-port-log.md#2026-10-15-creation-rollback-and-ipc-ui-timeout-49) for hashes, logs and injection limits |
+| Win32 lifecycle | Creation rollback (#49) and IPC UI timeout | 2026-10-15, follow-up verified as working-tree changes based on `653033b4c`: 33 creation cases plus four IPC cases passed, no forced termination/crash/leak diagnostics or observed process leftovers. Ordinary-build test controls were rejected; normal tab creation/exit, window-state and four modal-action cases passed. Win32 tests with and without hooks each passed 182 tests, one skipped; the full suite before the fallback-layout correction passed 4039 tests with 63 skipped, 91/91 steps, exit 0. The port log explains the misleading `failed command:` line from the Zig runner. Image inspection exposed a reserved strip with no tab bar; a native-geometry assertion reproduced it. After correction, hook-enabled Win32 tests passed 182 tests, one skipped; both owner-run desktop Debug builds passed 128/128 steps including `tic`, all 37 capture-enabled cases passed with zero fallback insets, and all four images passed inspection. Normal-build control rejection also passed. Desktop acceptance is complete for this scope. The later full suite during `.15` preparation included the correction: 4040 passed, 62 skipped, 91/91 steps, exit 0. #49 was closed on 2026-10-18. See the [port log](windows-port-log.md#2026-10-15-creation-rollback-and-ipc-ui-timeout-49) for hashes, logs and injection limits |
 | Win32 review fixes | Modal lifetime and accessible names | 2026-10-14: Debug 128/128, Win32 179 passed/one skipped, four modal-action scenarios, eight config-diagnostic scenarios, window-state and three file-drop modes passed. Rename plus shell exit: baseline exit 3, fixed exit 0. Native key/pointer checks preserved close target after an earlier tab exited; new-tab/renamed focused names and reordered tab metadata matched. Owner confirmed Narrator title speech and automatic new-tab final-title announcement; broad COM/WinEvent and terminal-content acceptance remain open; see the port log |
 | Configuration | Diagnostic dialog lifetime | Fixed by displaying queued diagnostics outside core callbacks on 2026-10-14. Baseline owner-close reproduced exit 3; final Debug build, Win32 tests (178 passed, one skipped), eight diagnostic lifecycle scenarios, and normal window regression passed. Captures inspected; all final GUI cases exited 0 without forced termination and no dedicated processes remained. See the port log |
 | Win32 restructuring | Final verification pass (#12) | On 2026-10-15 at `92d3a5d25`: full Zig test suite (91/91 steps, 4037 passed, 62 skipped), window-state with palette checks, parity, context-menu and a 20-run soak (20/20) passed, all exits 0 without forced termination. Owner-operated physical check of tabs, splits, Japanese IME (terminal and tab-title dialog), a 96/120 DPI move and IPC `+new-tab` passed with exit 0. The overlay-scrollbar check, blocked by another window in the unmodified script on both this and the previous executable, passed with the topmost copy (exit 0). Follow-up fixtures passed for file drop, palette jumps, float-on-top, reset window size, the configuration editor, startup maximize/fullscreen and IPC `+new-tab` arguments (`--title`, `--working-directory`, and an `-e` command distinguished from the default shell). An owner-operated German-layout check passed AltGr symbols (`@€{[]}\~`), Ctrl+Alt equivalence, dead keys (`âé`) and Ctrl+C, exit 0. Grouped manual checks covered keyboard/IME, dragging, DPI/layout, recovery and IPC, and a later owner-operated check covered physical mouse input and appearance (blur application and paste logged; the rest owner-confirmed), exit 0. IPC timeout and injected creation failures (#49) were left for the follow-up above; #48 was unresolved in this run and later passed the separate correction checks above |
@@ -2778,10 +2782,10 @@ pass. The partial IME commit correction (#48) has its own verification row.
 | Pane | Create, move, resize, close | Basically verified |
 | Pane | Mouse drag of dividers | Verified in the executable binary |
 | Pane | Normal and hover rendering of dividers | Verified in the 96 DPI executable binary |
-| GUI | High contrast rendering | Implemented for dividers, tab bar and title bar. F1/F2 high-contrast display was owner-confirmed on 2026-09-26; the 2026-10-15 grouped check also includes owner-reported high contrast on/off. That report does not enumerate divider/tab-bar/title-bar checks individually; reconcile those component checks against #6 before marking its full scope complete |
+| GUI | High contrast rendering | Implemented for dividers, tab bar and title bar. F1/F2 high-contrast display was owner-confirmed on 2026-09-26; the 2026-10-15 grouped check also includes owner-reported high contrast on/off. The 2026-10-14 controlled check enabled Windows high contrast and observed the divider widen from 1 to 2 px and the title bar, tab bar and scrollbars change, with captures inspected; restoring returned the configured appearance. #6 closed on 2026-10-18 |
 | GUI state | Split zoom state display | Verified in the executable binary |
 | Tab | Key operations | Default bindings verified. Controlled tab-command regression and owner-operated tab checks passed during the 2026-10-15 restructuring acceptance; see the final verification row and port log. The grouped report is not an exhaustive per-binding checklist; record any remaining binding-specific gaps separately |
-| Tab | Accessibility | Individual tabs checked via MSAA; terminal child names and drag-reorder metadata corrected on 2026-10-14 and inspected through Computer Use. Earlier owner title speech failed; after the fix, the owner confirmed title speech and automatic new-tab final-title announcement. Tab-role/ordinal, broad COM and terminal-content acceptance remain open |
+| Tab | Accessibility | Individual tabs checked via MSAA; terminal child names and drag-reorder metadata corrected on 2026-10-14 and inspected through Computer Use. Earlier owner title speech failed; after the fix, the owner confirmed title speech and automatic new-tab final-title announcement. On 2026-10-18 the owner reported confirming tab selection-state speech with Narrator (#7 closed); no captures or logs were supplied. Tab-role/ordinal speech, broad COM and terminal-content acceptance remain open |
 | Tab | Tab bar rendering | Verified |
 | Tab | All tab bar click operations | Verified |
 | Tab | Drag reordering | Verified |
@@ -2789,7 +2793,7 @@ pass. The partial IME commit correction (#48) has its own verification row.
 | Tab | Setting a custom name and clearing it by leaving it blank | Verified in the executable binary |
 | DPI | 96 DPI | DPI and rectangles of parent, tab bar, and split dividers automatically verified on 3 monitors |
 | DPI | 120 DPI | 40px tab bar and split divider tracking automatically verified on real hardware |
-| DPI | 144 and 192 DPI | Dimension and font generation tested, not verified on real hardware |
+| DPI | 144 and 192 DPI | Dimension and font generation tested. On 2026-10-18 the owner reported checking the title bar, tab bar and split dividers on real hardware at 150% and 200% (#5 closed); no captures or logs were supplied |
 | DPI | Monitor movement between different DPIs | Automatically verified across 4 monitors at 96 DPI and 120 DPI |
 | Window | Maximize, minimize, restore | Automatically regression verified in a dedicated Release process |
 | Windows shell | Snap, Alt+Tab, taskbar eligibility | All 6 manual operation items verified with the fixed Release |
