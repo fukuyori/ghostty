@@ -156,7 +156,7 @@ work in part, 144 (68%) can be used.
 | ◎ | 41 | Works on Windows, with a recorded runtime check |
 | ○ | 95 | Works on Windows, judged from the code |
 | △ | 8 | Works in part |
-| ✕ | 24 | Not implemented on Windows; setting it has no effect |
+| ✕ | 24 | Not implemented on Windows |
 | - | 44 | Not applicable: macOS, GTK, Linux, X11 or Wayland only |
 
 Notable gaps:
@@ -178,7 +178,7 @@ Notable gaps:
   options (`linux-cgroup*`, `async-backend`).
 
 See [Configuration support on Windows](docs/windows-config-support.md) for
-every option with its status and notes.
+every option with its status and description.
 
 ## Crash Reports and Diagnostics
 

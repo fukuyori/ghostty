@@ -5,234 +5,234 @@
 
 upstream の Ghostty の全設定項目(`src/config/Config.zig`)について、
 `1.3.2-windows.16` 時点のネイティブ Windows ビルドでの対応状況をまとめています。
-項目は upstream のリファレンスと同じ順に並べています。設定ファイルの場所と
-Windows 固有の動作は[ユーザーガイド](windows.md)(英語)を参照してください。
+項目は upstream のリファレンスと同じ順に並べ、内容は upstream の説明を要約した
+ものです。設定ファイルの場所と Windows 固有の動作は[ユーザーガイド](windows.md)
+(英語)を参照してください。
 
 ◎ は、その設定またはそれが制御する機能を実際に動かして確認した記録が
 [port log](windows-port-log.md) か [roadmap](windows-roadmap.md) にあるものです。
-備考に記録の場所を書いています。○ はコードを読んで判断したもので、その設定を
-処理するコードは Windows で動きますが、動作確認の記録はありません。△ と ✕ も、
-備考に確認記録を挙げていない限り、コードからの判断です。
+○ はコードを読んで判断したもので、その設定を処理するコードは Windows で動きますが、
+動作確認の記録はありません。△ と ✕ もコードからの判断です。
 
-| 設定項目 | 分類 | 状態 | 備考 |
+| 設定項目 | 分類 | 状態 | 内容 |
 |---|---|---|---|
-| `language` | GTK | - | GTK 専用。Windows の UI はこの設定では翻訳されない。 |
-| `font-family` | フォント | ◎ | ファミリー名で照合する(フルネームやスタイル名ではない)。`+list-fonts` で確認できる。確認記録: roadmap #1/#2(2026-09-28)。 |
-| `font-family-bold` | フォント | ○ |  |
-| `font-family-italic` | フォント | ○ |  |
-| `font-family-bold-italic` | フォント | ○ |  |
-| `font-style` | フォント | ○ | 明示したスタイル名は完全一致で照合し、見つからない場合は合成スタイルになる。 |
-| `font-style-bold` | フォント | ○ |  |
-| `font-style-italic` | フォント | ○ |  |
-| `font-style-bold-italic` | フォント | ○ |  |
-| `font-synthetic-style` | フォント | ○ |  |
-| `font-feature` | フォント | ○ |  |
-| `font-size` | フォント | ◎ | 確認記録: roadmap #3(2026-09-28)、12/16/24 pt と DPI 100〜200%。 |
-| `font-variation` | フォント | ○ | DirectWrite のシステムフォールバックのフェイスには適用されない。 |
-| `font-variation-bold` | フォント | ○ |  |
-| `font-variation-italic` | フォント | ○ |  |
-| `font-variation-bold-italic` | フォント | ○ |  |
-| `font-codepoint-map` | フォント | ◎ | 確認記録: roadmap #3(2026-09-28)、Noto Sans JP。割り当てたフェイスにもフォールバックのサイズ調整がかかる。 |
-| `clipboard-codepoint-map` | クリップボード | ○ |  |
-| `font-thicken` | フォント | - | macOS(CoreText)専用。Windows で使う FreeType の描画では無視される。 |
-| `font-thicken-strength` | フォント | - | macOS(CoreText)専用。Windows では無視される。 |
-| `font-shaping-break` | フォント | ○ |  |
-| `alpha-blending` | 描画 | ○ |  |
-| `adjust-cell-width` | フォント | ○ |  |
-| `adjust-cell-height` | フォント | ○ |  |
-| `adjust-font-baseline` | フォント | ○ |  |
-| `adjust-underline-position` | フォント | ○ |  |
-| `adjust-underline-thickness` | フォント | ○ |  |
-| `adjust-strikethrough-position` | フォント | ○ |  |
-| `adjust-strikethrough-thickness` | フォント | ○ |  |
-| `adjust-overline-position` | フォント | ○ |  |
-| `adjust-overline-thickness` | フォント | ○ |  |
-| `adjust-cursor-thickness` | カーソル | ○ |  |
-| `adjust-cursor-height` | カーソル | ○ |  |
-| `adjust-box-thickness` | フォント | ○ |  |
-| `adjust-icon-height` | フォント | ○ |  |
-| `grapheme-width-method` | ターミナル | ○ |  |
-| `freetype-load-flags` | フォント | ○ | このビルドは FreeType でフォントを描画するため、Windows でも効く。 |
-| `theme` | 色 | △ | 単一のテーマは効く。`light:`/`dark:` の組み合わせは、Windows がシステムの配色を通知しないため常にライト側になる。 |
-| `background` | 色 | ◎ | 確認記録: port log 2026-10-14 の外観チェックで、設定した背景色を画素で確認。 |
-| `foreground` | 色 | ○ |  |
-| `background-image` | 背景 | ○ |  |
-| `background-image-opacity` | 背景 | ○ |  |
-| `background-image-position` | 背景 | ○ |  |
-| `background-image-fit` | 背景 | ○ |  |
-| `background-image-repeat` | 背景 | ○ |  |
-| `selection-foreground` | 色 | ○ |  |
-| `selection-background` | 色 | ○ |  |
-| `selection-clear-on-typing` | 選択 | ○ |  |
-| `selection-clear-on-copy` | 選択 | ○ |  |
-| `selection-word-chars` | 選択 | ○ |  |
-| `minimum-contrast` | 色 | ○ |  |
-| `palette` | 色 | ○ |  |
-| `palette-generate` | 色 | ○ |  |
-| `palette-harmonious` | 色 | ○ |  |
-| `cursor-color` | カーソル | ○ |  |
-| `cursor-opacity` | カーソル | ○ |  |
-| `cursor-style` | カーソル | ○ |  |
-| `cursor-style-blink` | カーソル | ○ |  |
-| `cursor-text` | カーソル | ○ |  |
-| `cursor-click-to-move` | カーソル | ○ | OSC 133 のプロンプト区切りが必要。PowerShell の自動統合は出力しない。 |
-| `mouse-hide-while-typing` | マウス | ○ |  |
-| `scroll-to-bottom` | ターミナル | ○ |  |
-| `mouse-shift-capture` | マウス | ○ |  |
-| `mouse-reporting` | マウス | ○ |  |
-| `mouse-scroll-multiplier` | マウス | △ | `discrete` の値だけ効く。Windows ではホイールもタッチパッドも精密スクロールとして送られないため、`precision` は無視される。 |
-| `background-opacity` | 背景 | ◎ | 確認記録: port log 2026-10-14 の画素チェックと、2026-10-15 のオーナーによる手動確認。 |
-| `background-opacity-cells` | 背景 | ○ |  |
-| `background-blur` | 背景 | △ | `background-opacity` が 1 未満のときだけ効く。品質は環境によって異なる(#11)。`macos-glass-*` の値は `true` と同じ扱い。 |
-| `unfocused-split-opacity` | タブ・分割 | ✕ | Windows ではフォーカスのないペインを暗くしない。 |
-| `unfocused-split-fill` | タブ・分割 | ✕ | 無視される。Windows ではフォーカスのないペインを暗くしない。 |
-| `split-divider-color` | タブ・分割 | ✕ | 無視される。仕切り線の色は背景色と前景色を混ぜて決める(ハイコントラスト時はシステム色)。 |
-| `split-preserve-zoom` | タブ・分割 | ○ |  |
-| `search-foreground` | 色 | ○ | ターミナル検索は 1.3.2-windows.11 で確認済み。色の指定は個別に確認していない。 |
-| `search-background` | 色 | ○ | ターミナル検索は 1.3.2-windows.11 で確認済み。色の指定は個別に確認していない。 |
-| `search-selected-foreground` | 色 | ○ |  |
-| `search-selected-background` | 色 | ○ |  |
-| `command` | シェル | ◎ | ConPTY 経由で実行する。確認記録: CLI の `--command`(port log 2026-10-17、F6)、IPC の `+new-tab -e`(port log 2026-10-15)。ネイティブの回帰スクリプトでも使用。 |
-| `initial-command` | シェル | ○ | `-e` で設定される。最初のサーフェスにだけ適用される。 |
-| `notify-on-command-finish` | 通知 | ◎ | OSC 133 が必要(同梱の Bash 統合、または OSC 133 を出すプロンプト)。PowerShell の自動統合は出力しない。GTK のコマンド単位のメニューはない。確認記録: port log 2026-10-18(F8)。 |
-| `notify-on-command-finish-action` | 通知 | ◎ | `bell` は `bell-features` に従い、`notify` は Windows のトーストを出す。確認記録: port log 2026-10-18(F8、`bell,notify`)。 |
-| `notify-on-command-finish-after` | 通知 | ◎ | 確認記録: port log 2026-10-18(F8、10 秒のしきい値。5 秒のコマンドは通知されない)。 |
-| `env` | シェル | ○ | Windows の環境ブロックで ConPTY の子プロセスに渡される。 |
-| `input` | シェル | ○ |  |
-| `wait-after-command` | シェル | ○ | 「Process exited. Press any key」をターミナルの文字として表示する。Windows にはネイティブのダイアログはない。 |
-| `abnormal-command-exit-runtime` | シェル | ○ | Linux と同じく、しきい値内に 0 以外で終了した場合だけが対象。エラーはターミナルの文字として表示される。 |
-| `scrollback-limit-bytes` | スクロールバック | ○ |  |
-| `scrollback-limit-lines` | スクロールバック | ◎ | 確認記録: F2 のスクロールバー履歴チェックで `scrollback-limit-lines = 64` を使用(roadmap、F2 の受け入れ)。 |
-| `scrollback-compression` | スクロールバック | ○ | Windows では `DiscardVirtualMemory` を使う。 |
-| `scrollbar` | スクロールバック | ◎ | `system` はスクロール中や右端へのホバー時にペインごとのオーバーレイスクロールバーを表示し、`never` は無効にする。確認記録: F2 の受け入れ。 |
-| `link` | リンク | ✕ | upstream でも未実装で、どのビルドでも設定できない。組み込みの URL 判定だけがある。 |
-| `link-url` | リンク | ◎ | Ctrl+クリックでテキスト中の URL を `ShellExecuteW` で開く。確認記録: roadmap #47(2026-10-12)。 |
-| `link-osc8` | リンク | ◎ | http/https/mailto は開き、それ以外のスキームは確認を求め、`file:` リンクはブロックする。確認記録: roadmap #36(2026-10-12)。 |
-| `link-previews` | リンク | ✕ | Win32 はホバー中のリンクの URL を表示しないため、この設定は見た目に影響しない。 |
-| `maximize` | ウィンドウ | ◎ | Quick terminal には適用されない。確認記録: port log 2026-10-15(#12 の最終確認)。 |
-| `fullscreen` | ウィンドウ | ◎ | macOS の非ネイティブモードの値は `true` と同じ扱い。Quick terminal には適用されない。確認記録: port log 2026-10-15(#12)。 |
-| `title` | ウィンドウ | ◎ | IPC の `+new-tab --title`(新しいタブにこの設定を与える)で確認(port log 2026-10-15)。 |
-| `class` | GTK | - | GTK 専用(WM_CLASS、Wayland のアプリ ID、DBus)。Windows では `+new-tab --class` を受け付けない。 |
-| `x11-instance-name` | GTK | - | X11 専用。 |
-| `working-directory` | シェル | ◎ | 値を明示するとセッションの復元を行わない。確認記録: port log 2026-10-17(F6)と IPC の `--working-directory`(2026-10-15)。 |
-| `keybind` | キーバインド | ◎ | `global:` は `RegisterHotKey` を使う。シーケンス、複数アクション、Shift/AltGr が必要な文字、使用済みの組み合わせは診断を出して拒否する。確認記録: port log 2026-10-17(F7)。 |
-| `key-remap` | キーバインド | ○ | キーバインドの照合とエンコードに適用される。Windows のキーボード配列が生成する文字は変わらない。 |
-| `window-padding-x` | ウィンドウ | ○ | 共通コアのサーフェスのサイズ計算で適用される。Win32 は IME の位置と分割の最小サイズにコアのパディングを使う。 |
-| `window-padding-y` | ウィンドウ | ○ | 共通コアのサーフェスのサイズ計算で適用される。 |
-| `window-padding-balance` | ウィンドウ | ○ |  |
-| `window-padding-color` | ウィンドウ | ○ |  |
-| `window-vsync` | 描画 | ○ | upstream の説明は macOS のみだが、D3D11 の描画は `true` で同期間隔 1、`false` で 0 で表示する。 |
-| `window-inherit-working-directory` | 作業ディレクトリ | ◎ | シェルからの OSC 7 が必要(PowerShell 統合は自動)。確認記録: roadmap の検証一覧、1.3.2-windows.11。 |
-| `tab-inherit-working-directory` | 作業ディレクトリ | ◎ | シェルからの OSC 7 が必要。確認記録: roadmap の検証一覧、1.3.2-windows.11。 |
-| `split-inherit-working-directory` | 作業ディレクトリ | ◎ | シェルからの OSC 7 が必要。確認記録: roadmap の検証一覧、1.3.2-windows.11。 |
-| `window-inherit-font-size` | ウィンドウ | ✕ | 新しいウィンドウ、タブ、分割は常に設定した `font-size` で始まる。 |
-| `window-decoration` | ウィンドウ | ○ | `none` はネイティブの枠を外す。`auto`、`client`、`server` はどれも Windows のネイティブの枠を使う。 |
-| `window-title-font-family` | タイトルバー | ✕ | ネイティブのタイトルバーはシステムフォント、タブバーは Segoe UI を使う。 |
-| `window-subtitle` | GTK | - | GTK 専用のサブタイトル。Windows のタイトルバーにはサブタイトルがない。 |
-| `window-theme` | タイトルバー | ◎ | ネイティブのタイトルバーに適用される。確認記録: port log 2026-10-15 のまとめての手動確認(`ghostty`、`dark`、`light`)。`system` は未確認。 |
-| `window-colorspace` | 描画 | ✕ | Windows では `display-p3` は無視され、色は常に sRGB として扱われる。 |
-| `window-height` | ウィンドウ | ◎ | 確認記録: ウィンドウ状態の回帰テストで、起動時の ConPTY の行数を確認(2026-09-15 の修正)。 |
-| `window-width` | ウィンドウ | ◎ | 確認記録: ウィンドウ状態の回帰テストで、起動時のサイズを確認(2026-09-15 の修正)。 |
-| `window-position-x` | ウィンドウ | ✕ | 初期位置は Windows が決める(`CW_USEDEFAULT`)。セッションの復元ではウィンドウを配置できる。 |
-| `window-position-y` | ウィンドウ | ✕ | 初期位置は Windows が決める(`CW_USEDEFAULT`)。 |
-| `window-save-state` | セッション | ◎ | 保存と復元を有効にするのは `always` だけで、`default` と `never` は保存しない。確認記録: port log 2026-10-17(F6)。 |
-| `window-step-resize` | ウィンドウ | ✕ | Windows ではピクセル単位でサイズが変わる。 |
-| `window-new-tab-position` | タブ・分割 | ○ |  |
-| `window-show-tab-bar` | タブ・分割 | ◎ | `auto` では分割をズームしている間もタブバーを表示する。確認記録: 再読み込みの自動回帰テスト(roadmap の検証一覧)。 |
-| `window-titlebar-background` | タイトルバー | ○ | `window-theme = ghostty` のときだけ、Windows 11 で効く。ハイコントラスト時は解除される。 |
-| `window-titlebar-foreground` | タイトルバー | ○ | `window-theme = ghostty` のときだけ、Windows 11 で効く。タブバーの文字と仕切り線の色にも使われる。 |
-| `drag-handle` | タブ・分割 | ✕ | Windows には分割のドラッグハンドルがなく、マウスで分割を並べ替えられない(仕切り線でのサイズ変更はできる)。 |
-| `resize-overlay` | ウィンドウ | ✕ | Windows にはサイズ変更時のサイズ表示がない。 |
-| `resize-overlay-position` | ウィンドウ | ✕ | Windows にはサイズ変更時のサイズ表示がない。 |
-| `resize-overlay-duration` | ウィンドウ | ✕ | Windows にはサイズ変更時のサイズ表示がない。 |
-| `focus-follows-mouse` | マウス | ✕ | ペインのフォーカスはクリックでだけ変わる。 |
-| `clipboard-read` | クリップボード | ○ | `ask` は Windows の確認ダイアログを表示する。 |
-| `clipboard-write` | クリップボード | ◎ | `ask` は Windows の確認ダイアログを表示する。確認記録: 既定値での OSC 52 の書き込み(port log 2026-10-17、F5)。`ask`/`deny` は記録なし。 |
-| `clipboard-write-limit-bytes` | クリップボード | ○ | Kitty クリップボードプロトコル(OSC 5522)の書き込みに適用される。 |
-| `clipboard-trim-trailing-spaces` | クリップボード | ○ |  |
-| `clipboard-paste-protection` | クリップボード | ○ | 危険な貼り付けでは Windows の確認ダイアログを表示する。ファイルのドロップにも同じ保護がかかる。 |
-| `clipboard-paste-bracketed-safe` | クリップボード | ○ |  |
-| `title-report` | ターミナル | ○ |  |
-| `image-storage-limit` | ターミナル | ○ | Kitty graphics には同梱の OpenConsole(ConPTY ホスト)が必要。 |
-| `copy-on-select` | 選択 | △ | `primary` は何もコピーしない(Windows には選択範囲用のクリップボードがない)。`both` はシステムのクリップボードにだけコピーする。既定値は `none`。 |
-| `right-click-action` | マウス | ◎ | 確認記録: 既定の `context-menu` を 1.3.2-windows.11 と 2026-10-15 のまとめての手動確認で確認。ほかの値は記録なし。 |
-| `middle-click-action` | マウス | △ | 既定の `primary-paste` は Windows では何もしない(選択範囲用のクリップボードがない)。`clipboard-paste` を使う。 |
-| `click-repeat-interval` | マウス | ○ | `0` のときは 500 ms を使い、Windows のダブルクリック時間の設定は使わない。 |
-| `config-file` | 設定 | ○ |  |
-| `config-default-files` | 設定 | ◎ | 確認記録: 回帰スクリプトとシェルの受け入れスクリプトが `--config-default-files=false` で隔離したプロセスを起動している。 |
-| `confirm-close-surface` | 起動・終了 | ◎ | Windows のネイティブの確認ダイアログを表示する。確認記録: モーダル操作とネイティブの終了確認のチェック(port log 2026-10-14)。 |
-| `quit-after-last-window-closed` | 起動・終了 | ◎ | `false` で動作し続けるのは、global キーバインドが登録されている間だけ。それ以外は終了する。確認記録: port log 2026-10-17(F7)。 |
-| `quit-after-last-window-closed-delay` | 起動・終了 | ✕ | 最後のウィンドウを閉じるとすぐに終了する。 |
-| `initial-window` | 起動・終了 | ✕ | 起動時は常にウィンドウを開く(またはセッションを復元する)。 |
-| `undo-timeout` | 起動・終了 | ✕ | 閉じたペイン、タブ、ウィンドウの取り消し/やり直しは Windows では使えない。 |
-| `quick-terminal-position` | Quick terminal | ◎ | モニターの作業領域の端または中央。確認記録: port log 2026-10-17(F7)。 |
-| `quick-terminal-size` | Quick terminal | ◎ | px の値はデバイスピクセル。確認記録: port log 2026-10-17(F7)。 |
-| `gtk-quick-terminal-layer` | GTK | - | Wayland の layer-shell 専用。Windows では無視される。 |
-| `gtk-quick-terminal-namespace` | GTK | - | Wayland の layer-shell 専用。Windows では無視される。 |
-| `quick-terminal-screen` | Quick terminal | ◎ | `main` はプライマリモニター。`macos-menu-bar` は `main` と同じ扱い。確認記録: port log 2026-10-17(F7、`mouse`)。 |
-| `quick-terminal-animation-duration` | Quick terminal | ✕ | Quick terminal はアニメーションなしで表示・非表示になる。 |
-| `quick-terminal-autohide` | Quick terminal | ◎ | Windows での既定値は `false`。確認記録: port log 2026-10-17(F7)。 |
-| `quick-terminal-space-behavior` | macOS | - | macOS の Spaces 専用。仮想デスクトップを切り替えても、Quick terminal は表示したデスクトップに残る。 |
-| `quick-terminal-keyboard-interactivity` | Quick terminal | ◎ | `exclusive` は `on-demand` と同じ扱い。確認記録: port log 2026-10-17(F7、`none` と `on-demand`)。 |
-| `shell-integration` | シェル統合 | △ | PowerShell の自動統合は作業ディレクトリ(OSC 7)だけを通知し、プロンプトの区切りや OSC 133 は出さない。Bash 統合は同梱。PowerShell の作業ディレクトリの確認記録: port log 2026-10-17(F6)。 |
-| `shell-integration-features` | シェル統合 | △ | `GHOSTTY_SHELL_FEATURES` として渡され、同梱の Bash 統合が従う(`ssh-terminfo`、`ssh-env` など)。PowerShell 統合はこれらを無視する。 |
-| `command-palette-entry` | コマンドパレット | ◎ | 確認記録: roadmap F1(#17)、オーナーによる実機での受け入れ。 |
-| `osc-color-report-format` | ターミナル | ○ | 共通コアで処理される。関係するシーケンスを ConPTY が通すかは未確認。 |
-| `vt-kam-allowed` | ターミナル | ○ | 共通コアで処理される。関係するシーケンスを ConPTY が通すかは未確認。 |
-| `vt-window-resize-allowed` | ターミナル | ◎ | 確認記録: port log の resize_window(#45)、Debug ビルドでの CSI 8 t のチェック。作業領域と最大化状態を考慮してサイズを変える。 |
-| `vt-xt-checksum-report` | ターミナル | ○ | 共通コアで処理される。関係するシーケンスを ConPTY が通すかは未確認。 |
-| `vt-xt-checksum-extension` | ターミナル | ○ | 共通コアで処理される。関係するシーケンスを ConPTY が通すかは未確認。 |
-| `custom-shader` | 描画 | ✕ | D3D11 の描画はカスタムシェーダーに対応しておらず、ログに警告を出して無視する(#14)。 |
-| `custom-shader-animation` | 描画 | ✕ | D3D11 の描画がカスタムシェーダーに対応していないため効果がない(#14)。 |
-| `bell-features` | ベル | △ | `system`、`attention`、`title` は効く(確認記録: port log 2026-10-18、F8)。`audio` と `border` は非対応。 |
-| `bell-audio-path` | ベル | ✕ | 音声のベルは Windows では非対応。 |
-| `bell-audio-volume` | ベル | ✕ | 音声のベルは Windows では非対応。 |
-| `app-notifications` | GTK | - | GTK 専用のアプリ内トースト(`clipboard-copy`、`config-reload`)。 |
-| `macos-non-native-fullscreen` | macOS | - |  |
-| `macos-window-buttons` | macOS | - |  |
-| `macos-titlebar-style` | macOS | - |  |
-| `macos-titlebar-proxy-icon` | macOS | - |  |
-| `macos-dock-drop-behavior` | macOS | - |  |
-| `macos-option-as-alt` | macOS | - |  |
-| `macos-window-shadow` | macOS | - |  |
-| `macos-hidden` | macOS | - |  |
-| `macos-auto-secure-input` | macOS | - |  |
-| `macos-secure-input-indication` | macOS | - |  |
-| `macos-applescript` | macOS | - |  |
-| `macos-icon` | macOS | - |  |
-| `macos-custom-icon` | macOS | - |  |
-| `macos-icon-frame` | macOS | - |  |
-| `macos-icon-ghost-color` | macOS | - |  |
-| `macos-icon-screen-color` | macOS | - |  |
-| `macos-shortcuts` | macOS | - |  |
-| `linux-cgroup` | Linux | - |  |
-| `linux-cgroup-memory-limit` | Linux | - |  |
-| `linux-cgroup-processes-limit` | Linux | - |  |
-| `linux-cgroup-hard-fail` | Linux | - |  |
-| `gtk-opengl-debug` | GTK | - |  |
-| `gtk-single-instance` | GTK | - |  |
-| `gtk-titlebar` | GTK | - |  |
-| `gtk-tabs-location` | GTK | - |  |
-| `gtk-titlebar-hide-when-maximized` | GTK | - |  |
-| `gtk-toolbar-style` | GTK | - |  |
-| `gtk-titlebar-style` | GTK | - |  |
-| `gtk-wide-tabs` | GTK | - |  |
-| `gtk-horizontal-tab-scroll` | GTK | - |  |
-| `gtk-custom-css` | GTK | - |  |
-| `desktop-notifications` | 通知 | ◎ | OSC 9/777 を Windows のトーストで通知する。同梱の ConPTY が必要。確認記録: port log 2026-10-18(F8)。 |
-| `progress-style` | タスクバー | ◎ | OSC 9;4 の進捗をタスクバーに表示する。確認記録: roadmap F4(#33)、オーナーによる実機のタスクバーでの受け入れ(port log 2026-10-17)。 |
-| `bold-color` | 色 | ○ |  |
-| `faint-opacity` | 色 | ○ |  |
-| `term` | ターミナル | ◎ | 既定は `TERM=xterm-ghostty` で、`TERMINFO` はインストール先を指す。確認記録: roadmap 2026-09-15 の terminfo の修正(`tput` によるチェック)。 |
-| `enquiry-response` | ターミナル | ○ | 共通コアで処理される。関係するシーケンスを ConPTY が通すかは未確認。 |
-| `async-backend` | Linux | - | Linux 専用(epoll/io_uring)。 |
-| `auto-update` | 更新 | - | macOS(Sparkle)専用。 |
-| `auto-update-channel` | 更新 | - | macOS(Sparkle)専用。 |
+| `language` | GTK | - | システム既定に代わって使う、Ghostty の GUI の表示言語。 |
+| `font-family` | フォント | ◎ | 通常テキストに使うフォントファミリーで、繰り返し指定すると文字がない場合のフォールバックフォントも列挙できる。 |
+| `font-family-bold` | フォント | ○ | 太字に使うフォントファミリーで、未設定または見つからない場合は `font-family` を使う。 |
+| `font-family-italic` | フォント | ○ | 斜体に使うフォントファミリーで、未設定または見つからない場合は `font-family` を使う。 |
+| `font-family-bold-italic` | フォント | ○ | 太字斜体に使うフォントファミリーで、未設定または見つからない場合は `font-family` を使う。 |
+| `font-style` | フォント | ○ | 指定フォントファミリーのうち、通常テキストに使う名前付きスタイル（`Heavy` など）。 |
+| `font-style-bold` | フォント | ○ | 太字に使う名前付きフォントスタイルで、`false` にすると太字を無効化できる。 |
+| `font-style-italic` | フォント | ○ | 斜体に使う名前付きフォントスタイルで、`false` にすると斜体を無効化できる。 |
+| `font-style-bold-italic` | フォント | ○ | 太字斜体に使う名前付きフォントスタイルで、`false` にすると太字斜体を無効化できる。 |
+| `font-synthetic-style` | フォント | ○ | フォントに太字・斜体・太字斜体がない場合に、それらを合成するかどうか。 |
+| `font-feature` | フォント | ○ | 有効化・無効化する OpenType フォント機能（合字を止める `-calt` など）。 |
+| `font-size` | フォント | ◎ | 小数も指定できる、ポイント単位のフォントサイズ。 |
+| `font-variation` | フォント | ○ | 通常テキストに適用する可変フォントの軸の値（`wght=500` など）。 |
+| `font-variation-bold` | フォント | ○ | 太字に適用する可変フォントの軸の値。 |
+| `font-variation-italic` | フォント | ○ | 斜体に適用する可変フォントの軸の値。 |
+| `font-variation-bold-italic` | フォント | ○ | 太字斜体に適用する可変フォントの軸の値。 |
+| `font-codepoint-map` | フォント | ◎ | 特定の Unicode コードポイントまたは範囲を、指定したフォントで描画させる設定。 |
+| `clipboard-codepoint-map` | クリップボード | ○ | クリップボードへのコピー時に、特定の Unicode コードポイントを別の文字や文字列に置き換える設定。 |
+| `font-thicken` | フォント | - | 対応環境でフォントを太い線で描画するかどうか。 |
+| `font-thicken-strength` | フォント | - | `font-thicken` 有効時の太らせる強さ（`0`〜`255`）。 |
+| `font-shaping-break` | フォント | ○ | テキストのシェーピングを分割する位置（合字を崩す `cursor` 位置など）。 |
+| `alpha-blending` | 描画 | ○ | テキストや透過画像のアルファブレンディングに使う色空間。 |
+| `adjust-cell-width` | フォント | ○ | セル幅をピクセルまたはパーセントで調整する値。 |
+| `adjust-cell-height` | フォント | ○ | セルの高さをピクセルまたはパーセントで調整する値で、テキストは縦中央に配置される。 |
+| `adjust-font-baseline` | フォント | ○ | セル下端からテキストのベースラインまでの距離の調整値。 |
+| `adjust-underline-position` | フォント | ○ | セル上端から下線までの距離の調整値。 |
+| `adjust-underline-thickness` | フォント | ○ | 下線の太さの調整値。 |
+| `adjust-strikethrough-position` | フォント | ○ | セル上端から取り消し線までの距離の調整値。 |
+| `adjust-strikethrough-thickness` | フォント | ○ | 取り消し線の太さの調整値。 |
+| `adjust-overline-position` | フォント | ○ | セル上端から上線までの距離の調整値。 |
+| `adjust-overline-thickness` | フォント | ○ | 上線の太さの調整値。 |
+| `adjust-cursor-thickness` | カーソル | ○ | バーカーソルと枠線ブロックカーソルの太さの調整値。 |
+| `adjust-cursor-height` | カーソル | ○ | すべてのカーソル形状に適用されるカーソルの高さの調整値。 |
+| `adjust-box-thickness` | フォント | ○ | 罫線文字の線の太さの調整値。 |
+| `adjust-icon-height` | フォント | ○ | Nerd Font アイコンの最大の高さの調整値。 |
+| `grapheme-width-method` | ターミナル | ○ | 書記素クラスタのセル幅の算出方法（`unicode` または `legacy`）。 |
+| `freetype-load-flags` | フォント | ○ | ヒンティング、オートヒント、モノクロ描画など、FreeType のグリフ読み込みフラグ。 |
+| `theme` | 色 | △ | 名前またはパスで読み込むカラーテーマ（ライト／ダークモード別の指定も可）。 |
+| `background` | 色 | ◎ | ウィンドウの背景色。 |
+| `foreground` | 色 | ○ | ウィンドウの前景色（文字色）。 |
+| `background-image` | 背景 | ○ | ターミナルの背景に表示する PNG または JPEG 画像のパス。 |
+| `background-image-opacity` | 背景 | ○ | `background-opacity` を基準とした背景画像の不透明度。 |
+| `background-image-position` | 背景 | ○ | ターミナル内での背景画像の配置位置（`center`、`top-left` など）。 |
+| `background-image-fit` | 背景 | ○ | 背景画像の拡大縮小方法（`contain`、`cover`、`stretch`、`none`）。 |
+| `background-image-repeat` | 背景 | ○ | 周囲の空白を埋めるように背景画像を繰り返し並べるかどうか。 |
+| `selection-foreground` | 色 | ○ | 選択範囲の文字色。 |
+| `selection-background` | 色 | ○ | 選択範囲の背景色。 |
+| `selection-clear-on-typing` | 選択 | ○ | 文字入力や IME の変換開始時に現在の選択を解除するかどうか。 |
+| `selection-clear-on-copy` | 選択 | ○ | `copy_to_clipboard` バインドでコピーした後に選択を解除するかどうか。 |
+| `selection-word-chars` | 選択 | ○ | ダブルクリックなどで単語を選択する際に単語の区切りとみなす文字。 |
+| `minimum-contrast` | 色 | ○ | 文字色と背景色の間の最小コントラスト比（WCAG 基準、1〜21）。 |
+| `palette` | 色 | ○ | ターミナルの 256 色パレットの各色（`N=COLOR` 形式で指定）。 |
+| `palette-generate` | 色 | ○ | 基本 16 色の ANSI カラーからパレットの 16〜255 番を自動生成するかどうか。 |
+| `palette-harmonious` | 色 | ○ | ライト／ダーク両対応のため `palette-generate` で生成した色の並びを反転するかどうか。 |
+| `cursor-color` | カーソル | ○ | カーソルの色（セルに合わせる `cell-foreground`／`cell-background` も指定可）。 |
+| `cursor-opacity` | カーソル | ○ | カーソルの不透明度（0 で透明、1 で不透明）。 |
+| `cursor-style` | カーソル | ○ | カーソルの既定の形状（`block`、`bar`、`underline`、`block_hollow`）。 |
+| `cursor-style-blink` | カーソル | ○ | カーソルの既定の点滅状態（未設定時は DEC モード 12 にも従う）。 |
+| `cursor-text` | カーソル | ○ | カーソル下の文字の色。 |
+| `cursor-click-to-move` | カーソル | ○ | `OSC 133` のプロンプトマークを使い、プロンプト内のクリック位置へカーソルを移動するかどうか。 |
+| `mouse-hide-while-typing` | マウス | ○ | 入力中はマウスを再び操作するまでマウスポインターを隠すかどうか。 |
+| `scroll-to-bottom` | ターミナル | ○ | 最下部へスクロールする契機（`keystroke`、新しい `output`、またはその両方）。 |
+| `mouse-shift-capture` | マウス | ○ | マウスクリック時の Shift をプログラムへ送るか、選択範囲の拡張に使うか。 |
+| `mouse-reporting` | マウス | ○ | 要求したターミナルアプリケーションにマウスイベントを報告するかどうか。 |
+| `mouse-scroll-multiplier` | マウス | △ | マウスホイールのスクロール量の倍率（`precision:`／`discrete:` のデバイス別指定も可）。 |
+| `background-opacity` | 背景 | ◎ | ウィンドウ背景の不透明度（0 で透明、1 で不透明）。 |
+| `background-opacity-cells` | 背景 | ○ | 明示的な背景色を持つセルにも `background-opacity` を適用するかどうか。 |
+| `background-blur` | 背景 | △ | 半透明ウィンドウの背後をぼかすかどうかと、その強さ。 |
+| `unfocused-split-opacity` | タブ・分割 | ✕ | フォーカスのない分割ペインの不透明度（フォーカス中のペインを目立たせるための減光）。 |
+| `unfocused-split-fill` | タブ・分割 | ✕ | フォーカスのない分割ペインを減光する重ね塗りの色。 |
+| `split-divider-color` | タブ・分割 | ✕ | 分割ペイン間の区切り線の色。 |
+| `split-preserve-zoom` | タブ・分割 | ○ | ズーム中の分割ペインのズームを維持する操作（分割間の `navigation` など）。 |
+| `search-foreground` | 色 | ○ | フォーカスされていない検索一致箇所の文字色。 |
+| `search-background` | 色 | ○ | フォーカスされていない検索一致箇所の背景色。 |
+| `search-selected-foreground` | 色 | ○ | 現在選択中の検索一致箇所の文字色。 |
+| `search-selected-background` | 色 | ○ | 現在選択中の検索一致箇所の背景色。 |
+| `command` | シェル | ◎ | 新しいターミナルサーフェスごとに実行するコマンド（通常はシェル）。 |
+| `initial-command` | シェル | ○ | `command` と同様だが、Ghostty 起動時に最初に作成されるターミナルサーフェスにのみ適用されるコマンド。 |
+| `notify-on-command-finish` | 通知 | ◎ | コマンド終了時に通知を送る条件（`never`、`unfocused`、`always`）。 |
+| `notify-on-command-finish-action` | 通知 | ◎ | コマンド終了通知の方法（`bell`、`notify` など）。 |
+| `notify-on-command-finish-after` | 通知 | ◎ | コマンド終了通知を送る対象となる、コマンドの最低実行時間。 |
+| `env` | シェル | ○ | ターミナルサーフェスで起動するコマンドに渡す追加の環境変数（`KEY=VALUE` 形式）。 |
+| `input` | シェル | ○ | 起動時にコマンドへ入力として送るデータ（`raw:` の文字列または `path:` のファイル）。 |
+| `wait-after-command` | シェル | ○ | コマンド終了後、キーが押されるまでターミナルを開いたままにするかどうか。 |
+| `abnormal-command-exit-runtime` | シェル | ○ | この時間（ミリ秒）未満でプロセスが終了した場合に異常終了とみなしてエラーを表示する閾値。 |
+| `scrollback-limit-bytes` | スクロールバック | ○ | ターミナルサーフェスごとのスクロールバックバッファの最大サイズ（バイト）。 |
+| `scrollback-limit-lines` | スクロールバック | ◎ | 保持するスクロールバックの最大行数（アクティブな画面を除く）。 |
+| `scrollback-compression` | スクロールバック | ○ | ターミナルのアイドル時にスクロールバックのページをメモリ上で圧縮するかどうか。 |
+| `scrollbar` | スクロールバック | ◎ | スクロールバックバッファのスクロールバーを表示する条件（`system` または `never`）。 |
+| `link` | リンク | ✕ | ターミナルのテキストに正規表現でマッチさせ、クリック時の動作を割り当てる設定（現時点では設定不可）。 |
+| `link-url` | リンク | ◎ | URL を検出し、修飾キー付きクリックで既定のアプリケーションで開くかどうか。 |
+| `link-osc8` | リンク | ◎ | OSC 8 エスケープシーケンスで作成されたハイパーリンクを有効にするかどうか。 |
+| `link-previews` | リンク | ✕ | マッチした URL のリンクプレビューを表示するかどうか（`true`、`false`、`osc8` のみ）。 |
+| `maximize` | ウィンドウ | ◎ | 新しいウィンドウを最大化した状態で開始するかどうか。 |
+| `fullscreen` | ウィンドウ | ◎ | 新しいウィンドウをフルスクリーンで開始するかどうか（macOS の非ネイティブフルスクリーンを含む）。 |
+| `title` | ウィンドウ | ◎ | プログラムがエスケープシーケンスで設定するタイトルを無視して固定するウィンドウタイトル。 |
+| `class` | GTK | - | GTK でのアプリケーションクラス（X11 の `WM_CLASS` のクラス、Wayland のアプリケーション ID、DBus 名）。 |
+| `x11-instance-name` | GTK | - | GTK ビルドにおける X11 の `WM_CLASS` プロパティのインスタンス名。 |
+| `working-directory` | シェル | ◎ | コマンド起動後に移動する作業ディレクトリ（パス、`home`、`inherit`）。 |
+| `keybind` | キーバインド | ◎ | キーと修飾キーの組み合わせ（`trigger`）を `action` に割り当てるキーバインド。 |
+| `key-remap` | キーバインド | ○ | Ghostty 内でのみ修飾キーを割り当て直す設定（`from=to` 形式）。 |
+| `window-padding-x` | ウィンドウ | ○ | 端末セルとウィンドウの左右の境界との間の余白。 |
+| `window-padding-y` | ウィンドウ | ○ | 端末セルとウィンドウの上下の境界との間の余白。 |
+| `window-padding-balance` | ウィンドウ | ○ | セルサイズで割り切れずに余る領域を四辺に均等に振り分けるかどうか。 |
+| `window-padding-color` | ウィンドウ | ○ | 余白領域の色。`background` の色か、最も近いセルの背景色の延長かを選ぶ。 |
+| `window-vsync` | 描画 | ○ | 描画を画面のリフレッシュレートに同期させるかどうか(ティアリングと入力遅延のトレードオフ)。 |
+| `window-inherit-working-directory` | 作業ディレクトリ | ◎ | 新しいウィンドウが直前にフォーカスされていたウィンドウの作業ディレクトリを引き継ぐかどうか。 |
+| `tab-inherit-working-directory` | 作業ディレクトリ | ◎ | 新しいタブが直前にフォーカスされていたタブの作業ディレクトリを引き継ぐかどうか。 |
+| `split-inherit-working-directory` | 作業ディレクトリ | ◎ | 新しい分割ペインが直前にフォーカスされていた分割の作業ディレクトリを引き継ぐかどうか。 |
+| `window-inherit-font-size` | ウィンドウ | ✕ | 新しいウィンドウやタブが直前にフォーカスされていたウィンドウのフォントサイズを引き継ぐかどうか。 |
+| `window-decoration` | ウィンドウ | ○ | タイトルバーや枠などのウィンドウ装飾の希望設定(OS 側で上書きされる場合がある)。 |
+| `window-title-font-family` | タイトルバー | ✕ | アプリケーションのウィンドウタイトルとタブタイトルに使うフォント。 |
+| `window-subtitle` | GTK | - | ウィンドウのサブタイトルに表示するテキスト(サーフェスの `working-directory` など)。 |
+| `window-theme` | タイトルバー | ◎ | ウィンドウに使うテーマ(`auto`、`system`、`light`、`dark`、`ghostty`)。 |
+| `window-colorspace` | 描画 | ✕ | 端末の色を解釈する色空間(`srgb` または `display-p3`)。 |
+| `window-height` | ウィンドウ | ◎ | ウィンドウの初期の高さ(端末グリッドのセル数)。`window-width` も設定する必要がある。 |
+| `window-width` | ウィンドウ | ◎ | ウィンドウの初期の幅(端末グリッドのセル数)。`window-height` も設定する必要がある。 |
+| `window-position-x` | ウィンドウ | ✕ | プライマリモニターの左上を基準とした、ウィンドウの初期の横位置(ピクセル)。`window-position-y` も必要。 |
+| `window-position-y` | ウィンドウ | ✕ | プライマリモニターの左上を基準とした、ウィンドウの初期の縦位置(ピクセル)。`window-position-x` も必要。 |
+| `window-save-state` | セッション | ◎ | 位置、サイズ、タブ、分割などのウィンドウ状態を保存・復元するかどうか。 |
+| `window-step-resize` | ウィンドウ | ✕ | ウィンドウをピクセル単位ではなくフォーカス中のサーフェスのセルサイズ単位でリサイズするかどうか。 |
+| `window-new-tab-position` | タブ・分割 | ○ | 新しいタブを挿入する位置(`current` のタブの後ろ、または `end`)。 |
+| `window-show-tab-bar` | タブ・分割 | ◎ | タブバーを表示する条件(`always`、またはタブが2つ以上あるときのみなど)。 |
+| `window-titlebar-background` | タイトルバー | ○ | `window-theme` が `ghostty` のときのウィンドウタイトルバーの背景色。 |
+| `window-titlebar-foreground` | タイトルバー | ○ | `window-theme` が `ghostty` のときのウィンドウタイトルバーの前景色。 |
+| `drag-handle` | タブ・分割 | ✕ | マウスで分割を並べ替えるためのドラッグハンドルを分割上に表示する条件。 |
+| `resize-overlay` | ウィンドウ | ✕ | リサイズ中に端末サイズを示す一時的なオーバーレイを表示する条件。 |
+| `resize-overlay-position` | ウィンドウ | ✕ | リサイズオーバーレイの表示位置(`center`、`top-left` など)。 |
+| `resize-overlay-duration` | ウィンドウ | ✕ | リサイズオーバーレイが非表示になるまでの表示時間。 |
+| `focus-follows-mouse` | マウス | ✕ | フォーカス中のウィンドウで、マウスを重ねた分割ペインにフォーカスを移すかどうか。 |
+| `clipboard-read` | クリップボード | ○ | 端末内のプログラムが OSC 52 でシステムクリップボードを読み取れるかどうか(`ask`、`allow`、`deny`)。 |
+| `clipboard-write` | クリップボード | ◎ | 端末内のプログラムが OSC 52 でシステムクリップボードに書き込めるかどうか(`ask`、`allow`、`deny`)。 |
+| `clipboard-write-limit-bytes` | クリップボード | ○ | Kitty クリップボードプロトコル(OSC 5522)による1回のクリップボード書き込みの最大バイト数。 |
+| `clipboard-trim-trailing-spaces` | クリップボード | ○ | クリップボードにコピーするテキストから行末の空白を取り除くかどうか。 |
+| `clipboard-paste-protection` | クリップボード | ○ | 改行を含むテキストなど、安全でなさそうなテキストを貼り付ける前に確認を求めるかどうか。 |
+| `clipboard-paste-bracketed-safe` | クリップボード | ○ | プログラムがブラケットペーストモードを有効にしているときの貼り付けを安全とみなすかどうか。 |
+| `title-report` | ターミナル | ○ | プログラムがタイトル報告(CSI 21 t)で端末タイトルを問い合わせられるかどうか。 |
+| `image-storage-limit` | ターミナル | ○ | 端末画面ごとの画像データ(Kitty 画像プロトコルなど)の最大バイト数。 |
+| `copy-on-select` | 選択 | △ | 選択したテキストを自動でコピーするかどうかとコピー先(`none`、`primary`、`clipboard`、`both`)。 |
+| `right-click-action` | マウス | ◎ | 右クリック時の動作(`context-menu`、`paste`、`copy`、`copy-or-paste`、`ignore`)。 |
+| `middle-click-action` | マウス | △ | 中クリック時の動作(`primary-paste`、`clipboard-paste`、`ignore`)。 |
+| `click-repeat-interval` | マウス | ○ | ダブルクリックやトリプルクリックとみなすクリック間隔の上限(ミリ秒)。 |
+| `config-file` | 設定 | ○ | 追加で読み込む設定ファイル。繰り返し指定でき、先頭の `?` で存在しないファイルを無視する。 |
+| `config-default-files` | 設定 | ◎ | 既定の設定ファイルパスを読み込むかどうか(コマンドラインでのみ指定可能)。 |
+| `confirm-close-surface` | 起動・終了 | ◎ | サーフェスを閉じる前に確認するかどうか(`true`、`false`、`always`)。 |
+| `quit-after-last-window-closed` | 起動・終了 | ◎ | 最後のサーフェスを閉じた後にアプリケーションを終了するかどうか。 |
+| `quit-after-last-window-closed-delay` | 起動・終了 | ✕ | `quit-after-last-window-closed` が `true` のとき、最後のサーフェスを閉じてから Ghostty が終了するまでの時間。 |
+| `initial-window` | 起動・終了 | ✕ | Ghostty の起動時に最初のウィンドウを作成するかどうか。 |
+| `undo-timeout` | 起動・終了 | ✕ | 各操作を取り消し可能なまま取り消し履歴に保持する時間。 |
+| `quick-terminal-position` | Quick terminal | ◎ | クイックターミナルの画面上の位置(`top`、`bottom`、`left`、`right`、`center`)。 |
+| `quick-terminal-size` | Quick terminal | ◎ | クイックターミナルのサイズ(画面に対する割合またはピクセル数)。 |
+| `gtk-quick-terminal-layer` | GTK | - | クイックターミナルウィンドウのレイヤー(どのウィンドウより前面に表示されるかを決める)。 |
+| `gtk-quick-terminal-namespace` | GTK | - | Wayland コンポジターやスクリプトが参照する、クイックターミナルウィンドウの名前空間識別子。 |
+| `quick-terminal-screen` | Quick terminal | ◎ | クイックターミナルを表示する画面(`main`、`mouse`、`macos-menu-bar` など)。 |
+| `quick-terminal-animation-duration` | Quick terminal | ✕ | クイックターミナルの表示・非表示アニメーションの秒数(`0` で無効)。 |
+| `quick-terminal-autohide` | Quick terminal | ◎ | フォーカスが別のウィンドウに移ったときにクイックターミナルを自動で隠すかどうか。 |
+| `quick-terminal-space-behavior` | macOS | - | macOS のスペース切り替え時にクイックターミナルが追従するかどうか(`move` または `remain`)。 |
+| `quick-terminal-keyboard-interactivity` | Quick terminal | ◎ | クイックターミナルがキーボード入力を受け取る条件(Wayland layer-shell のキーボード操作モードに準拠)。 |
+| `shell-integration` | シェル統合 | △ | シェル統合を自動注入するかどうかと、使用するシェルの方式。 |
+| `shell-integration-features` | シェル統合 | △ | 有効にするシェル統合機能(`cursor`、`sudo`、`title`、SSH 関連など)。 |
+| `command-palette-entry` | コマンドパレット | ◎ | コマンドパレットに追加する独自項目(タイトル、アクション、任意の説明)。 |
+| `osc-color-report-format` | ターミナル | ○ | OSC 4/10/11 の色問い合わせに返す形式(`16-bit`、`8-bit`、`none`)。 |
+| `vt-kam-allowed` | ターミナル | ○ | プログラムが KAM(ANSI モード 2)でキーボード入力を無効化することを許可するかどうか。 |
+| `vt-window-resize-allowed` | ターミナル | ◎ | プログラムが xterm の `CSI 8 ; rows ; columns t` シーケンスでウィンドウサイズを変更することを許可するかどうか。 |
+| `vt-xt-checksum-report` | ターミナル | ○ | プログラムが DECRQCRA で画面領域のチェックサムを要求することを許可するかどうか。 |
+| `vt-xt-checksum-extension` | ターミナル | ○ | リセット後の DECRQCRA チェックサムの計算方法(xterm の `checksumExtension` 相当)。 |
+| `custom-shader` | 描画 | ✕ | 既定のシェーダーの後に実行する、Shadertoy 互換の GLSL シェーダーのパス。 |
+| `custom-shader-animation` | 描画 | ✕ | カスタムシェーダーのアニメーションループを動かす条件(フォーカス時、`always`、または無効)。 |
+| `bell-features` | ベル | △ | ベルが鳴ったときの動作(`system`、`audio`、`attention`、`title`、`border` など)。 |
+| `bell-audio-path` | ベル | ✕ | ベル機能 `audio` が有効なときに再生する音声ファイル。 |
+| `bell-audio-volume` | ベル | ✕ | システム音量に対するベル音声ファイルの音量(0.0〜1.0)。 |
+| `app-notifications` | GTK | - | 表示するアプリ内通知(トースト)の種類(`clipboard-copy`、`config-reload` など)。 |
+| `macos-non-native-fullscreen` | macOS | - | macOS のフルスクリーンにネイティブ方式ではなく高速な非ネイティブ方式を使うかどうか。 |
+| `macos-window-buttons` | macOS | - | macOS のタイトルバーのウィンドウボタン(信号機ボタン)を表示するかどうか。 |
+| `macos-titlebar-style` | macOS | - | macOS のタイトルバーのスタイル(`native`、`transparent`、`tabs`、`hidden`)。 |
+| `macos-titlebar-proxy-icon` | macOS | - | macOS のタイトルバーに作業ディレクトリのプロキシアイコンを表示するかどうか。 |
+| `macos-dock-drop-behavior` | macOS | - | macOS の Dock アイコンにファイルをドロップしたときに新しいタブと新しいウィンドウのどちらで開くか。 |
+| `macos-option-as-alt` | macOS | - | macOS の Option キーを Alt として扱うかどうか(左右どちらか一方のみも指定可)。 |
+| `macos-window-shadow` | macOS | - | macOS のウィンドウに影を付けるかどうか。 |
+| `macos-hidden` | macOS | - | macOS のアプリを Dock とアプリスイッチャーから隠すかどうか。 |
+| `macos-auto-secure-input` | macOS | - | パスワード入力プロンプトを検出したときに macOS のセキュア入力を自動で有効にするかどうか。 |
+| `macos-secure-input-indication` | macOS | - | macOS のセキュア入力が有効な間、画面上に表示を出すかどうか。 |
+| `macos-applescript` | macOS | - | macOS で Ghostty の AppleScript 辞書を公開し処理するかどうか。 |
+| `macos-icon` | macOS | - | Dock とアプリスイッチャーに表示する macOS のアプリアイコン(独自アイコンを含む)。 |
+| `macos-custom-icon` | macOS | - | `macos-icon` が `custom` のときに使うアイコンファイルの絶対パス。 |
+| `macos-icon-frame` | macOS | - | `custom-style` アイコンにおける macOS のアプリアイコンの枠の素材。 |
+| `macos-icon-ghost-color` | macOS | - | `custom-style` アイコンにおける macOS のアプリアイコンのゴーストの色。 |
+| `macos-icon-screen-color` | macOS | - | `custom-style` アイコンにおける macOS のアプリアイコンの画面部分のグラデーション色。 |
+| `macos-shortcuts` | macOS | - | macOS のショートカットによる Ghostty の操作を許可するかどうか(`ask`、`allow`、`deny`)。 |
+| `linux-cgroup` | Linux | - | Linux でリソース管理のため各サーフェスを個別の一時的な `systemd` スコープに入れるかどうか。 |
+| `linux-cgroup-memory-limit` | Linux | - | 各ターミナルの cgroup に設定するメモリのソフト上限(バイト単位、`MemoryHigh`)。 |
+| `linux-cgroup-processes-limit` | Linux | - | 各ターミナルの cgroup に設定するプロセス数の上限(`TasksMax`)。 |
+| `linux-cgroup-hard-fail` | Linux | - | `systemd` スコープの作成に失敗したときにサーフェスの作成も失敗させるかどうか。 |
+| `gtk-opengl-debug` | GTK | - | GTK の OpenGL デバッグログを有効にするかどうか。 |
+| `gtk-single-instance` | GTK | - | GTK アプリを単一インスタンスで動かし、新たな起動を新しいウィンドウとして開くかどうか。 |
+| `gtk-titlebar` | GTK | - | ウィンドウマネージャーのタイトルバーの代わりに GTK のタイトルバーを表示するかどうか。 |
+| `gtk-tabs-location` | GTK | - | GTK のタブバーの位置(`top`、`bottom`、`hidden`)。 |
+| `gtk-titlebar-hide-when-maximized` | GTK | - | ウィンドウの最大化中に GTK のタイトルバーを隠すかどうか。 |
+| `gtk-toolbar-style` | GTK | - | GTK の上下のバーの外観(`flat`、`raised`、`raised-border`)。 |
+| `gtk-titlebar-style` | GTK | - | GTK のタイトルバーのスタイル(`native`、またはタブバーを統合する `tabs`)。 |
+| `gtk-wide-tabs` | GTK | - | GTK のタブを利用可能な幅いっぱいに広げるかどうか。 |
+| `gtk-horizontal-tab-scroll` | GTK | - | タッチパッドの2本指による横スクロールで GTK のタブを切り替えるかどうか。 |
+| `gtk-custom-css` | GTK | - | アプリの外観調整のために読み込む独自の GTK CSS ファイル。 |
+| `desktop-notifications` | 通知 | ◎ | ターミナル内のアプリが OSC 9 や OSC 777 などのシーケンスでデスクトップ通知を出せるかどうか。 |
+| `progress-style` | タスクバー | ◎ | ターミナル内のアプリが ConEmu の OSC 9;4 シーケンスでグラフィカルな進捗バーを表示できるかどうか。 |
+| `bold-color` | 色 | ○ | 太字テキストに使う色(特定の色、または明るいパレットを使う `bright`)。 |
+| `faint-opacity` | 色 | ○ | 淡色(faint)テキストの不透明度(0 が透明、1 が不透明)。 |
+| `term` | ターミナル | ◎ | シェルに設定する環境変数 `TERM` の値。 |
+| `enquiry-response` | ターミナル | ○ | 実行中のコマンドから `ENQ`(`0x05`)を受け取ったときに返す文字列。 |
+| `async-backend` | Linux | - | Linux で非同期 IO やイベント処理に使う低レベル API(`auto`、`epoll`、`io_uring`)。 |
+| `auto-update` | 更新 | - | macOS での自動更新の動作(`off`、`check`、`download`)。 |
+| `auto-update-channel` | 更新 | - | 自動更新で使うリリースチャネル(`stable` または `tip`)。 |
 
 凡例:
 
 - ◎ Windows で使える。動作確認の記録がある。
 - ○ Windows で使える(コードから判断)。動作確認の記録はない。
-- △ 一部だけ使える。使えない部分は備考に書いている。
-- ✕ Windows では未実装。設定しても効果がない。
+- △ 一部だけ使える。
+- ✕ Windows では未実装。
 - \- 対象外。macOS、GTK、Linux、X11、Wayland だけに関係する設定。

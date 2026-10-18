@@ -153,7 +153,7 @@ Windows で効くわけではありません。`1.3.2-windows.16` 時点で、up
 | ◎ | 41 | Windows で使える。動作確認の記録がある |
 | ○ | 95 | Windows で使える(コードから判断) |
 | △ | 8 | 一部だけ使える |
-| ✕ | 24 | Windows では未実装。設定しても効果がない |
+| ✕ | 24 | Windows では未実装 |
 | - | 44 | 対象外。macOS、GTK、Linux、X11、Wayland だけの設定 |
 
 主な未対応の点:
@@ -172,7 +172,7 @@ Windows で効くわけではありません。`1.3.2-windows.16` 時点で、up
   専用の 17 項目(`gtk-*`、`class`、`window-subtitle`、アプリ内通知、UI の
   言語など)、Linux 専用の 5 項目(`linux-cgroup*`、`async-backend`)。
 
-全項目の状態と備考は
+全項目の状態と内容は
 [Windows での設定の対応状況](docs/windows-config-support.ja.md)を参照してください。
 
 ## クラッシュレポートと診断
