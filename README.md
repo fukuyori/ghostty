@@ -117,22 +117,24 @@ leaving it disabled is recommended for now.
 
 ### Work Phases
 
-Windows support was developed in seven phases, all of which are done.
+The current plan runs from the remaining Windows support through the rename
+away from the Ghostty name
+([#31](https://github.com/fukuyori/ghostty/issues/31)). The earlier
+development phases are recorded in the
+[roadmap](docs/windows-roadmap.md#5-overall-progress).
 
-| Phase | Scope | Status |
-|---|---|---:|
-| 1 | Core runtime: startup, input, IME, clipboard, DPI | Done |
-| 2 | Rendering: D3D11, DirectComposition, background opacity, images | Done |
-| 3 | Window features: multiple windows, fullscreen, config reload | Done |
-| 4 | Split panes: create, navigate, resize, zoom | Done |
-| 5 | Windows GUI polish: tabs, mouse handling, DPI, accessibility | Done |
-| 6 | Release quality: diagnostics, release verification, hardware tests, distribution | Done |
-| 7 | Upstream features: command palette, scrollbar, file drop, taskbar progress, HTML clipboard, session restore, quick terminal, notifications | Done |
-
-Phase 7 was released in `1.3.2-windows.16`. The next step is renaming the
-project away from the Ghostty name
-([#31](https://github.com/fukuyori/ghostty/issues/31)), starting with
-name indirection on `windows` and then a separate `gooztty` branch.
+| Step | Work | Branch | Status |
+|---:|---|---|---|
+| 1 | Fix partial IME commit overlap (#48) | `windows` | Done |
+| 2 | Taskbar progress (F4, #33) | `windows` | Done |
+| 3 | HTML clipboard (F5, #34) | `windows` | Done |
+| 4 | Session save and restore (F6, #35) | `windows` | Done |
+| 5 | Quick terminal and global keybindings (F7, #24) | `windows` | Done |
+| 6 | Desktop and command-finished notifications (F8, #21) | `windows` | Done |
+| 7 | Release under the Ghostty name | `windows` | Done (`1.3.2-windows.16`) |
+| 8 | Name indirection with unchanged values, upstream synchronization, then create `gooztty` | `windows` → `gooztty` | Next |
+| 9 | Apply the Gooztty name: build and UI, configuration and terminal identity, installer, documentation | `gooztty` | Not started |
+| 10 | Acceptance of the renamed application: names, paths, notification identity, signed installer, installation and removal | `gooztty` | Not started |
 
 Remaining real-hardware verification, open decisions, and deferred
 refactoring are tracked as
