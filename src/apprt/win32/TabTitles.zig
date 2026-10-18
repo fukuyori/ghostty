@@ -6,6 +6,7 @@ const win32 = @import("win32").everything;
 const apprt = @import("../../apprt.zig");
 const brand = @import("../../brand.zig");
 const App = @import("App.zig");
+const Bell = @import("Bell.zig");
 const TabBarController = @import("TabBarController.zig");
 const Surface = @import("Surface.zig");
 const TabBarAccessibility = @import("TabBarAccessibility.zig");
@@ -28,10 +29,14 @@ pub fn tabTitleChanged(self: *App, surface: *const Surface) void {
 }
 
 pub fn syncWindowTitle(self: *App, surface: *Surface) void {
-    const value = if (self.windowForSurface(surface)) |window|
-        window.titleForSurface(surface) orelse surface.title orelse brand.display_name
+    const window = self.windowForSurface(surface);
+    const base = if (window) |w|
+        w.titleForSurface(surface) orelse surface.title orelse brand.display_name
     else
         surface.title orelse brand.display_name;
+    const ringing = if (window) |w| if (w.tabForSurface(surface)) |tab| tab.bellRinging() else false else false;
+    const value = Bell.decorate(self.alloc, base, ringing) catch base;
+    defer if (value.ptr != base.ptr) self.alloc.free(value);
     surface.applyTitle(value) catch |err| {
         log.warn("failed to synchronize focused surface title: {}", .{err});
     };

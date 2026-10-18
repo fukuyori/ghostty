@@ -9,8 +9,23 @@ known issues, and known limitations of each version; the
 
 ## Unreleased
 
+No changes recorded yet.
+
+## 1.3.2-windows.16
+
+Includes the changes after `1.3.2-windows.15` through F8 desktop
+notifications (#21); verification is recorded in the
+[release notes](windows-release-notes.md#132-windows16).
+
 ### Changed
 
+- Show desktop notifications (OSC 9 / OSC 777) and command-finished
+  notifications as Windows toasts under a per-user AppUserModelID, with
+  click-to-present, removal on pane close and exit, and the upstream
+  `notify-on-command-finish*` settings (F8 #21). Implement BEL with
+  `bell-features` `system`, `attention` and `title`. The installer removes
+  the notification registration on uninstall. Debug build, Win32 tests and
+  owner-run acceptance passed.
 - Support `global:` keybindings with `RegisterHotKey` and add the quick
   terminal (`toggle_quick_terminal`, F7 #24): a single captionless topmost
   tool window placed in the monitor work area by the `quick-terminal-*`

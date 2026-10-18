@@ -40,6 +40,8 @@ const ShellOpen = @import("ShellOpen.zig");
 const CommandPalette = @import("CommandPalette.zig");
 const FileDrop = @import("FileDrop.zig");
 const GlobalHotkeys = @import("GlobalHotkeys.zig");
+const Bell = @import("Bell.zig");
+const Notifications = @import("Notifications.zig");
 const QuickTerminal = @import("QuickTerminal.zig");
 const Keyboard = @import("Keyboard.zig");
 const Mouse = @import("Mouse.zig");
@@ -65,6 +67,8 @@ comptime {
     _ = CommandPalette;
     _ = FileDrop;
     _ = GlobalHotkeys;
+    _ = Bell;
+    _ = Notifications;
     _ = QuickTerminal;
     _ = Keyboard;
     _ = Mouse;
@@ -115,6 +119,7 @@ session_state_path: ?[]u8 = null,
 session_persistence_allowed: bool = false,
 global_hotkeys: GlobalHotkeys = .{},
 quick_terminal: QuickTerminal.State = .{},
+notifications: Notifications = .{},
 
 pub fn init(
     self: *App,
@@ -283,6 +288,32 @@ fn performGlobalHotkey(self: *App, id: usize) void {
     }
 }
 
+/// A toast was clicked: bring its surface to the front, selecting its tab
+/// and showing a hidden quick terminal. A closed surface is ignored.
+fn presentNotificationSurface(self: *App, surface_id: u64) void {
+    const surface = DeferredActions.resolve(self, surface_id) orelse return;
+    const window = self.windowForSurface(surface) orelse return;
+    if (window.quick and win32.IsWindowVisible(window.hwnd) == 0) QuickTerminal.show(self, window);
+    // A zoomed sibling would keep the surface hidden.
+    if (window.tabForSurface(surface)) |tab| {
+        if (tab.tree.zoomed) |zoomed| if (zoomed != surface) {
+            tab.tree.zoomed = null;
+        };
+    }
+    if (window.setFocusedSurface(surface)) WindowCommands.activateWindowTab(self, window);
+    _ = WindowState.presentSurface(surface);
+}
+
+/// The surface's pane has keyboard focus in the foreground window.
+pub fn surfaceFocusedInForeground(surface: *const Surface) bool {
+    return win32.GetForegroundWindow() == surface.window_hwnd and win32.GetFocus() == surface.hwnd;
+}
+
+pub fn showNotification(self: *App, surface: *Surface, title: []const u8, body: []const u8) void {
+    const core = surface.core_surface orelse return;
+    self.notifications.show(self.wakeup_hwnd, core.id, title, body);
+}
+
 /// Windows other than the quick terminal.
 pub fn normalWindowCount(self: *const App) usize {
     var count: usize = 0;
@@ -327,11 +358,15 @@ fn wakeupWndProc(
         return 0;
     }
     if (msg == IpcHandler.WM_IPC_REQUEST and lparam != 0) return IpcHandler.dispatch(hwnd, lparam);
-    if (msg == win32.WM_HOTKEY) {
+    if (msg == win32.WM_HOTKEY or msg == Notifications.WM_NOTIFICATION_ACTIVATED) {
         const ptr = win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA);
         if (ptr != 0) {
             const app: *App = @ptrFromInt(@as(usize, @bitCast(ptr)));
-            app.performGlobalHotkey(wparam);
+            if (msg == win32.WM_HOTKEY) {
+                app.performGlobalHotkey(wparam);
+            } else {
+                app.presentNotificationSurface(wparam);
+            }
         }
         return 0;
     }
@@ -399,6 +434,8 @@ pub fn terminate(self: *App) void {
         if (self.normalWindowCount() > 0) self.persistSession();
     }
     WindowLifecycle.destroyAll(self);
+    // A notification clicked after exit cannot reach Ghostty.
+    self.notifications.deinit();
     self.global_hotkeys.unregister();
     self.destroyWakeupWindow();
     self.taskbar_progress_runtime.deinit();

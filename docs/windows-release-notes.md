@@ -11,6 +11,62 @@ Publication status is maintained in
 [GitHub Releases](https://github.com/fukuyori/ghostty/releases). These notes
 record each version's changes, verification results and limitations.
 
+## 1.3.2-windows.16
+
+- Source: `windows` after `1.3.2-windows.15`, through F8 desktop
+  notifications (#21).
+- Base version: upstream Ghostty 1.3.2 series (`1.3.2-dev`).
+- Product name: Ghostty. The Gooztty rename remains a separate later change.
+
+### Changes Since 1.3.2-windows.15
+
+- Show desktop notifications (OSC 9 / OSC 777) and command-finished
+  notifications as Windows toasts, with click-to-present and the upstream
+  `notify-on-command-finish*` settings. BEL supports `bell-features`
+  `system`, `attention` and `title` (F8, #21).
+- Add `global:` keybindings and the quick terminal (F7, #24).
+- Restore windows, tabs, splits and working directories with opt-in
+  `window-save-state`, and report PowerShell working directories through
+  automatic shell integration (F6, #35).
+- Copy terminal output as HTML (`HTML Format`) and mixed HTML/plain text
+  (F5, #34).
+- Show OSC 9;4 progress on the taskbar button (F4, #33).
+- Follow the terminal cursor throughout Japanese IME composition, so a
+  partial commit no longer leaves the remaining composition drawn over
+  committed text (#48).
+
+See the [changelog](windows-changelog.md#132-windows16) for the full list.
+
+### Verification
+
+These are source and Debug-build checks made during development; they
+precede the `.16` distribution and do not verify its artifacts.
+
+- F8: Win32 tests passed (195, one skipped, normal and hook-enabled), and
+  owner-run acceptance on 2026-10-18 passed notification delivery, click
+  activation, command-finished policy, bell effects, turned-off
+  notifications, removal on pane close and exit, and exit code 0.
+- F7: owner-run real-key acceptance passed on 2026-10-17.
+- F4-F6 and the #48 IME correction: acceptance results are recorded in the
+  [roadmap](windows-roadmap.md) and the [port log](windows-port-log.md).
+
+With the installed `.16` preview on 2026-10-18, the owner confirmed that a
+toast from the installed executable registered the installed icon path, and
+that uninstallation removed both notification registry keys
+(`AppUserModelId\fukuyori.Ghostty` and its notification settings).
+
+### Known Limitations
+
+- OSC 9, OSC 777 and BEL reach Ghostty only through the bundled ConPTY host;
+  the ConPTY built into Windows drops them. Command-finished notifications
+  need a shell that reports OSC 133; the automatic PowerShell integration
+  does not.
+- Session restoration starts new shells and does not restore process or
+  terminal contents. Active top-level window selection and physical monitor
+  disconnect were not tested.
+- Broad screen-reader/COM acceptance, physical GPU-device-loss checks, and a
+  several-hour soak remain separate open verification items.
+
 ## 1.3.2-windows.15
 
 - Source: `v1.3.2-windows.15` (`fa5815ddb`), including the changes through

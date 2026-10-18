@@ -35,6 +35,12 @@ pub const windows = struct {
 
     /// Runtime class name the Gaussian blur effect reports to Direct2D.
     pub const gaussian_effect_class = display_name ++ ".GaussianBlurEffect";
+
+    /// AppUserModelID that toast notifications are sent under. It is
+    /// registered per user when the first notification is shown; the process
+    /// itself and its shortcuts keep the default identity, so taskbar
+    /// grouping and pins are unchanged.
+    pub const app_user_model_id = "fukuyori." ++ display_name;
 };
 
 test "brand values are unchanged until the rename" {
@@ -49,4 +55,5 @@ test "brand values are unchanged until the rename" {
     );
     try testing.expectEqualStrings("GHTYIPC1", windows.ipc_magic);
     try testing.expectEqualStrings("Ghostty.GaussianBlurEffect", windows.gaussian_effect_class);
+    try testing.expectEqualStrings("fukuyori.Ghostty", windows.app_user_model_id);
 }

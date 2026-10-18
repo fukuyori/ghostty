@@ -5,6 +5,7 @@ const std = @import("std");
 const win32 = @import("win32").everything;
 const brand = @import("../../brand.zig");
 const App = @import("App.zig");
+const Bell = @import("Bell.zig");
 const Mouse = @import("Mouse.zig");
 const TabBar = @import("TabBar.zig");
 const TabBarAccessibility = @import("TabBarAccessibility.zig");
@@ -50,10 +51,15 @@ fn paintTabBar(self: *App, window: *Window, hdc: win32.HDC, width: i32, height: 
     defer self.alloc.free(items);
 
     const active = window.activeTabIndex();
+    // Labels of tabs with a ringing bell are allocated; free them after
+    // painting.
+    var arena: std.heap.ArenaAllocator = .init(self.alloc);
+    defer arena.deinit();
     for (items, 0..) |*item, index| {
         const surface = window.focusedSurfaceAt(index) orelse unreachable;
+        const base = window.tabTitleAt(index) orelse surface.title orelse brand.display_name;
         item.* = .{
-            .title = window.tabTitleAt(index) orelse surface.title orelse brand.display_name,
+            .title = Bell.decorate(arena.allocator(), base, window.tabs.items[index].bellRinging()) catch base,
             .active = index == active,
         };
     }

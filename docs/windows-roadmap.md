@@ -125,13 +125,14 @@ work in this document at the same time.
 | 4 | Split panes | Done | 100% |
 | 5 | Windows GUI polish | Done | 100% |
 | 6 | Release quality | Done | 100% |
-| 7 | Upstream feature coverage on Windows (F1-F8) | In progress | Not estimated |
+| 7 | Upstream feature coverage on Windows (F1-F8) | Done | 100% |
 
-The original six production-readiness phases are done. Phase 7 has completed
-F1-F6 implementation and acceptance verification. F6 includes owner-run
+The original six production-readiness phases are done. Phase 7 is done
+(2026-10-18): it has completed F1-F8 implementation and acceptance
+verification. F6 includes owner-run
 multi-window save/relaunch and controlled Windows runtime checks for its edge
 cases. F7 implementation and owner-run real-key acceptance are complete; F8
-has not begun.
+implementation and owner-run acceptance are complete.
 Its scope does not change
 the historical completion status of Phases 1-6. On 2026-09-15 the first preview build
 `1.3.2-windows.1` (tag `v1.3.2-windows.1`) was finalized after passing
@@ -155,8 +156,13 @@ and the release notes. The signed installer is available on
 This preview retains the current product name;
 rebranding remains tracked separately in [#31](https://github.com/fukuyori/ghostty/issues/31).
 
-The working-tree Windows version is `1.3.2-windows.15`, including changes through
-`9c89f4057` before the Gooztty rename. The ReleaseFast build and automated
+The working-tree Windows version is `1.3.2-windows.16`, including F4-F8 and
+the #48 IME correction before the Gooztty rename, for the owner-run release
+after F8 (Section 7 step 7). See the
+[release notes](windows-release-notes.md#132-windows16).
+
+The preceding Windows preview is `1.3.2-windows.15`, including changes through
+`9c89f4057`. The ReleaseFast build and automated
 unsigned-distribution checks passed, including 20 soak iterations. The signed
 installer and staged executable have Valid timestamped signatures; signed
 CLI and hook-rejection checks passed. On 2026-10-15 the owner reported
@@ -171,8 +177,8 @@ limits of the captured-image checks.
 The full Zig suite was rerun after the final fallback-layout correction:
 4040 passed, 62 skipped, 91/91 steps succeeded and exit 0.
 
-The preceding Windows preview is `1.3.2-windows.14`
-(`cdfeab50c`). It adds DEC private mode 9001
+The earlier preview `1.3.2-windows.14`
+(`cdfeab50c`) adds DEC private mode 9001
 so ConPTY receives native Win32 key records and preserves the physical identity
 of Ctrl+Space. Source, unit, and physical-input verification passed before the
 version bump; ReleaseFast, signing, packaging, and signed-installer verification
@@ -1259,11 +1265,11 @@ Completion criteria:
 
 ### Phase 7: Upstream Feature Coverage on Windows
 
-Status: **In progress**. F1-F5 implementation and acceptance checks are
+Status: **Done** (2026-10-18). F1-F5 implementation and acceptance checks are
 complete. F6 implementation and acceptance checks are complete, including
 multi-window/per-pane working directories and controlled edge-case runtime
 checks. F7 implementation and owner-run real-key acceptance are complete.
-F8 has not begun.
+F8 implementation and owner-run acceptance are complete.
 This is a new phase after the six
 completed production-readiness phases. It is not part of the historical
 `1.3.2-windows.11` distribution evidence.
@@ -1285,7 +1291,7 @@ checks; this roadmap owns ordering and status.
 | Independent | F5 | HTML and mixed clipboard output | [#34](https://github.com/fukuyori/ghostty/issues/34) | Done | HTML-only/mixed formats and CF_HTML offsets passed; Word preserved red styling, Notepad accepted all mixed lines, and OSC 52 wrote the expected plain text |
 | Independent | F6 | Session save/restore: `window-save-state` | [#35](https://github.com/fukuyori/ghostty/issues/35) | Done | Owner confirmed two-window/per-pane PowerShell save and relaunch. Isolated Windows runtime checks covered invalid-state fallback, unavailable paths, focused-pane/active-tab/title restoration, off-screen placement clamping, and skipped restoration for configured/CLI `working-directory` and CLI `--command` overrides. Saved-state hashes were unchanged for the CLI override checks. Active top-level window selection and physical monitor disconnect were not tested |
 | Later design | F7 | Quick terminal and `global:` bindings | [#24](https://github.com/fukuyori/ghostty/issues/24) | Done | RegisterHotKey global bindings (unregistrable ones disabled and reported), captionless topmost tool window, work-area geometry. Owner-run real-key checks passed for other-app toggling, focus return, taskbar/Alt+Tab exclusion, splits/shell exit, conflict reporting, autohide, reload with `none`, mouse screen on a 125% monitor, virtual desktops, zero-window lifetime, unreachable-quit confirmation, and clean exit. Layout switching omitted by the owner; monitor disconnect not tested |
-| Later design | F8 | Desktop and command-finish notifications | [#21](https://github.com/fukuyori/ghostty/issues/21) | Not started | Separate OSC notifications from shell-dependent command completion; verify policy, delivery, activation, and unavailable notifications using the current product identity. Revalidate new-name registration/activation separately in Section 7 step 10 |
+| Later design | F8 | Desktop and command-finish notifications | [#21](https://github.com/fukuyori/ghostty/issues/21) | Done | Toasts under the current `fukuyori.Ghostty` AUMID; ConPTY transport and unpackaged toast activation were probed first. Owner-run acceptance on 2026-10-18 passed OSC 9/777 delivery and focus suppression, banner and Notification Center clicks (tab selection, split zoom cleared), `unfocused`/`always` command-finished policy with threshold and exit codes, BEL sound/flash/title prefix, literal special characters, removal on pane close and exit, turned-off notifications logged once, and exit code 0. With the installed `1.3.2-windows.16`, a toast registered the installed icon path and uninstallation removed both notification registry keys. Revalidate new-name registration/activation separately in Section 7 step 10 |
 
 At the 2026-09-26 checkpoint, F3's main normal-window Explorer scenarios had
 real input evidence and the elevated-window limit had been observed. F1 and F2
@@ -1470,7 +1476,7 @@ packaging. Resolve open specifications before implementing the affected item.
 | 3 | F5 HTML clipboard (#34) | `windows` | Done — HTML-only/mixed formats and CF_HTML offsets confirmed on the real clipboard; Word rich-text, Notepad plain-text, and OSC 52 checks passed |
 | 4 | F6 session save/restore (#35) | `windows` | Done — owner-confirmed multi-window/per-pane PowerShell save and relaunch plus isolated runtime checks for invalid state, unavailable directories, focused pane/active tab/title, off-screen placement, and configured/CLI startup overrides; active top-level window selection and physical monitor disconnect were not tested |
 | 5 | F7 quick terminal/global bindings (#24) | `windows` | Done — implemented and accepted with owner-run real-key checks on 2026-10-17 |
-| 6 | F8 desktop/command-finish notifications (#21) | `windows` | Decide API, shell reporting, install-state requirements and click behavior; implement and verify upstream-compatible Windows support. New Gooztty identity integration is separate |
+| 6 | F8 desktop/command-finish notifications (#21) | `windows` | Done — implemented (toast API, per-user AUMID, in-process click, uninstall cleanup) and accepted with owner-run checks on 2026-10-18. New Gooztty identity integration is separate |
 | 7 | Owner-run release after F8 | `windows` | After steps 1-6 and their acceptance checks, the repository owner performs the release under the current Ghostty name, before branch cutover. This schedule does not authorize the agent to build packages, sign, tag or publish |
 | 8 | Branch workflow (rebranding Phase 2), immediately before the rename | `windows` → `gooztty` | First complete build/distribution/output name indirection on `windows` with unchanged values and the pre-cutover upstream synchronization checks below. Decide the default branch, route PRs by responsibility, create `gooztty` on instruction, and update branch-specific AGENTS/documentation. F4-F8 do not depend on this step |
 | 9 | Integrate the Gooztty name (rebranding Phases 5-8) | `gooztty` | Select the agreed product-name values using the mechanisms already implemented on `windows`; apply the icon, installer identity and documentation changes, and verify build/UI/configuration/terminal/distribution outputs including F4-F8 naming sites |
@@ -2725,7 +2731,7 @@ pass. The partial IME commit correction (#48) has its own verification row.
 | Win32 restructuring | `Recovery.zig` extraction (#12) | Normal and hook-enabled Debug builds, Win32 tests (174 passed, one skipped), normal window regression, three controlled GPU recoveries with two injected failures per surface, and power recovery across three surfaces passed on 2026-10-14. Duplicate resume suppressed; disabled-hook probes returned zero. Post-recovery capture inspected. Actual device loss/system suspend remain unverified; see the port log |
 | Win32 restructuring | `ConfigActions.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), and unmodified window-state regression passed on 2026-10-14. Extended palette/scrollbar checks passed with test-window stacking adjusted for captures; dedicated diagnostics/reload/editor checks passed. Captures inspected; grouped manual checks remain. See the port log for scope and evidence |
 | Win32 restructuring | `TabTitles.zig` extraction (#12) | Debug build, Win32 tests (174 passed, one skipped), window-state regression, and controlled title actions/dialog/tab-switch checks passed on 2026-10-14. Dialog and renamed-window captures inspected; both GUI checks exited 0 without forced termination. Grouped manual checks remain; see the port log |
-| Feature expansion | Phase 7, F1-F8 | F1-F6 implementation and scoped acceptance checks passed; F4 real-taskbar and F6 multi-window/per-pane PowerShell save/relaunch are owner-confirmed. F6 isolated checks covered invalid state, unavailable paths, focused pane/active tab/title, placement clamping, and configured/CLI startup overrides. Active top-level window selection and physical monitor disconnect were not tested. F7 build, Win32 tests (190 passed, one skipped), controlled runs, and owner-run real-key acceptance passed on 2026-10-17; layout switching was omitted and monitor disconnect was not tested. F8 has not begun. See Section 6 and the feature development plan |
+| Feature expansion | Phase 7, F1-F8 | F1-F6 implementation and scoped acceptance checks passed; F4 real-taskbar and F6 multi-window/per-pane PowerShell save/relaunch are owner-confirmed. F6 isolated checks covered invalid state, unavailable paths, focused pane/active tab/title, placement clamping, and configured/CLI startup overrides. Active top-level window selection and physical monitor disconnect were not tested. F7 build, Win32 tests (190 passed, one skipped), controlled runs, and owner-run real-key acceptance passed on 2026-10-17; layout switching was omitted and monitor disconnect was not tested. F8 build, Win32 tests (195 passed, one skipped) and owner-run acceptance of delivery, activation, command-finished policy, bell effects, turned-off notifications and removal passed on 2026-10-18. See Section 6 and the feature development plan |
 | Startup | Debug build startup | Verified |
 | Startup | Release build startup | PE, resources, CLI, and a dedicated GUI process verified |
 | Release | `1.3.2-windows.1` | Regression, 20-iteration soak, and CLI verified with the distribution and regression Release builds. Signing at distribution time |

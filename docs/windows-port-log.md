@@ -5,6 +5,103 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-17: Desktop and command-finished notifications (F8, #21)
+
+- Codex reviewed the proposed specification (amend before implementation).
+  Two pre-implementation probes settled its blockers:
+  - ConPTY transport, measured with a pseudoconsole harness and a child
+    writing marked sequences: the Windows ConPTY passed OSC 133 C/D but
+    dropped BEL, OSC 9 and OSC 777; the bundled `conpty.dll` passed all
+    five. Ghostty prefers the bundled host (`src/os/conpty.zig`).
+  - Unpackaged toasts, with a C# probe and an owner click: before HKCU
+    `Software\Classes\AppUserModelId\<id>` existed, the notifier setting
+    failed with 0x80070490; after registration it was Enabled, the toast
+    showed, and the in-process `Activated` event fired for a banner click and
+    for a Notification Center click, on a worker thread. No Start Menu
+    shortcut was needed. Windows created per-app notification settings under
+    `...\Notifications\Settings\<id>`; the probe keys were removed.
+- Owner decisions on 2026-10-17: no process or shortcut AUMID (taskbar
+  grouping and pins unchanged); AUMID `fukuyori.Ghostty` in `brand.zig`,
+  registered on first notification; the installer deletes the registration
+  and notification settings on uninstall; notifications grouped by surface,
+  removed when it closes and cleared on exit; default toast sound; GTK's
+  one-shot next-command option excluded; bell `attention` flashes until
+  foreground and `title` clears on focus or typing; the kernel32 ConPTY
+  limitation documented.
+- `Notifications.zig` drives `ToastNotificationManager` through WinRT COM
+  interfaces whose IIDs and method order were read from the system metadata.
+  The Activated handler is an agile, atomically counted COM object that only
+  posts the surface ID to the wakeup window; the UI thread resolves it by ID
+  and presents the surface. XML text is escaped and control characters are
+  replaced. Setup failures are logged once and disable toasts for the
+  session.
+- Actions: OSC notifications are suppressed when the pane has focus in the
+  foreground window (macOS); `command_finished` applies the policy with an
+  inclusive threshold and does not apply that suppression, so `always` works;
+  `ring_bell` uses `Bell.zig`. `share/ghostty/ghostty.ico` is installed for
+  the toast icon.
+- Verification: `zig build`; Win32 tests 195 passed, 1 skipped (new: XML
+  escaping, policy matrix, titles/bodies, group IDs, bell prefix); brand test;
+  installer script compiled with `/O-` (no output). A controlled run with a
+  second window taking focus registered `fukuyori.Ghostty` with display name
+  and icon path, logged no notification error, showed the core duplicate
+  suppression for the second window, and exited 0. In a repeated run the
+  owner saw both toasts (OSC 9 and OSC 777) with the Ghostty icon.
+- Codex implementation review follow-up: a click clears a split zoom that
+  hides its pane; each process tracks the groups it showed and removes only
+  those on exit (another process can share the AUMID); the notifier setting
+  is read before showing and a disabled state is logged once, the `Failed`
+  event logs its error code, and registry and history-removal failures log
+  their codes; activation posting runs under an SRW-locked gate that
+  teardown closes before the wakeup window is destroyed. Uninstall cleanup
+  applies to the uninstalling user only, as now documented.
+- Second Codex implementation review: all five fixes confirmed. Follow-up:
+  a group stays tracked until its removal succeeds, so exit retries a
+  failed close-time removal; teardown leaves toasts permanently unavailable,
+  so the activation gate is never reopened for handlers of the same
+  process. Win32 tests 195 passed, 1 skipped (normal and hook-enabled).
+- Owner-run acceptance on 2026-10-18 with the Debug build (uncommitted F8
+  work on `6e1cf6357`), pwsh in the bundled ConPTY, a helper script writing
+  OSC 9, OSC 777, OSC 133 C/D and BEL, and command-line options
+  `notify-on-command-finish=unfocused` (later `always`),
+  `notify-on-command-finish-action=bell,notify`,
+  `notify-on-command-finish-after=10s` and
+  `bell-features=system,attention,title`; all passed:
+  - OSC 9 showed a toast with the Ghostty name and icon, the title
+    "Ghostty" and the body; OSC 777 showed its title and body; neither was
+    shown while the pane had focus in the foreground window.
+  - A banner click and a Notification Center click presented the pane; a
+    click selected the notifying tab from another tab, and cleared a split
+    zoom that hid the notifying pane.
+  - With `unfocused`, 12 s commands showed "Command Succeeded" (exit 0) and
+    "Command Failed" (exit 3) with the duration, plus the bell; a 5 s
+    command and a focused 12 s command showed nothing. With `always`, a
+    focused 12 s command showed the toast and rang the bell. OSC 133 D
+    without an exit code arrives as exit code 0 from the core stream handler
+    and showed "Command Succeeded"; the user guide no longer lists
+    "Command Finished".
+  - BEL in an unfocused window played the default sound, flashed the
+    taskbar button until the window came to the front, and showed the bell
+    title prefix until then. BEL in an unfocused split of the foreground
+    window showed the prefix without flashing, and clicking that pane
+    removed it.
+  - XML-special characters and quotes were shown literally (the test
+    string's `;` split the OSC 777 title as specified).
+  - Closing a pane removed only its notifications from Notification Center.
+  - With Ghostty's notifications turned off in Settings, two notifications
+    showed nothing and the log recorded the disabled state once.
+  - Exit removed the remaining notifications of the process; the run with
+    `always` exited 0 with no leftover process and no warnings beyond the
+    known startup ones.
+  - One earlier `n9` attempt in the first run showed no toast and left no
+    log entry; the cause was not determined and later attempts succeeded.
+- Owner-run check of the installer cleanup on 2026-10-18 with the installed
+  `1.3.2-windows.16` (per-user, `%LOCALAPPDATA%\Programs\Ghostty`): an OSC 9
+  toast from the installed executable rewrote `IconUri` of the existing
+  registration to the installed `share\ghostty\ghostty.ico`, which exists;
+  after uninstallation both `HKCU\Software\Classes\AppUserModelId\fukuyori.Ghostty`
+  and `...\Notifications\Settings\fukuyori.Ghostty` were absent.
+
 ## 2026-10-17: Quick terminal and global keybindings (F7, #24)
 
 - The specification was decided by a read-only Codex review of upstream

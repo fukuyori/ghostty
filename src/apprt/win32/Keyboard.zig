@@ -8,6 +8,7 @@ const global = @import("../../global.zig");
 const input = @import("../../input.zig");
 const WndProc = @import("WndProc.zig");
 const Mouse = @import("Mouse.zig");
+const Bell = @import("Bell.zig");
 const Surface = @import("Surface.zig");
 
 const log = std.log.scoped(.win32);
@@ -521,6 +522,7 @@ fn handleTextInput(
 }
 
 pub fn handleFocus(surface: *Surface, focused: bool) void {
+    if (focused) Bell.clear(surface);
     if (!focused) {
         stopImeComposition(surface);
         surface.pending_text_key = null;
@@ -631,7 +633,11 @@ pub fn keyDown(
     lparam: win32.LPARAM,
 ) win32.LRESULT {
     if (WndProc.getSurface(hwnd)) |surface| {
-        if (hwnd == surface.hwnd) surface.suppressed_char_keycode = null;
+        if (hwnd == surface.hwnd) {
+            surface.suppressed_char_keycode = null;
+            // Typing in the pane acknowledges its bell.
+            Bell.clear(surface);
+        }
     }
 
     // Keystrokes the IME consumes arrive with the virtual key

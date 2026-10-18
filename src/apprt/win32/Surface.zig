@@ -50,6 +50,9 @@ close_requested: bool = false,
 /// Set when closing every window. The quick terminal's last pane is then
 /// destroyed instead of hidden.
 force_close: bool = false,
+/// The bell rang and the pane has not been focused or typed in since.
+/// Shown as a title prefix; see Bell.zig.
+bell_ringing: bool = false,
 width: u32 = 800,
 height: u32 = 600,
 cursor_pos: apprt.CursorPos = .{ .x = 0, .y = 0 },
@@ -166,6 +169,8 @@ pub fn init(
 }
 
 pub fn deinit(self: *Self) void {
+    // Its notifications can no longer present it.
+    if (self.app) |app| if (self.core_surface) |core_surface| app.notifications.removeSurface(core_surface.id);
     @import("Keyboard.zig").stopImeComposition(self);
     ImeDiagnostics.stop(self);
     win32.DragAcceptFiles(self.hwnd, 0);

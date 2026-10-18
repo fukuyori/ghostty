@@ -116,6 +116,14 @@ Name: "{group}\Ghostty"; Filename: "{app}\bin\ghostty.exe"; WorkingDir: "{userdo
 Name: "{group}\Uninstall Ghostty"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\Ghostty"; Filename: "{app}\bin\ghostty.exe"; WorkingDir: "{userdocs}"; Tasks: desktopicon
 
+[Registry]
+; Ghostty registers this AppUserModelID for toast notifications when it first
+; shows one, and Windows then keeps per-app notification settings under it.
+; Neither is created here; both are removed for the uninstalling user. The
+; value must match brand.windows.app_user_model_id.
+Root: HKCU; Subkey: "Software\Classes\AppUserModelId\fukuyori.Ghostty"; Flags: uninsdeletekey dontcreatekey
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\fukuyori.Ghostty"; Flags: uninsdeletekey dontcreatekey
+
 [Run]
 Filename: "{app}\bin\ghostty.exe"; Description: "{cm:LaunchProgram,Ghostty}"; Flags: nowait postinstall skipifsilent
 

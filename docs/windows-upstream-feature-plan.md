@@ -2,7 +2,7 @@
 
 - Created: 2026-09-23; updated: 2026-10-17
 - Scope: upstream-feature Windows support on `windows`, including F4-F8; `gooztty` receives these changes through merges
-- Status: F1-F7 implementation and acceptance checks are complete; F8 remains
+- Status: F1-F8 implementation and acceptance checks are complete
 - Related: [Windows roadmap](windows-roadmap.md), [user guide](windows.md)
 - Source of truth for progress, priority, and issues: [roadmap Phase 7](windows-roadmap.md#phase-7-upstream-feature-coverage-on-windows). This document records feature-specific design questions and acceptance criteria.
 
@@ -49,7 +49,7 @@ Roadmap Phases 1-6 record earlier milestones. This plan expands feature coverage
 | F5 | HTML clipboard output | Paste formatted terminal output into documents | Low to medium | Implemented and accepted; HTML-only/mixed clipboard formats, CF_HTML offsets, Word rich-text paste, Notepad plain-text paste, and OSC 52 write verified | [#34](https://github.com/fukuyori/ghostty/issues/34) |
 | F6 | Session save and restore | Reduce rebuilding tabs, splits, and working locations | High | Implemented and accepted; owner-confirmed multi-window/per-pane cwd, invalid state, unavailable paths, focused-pane/active-tab/title restoration, off-screen placement clamp, and configured/CLI working-directory plus CLI command overrides verified. Active-window selection and physical monitor disconnect were not tested | [#35](https://github.com/fukuyori/ghostty/issues/35) |
 | F7 | Quick terminal and global bindings | Invoke the terminal from another app | High | Implemented and accepted; owner-run real-key checks covered toggling from other applications, focus return, taskbar/Alt+Tab exclusion, splits and shell exit, disabled-binding reporting including a conflict, autohide, reload with `none`, mouse-screen placement on a 125% monitor, virtual desktops, zero-window lifetime, and unreachable-quit confirmation. Layout switching was omitted; monitor disconnect not tested | [#24](https://github.com/fukuyori/ghostty/issues/24) |
-| F8 | Desktop and command-finish notifications | Report long-running command completion | Medium to high; depends on shell reporting | Not started | [#21](https://github.com/fukuyori/ghostty/issues/21) |
+| F8 | Desktop and command-finish notifications | Report long-running command completion | Medium to high; depends on shell reporting | Implemented and accepted; toasts under a per-user AUMID with click-to-present, command-finished policy and BEL `system`/`attention`/`title`. Owner-run checks covered OSC 9/777 delivery and focus suppression, banner and Notification Center clicks, `unfocused`/`always` policy and threshold, exit codes, bell effects, turned-off notifications, and removal on pane close and exit | [#21](https://github.com/fukuyori/ghostty/issues/21) | [#21](https://github.com/fukuyori/ghostty/issues/21) |
 
 On 2026-09-23, the plan was added to existing #17, #23, #24, and #21, and #32-#35 were created. Broader issue #25 also covers progress and command-finish notifications, so #33 and #21 link to it. Existing #15 separately tracks the quick-terminal CLI/IPC path.
 
@@ -338,7 +338,7 @@ Use `toggle_quick_terminal`, `quick-terminal-*`, and `global:` as the contract. 
 
 Noctty substitutes ordinary focus acquisition for exclusive-input requests in one implementation. Loading the same setting is insufficient for compatibility; determine its achievable Windows meaning per setting. Verify with real keys while another app is active.
 
-Decided Windows semantics (implemented 2026-10-17; the per-setting table is in the [user guide](windows.md#quick-terminal-and-global-keybindings-unreleased)):
+Decided Windows semantics (implemented 2026-10-17; the per-setting table is in the [user guide](windows.md#quick-terminal-and-global-keybindings-132-windows16)):
 
 - `global:` uses `RegisterHotKey` on the message-only wakeup window for single-action bindings. A binding that cannot be registered is removed from the configuration, so it does not work inside Ghostty either, and the configuration error dialog reports it. Triggers must name the pressed keys; characters needing Shift or AltGr are disabled. Re-registration follows config reload and keyboard-layout changes.
 - One lazily created captionless topmost tool window; no tabs; excluded from session save, `toggle_visibility` and `goto_window`; included in close-all and quit. Window close and the last running pane hide it; shell exit destroys it.

@@ -218,6 +218,11 @@ pub fn build(b: *std.Build) !void {
             if (i18n) |v| v.install();
             if (config.target.result.os.tag == .windows) {
                 installConPty(b);
+                // Icon shown on Windows toast notifications.
+                b.getInstallStep().dependOn(&b.addInstallFile(
+                    b.path("dist/windows/ghostty.ico"),
+                    "share/ghostty/ghostty.ico",
+                ).step);
             }
         }
     } else if (!config.emit_lib_vt) {

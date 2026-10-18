@@ -48,6 +48,14 @@ pub fn title(self: *const Tab) [:0]const u8 {
     return self.title_override orelse self.focused_surface.title orelse brand.display_name;
 }
 
+/// Whether any pane in the tab has an unacknowledged bell.
+pub fn bellRinging(self: *const Tab) bool {
+    for (self.surfaces.items) |surface| {
+        if (surface.bell_ringing) return true;
+    }
+    return false;
+}
+
 pub fn setTitleOverride(
     self: *Tab,
     alloc: std.mem.Allocator,

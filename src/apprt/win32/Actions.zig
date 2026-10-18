@@ -6,7 +6,9 @@ const apprt = @import("../../apprt.zig");
 const App = @import("App.zig");
 const CommandPalette = @import("CommandPalette.zig");
 const ConfigActions = @import("ConfigActions.zig");
+const Bell = @import("Bell.zig");
 const Mouse = @import("Mouse.zig");
+const Notifications = @import("Notifications.zig");
 const QuickTerminal = @import("QuickTerminal.zig");
 const Recovery = @import("Recovery.zig");
 const SearchBar = @import("SearchBar.zig");
@@ -98,6 +100,38 @@ pub fn perform(
             return self.setTaskbarProgress(surface, value);
         },
         .config_change => return try ConfigActions.configChange(self, target, value),
+        .ring_bell => {
+            const surface = App.targetSurface(target) orelse return false;
+            Bell.ring(self, surface);
+            return true;
+        },
+        .desktop_notification => {
+            const surface = App.targetSurface(target) orelse return false;
+            // Like macOS, a program's notification is not shown while its
+            // pane has focus in the foreground window.
+            if (App.surfaceFocusedInForeground(surface)) return true;
+            self.showNotification(surface, value.title, value.body);
+            return true;
+        },
+        .command_finished => {
+            const surface = App.targetSurface(target) orelse return false;
+            const core = surface.core_surface orelse return false;
+            if (!Notifications.commandFinishedApplies(
+                core.config.notify_on_command_finish,
+                App.surfaceFocusedInForeground(surface),
+                value.duration,
+                core.config.notify_on_command_finish_after,
+            )) return true;
+            const action_config = core.config.notify_on_command_finish_action;
+            if (action_config.bell) Bell.ring(self, surface);
+            if (action_config.notify) {
+                const body = Notifications.commandFinishedBody(self.alloc, value.exit_code, value.duration) catch return true;
+                defer self.alloc.free(body);
+                // Not suppressed by focus: `always` applies while focused.
+                self.showNotification(surface, Notifications.commandFinishedTitle(value.exit_code), body);
+            }
+            return true;
+        },
         else => return false,
     }
 }

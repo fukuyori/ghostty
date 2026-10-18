@@ -810,7 +810,7 @@ the Windows-managed color scheme.
 In addition, `Ctrl+Shift+N` opens a new window, `Ctrl+Enter` toggles
 fullscreen, `Alt+F4` closes the window, and `Ctrl+Shift+Q` quits Ghostty.
 
-## Terminal Search and Working Directories (Unreleased)
+## Terminal Search and Working Directories (1.3.2-windows.11)
 
 The following features are in the working tree after `1.3.2-windows.10`;
 they are not part of that preview's installer.
@@ -860,7 +860,7 @@ action can be obtained.
 API-level inspection and automated regression tests are complete, but speech
 output with Narrator and NVDA is still under acceptance verification.
 
-## Command Palette, Scrollbars, and File Drop (Unreleased)
+## Command Palette, Scrollbars, and File Drop (1.3.2-windows.12)
 
 Press `Ctrl+Shift+P` to open the command palette. It lists configured
 `command-palette-entry` actions and the open terminal panes. Type to filter
@@ -885,7 +885,7 @@ from normal Explorer. Use a non-elevated Ghostty window for Explorer drops.
 These controls are under development. The [feature plan](windows-upstream-feature-plan.md)
 records their remaining input, DPI, and accessibility checks.
 
-## Quick Terminal and Global Keybindings (Unreleased)
+## Quick Terminal and Global Keybindings (1.3.2-windows.16)
 
 A keybinding with the `global:` prefix works while another application is in
 front. Bind `toggle_quick_terminal` to show and hide the quick terminal from
@@ -946,6 +946,48 @@ hidden quick terminal remains, it could never be shown again, so Ghostty
 quits; when a process is still running it asks first, and declining shows the
 quick terminal again. The
 `+toggle-quick-terminal` command is not supported on Windows.
+
+## Desktop Notifications and Bell (1.3.2-windows.16)
+
+Programs can show Windows toast notifications with OSC 9 and OSC 777
+(`desktop-notifications = true`, the default). A program's notification is
+not shown while its pane has keyboard focus in the foreground window.
+Clicking a notification brings its pane to the front, selecting its tab and
+showing a hidden quick terminal or clearing a split zoom that hides it.
+Notifications of a closed pane are removed from Notification Center, and
+each Ghostty process removes the notifications it showed when it exits,
+because a click after exit cannot reach it. When notifications are turned off
+for Ghostty, for the user, or by policy, nothing is shown and the reason is
+logged once; a toast that Windows later fails to show is logged with its
+error. Windows can still hide an accepted toast without telling Ghostty, for
+example during Do Not Disturb.
+
+Ghostty registers `fukuyori.Ghostty` for notifications under
+`HKCU\Software\Classes\AppUserModelId` when it first shows one; the process
+and its shortcuts keep their normal identity, so taskbar grouping and pins
+do not change. The installer removes that registration and the per-app
+notification settings Windows keeps for it on uninstall, for the user who
+runs the uninstaller; other users of a machine-wide installation keep theirs,
+and a ZIP copy leaves them in place.
+
+`notify-on-command-finish` (`never`, `unfocused`, `always`),
+`notify-on-command-finish-action` (`bell`, `notify`), and
+`notify-on-command-finish-after` work as upstream. A command counts when it
+runs at least the configured time. The notification is titled "Command
+Succeeded" or "Command Failed" and reports the duration and exit code; a
+command end reported without an exit code counts as exit code 0. This needs a shell that reports command start and end with
+OSC 133, such as the bundled Bash integration or a prompt configured to emit
+it; the automatic PowerShell integration does not.
+
+BEL follows `bell-features`: `system` plays the Windows default sound,
+`attention` (default on) flashes the taskbar button until the window comes to
+the front, and `title` (default on) shows a bell before the tab and window
+title until the pane is focused or typed in. `audio` and `border` are not
+supported on Windows.
+
+OSC 9, OSC 777, and BEL reach Ghostty only through the bundled
+`conpty.dll`/`OpenConsole.exe`. The ConPTY built into Windows drops them; OSC
+133 passes through either.
 
 ## Known Limitations
 
