@@ -156,9 +156,9 @@ and the release notes. The signed installer is available on
 This preview retains the current product name;
 rebranding remains tracked separately in [#31](https://github.com/fukuyori/ghostty/issues/31).
 
-The working-tree Windows version is `1.3.2-windows.16`, including F4-F8 and
-the #48 IME correction before the Gooztty rename, for the owner-run release
-after F8 (Section 7 step 7). See the
+The latest Windows preview is `1.3.2-windows.16` (tag `v1.3.2-windows.16`),
+including F4-F8 and the #48 IME correction before the Gooztty rename, for the
+owner-run release after F8 (Section 7 step 7). See the
 [release notes](windows-release-notes.md#132-windows16).
 
 The preceding Windows preview is `1.3.2-windows.15`, including changes through

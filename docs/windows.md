@@ -812,9 +812,6 @@ fullscreen, `Alt+F4` closes the window, and `Ctrl+Shift+Q` quits Ghostty.
 
 ## Terminal Search and Working Directories (1.3.2-windows.11)
 
-The following features are in the working tree after `1.3.2-windows.10`;
-they are not part of that preview's installer.
-
 Press `Ctrl+Shift+F` to open the current pane's search bar. It searches
 scrollback as well as the visible screen. Enter moves to the next match,
 Shift+Enter to the previous match, and Escape closes the bar and returns
