@@ -145,10 +145,8 @@ Windows ビルドはプレビュー版です。Windows 11 で、144/192 DPI、�
 Windows ビルドは upstream の Ghostty と同じ形式の設定ファイルを
 `%LOCALAPPDATA%\ghostty\config.ghostty` から読みますが、すべての設定項目が
 Windows で効くわけではありません。`1.3.2-windows.16` 時点で、upstream の
-全 212 項目のうち Windows で使えるのは 136 項目(64%、◎ と ○)で、一部だけ
-使える 8 項目を含めると 144 項目(68%)です。ほかのプラットフォームだけに
-関係する 44 項目を除くと、168 項目中 136 項目(81%)が使えます。内訳は次の
-とおりです。
+全 212 項目のうち Windows で使えるのは 136 項目(64%、◎ と ○)です。
+一部だけ使えるものを含めると 144 項目(68%)です。
 
 | 状態 | 項目数 | 意味 |
 |---|---:|---|
@@ -169,6 +167,10 @@ Windows で効くわけではありません。`1.3.2-windows.16` 時点で、up
   と中クリックの貼り付けに使う選択範囲用のクリップボードがない、PowerShell の
   自動統合は作業ディレクトリだけを通知する、`bell-features` は `system`、
   `attention`、`title` に対応。
+- 対象外(44 項目): macOS 専用の 22 項目(`macos-*`、自動更新、CoreText の
+  フォントの太さ調整、Spaces での Quick terminal の動作)、GTK・X11・Wayland
+  専用の 17 項目(`gtk-*`、`class`、`window-subtitle`、アプリ内通知、UI の
+  言語など)、Linux 専用の 5 項目(`linux-cgroup*`、`async-backend`)。
 
 全項目の状態と備考は
 [Windows での設定の対応状況](docs/windows-config-support.ja.md)を参照してください。
