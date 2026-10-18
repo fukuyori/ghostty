@@ -9,7 +9,17 @@ known issues, and known limitations of each version; the
 
 ## Unreleased
 
-No changes recorded yet.
+### Documentation
+
+- Add `docs/windows-config-support.md`, listing every configuration option
+  with its Windows status (runtime-verified, supported from the code,
+  partial, not implemented, or not applicable) and notes, with a Japanese
+  translation, and link it from the README.
+- Add `README.ja.md`, a Japanese README linking the Japanese configuration
+  table. Add Phase 7 to the README work phases, name the rename (#31) as the
+  next step, and update the verified hardware scope (144/192 DPI, high
+  contrast, Narrator, real sleep and resume, German layout; Windows 10 not
+  supported).
 
 ## 1.3.2-windows.16
 

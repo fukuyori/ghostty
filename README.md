@@ -20,6 +20,8 @@
     <a href="docs/windows-roadmap.md">Roadmap</a>
     ·
     <a href="#relationship-to-upstream">Upstream</a>
+    ·
+    <a href="README.ja.md">日本語</a>
   </p>
 </p>
 
@@ -61,6 +63,9 @@ Portable release build:
 See the [Windows release notes](docs/windows-release-notes.md) for preview
 versions, contents, and verification results, and the
 [changelog](docs/windows-changelog.md) for what changed between them.
+[Configuration support on Windows](docs/windows-config-support.md) lists
+every configuration option with its Windows status, including the options
+that are not implemented.
 
 Checking the version of a build or an installation (`ghostty.exe` is a GUI
 application, so pipe its output to have PowerShell wait for it and print it):
@@ -101,9 +106,10 @@ Manual Windows shell acceptance checks:
 ./scripts/test-windows-shell.ps1 -CheckId power-resume
 ```
 
-The Windows build is a preview. Basic operation has been verified on
-Windows 11; Windows 10, 144 and 192 DPI, keyboard layouts other than
-Japanese, real sleep and resume, and long-running sessions have not been
+The Windows build is a preview. It is verified on Windows 11, including
+144 and 192 DPI, high contrast, Narrator, real sleep and resume, and the
+Japanese and German keyboard layouts; Windows 10 is not a support target.
+Sessions lasting several hours and real GPU device loss have not been
 verified yet. From `1.3.2-windows.4` a signed installer is published as a
 release asset; there is no automatic update. Background
 opacity works, but `background-blur` quality depends on the environment, so
@@ -111,7 +117,7 @@ leaving it disabled is recommended for now.
 
 ### Work Phases
 
-Windows support was developed in six phases, all of which are done.
+Windows support was developed in seven phases, all of which are done.
 
 | Phase | Scope | Status |
 |---|---|---:|
@@ -121,6 +127,12 @@ Windows support was developed in six phases, all of which are done.
 | 4 | Split panes: create, navigate, resize, zoom | Done |
 | 5 | Windows GUI polish: tabs, mouse handling, DPI, accessibility | Done |
 | 6 | Release quality: diagnostics, release verification, hardware tests, distribution | Done |
+| 7 | Upstream features: command palette, scrollbar, file drop, taskbar progress, HTML clipboard, session restore, quick terminal, notifications | Done |
+
+Phase 7 was released in `1.3.2-windows.16`. The next step is renaming the
+project away from the Ghostty name
+([#31](https://github.com/fukuyori/ghostty/issues/31)), starting with
+name indirection on `windows` and then a separate `gooztty` branch.
 
 Remaining real-hardware verification, open decisions, and deferred
 refactoring are tracked as
