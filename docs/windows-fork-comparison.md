@@ -27,7 +27,7 @@ https://github.com/fukuyori/ghostty
 
 なお、公式アップストリームではAIの濫用に対する制限が厳密に定められており、PRやIssueの作成を含め厳格な運用ポリシーが存在します。GoozttyではアップストリームへのPRやIssue作成を行わない運用をとっています。
 
-本プロジェクト（[`fukuyori/gooztty`](https://github.com/fukuyori/ghostty) / `windows` ブランチ）は、バイブコーディングによって進められており、サードパーティ製のGUIフレームワークを使用せず、Win32 API および Direct3D 11 (D3D11) / DirectComposition を直接用いたWindowsネイティブ移植を行っています。
+本プロジェクト（[`fukuyori/gooztty`](https://github.com/fukuyori/ghostty) / `gooztty` ブランチ）は、バイブコーディングによって進められており、サードパーティ製のGUIフレームワークを使用せず、Win32 API および Direct3D 11 (D3D11) / DirectComposition を直接用いたWindowsネイティブ移植を行っています。
 
 本実装では、Phase 1（基本ランタイム・IME追従）から Phase 6（リリーススクリプト完備）までのロードマップを実装済みです。専用ConPTYホストの同梱による Kitty Graphics Protocol（画像表示）対応、日本語IMEのカーソル位置インライン追従、Win32ネイティブのタブバー、画面分割線のマウスドラッグ操作、マルチモニターDPI（Dynamic DPI）追従、ハイコントラスト対応、および Inno Setup インストーラー作成スクリプト（`build-installer.ps1`）が含まれます。
 
@@ -180,7 +180,7 @@ Windows環境で広く利用されている代表的なターミナル製品（W
 | 描画API | Direct3D 11 | Direct3D 11 (DirectWrite/D2D) | OpenGL | WebGPU / OpenGL |
 | フォントエンジン | FreeType + HarfBuzz | DirectWrite | Crossfont (DirectWrite) | HarfBuzz + FreeType / DirectWrite |
 | タブ・画面分割 | ネイティブWin32 UI + 内蔵SplitTree | XAMLタブ・分割コントロール | なし（tmux等の外部ツール前提） | 独自GUI描画タブ・分割 |
-| 設定方式 | プレーンテキスト (`config.ghostty`) | JSONファイル + GUI設定画面 | TOMLファイル | Luaスクリプト |
+| 設定方式 | プレーンテキスト (`config.gooztty`) | JSONファイル + GUI設定画面 | TOMLファイル | Luaスクリプト |
 | 画像プロトコル | Kitty Graphics Protocol 対応 | なし（Sixel実験的対応） | なし | Sixel, iTerm2, Kitty Graphics Protocol 互換 |
 | 実行フットプリント | 超軽量・即時起動 | XAML/WinRT初期化コストあり | 軽量 | Lua/各種依存クレートにより重厚 |
 | 最終更新日 (UTC) | 2026-10-25 | 2026-10-23 | 2026-10-16 | 2026-10-10 |
