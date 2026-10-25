@@ -37,8 +37,6 @@ brings Ghostty to Windows for daily use and takes a name of its own at the
 request of the Ghostty project; the terminal itself is Ghostty's.
 
 Releases up to `1.3.2-windows.16` were published under the name Ghostty.
-No release has been published under the name Gooztty yet; the rename is in
-progress on the `gooztty` branch.
 
 Highlights:
 
