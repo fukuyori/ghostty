@@ -66,6 +66,9 @@ All commands run from the repository root in PowerShell.
     certificate comes from the `CODESIGN_CERT` environment variable.
   - Fails unless the release executable reports the version in
     `dist\windows\version.txt`.
+- **Portable ZIP:** `.\scripts\build-zip.ps1 -Sign` → `zig-out\zip`
+  - Archives the release tree with `LICENSE` and `THIRD-PARTY-NOTICES.md`;
+    the same version and signing rules as the installer.
 - **Test (Zig):** `zig build test`
   - Prefer targeted runs with `-Dtest-filter` because the full suite is slow.
   - Win32 tests that exercise the regression hooks need

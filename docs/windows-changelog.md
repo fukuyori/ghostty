@@ -99,6 +99,10 @@ changes after `1.3.2-windows.16` on `windows` and the rename on `gooztty`
   unchanged with the current values (rename step 8, #31).
 - Make the configuration template and `+ssh-cache` entry tests independent
   of the values in `src/brand.zig`, so they pass with the renamed values.
+- Add `scripts/build-zip.ps1`, which builds the signed portable archive
+  `gooztty-<version>-x64-portable.zip` from the release tree, and make
+  `build-release.ps1` start from an empty output directory, so files from an
+  earlier build no longer reach the installer or the archive.
 - Release and installer script messages no longer name the product before
   `brand.json` exists, and use its display name afterwards.
 

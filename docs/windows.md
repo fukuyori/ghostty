@@ -142,11 +142,36 @@ zig build -Dwin32-test-hooks=true
 ./scripts/build-release.ps1 -TestHooks
 ```
 
-The Release script places the executable and resources but does not create an
-archive or installer. After building, it verifies and displays the PE format,
+The Release script starts from an empty output directory: it empties a
+directory that an earlier release build created (one with `brand.json`) and
+refuses any other non-empty directory, so no file of an earlier build ends up
+in the installer or the archive. It places the executable and resources but
+does not create an archive or installer. After building, it verifies and displays the PE format,
 CPU architecture, Windows GUI subsystem, CLI and Windows version information,
 the embedded icon group with large and small icons, shell integration, themes,
 file size, and SHA-256.
+
+## Creating the Portable Archive
+
+The portable ZIP archive is made from the same release tree:
+
+```powershell
+./scripts/build-release.ps1
+./scripts/build-zip.ps1 -Sign   # certificate subject from $env:CODESIGN_CERT
+```
+
+The output is `zig-out\zip\gooztty-<version>-x64-portable.zip`. It holds one
+folder of the same name with `bin`, `share`, `brand.json`, `LICENSE` and
+`THIRD-PARTY-NOTICES.md`. `-Sign` signs the executable in a staged copy with
+the same certificate options as the installer script; the release tree is not
+modified. The script checks the product name, the version against
+`dist/windows/version.txt`, that the build is not a Debug build, and that
+`bin` holds no executable from another build. Extract the archive anywhere and
+run `bin\gooztty.exe`; it needs no installation. Like an installed copy, it
+reads `%LOCALAPPDATA%\gooztty\config.gooztty`, registers its terminfo entry
+in `%USERPROFILE%\.terminfo` at startup, and registers the notification
+identity when it first shows a toast; it does not add itself to `PATH` or the
+Start menu, and nothing removes these entries when the folder is deleted.
 
 For the source of truth when changing the version, the conditionally updated
 locations, and the Release verification procedure, see the

@@ -174,6 +174,19 @@ during a normal version update.
   `bin\OpenConsole.exe` (the script refuses to build without them) and that
   the installed tree contains both plus `THIRD-PARTY-NOTICES.md`.
 
+### When Creating a Portable Archive
+
+- [ ] Confirm that package creation was explicitly requested.
+- [ ] Run `scripts/build-zip.ps1` on the same release tree as the installer.
+  It takes the version from `dist/windows/version.txt` and refuses a Debug
+  build or a tree with an executable from another build.
+- [ ] When signing, add `-Sign` and confirm that `ExecutableSignature` is
+  `Valid`.
+- [ ] Confirm that the output file name is
+  `gooztty-X.Y.Z-windows.N-x64-portable.zip` and that it holds one folder of
+  that name with `bin`, `share`, `brand.json`, `LICENSE` and
+  `THIRD-PARTY-NOTICES.md`.
+
 ### When Tagging or Publishing
 
 - [ ] Confirm that each commit, tag, push, and publish operation was explicitly

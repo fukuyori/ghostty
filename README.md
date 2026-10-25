@@ -93,6 +93,13 @@ installer, and the uninstaller):
 ./scripts/build-installer.ps1 -Sign   # certificate subject from $env:CODESIGN_CERT
 ```
 
+The portable ZIP archive is made from the same release tree and is checked
+the same way (`-Sign` signs the executable in the archive):
+
+```powershell
+./scripts/build-zip.ps1 -Sign   # zig-out\zip\gooztty-<version>-x64-portable.zip
+```
+
 Repeated regression runs against the release build:
 
 ```powershell

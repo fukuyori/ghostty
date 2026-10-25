@@ -94,6 +94,13 @@ zig build
 ./scripts/build-installer.ps1 -Sign   # 証明書のサブジェクトは $env:CODESIGN_CERT
 ```
 
+ポータブル版の ZIP も、同じリリースビルドから作り、同じように確認します(`-Sign` は
+ZIP に入れる実行ファイルに署名します):
+
+```powershell
+./scripts/build-zip.ps1 -Sign   # zig-out\zip\gooztty-<版>-x64-portable.zip
+```
+
 リリースビルドに対する繰り返しの回帰テスト:
 
 ```powershell
