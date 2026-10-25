@@ -93,7 +93,7 @@ recorded. △ and ✕ are also judged from the code.
 | `search-selected-foreground` | Colors | ○ | Text color of the currently selected search match. |
 | `search-selected-background` | Colors | ○ | Background color of the currently selected search match. |
 | `command` | Shell | ◎ | The command, usually a shell, to run in every new terminal surface. |
-| `initial-command` | Shell | ○ | Like `command`, but only for the first terminal surface created when Ghostty starts. |
+| `initial-command` | Shell | ○ | Like `command`, but only for the first terminal surface created when Gooztty starts. |
 | `notify-on-command-finish` | Notifications | ◎ | When to send a notification after a command finishes: `never`, `unfocused`, or `always`. |
 | `notify-on-command-finish-action` | Notifications | ◎ | How command finished notifications are delivered, such as `bell` or `notify`. |
 | `notify-on-command-finish-after` | Notifications | ◎ | How long a command must run before its completion triggers a notification. |
@@ -116,7 +116,7 @@ recorded. △ and ✕ are also judged from the code.
 | `x11-instance-name` | GTK | - | The instance name field of the X11 `WM_CLASS` property on GTK builds. |
 | `working-directory` | Shell | ◎ | The directory to change to after starting the command: a path, `home`, or `inherit`. |
 | `keybind` | Keybindings | ◎ | Key bindings that map a `trigger` of keys and modifiers to an `action`. |
-| `key-remap` | Keybindings | ○ | Remaps modifier keys within Ghostty only, using the format `from=to`. |
+| `key-remap` | Keybindings | ○ | Remaps modifier keys within Gooztty only, using the format `from=to`. |
 | `window-padding-x` | Window | ○ | Horizontal padding between the terminal cells and the left and right window borders. |
 | `window-padding-y` | Window | ○ | Vertical padding between the terminal cells and the top and bottom window borders. |
 | `window-padding-balance` | Window | ○ | Whether leftover space from uneven cell division is balanced across all four window edges. |
@@ -162,8 +162,8 @@ recorded. △ and ✕ are also judged from the code.
 | `config-default-files` | Config | ◎ | Whether the default configuration file paths are loaded; settable only on the command line. |
 | `confirm-close-surface` | Lifecycle | ◎ | Whether to confirm before closing a surface: `true`, `false`, or `always`. |
 | `quit-after-last-window-closed` | Lifecycle | ◎ | Whether the application quits after the last surface is closed. |
-| `quit-after-last-window-closed-delay` | Lifecycle | ✕ | How long Ghostty keeps running after the last surface closes, when `quit-after-last-window-closed` is `true`. |
-| `initial-window` | Lifecycle | ✕ | Whether an initial window is created when Ghostty starts. |
+| `quit-after-last-window-closed-delay` | Lifecycle | ✕ | How long Gooztty keeps running after the last surface closes, when `quit-after-last-window-closed` is `true`. |
+| `initial-window` | Lifecycle | ✕ | Whether an initial window is created when Gooztty starts. |
 | `undo-timeout` | Lifecycle | ✕ | How long each undoable operation remains available on the undo stack. |
 | `quick-terminal-position` | Quick terminal | ◎ | Screen position of the quick terminal: `top`, `bottom`, `left`, `right`, or `center`. |
 | `quick-terminal-size` | Quick terminal | ◎ | Size of the quick terminal as a percentage of the screen or in pixels. |

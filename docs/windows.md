@@ -1,4 +1,4 @@
-# Ghostty for Windows User Guide
+# Gooztty User Guide
 
 This document summarizes the configuration, operation, and known limitations
 for building and using the native Windows build of this fork. The Windows
@@ -14,7 +14,7 @@ See the [Windows technical specification](windows-technical-spec.md)
 
 ## Build and Launch
 
-Ghostty ships a ConPTY host next to its executable, because the one in
+Gooztty ships a ConPTY host next to its executable, because the one in
 `kernel32.dll` drops the escape sequences that carry images. It is fetched
 rather than committed, so get it once before building:
 
@@ -30,14 +30,14 @@ Debug build:
 
 ```powershell
 zig build
-./zig-out/bin/ghostty.exe
+./zig-out/bin/gooztty.exe
 ```
 
 Portable Release build:
 
 ```powershell
 ./scripts/build-release.ps1
-./zig-out/release/bin/ghostty.exe
+./zig-out/release/bin/gooztty.exe
 ```
 
 The version of the Release build is read from `dist/windows/version.txt` in the
@@ -46,14 +46,14 @@ tagged. The script takes no version: a version given on the command line would
 only relabel the current sources.
 
 If the install step fails with `AccessDenied` while updating
-`zig-out\release\bin\ghostty.exe`, check whether that executable is running:
+`zig-out\release\bin\gooztty.exe`, check whether that executable is running:
 
 ```powershell
-Get-Process -Name ghostty -ErrorAction SilentlyContinue | Select-Object Id, Path
+Get-Process -Name gooztty -ErrorAction SilentlyContinue | Select-Object Id, Path
 ```
 
-Save the terminal work, close Ghostty instances running from the output
-directory, and rerun the build from another terminal. To keep Ghostty running,
+Save the terminal work, close Gooztty instances running from the output
+directory, and rerun the build from another terminal. To keep Gooztty running,
 choose a different output directory:
 
 ```powershell
@@ -76,19 +76,19 @@ so the Release build itself is not modified.
 ./scripts/build-installer.ps1
 ```
 
-The output is `zig-out\installer\ghostty-<version>-x64-setup.exe`. The
+The output is `zig-out\installer\gooztty-<version>-x64-setup.exe`. The
 installer's `ProductVersion` and numeric version take the same values as the
 executable, and the script checks that they match. The script also fails when
 the executable's version differs from `dist/windows/version.txt`.
 
 The installer has the following contents.
 
-- Places `bin\ghostty.exe`, `share\ghostty` (themes, shell integration), and
-  `share\terminfo\ghostty.terminfo`. The executable looks for
-  `share\terminfo\ghostty.terminfo` relative to its own location to determine
+- Places `bin\gooztty.exe`, `share\gooztty` (themes, shell integration), and
+  `share\terminfo\gooztty.terminfo`. The executable looks for
+  `share\terminfo\gooztty.terminfo` relative to its own location to determine
   the resource directory, so this layout cannot be changed.
 - Places `bin\conpty.dll` and `bin\OpenConsole.exe`, the ConPTY host,
-  beside the executable, which is where Ghostty looks for them. Both are
+  beside the executable, which is where Gooztty looks for them. Both are
   required and must come from the same package version: `conpty.dll` on its
   own silently falls back to the host in `kernel32.dll`, and images stop
   appearing. `THIRD-PARTY-NOTICES.md` carries the MIT notice they are
@@ -103,7 +103,10 @@ The installer has the following contents.
 - Includes English and Japanese wizards. The target is x64 Windows 10 1809 or
   later.
 - Because the same AppId is used, the installer for a newer version updates an
-  existing installation in place.
+  existing installation in place. Gooztty uses a different AppId from the
+  Ghostty for Windows previews, so it installs beside them instead of
+  replacing them; see
+  [Moving from Ghostty for Windows](../README.md#moving-from-ghostty-for-windows).
 
 Specify `-Sign` to attach a digital signature. The executable is signed first
 and then packaged, and Inno Setup signs the installer and uninstaller with the
@@ -153,24 +156,25 @@ the Windows file properties contain the same build version. Windows previews
 use the format `X.Y.Z-windows.N`, a sequence number appended to the upstream
 base version, and `N` goes into the fourth component of the numeric version
 (for example, `1.3.2-windows.4` is `1.3.2.4`). Regular development builds are
-`X.Y.Z-windows-+<hash>`, with the fourth component set to 0.
+`X.Y.Z-<branch>+<hash>` (for example `1.3.2-gooztty+<hash>`), with the
+fourth component set to 0.
 
 ## Configuration File
 
 The standard configuration file is located here.
 
 ```text
-%LOCALAPPDATA%\ghostty\config.ghostty
+%LOCALAPPDATA%\gooztty\config.gooztty
 ```
 
 If `XDG_CONFIG_HOME` is set, it takes precedence.
 
 ```text
-%XDG_CONFIG_HOME%\ghostty\config.ghostty
+%XDG_CONFIG_HOME%\gooztty\config.gooztty
 ```
 
-The legacy `ghostty\config` without an extension is also read. If both exist,
-the legacy file is read first and the newer `config.ghostty` afterwards, so the
+The legacy `gooztty\config` without an extension is also read. If both exist,
+the legacy file is read first and the newer `config.gooztty` afterwards, so the
 settings in the latter take precedence.
 
 Default keys related to configuration:
@@ -183,20 +187,20 @@ Default keys related to configuration:
 The configuration can also be checked from the command line.
 
 ```powershell
-./zig-out/bin/ghostty.exe +validate-config
-./zig-out/bin/ghostty.exe +show-config
-./zig-out/bin/ghostty.exe +list-keybinds
+./zig-out/bin/gooztty.exe +validate-config
+./zig-out/bin/gooztty.exe +show-config
+./zig-out/bin/gooztty.exe +list-keybinds
 ```
 
 ## Terminal Type and terminfo
 
-Ghostty sets `TERM=xterm-ghostty` and points `TERMINFO` at
+Gooztty sets `TERM=xterm-gooztty` and points `TERMINFO` at
 `<install>\share\terminfo`. Native Windows console programs such as
 `cmd.exe` and PowerShell ignore both, so they are unaffected. Programs that
 read a terminfo database do use them, and report
 
 ```
-'xterm-ghostty': unknown terminal type.
+'xterm-gooztty': unknown terminal type.
 ```
 
 when they cannot resolve the entry.
@@ -205,7 +209,7 @@ The Release build compiles the database into `share\terminfo` whenever `tic`
 is available on the build machine. Git for Windows ships one in
 `C:\Program Files\Git\usr\bin`, and the build also looks in the usual MSYS2
 and Cygwin locations. Without `tic` the build installs only the terminfo
-source, `share\terminfo\ghostty.terminfo`, and prints a warning.
+source, `share\terminfo\gooztty.terminfo`, and prints a warning.
 `scripts/build-installer.ps1` reports the compiled entry as
 `TerminfoUserEntry` and warns when it is absent, because the registration
 described below has nothing to copy without it.
@@ -221,10 +225,10 @@ That ncurses cannot resolve the Windows-style path in `TERMINFO` from
 everywhere. Whether the lookup succeeds turns on which drive the shell
 happens to be on:
 
-| Current directory | `TERMINFO=C:\...\Ghostty\share\terminfo` |
+| Current directory | `TERMINFO=C:\...\Gooztty\share\terminfo` |
 | ----------------- | ---------------------------------------- |
 | on `C:`           | resolves                                 |
-| on any other drive | `'xterm-ghostty': unknown terminal type.` |
+| on any other drive | `'xterm-gooztty': unknown terminal type.` |
 
 Measured with the ncurses 6.6 in Git for Windows, from both PowerShell and
 Git Bash. Only a POSIX-form path such as `/c/Users/<you>/...` resolves from
@@ -232,26 +236,26 @@ every drive. The likely mechanism is that the drive letter is dropped and the
 rest is taken from the root of the current drive, but that is a hypothesis
 and has not been confirmed.
 
-### What Ghostty does about it
+### What Gooztty does about it
 
 ncurses searches `$HOME/.terminfo` whatever `TERMINFO` holds, so an entry
-there is found from any drive. Starting with `1.3.2-windows.10`, Ghostty
+there is found from any drive. Starting with `1.3.2-windows.10`, Gooztty
 copies its compiled entry at startup to
 
 ```
-%USERPROFILE%\.terminfo\78\xterm-ghostty
+%USERPROFILE%\.terminfo\78\xterm-gooztty
 ```
 
 `78` is the hex form of `x`; this ncurses does not look in `x\`. An entry
 that is already there is never replaced, so one compiled by hand with `tic`
 survives. The entry is written to a temporary file beside its destination and
 then moved onto it, with a move that refuses to overwrite, so nothing ever
-reads a half-written file: two copies of Ghostty starting together are safe,
+reads a half-written file: two copies of Gooztty starting together are safe,
 and one killed mid-write leaves only the temporary file, which the next start
 replaces. The copy is not the installer's job: a machine-wide installation
-runs as whoever elevated it, whereas every user reaches Ghostty's startup as
+runs as whoever elevated it, whereas every user reaches Gooztty's startup as
 themselves. Nothing is removed on uninstall, for the same reason the existing
-file is not replaced. A failure to copy does not stop Ghostty; the reason is
+file is not replaced. A failure to copy does not stop Gooztty; the reason is
 written to the log, which `scripts/run-windows-diagnostics.ps1` captures.
 
 This covers the environments that take their home directory from the Windows
@@ -263,17 +267,17 @@ profile. Git for Windows is one: its `/etc/nsswitch.conf` carries
 Cygwin and a standalone MSYS2 keep the home directory inside their own
 installation root, `/home/<user>`, rather than in the Windows profile, and
 a `HOME` set in the Windows environment wins over both. In those cases the
-entry Ghostty registers is in the wrong place and is not read. Compile the
+entry Gooztty registers is in the wrong place and is not read. Compile the
 entry into the home directory that environment actually uses, once.
 
 ```bash
-tic -x -o ~/.terminfo "$LOCALAPPDATA/Programs/Ghostty/share/terminfo/ghostty.terminfo"
+tic -x -o ~/.terminfo "$LOCALAPPDATA/Programs/Gooztty/share/terminfo/gooztty.terminfo"
 ```
 
 For a portable build, replace the path with the `share\terminfo` directory of
-that build. Confirm the result with `tput longname`, which prints `Ghostty`,
+that build. Confirm the result with `tput longname`, which prints `Gooztty`,
 and `tput colors`, which prints `256`. Run the check from a directory on a
-drive other than the one Ghostty is installed on, which is where the original
+drive other than the one Gooztty is installed on, which is where the original
 failure shows up. The line `tic` prints about the description field is a note
 from newer `tic` versions, not an error.
 
@@ -284,7 +288,7 @@ the Windows one, so run the same command inside the distribution. The source
 file is reachable through `/mnt`.
 
 ```bash
-tic -x -o ~/.terminfo "/mnt/c/Users/$USER/AppData/Local/Programs/Ghostty/share/terminfo/ghostty.terminfo"
+tic -x -o ~/.terminfo "/mnt/c/Users/$USER/AppData/Local/Programs/Gooztty/share/terminfo/gooztty.terminfo"
 ```
 
 ### Remote hosts over SSH
@@ -292,11 +296,11 @@ tic -x -o ~/.terminfo "/mnt/c/Users/$USER/AppData/Local/Programs/Ghostty/share/t
 Two shell integration features cover this; set them with
 `shell-integration-features` in the configuration file.
 
-- `ssh-terminfo` installs Ghostty's terminfo entry on the remote host with
+- `ssh-terminfo` installs Gooztty's terminfo entry on the remote host with
   `tic` on the first connection and caches the result. The remote host needs
   `tic`.
 - `ssh-env` sends `TERM=xterm-256color` instead, which every host understands
-  at the cost of Ghostty-specific capabilities.
+  at the cost of Gooztty-specific capabilities.
 
 ```
 shell-integration-features = ssh-terminfo,ssh-env
@@ -312,7 +316,7 @@ startup failures or initialization errors, launch from the diagnostic script.
 ```
 
 By default the log is saved to `zig-out\logs`, and the launched process ID and
-the absolute path of the log are displayed. To wait until Ghostty exits and
+the absolute path of the log are displayed. To wait until Gooztty exits and
 also obtain the exit code, run as follows.
 
 ```powershell
@@ -341,8 +345,8 @@ Release executable can be checked all at once.
 ./scripts/test-windows-window-state.ps1
 ```
 
-The script launches a single dedicated Ghostty process and does not touch
-existing Ghostty windows. It checks the window styles required for snapping,
+The script launches a single dedicated Gooztty process and does not touch
+existing Gooztty windows. It checks the window styles required for snapping,
 the top-level structure needed to be an Alt+Tab and taskbar target, the window
 class's large and small icons, and the DWM visibility state. It further checks
 that the window returns from minimized to the previous maximized state, the
@@ -373,12 +377,12 @@ check a different executable, specify it as follows.
 
 ```powershell
 ./scripts/test-windows-window-state.ps1 `
-    -Executable zig-out/version-check-script/bin/ghostty.exe
+    -Executable zig-out/version-check-script/bin/gooztty.exe
 ```
 
 ## Session Save and Restore
 
-Windows session restoration is opt-in. Add this to `config.ghostty`:
+Windows session restoration is opt-in. Add this to `config.gooztty`:
 
 ```ini
 window-save-state = always
@@ -389,18 +393,18 @@ report native drive directory changes before each prompt. UNC and device paths
 are not reported. Command, file, encoded-command, and server modes keep their
 original startup behavior. Set `shell-integration = none` to disable automatic
 integration. If PowerShell's execution policy blocks the integration script,
-Ghostty leaves the policy unchanged and PowerShell starts without directory
+Gooztty leaves the policy unchanged and PowerShell starts without directory
 reporting.
 
 For a temporary test, run these commands in PowerShell:
 
 ```powershell
 zig build --prefix zig-out/powershell-integration-check
-$exe = (Resolve-Path .\zig-out\powershell-integration-check\bin\ghostty.exe).Path
+$exe = (Resolve-Path .\zig-out\powershell-integration-check\bin\gooztty.exe).Path
 Start-Process -FilePath $exe -ArgumentList '--window-save-state=always' -Wait
 ```
 
-After closing Ghostty normally and reopening it, Ghostty restores the windows,
+After closing Gooztty normally and reopening it, Gooztty restores the windows,
 tabs, split layout, focus, and titles. It restores a pane's working directory
 when the shell reports it through OSC 7. PowerShell is integrated automatically
 for interactive sessions and reports native drive directory changes before each
@@ -410,17 +414,17 @@ restored. If a saved directory is unavailable, the shell starts in its normal
 startup directory. Windows moves restored windows onto an available monitor if
 the saved display is gone.
 The state file is stored at
-`%LOCALAPPDATA%\ghostty\windows\session.json` by default, or
-under `XDG_STATE_HOME\ghostty\windows\session.json` when that variable is set.
+`%LOCALAPPDATA%\gooztty\windows\session.json` by default, or
+under `XDG_STATE_HOME\gooztty\windows\session.json` when that variable is set.
 
-To clear the saved session, close every Ghostty window first, then remove the
+To clear the saved session, close every Gooztty window first, then remove the
 state file:
 
 ```powershell
 $stateFile = if ($env:XDG_STATE_HOME) {
-    Join-Path $env:XDG_STATE_HOME 'ghostty\windows\session.json'
+    Join-Path $env:XDG_STATE_HOME 'gooztty\windows\session.json'
 } else {
-    Join-Path $env:LOCALAPPDATA 'ghostty\windows\session.json'
+    Join-Path $env:LOCALAPPDATA 'gooztty\windows\session.json'
 }
 Remove-Item -LiteralPath $stateFile -ErrorAction SilentlyContinue
 ```
@@ -428,10 +432,10 @@ Remove-Item -LiteralPath $stateFile -ErrorAction SilentlyContinue
 There is no dedicated clear-history option. Setting
 `window-save-state = never` disables saving and restoring; it does not remove
 an existing state file. If `always` remains enabled, a new session is saved
-again when Ghostty exits normally.
+again when Gooztty exits normally.
 
 To check it, create one window with multiple tabs and a nested split, then set
-different directories in the panes. Close all Ghostty windows normally; the
+different directories in the panes. Close all Gooztty windows normally; the
 PowerShell command waits for the app to exit. Then run the same command again.
 Confirm that the tabs, split layout, titles, and per-pane directories return.
 Multi-window save/relaunch with distinct PowerShell directories has also been
@@ -508,7 +512,7 @@ hardware.
 
 It moves the dedicated window to each connected monitor in turn and also
 checks the origin, width, DPI, per-DPI height, and ownership relationship of
-the parent client area and `GhosttyTabBar`. After the test, the window is
+the parent client area and `GoozttyTabBar`. After the test, the window is
 returned to its initial position. If monitors with different DPIs are not
 connected, this does not constitute a mixed-DPI check, so review the
 per-monitor DPI values in the output.
@@ -542,7 +546,7 @@ short; the end time is evaluated after it completes.
 ./scripts/test-windows-soak.ps1 -DurationMinutes 60
 ```
 
-Each iteration uses an independent Ghostty process. It repeats launch, text
+Each iteration uses an independent Gooztty process. It repeats launch, text
 input, configuration reload, splits and DPI tracking, multiple windows, and
 clean exit, and saves the test results and the paths of the individual logs to
 `zig-out/logs/windows-soak-*.json` every time. On failure, it still records
@@ -563,7 +567,7 @@ recovery failures, 0 invalid JSON records, and 0 leftover temporary files.
 ## Fonts
 
 Set the font with `font-family` in the configuration file. Give the **family
-name**, not a style name. A style suffix does not match, and Ghostty then
+name**, not a style name. A style suffix does not match, and Gooztty then
 falls back to another font. The diagnostic stderr log reports
 `font-family <style> not found: <name>` for each missing configured style.
 
@@ -576,15 +580,15 @@ within the family. `Cascadia Code NF` does match, because `NF` is part of the
 family name. List the installed family names to check:
 
 ```powershell
-& .\zig-out\release\bin\ghostty.exe +list-fonts | Out-String
+& .\zig-out\release\bin\gooztty.exe +list-fonts | Out-String
 ```
 
-To check the exact name Ghostty will accept, filter the list with the same
+To check the exact name Gooztty will accept, filter the list with the same
 family value. Keep the whole `--family=...` argument quoted when the name
 contains spaces:
 
 ```powershell
-& .\zig-out\release\bin\ghostty.exe +list-fonts "--family=Yu Gothic" | Out-String
+& .\zig-out\release\bin\gooztty.exe +list-fonts "--family=Yu Gothic" | Out-String
 ```
 
 An empty result means that `font-family` will not match that spelling. The
@@ -596,7 +600,7 @@ accepted in place of their family name.
 To see which face actually renders a character:
 
 ```powershell
-& .\zig-out\release\bin\ghostty.exe +show-face --string=Aa | Out-String
+& .\zig-out\release\bin\gooztty.exe +show-face --string=Aa | Out-String
 ```
 
 `font-family` can be repeated. Characters missing from the first family are
@@ -622,7 +626,7 @@ the directory lists it.
 
 A face chosen that way is resized so that its ideograph width matches the
 primary font, which keeps full-width characters inside two cells. A face you
-named in `font-family` is never resized; Ghostty uses your choice as it is.
+named in `font-family` is never resized; Gooztty uses your choice as it is.
 That means an explicitly named font is not made to fit the cell grid, and a
 mismatched pair can look unbalanced.
 
@@ -689,7 +693,7 @@ off the numpad works as navigation keys, as before.
 The automated regression test checks the window structure required to be a
 target of snapping, Alt+Tab, and the taskbar. Appearance and actual operation
 on the Windows shell are recorded with the following manual test. When only
-reviewing the items, Ghostty is not launched.
+reviewing the items, Gooztty is not launched.
 
 ```powershell
 ./scripts/test-windows-shell.ps1 -ListOnly
@@ -707,7 +711,7 @@ To recheck only a specific item, the item ID can be specified.
 ./scripts/test-windows-shell.ps1 -CheckId alt-tab
 ```
 
-The script does not touch the user configuration; it uses a dedicated Ghostty
+The script does not touch the user configuration; it uses a dedicated Gooztty
 process launched with `--config-default-files=false` and a temporary
 configuration.
 For each of the following 6 items, enter `p` (pass), `f` (fail), `s` (skip),
@@ -743,7 +747,7 @@ In actual operation on Windows 11 on September 15, 2026, taskbar operations,
 left and right snapping, snap layouts, selection between 2 windows, and closing
 individually and closing all from the taskbar passed. In the first test the
 Alt+Tab icon was not the distinct one, but the test was repeated with a fixed
-build that sets the large and small Ghostty icons on the window class, and it
+build that sets the large and small Gooztty icons on the window class, and it
 passed. With the fixed build, the automated regression that checks the class
 icons was also run for 20 iterations, all successful.
 
@@ -808,7 +812,7 @@ the Windows-managed color scheme.
 | Drag a split divider | Resize panes |
 
 In addition, `Ctrl+Shift+N` opens a new window, `Ctrl+Enter` toggles
-fullscreen, `Alt+F4` closes the window, and `Ctrl+Shift+Q` quits Ghostty.
+fullscreen, `Alt+F4` closes the window, and `Ctrl+Shift+Q` quits Gooztty.
 
 ## Terminal Search and Working Directories (1.3.2-windows.11)
 
@@ -824,7 +828,7 @@ and `file:///C:/...` notifications, including percent-encoded spaces and
 Unicode. The local computer's hostname is also accepted case-insensitively.
 The `window-inherit-working-directory`, `tab-inherit-working-directory`,
 and `split-inherit-working-directory` settings control each creation mode.
-Without a shell notification, Ghostty only knows the startup directory.
+Without a shell notification, Gooztty only knows the startup directory.
 
 PowerShell can emit a notification for its current native filesystem path:
 
@@ -876,8 +880,8 @@ quoted paths. The pane's configured startup shell determines quoting for
 PowerShell or cmd; the drop does not press Enter. A cmd drop containing `%` or
 `!` is rejected with a warning. Unsupported startup shells also show a
 warning. A shell switched after startup is not detected by this setting.
-In a real Explorer check, an elevated Ghostty window did not accept a drop
-from normal Explorer. Use a non-elevated Ghostty window for Explorer drops.
+In a real Explorer check, an elevated Gooztty window did not accept a drop
+from normal Explorer. Use a non-elevated Gooztty window for Explorer drops.
 
 These controls are under development. The [feature plan](windows-upstream-feature-plan.md)
 records their remaining input, DPI, and accessibility checks.
@@ -894,7 +898,7 @@ keybind = global:ctrl+grave_accent=toggle_quick_terminal
 
 Windows registers each global binding with `RegisterHotKey`. A global binding
 that cannot be registered is disabled: it does not work anywhere, including
-inside Ghostty, and the configuration error dialog lists it with the reason
+inside Gooztty, and the configuration error dialog lists it with the reason
 at startup, on configuration reload, and after a keyboard layout change makes
 it unusable. This applies to bindings with more than one action, to key
 combinations already registered by another application or reserved by
@@ -916,16 +920,16 @@ hides it; it is destroyed when its last shell exits or when all windows are
 closed, and the next toggle starts a new one. It has no tabs, is not saved by
 `window-save-state`, and is skipped by `toggle_visibility` and `goto_window`.
 When it is hidden explicitly, the window that was in front before it appeared,
-including another Ghostty window, is activated again if the quick terminal
+including another Gooztty window, is activated again if the quick terminal
 still had the focus.
-Shells in the quick terminal get `GHOSTTY_QUICK_TERMINAL=1`.
+Shells in the quick terminal get `GOOZTTY_QUICK_TERMINAL=1`.
 
 | Setting | Windows behavior |
 |---|---|
 | `quick-terminal-position` | Edge or center of the monitor work area (the desktop without the taskbar) |
 | `quick-terminal-size` | As upstream; sizes in `px` are device pixels. For `center`, a single size sets the width on a landscape monitor and the height on a portrait one, which is what upstream computes |
 | `quick-terminal-screen` | `main` is the primary monitor, `mouse` the monitor under the pointer when shown; `macos-menu-bar` behaves like `main`. Changing it in a reload moves a shown quick terminal |
-| `quick-terminal-autohide` | Hides when another window, including another Ghostty window, is activated. Dialogs owned by the quick terminal do not hide it. Default `false` |
+| `quick-terminal-autohide` | Hides when another window, including another Gooztty window, is activated. Dialogs owned by the quick terminal do not hide it. Default `false` |
 | `quick-terminal-keyboard-interactivity` | `on-demand` takes focus when shown; `none` does not take keyboard focus when shown, clicked, or split, and a reload to `none` gives up the focus it has; `exclusive` behaves like `on-demand`, because Windows cannot withhold input from other applications |
 | `quick-terminal-animation-duration` | Not supported; the window appears and hides immediately |
 | `quick-terminal-space-behavior`, `gtk-quick-terminal-*` | Ignored. Switching virtual desktops leaves the quick terminal on the desktop where it was shown |
@@ -935,11 +939,11 @@ terminal. Its placement is recomputed on configuration reload, DPI change, and
 monitor or taskbar changes.
 
 With at least one registered global keybinding and
-`quit-after-last-window-closed = false` (the Windows default), Ghostty keeps
+`quit-after-last-window-closed = false` (the Windows default), Gooztty keeps
 running after its last window closes so the binding can still open the quick
 terminal; use the `quit` action to exit. Without a registered global
-keybinding, Ghostty exits after its last window closes, as before. If only a
-hidden quick terminal remains, it could never be shown again, so Ghostty
+keybinding, Gooztty exits after its last window closes, as before. If only a
+hidden quick terminal remains, it could never be shown again, so Gooztty
 quits; when a process is still running it asks first, and declining shows the
 quick terminal again. The
 `+toggle-quick-terminal` command is not supported on Windows.
@@ -952,14 +956,14 @@ not shown while its pane has keyboard focus in the foreground window.
 Clicking a notification brings its pane to the front, selecting its tab and
 showing a hidden quick terminal or clearing a split zoom that hides it.
 Notifications of a closed pane are removed from Notification Center, and
-each Ghostty process removes the notifications it showed when it exits,
+each Gooztty process removes the notifications it showed when it exits,
 because a click after exit cannot reach it. When notifications are turned off
-for Ghostty, for the user, or by policy, nothing is shown and the reason is
+for Gooztty, for the user, or by policy, nothing is shown and the reason is
 logged once; a toast that Windows later fails to show is logged with its
-error. Windows can still hide an accepted toast without telling Ghostty, for
+error. Windows can still hide an accepted toast without telling Gooztty, for
 example during Do Not Disturb.
 
-Ghostty registers `fukuyori.Ghostty` for notifications under
+Gooztty registers `fukuyori.Gooztty` for notifications under
 `HKCU\Software\Classes\AppUserModelId` when it first shows one; the process
 and its shortcuts keep their normal identity, so taskbar grouping and pins
 do not change. The installer removes that registration and the per-app
@@ -982,7 +986,7 @@ the front, and `title` (default on) shows a bell before the tab and window
 title until the pane is focused or typed in. `audio` and `border` are not
 supported on Windows.
 
-OSC 9, OSC 777, and BEL reach Ghostty only through the bundled
+OSC 9, OSC 777, and BEL reach Gooztty only through the bundled
 `conpty.dll`/`OpenConsole.exe`. The ConPTY built into Windows drops them; OSC
 133 passes through either.
 
@@ -1005,8 +1009,8 @@ OSC 9, OSC 777, and BEL reach Ghostty only through the bundled
   the diagnostic log.
 - The terminfo database is compiled only when `tic` is available on the build
   machine. The ncurses build used by MSYS2, Git Bash, and Cygwin reads the
-  Windows-style `TERMINFO` path Ghostty sets only from a working directory on
-  the drive Ghostty is installed on, so from 1.3.2-windows.10 Ghostty also
+  Windows-style `TERMINFO` path Gooztty sets only from a working directory on
+  the drive Gooztty is installed on, so from 1.3.2-windows.10 Gooztty also
   registers the entry in `%USERPROFILE%\.terminfo`, which is found from any
   drive. That covers Git Bash. Cygwin, a standalone MSYS2, a `HOME` pointed
   elsewhere, WSL, and remote hosts keep their home directory somewhere else
@@ -1019,7 +1023,7 @@ OSC 9, OSC 777, and BEL reach Ghostty only through the bundled
   GTK integration.
 - The Sentry crash reporter is not available. It is disabled by default
   outside macOS and returns early on Windows even when enabled at build time,
-  so no crash reports are written and `ghostty +crash-report` lists nothing.
+  so no crash reports are written and `gooztty +crash-report` lists nothing.
   Use the startup diagnostic log described above instead.
 
 For details on the implementation status and verification items, see the

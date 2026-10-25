@@ -1,17 +1,19 @@
 <!-- LOGO -->
 <h1>
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/fe853809-ba8b-400b-83ab-a9a0da25be8a" alt="Logo" width="128">
-  <br>Ghostty
+  <img src="dist/windows/ghoultty-icon-candidate.png" alt="Logo" width="128">
+  <br>Gooztty
 </h1>
   <p align="center">
-    Windows 向けネイティブ Ghostty — 開発中の Windows アプリケーションのフォーク。
+    Ghostty をもとにした Windows ネイティブの端末 — 開発中のフォーク。
     <br />
     Win32、D3D11、DirectComposition、ネイティブのタブと分割ペイン。
     <br />
-    <a href="#ghostty-for-windows">Windows ビルド</a>
+    <a href="#gooztty">概要</a>
     ·
     <a href="docs/windows.md">ユーザーガイド</a>
+    ·
+    <a href="#ghostty-for-windows-からの移行">Ghostty からの移行</a>
     ·
     <a href="#設定の対応状況">設定</a>
     ·
@@ -29,13 +31,18 @@
 
 この文書は [README.md](README.md) の日本語版です。リンク先の文書は、設定対応表を除き英語です。
 
-## Ghostty for Windows
+## Gooztty
 
-このリポジトリは、Ghostty を日常的に使えるネイティブアプリケーションとして
-Windows で動かすための開発用フォークです。upstream が Windows に対応するのを
-待たずに、ネイティブ実装とその検証を `windows` ブランチで進めています。
+Gooztty は、[Ghostty](https://github.com/ghostty-org/ghostty) から作った
+Windows ネイティブの端末アプリケーションです。Ghostty を日常的に使えるように
+Windows へ移植するフォークとして始まり、Ghostty プロジェクトの求めに応じて
+独自の名前を付けました。端末そのものは Ghostty のものです。
 
-Windows ビルドの主な特長:
+`1.3.2-windows.16` までのリリースは、Ghostty の名前で公開しました。
+Gooztty の名前での版はまだ公開していません。名前の変更は `gooztty` ブランチで
+進めています。
+
+主な特長:
 
 - Win32 のネイティブウィンドウ、タイトルバー、タブバー
 - D3D11 と DirectComposition による描画、背景の透過、GPU デバイスの喪失や
@@ -44,7 +51,7 @@ Windows ビルドの主な特長:
 - キーボードとマウスによるタブの管理・並べ替え、分割の仕切り線でのサイズ変更
 - Windows の IME、クリップボード、URL とファイルの扱い
 - Per-Monitor V2 DPI、ハイコントラスト、MSAA によるタブ情報
-- `%LOCALAPPDATA%\ghostty\config.ghostty` の読み込みと再読み込み
+- `%LOCALAPPDATA%\gooztty\config.gooztty` の読み込みと再読み込み
 - ポータブルなリリースビルド用スクリプトと、コード署名に対応した
   Inno Setup のインストーラー用スクリプト
 - CLI と Windows のファイルプロパティで共通のビルドバージョン情報
@@ -53,28 +60,28 @@ Windows ビルドの主な特長:
 
 ```powershell
 zig build
-./zig-out/bin/ghostty.exe
+./zig-out/bin/gooztty.exe
 ```
 
 ポータブルなリリースビルド:
 
 ```powershell
 ./scripts/build-release.ps1
-./zig-out/release/bin/ghostty.exe
+./zig-out/release/bin/gooztty.exe
 ```
 
-プレビュー版の内容と検証結果は [Windows リリースノート](docs/windows-release-notes.md)、
+プレビュー版の内容と検証結果は[リリースノート](docs/windows-release-notes.md)、
 版ごとの変更は[変更履歴](docs/windows-changelog.md)を参照してください。
 
-ビルドやインストール済みのバージョンの確認(`ghostty.exe` は GUI
+ビルドやインストール済みのバージョンの確認(`gooztty.exe` は GUI
 アプリケーションなので、出力をパイプで渡して PowerShell に完了を待たせて表示します):
 
 ```powershell
-./zig-out/release/bin/ghostty.exe --version | Out-String
+./zig-out/release/bin/gooztty.exe --version | Out-String
 # 現在のユーザーにインストールした場合
-& "$env:LOCALAPPDATA\Programs\Ghostty\bin\ghostty.exe" --version | Out-String
+& "$env:LOCALAPPDATA\Programs\Gooztty\bin\gooztty.exe" --version | Out-String
 # 同じバージョンがファイルのプロパティにもある
-(Get-Item ./zig-out/release/bin/ghostty.exe).VersionInfo.ProductVersion
+(Get-Item ./zig-out/release/bin/gooztty.exe).VersionInfo.ProductVersion
 ```
 
 リリースビルドとインストーラーは `dist/windows/version.txt` からバージョンを取り、
@@ -105,7 +112,7 @@ Windows シェルの手動受け入れチェック:
 ./scripts/test-windows-shell.ps1 -CheckId power-resume
 ```
 
-Windows ビルドはプレビュー版です。Windows 11 で、144/192 DPI、ハイコントラスト、
+Gooztty はプレビュー版です。Windows 11 で、144/192 DPI、ハイコントラスト、
 ナレーター、実機でのスリープと復帰、日本語とドイツ語のキーボード配列を含めて
 確認しています。Windows 10 はサポート対象外です。数時間にわたる連続使用と、
 実際の GPU デバイスの喪失はまだ確認していません。`1.3.2-windows.4` から、
@@ -129,21 +136,46 @@ Windows ビルドはプレビュー版です。Windows 11 で、144/192 DPI、�
 | 5 | Quick terminal と global キーバインド(F7、#24) | `windows` | 完了 |
 | 6 | デスクトップ通知とコマンド終了通知(F8、#21) | `windows` | 完了 |
 | 7 | Ghostty の名前でのリリース | `windows` | 完了(`1.3.2-windows.16`) |
-| 8 | 値を変えずに名前を切り替える仕組みの整備、upstream との同期、`gooztty` の作成 | `windows` → `gooztty` | 次に着手 |
-| 9 | Gooztty の名前の適用: ビルドと UI、設定と端末の識別子、インストーラー、文書 | `gooztty` | 未着手 |
+| 8 | 値を変えずに名前を切り替える仕組みの整備、upstream との同期、`gooztty` の作成 | `windows` → `gooztty` | 完了 |
+| 9 | Gooztty の名前の適用: ビルドと UI、設定と端末の識別子、インストーラー、文書 | `gooztty` | 作業中 |
 | 10 | 名前を変えたアプリの受け入れ: 名前、パス、通知の識別子、署名付きインストーラー、インストールと削除 | `gooztty` | 未着手 |
 
 残っている実機での検証、未決定の事項、先送りしたリファクタリングは
 [issue](https://github.com/fukuyori/ghostty/issues) で管理しています。
 
-設定、既定のキーバインド、診断、既知の制限は
-[Windows ユーザーガイド](docs/windows.md)に、実装済みの項目と残りの作業は
-[Windows ロードマップ](docs/windows-roadmap.md)にあります。
+設定、既定のキーバインド、診断、既知の制限は[ユーザーガイド](docs/windows.md)に、
+実装済みの項目と残りの作業は[ロードマップ](docs/windows-roadmap.md)にあります。
+
+## Ghostty for Windows からの移行
+
+Gooztty は、Ghostty for Windows のプレビュー版(`1.3.2-windows.16` 以前)の
+アップグレードではなく、別のアプリケーションとしてインストールされます。
+両方を同時にインストールしておけます。自動では何も引き継ぎません。
+
+- **設定。** Gooztty は `%LOCALAPPDATA%\gooztty\config.gooztty`
+  (または `%XDG_CONFIG_HOME%\gooztty\config.gooztty`)を読み、古い
+  `%LOCALAPPDATA%\ghostty` は読みません。設定はご自身でコピーしてください。
+  たとえば `ghostty\config.ghostty` を `gooztty\config.gooztty` にコピーします。
+  独自のテーマは `ghostty\themes` から `gooztty\themes` に移します。Gooztty の
+  インストールとアンインストールは、古いディレクトリに触れません。
+- **コマンド。** コマンドは `gooztty` です。`ghostty.exe` の別名は用意しません。
+  `ghostty` は、古いアプリケーションを削除するまで、古い方を起動します。
+- **端末の種類。** Gooztty は `TERM=xterm-gooztty`、`TERM_PROGRAM=gooztty`、
+  `GOOZTTY_*` の環境変数を設定します。terminfo のエントリは、古い
+  `xterm-ghostty` の隣に登録し、古い方はそのまま残します。WSL、Cygwin、MSYS2、
+  リモートのホストでは、[ユーザーガイド](docs/windows.md#terminal-type-and-terminfo)
+  の手順で、新しいエントリを一度インストールしてください。
+- **ご自身で設定した環境変数。** `GHOSTTY_LOG` などは `GOOZTTY_LOG` のように
+  名前を変えてください。
+- **古いアプリケーションの削除。** Ghostty は「アプリと機能」からアンインストール
+  してください。ファイル、ショートカット、`PATH` の登録は、Ghostty 自身の
+  アンインストーラーが削除します。`%LOCALAPPDATA%\ghostty` は、古い設定が
+  不要になったらご自身で削除してください。
 
 ## 設定の対応状況
 
-Windows ビルドは upstream の Ghostty と同じ形式の設定ファイルを
-`%LOCALAPPDATA%\ghostty\config.ghostty` から読みますが、すべての設定項目が
+Gooztty は upstream の Ghostty と同じ形式の設定ファイルを
+`%LOCALAPPDATA%\gooztty\config.gooztty` から読みますが、すべての設定項目が
 Windows で効くわけではありません。`1.3.2-windows.16` 時点で、upstream の
 全 212 項目のうち Windows で使えるのは 136 項目(64%、◎ と ○)です。
 一部だけ使えるものを含めると 144 項目(68%)です。
@@ -177,11 +209,11 @@ Windows で効くわけではありません。`1.3.2-windows.16` 時点で、up
 
 ## クラッシュレポートと診断
 
-Ghostty の Sentry によるクラッシュレポートは、Windows ビルドでは使えません。
+Ghostty の Sentry によるクラッシュレポートは、Gooztty では使えません。
 macOS 以外のすべてのプラットフォームで既定で無効になっており
 (`src/build/Config.zig`)、`-Dsentry=true` でビルドしても Windows では
 レポーターがすぐに戻ります(`src/crash/sentry.zig`)。クラッシュ用の
-ディレクトリは作られず、`ghostty +crash-report` も何も表示しません。
+ディレクトリは作られず、`gooztty +crash-report` も何も表示しません。
 
 代わりに起動時の診断ログを使ってください。実行ファイルは GUI サブシステムの
 バイナリなので、標準出力と標準エラーは起動したコンソールにつながりません。
@@ -193,28 +225,31 @@ macOS 以外のすべてのプラットフォームで既定で無効になっ�
 ```
 
 ログは `zig-out\logs` に保存されます。自分で起動したセッションを記録するには、
-`GHOSTTY_LOG=stderr=true` を設定して標準エラーをリダイレクトします。D3D11 の
+`GOOZTTY_LOG=stderr=true` を設定して標準エラーをリダイレクトします。D3D11 の
 表示の失敗、デバイスが削除された理由、GPU リソースの回復、スリープと復帰の
 通知は、すべてそこに記録されます。
 
 ## upstream との関係
 
-このリポジトリは、Ghostty 本体と macOS・Linux のアプリケーションを管理している
+Gooztty は、Ghostty 本体と macOS・Linux のアプリケーションを管理している
 [`ghostty-org/ghostty`](https://github.com/ghostty-org/ghostty) のフォークです。
-ここでは Windows アプリケーションだけを `windows` ブランチで開発しており、
-upstream の変更は随時取り込んでいます。
+端末のエミュレーション、設定、コードの大部分は Ghostty のもので、このリポジトリは
+Windows アプリケーションを加えています。upstream の変更は、Windows への移植を
+upstream に合わせて保つ `windows` ブランチを通じて随時取り込み、Gooztty は
+`gooztty` ブランチで開発しています。
 
 Windows に固有でないことは、upstream の資料を参照してください:
 
 - [About Ghostty](https://ghostty.org/docs/about)
 - [Documentation](https://ghostty.org/docs)(設定のリファレンスとキーバインドを含み、
-  このビルドにも当てはまります)
+  Gooztty にも当てはまります)
 - macOS と Linux 版の [Downloads](https://ghostty.org/download)
 - upstream の開発については
   [Contributing](https://github.com/ghostty-org/ghostty/blob/main/CONTRIBUTING.md)
   と [Developing](https://github.com/ghostty-org/ghostty/blob/main/HACKING.md)
 
-Windows ビルドに固有のことは、このリポジトリの issue で報告してください。
+Gooztty に固有のことは、upstream ではなく、このリポジトリの issue で報告して
+ください。
 
 > [!IMPORTANT]
 >
@@ -239,7 +274,8 @@ Windows ビルドに固有のことは、このリポジトリの issue で報�
 >
 > 全文は
 > [CONTRIBUTING.md](https://github.com/ghostty-org/ghostty/blob/main/CONTRIBUTING.md)
-> にあります。このフォークの issue とプルリクエストには、いずれも適用されません。
+> にあります。このフォークの issue には適用されません。このフォークは
+> プルリクエストを受け付けていません。
 
 ## ライセンス
 

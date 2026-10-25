@@ -1,4 +1,4 @@
-# Ghostty for Windows Changelog
+# Gooztty Changelog
 
 Every change between the Windows previews of this fork, grouped by kind and
 listed with the commit that made it. The
@@ -8,6 +8,35 @@ known issues, and known limitations of each version; the
 `X.Y.Z-windows.N` numbering.
 
 ## Unreleased
+
+Versions up to `1.3.2-windows.16` were published under the name Ghostty.
+The changes below rename the application to Gooztty on the `gooztty`
+branch (rename step 9, #31).
+
+### Changed
+
+- Rename the application to Gooztty by selecting the Gooztty values in
+  `src/brand.zig`: the executable is `gooztty.exe`, resources are in
+  `share\gooztty`, the configuration is
+  `%LOCALAPPDATA%\gooztty\config.gooztty`, `TERM` is `xterm-gooztty`,
+  `TERM_PROGRAM` is `gooztty`, environment variables use `GOOZTTY_`, and the
+  window classes, IPC pipe and notification AppUserModelID
+  (`fukuyori.Gooztty`) follow the new name. The installer has a new AppId,
+  so Gooztty installs beside the Ghostty for Windows previews instead of
+  upgrading them. `+version` no longer links to an upstream commit. Nothing
+  is migrated automatically; the README describes the manual steps.
+- Use the selected ghoultty artwork as the application icon
+  (`dist/windows/build-gooztty-icon.ps1` writes `ghostty.ico`) and remove
+  the unused icon candidates.
+- A renamed build started from inside Ghostty removes the `GHOSTTY_*`
+  variables Ghostty set for its own shell (resources and binary
+  directories, surface ID, shell integration and quick terminal variables)
+  from its child environment; variables a user sets, such as
+  `GHOSTTY_LOG`, stay (#67).
+- The portable release tree no longer contains libghostty-vt
+  (`ghostty-vt.dll`, its libraries, headers and pkg-config files). The
+  terminal links it statically and never loaded the DLL, and the installer
+  never shipped it (#68).
 
 ### Build
 
@@ -46,8 +75,19 @@ known issues, and known limitations of each version; the
   `+help`, `+version`, `+ssh` usage and runtime messages use brand values.
   `+ssh-cache` now reads the same cache directory as `+ssh`. Output is
   unchanged with the current values (rename step 8, #31).
+- Make the configuration template and `+ssh-cache` entry tests independent
+  of the values in `src/brand.zig`, so they pass with the renamed values.
 
 ### Documentation
+
+- Rewrite the README and its Japanese translation for Gooztty, with the
+  new icon, the publication state of the rename, a section on moving from
+  Ghostty for Windows, and the statement that this fork does not take pull
+  requests. Update the user guide, the configuration support tables and the
+  version update checklist to the new executable, paths, variables and
+  installer names.
+- Record the branch cutover: `gooztty` was created on 2026-10-25 and is the
+  default branch; `AGENTS.md` describes each branch's role.
 
 - Add `docs/windows-config-support.md`, listing every configuration option
   with its Windows status (runtime-verified, supported from the code,

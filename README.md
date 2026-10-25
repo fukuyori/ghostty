@@ -1,17 +1,19 @@
 <!-- LOGO -->
 <h1>
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/fe853809-ba8b-400b-83ab-a9a0da25be8a" alt="Logo" width="128">
-  <br>Ghostty
+  <img src="dist/windows/ghoultty-icon-candidate.png" alt="Logo" width="128">
+  <br>Gooztty
 </h1>
   <p align="center">
-    Native Ghostty for Windows — a work-in-progress Windows application fork.
+    A native Windows terminal based on Ghostty — a work-in-progress fork.
     <br />
     Win32, D3D11, DirectComposition, native tabs, and split panes.
     <br />
-    <a href="#ghostty-for-windows">Windows Build</a>
+    <a href="#gooztty">About</a>
     ·
     <a href="docs/windows.md">User Guide</a>
+    ·
+    <a href="#moving-from-ghostty-for-windows">Moving from Ghostty</a>
     ·
     <a href="#configuration-support">Configuration</a>
     ·
@@ -27,14 +29,18 @@
   </p>
 </p>
 
-## Ghostty for Windows
+## Gooztty
 
-This repository is a development fork that brings Ghostty to Windows as a
-native application suitable for daily use. Rather than waiting for Windows
-support to land upstream, the native implementation and its verification
-are developed on the `windows` branch.
+Gooztty is a native Windows terminal application built from
+[Ghostty](https://github.com/ghostty-org/ghostty). It started as a fork that
+brings Ghostty to Windows for daily use and takes a name of its own at the
+request of the Ghostty project; the terminal itself is Ghostty's.
 
-Highlights of the Windows build:
+Releases up to `1.3.2-windows.16` were published under the name Ghostty.
+No release has been published under the name Gooztty yet; the rename is in
+progress on the `gooztty` branch.
+
+Highlights:
 
 - Native Win32 windows, title bar, and tab bar
 - D3D11 and DirectComposition rendering, background opacity, and automatic
@@ -43,7 +49,7 @@ Highlights of the Windows build:
 - Tab management, reordering, and split-divider resizing by keyboard and mouse
 - Windows IME, clipboard, and URL and file handling
 - Per-Monitor V2 DPI, high contrast, and MSAA tab information
-- Loading and reloading `%LOCALAPPDATA%\ghostty\config.ghostty`
+- Loading and reloading `%LOCALAPPDATA%\gooztty\config.gooztty`
 - A portable release build script and an Inno Setup installer script with
   code signing support
 - Build version information shared by the CLI and the Windows file properties
@@ -52,29 +58,29 @@ Build and run:
 
 ```powershell
 zig build
-./zig-out/bin/ghostty.exe
+./zig-out/bin/gooztty.exe
 ```
 
 Portable release build:
 
 ```powershell
 ./scripts/build-release.ps1
-./zig-out/release/bin/ghostty.exe
+./zig-out/release/bin/gooztty.exe
 ```
 
-See the [Windows release notes](docs/windows-release-notes.md) for preview
-versions, contents, and verification results, and the
+See the [release notes](docs/windows-release-notes.md) for preview versions,
+contents, and verification results, and the
 [changelog](docs/windows-changelog.md) for what changed between them.
 
-Checking the version of a build or an installation (`ghostty.exe` is a GUI
+Checking the version of a build or an installation (`gooztty.exe` is a GUI
 application, so pipe its output to have PowerShell wait for it and print it):
 
 ```powershell
-./zig-out/release/bin/ghostty.exe --version | Out-String
+./zig-out/release/bin/gooztty.exe --version | Out-String
 # An installation for the current user
-& "$env:LOCALAPPDATA\Programs\Ghostty\bin\ghostty.exe" --version | Out-String
+& "$env:LOCALAPPDATA\Programs\Gooztty\bin\gooztty.exe" --version | Out-String
 # The same version is in the file properties
-(Get-Item ./zig-out/release/bin/ghostty.exe).VersionInfo.ProductVersion
+(Get-Item ./zig-out/release/bin/gooztty.exe).VersionInfo.ProductVersion
 ```
 
 The release build and the installer take the version from
@@ -105,14 +111,14 @@ Manual Windows shell acceptance checks:
 ./scripts/test-windows-shell.ps1 -CheckId power-resume
 ```
 
-The Windows build is a preview. It is verified on Windows 11, including
-144 and 192 DPI, high contrast, Narrator, real sleep and resume, and the
-Japanese and German keyboard layouts; Windows 10 is not a support target.
-Sessions lasting several hours and real GPU device loss have not been
-verified yet. From `1.3.2-windows.4` a signed installer is published as a
-release asset; there is no automatic update. Background
-opacity works, but `background-blur` quality depends on the environment, so
-leaving it disabled is recommended for now.
+Gooztty is a preview. It is verified on Windows 11, including 144 and 192
+DPI, high contrast, Narrator, real sleep and resume, and the Japanese and
+German keyboard layouts; Windows 10 is not a support target. Sessions
+lasting several hours and real GPU device loss have not been verified yet.
+From `1.3.2-windows.4` a signed installer is published as a release asset;
+there is no automatic update. Background opacity works, but
+`background-blur` quality depends on the environment, so leaving it disabled
+is recommended for now.
 
 ### Work Phases
 
@@ -131,8 +137,8 @@ development phases are recorded in the
 | 5 | Quick terminal and global keybindings (F7, #24) | `windows` | Done |
 | 6 | Desktop and command-finished notifications (F8, #21) | `windows` | Done |
 | 7 | Release under the Ghostty name | `windows` | Done (`1.3.2-windows.16`) |
-| 8 | Name indirection with unchanged values, upstream synchronization, then create `gooztty` | `windows` → `gooztty` | Next |
-| 9 | Apply the Gooztty name: build and UI, configuration and terminal identity, installer, documentation | `gooztty` | Not started |
+| 8 | Name indirection with unchanged values, upstream synchronization, then create `gooztty` | `windows` → `gooztty` | Done |
+| 9 | Apply the Gooztty name: build and UI, configuration and terminal identity, installer, documentation | `gooztty` | In progress |
 | 10 | Acceptance of the renamed application: names, paths, notification identity, signed installer, installation and removal | `gooztty` | Not started |
 
 Remaining real-hardware verification, open decisions, and deferred
@@ -140,16 +146,42 @@ refactoring are tracked as
 [issues](https://github.com/fukuyori/ghostty/issues).
 
 Configuration, default keybindings, diagnostics, and known limitations are in
-the [Windows user guide](docs/windows.md); implemented items and remaining
-work are in the [Windows roadmap](docs/windows-roadmap.md).
+the [user guide](docs/windows.md); implemented items and remaining work are in
+the [roadmap](docs/windows-roadmap.md).
+
+## Moving from Ghostty for Windows
+
+Gooztty is installed as a separate application, not as an upgrade of the
+Ghostty for Windows previews (`1.3.2-windows.16` and earlier). Both can be
+installed at the same time. Nothing is carried over automatically:
+
+- **Configuration.** Gooztty reads `%LOCALAPPDATA%\gooztty\config.gooztty`
+  (or `%XDG_CONFIG_HOME%\gooztty\config.gooztty`) and never reads the old
+  `%LOCALAPPDATA%\ghostty` directory. Copy the settings yourself, for example
+  `ghostty\config.ghostty` to `gooztty\config.gooztty`. Custom themes move
+  from `ghostty\themes` to `gooztty\themes`. Installing or uninstalling
+  Gooztty leaves the old directory untouched.
+- **Command.** The command is `gooztty`. Gooztty provides no `ghostty.exe`
+  alias; `ghostty` keeps starting the old installation until you remove it.
+- **Terminal type.** Gooztty sets `TERM=xterm-gooztty`,
+  `TERM_PROGRAM=gooztty` and `GOOZTTY_*` variables. Its terminfo entry is
+  registered beside the old `xterm-ghostty` one, which stays. For WSL,
+  Cygwin, MSYS2 and remote hosts, install the new entry once as described in
+  the [user guide](docs/windows.md#terminal-type-and-terminfo).
+- **Variables you set.** Rename variables such as `GHOSTTY_LOG` to
+  `GOOZTTY_LOG`.
+- **Removing the old application.** Uninstall Ghostty from Apps & features.
+  Its own uninstaller removes its files, shortcuts and `PATH` entry. Delete
+  `%LOCALAPPDATA%\ghostty` yourself once you no longer need the old
+  settings.
 
 ## Configuration Support
 
-The Windows build reads the same configuration file format as upstream
-Ghostty, from `%LOCALAPPDATA%\ghostty\config.ghostty`, but not every option
-has an effect on Windows. As of `1.3.2-windows.16`, 136 of the 212 upstream
-options (64%, ◎ and ○) can be used on Windows. Including the options that
-work in part, 144 (68%) can be used.
+Gooztty reads the same configuration file format as upstream Ghostty, from
+`%LOCALAPPDATA%\gooztty\config.gooztty`, but not every option has an effect
+on Windows. As of `1.3.2-windows.16`, 136 of the 212 upstream options (64%,
+◎ and ○) can be used on Windows. Including the options that work in part,
+144 (68%) can be used.
 
 | Status | Options | Meaning |
 |---|---:|---|
@@ -182,11 +214,11 @@ every option with its status and description.
 
 ## Crash Reports and Diagnostics
 
-Ghostty's Sentry-based crash reporter is not available in the Windows build.
-It is off by default for every platform except macOS
-(`src/build/Config.zig`), and the reporter returns early on Windows even when
-built with `-Dsentry=true` (`src/crash/sentry.zig`). No crash directory is
-created, and `ghostty +crash-report` lists nothing.
+Ghostty's Sentry-based crash reporter is not available in Gooztty. It is off
+by default for every platform except macOS (`src/build/Config.zig`), and the
+reporter returns early on Windows even when built with `-Dsentry=true`
+(`src/crash/sentry.zig`). No crash directory is created, and
+`gooztty +crash-report` lists nothing.
 
 Use the startup diagnostic log instead. The executable is a GUI subsystem
 binary, so its standard output and standard error are not attached to the
@@ -199,29 +231,32 @@ reports the exit code.
 ```
 
 Logs land in `zig-out\logs`. To capture a session you start yourself, set
-`GHOSTTY_LOG=stderr=true` and redirect standard error. D3D11 presentation
+`GOOZTTY_LOG=stderr=true` and redirect standard error. D3D11 presentation
 failures, device removal reasons, GPU resource recovery, and power
 suspend and resume notifications are all recorded there.
 
 ## Relationship to Upstream
 
-This repository is a fork of
+Gooztty is a fork of
 [`ghostty-org/ghostty`](https://github.com/ghostty-org/ghostty), which
-maintains Ghostty itself and its macOS and Linux applications. Only the
-Windows application is developed here, on the `windows` branch; upstream
-changes are pulled in from time to time.
+maintains Ghostty itself and its macOS and Linux applications. The terminal
+emulation, configuration and most of the code are Ghostty's; this repository
+adds the Windows application. Upstream changes are pulled in from time to
+time through the `windows` branch, which keeps the Windows port in step with
+upstream, and Gooztty is developed on the `gooztty` branch.
 
 For everything that is not Windows-specific, use the upstream resources:
 
 - [About Ghostty](https://ghostty.org/docs/about)
 - [Documentation](https://ghostty.org/docs), including configuration
-  reference and keybindings, which apply to this build as well
+  reference and keybindings, which apply to Gooztty as well
 - [Downloads](https://ghostty.org/download) for macOS and Linux
 - [Contributing](https://github.com/ghostty-org/ghostty/blob/main/CONTRIBUTING.md)
   and [Developing](https://github.com/ghostty-org/ghostty/blob/main/HACKING.md)
   for upstream development
 
-Report anything specific to the Windows build in this repository's issues.
+Report anything specific to Gooztty in this repository's issues, not
+upstream.
 
 > [!IMPORTANT]
 >
@@ -247,7 +282,8 @@ Report anything specific to the Windows build in this repository's issues.
 >
 > The full text is in
 > [CONTRIBUTING.md](https://github.com/ghostty-org/ghostty/blob/main/CONTRIBUTING.md).
-> None of it applies to issues and pull requests on this fork.
+> None of it applies to issues on this fork. This fork does not take pull
+> requests.
 
 ## License
 

@@ -93,7 +93,7 @@ upstream の Ghostty の全設定項目(`src/config/Config.zig`)について、
 | `search-selected-foreground` | 色 | ○ | 現在選択中の検索一致箇所の文字色。 |
 | `search-selected-background` | 色 | ○ | 現在選択中の検索一致箇所の背景色。 |
 | `command` | シェル | ◎ | 新しいターミナルサーフェスごとに実行するコマンド（通常はシェル）。 |
-| `initial-command` | シェル | ○ | `command` と同様だが、Ghostty 起動時に最初に作成されるターミナルサーフェスにのみ適用されるコマンド。 |
+| `initial-command` | シェル | ○ | `command` と同様だが、Gooztty 起動時に最初に作成されるターミナルサーフェスにのみ適用されるコマンド。 |
 | `notify-on-command-finish` | 通知 | ◎ | コマンド終了時に通知を送る条件（`never`、`unfocused`、`always`）。 |
 | `notify-on-command-finish-action` | 通知 | ◎ | コマンド終了通知の方法（`bell`、`notify` など）。 |
 | `notify-on-command-finish-after` | 通知 | ◎ | コマンド終了通知を送る対象となる、コマンドの最低実行時間。 |
@@ -116,7 +116,7 @@ upstream の Ghostty の全設定項目(`src/config/Config.zig`)について、
 | `x11-instance-name` | GTK | - | GTK ビルドにおける X11 の `WM_CLASS` プロパティのインスタンス名。 |
 | `working-directory` | シェル | ◎ | コマンド起動後に移動する作業ディレクトリ（パス、`home`、`inherit`）。 |
 | `keybind` | キーバインド | ◎ | キーと修飾キーの組み合わせ（`trigger`）を `action` に割り当てるキーバインド。 |
-| `key-remap` | キーバインド | ○ | Ghostty 内でのみ修飾キーを割り当て直す設定（`from=to` 形式）。 |
+| `key-remap` | キーバインド | ○ | Gooztty 内でのみ修飾キーを割り当て直す設定（`from=to` 形式）。 |
 | `window-padding-x` | ウィンドウ | ○ | 端末セルとウィンドウの左右の境界との間の余白。 |
 | `window-padding-y` | ウィンドウ | ○ | 端末セルとウィンドウの上下の境界との間の余白。 |
 | `window-padding-balance` | ウィンドウ | ○ | セルサイズで割り切れずに余る領域を四辺に均等に振り分けるかどうか。 |
@@ -162,8 +162,8 @@ upstream の Ghostty の全設定項目(`src/config/Config.zig`)について、
 | `config-default-files` | 設定 | ◎ | 既定の設定ファイルパスを読み込むかどうか(コマンドラインでのみ指定可能)。 |
 | `confirm-close-surface` | 起動・終了 | ◎ | サーフェスを閉じる前に確認するかどうか(`true`、`false`、`always`)。 |
 | `quit-after-last-window-closed` | 起動・終了 | ◎ | 最後のサーフェスを閉じた後にアプリケーションを終了するかどうか。 |
-| `quit-after-last-window-closed-delay` | 起動・終了 | ✕ | `quit-after-last-window-closed` が `true` のとき、最後のサーフェスを閉じてから Ghostty が終了するまでの時間。 |
-| `initial-window` | 起動・終了 | ✕ | Ghostty の起動時に最初のウィンドウを作成するかどうか。 |
+| `quit-after-last-window-closed-delay` | 起動・終了 | ✕ | `quit-after-last-window-closed` が `true` のとき、最後のサーフェスを閉じてから Gooztty が終了するまでの時間。 |
+| `initial-window` | 起動・終了 | ✕ | Gooztty の起動時に最初のウィンドウを作成するかどうか。 |
 | `undo-timeout` | 起動・終了 | ✕ | 各操作を取り消し可能なまま取り消し履歴に保持する時間。 |
 | `quick-terminal-position` | Quick terminal | ◎ | クイックターミナルの画面上の位置(`top`、`bottom`、`left`、`right`、`center`)。 |
 | `quick-terminal-size` | Quick terminal | ◎ | クイックターミナルのサイズ(画面に対する割合またはピクセル数)。 |

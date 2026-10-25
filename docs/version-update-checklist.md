@@ -1,4 +1,4 @@
-# Ghostty Version Update Checklist
+# Gooztty Version Update Checklist
 
 This document is a checklist for changing the Ghostty core version in this
 fork, so that no update location or verification step is missed. It focuses
@@ -101,7 +101,7 @@ to the upstream base version as a pre-release identifier.
   `build-installer.ps1` has no `-Version`.
 - `scripts/build-installer.ps1` reads the same file and refuses to build when
   the release executable reports a different version. An installer named after
-  a development version, such as `ghostty-1.3.2-windows-x64-setup.exe`,
+  a development version, such as `gooztty-1.3.2-windows-x64-setup.exe`,
   therefore cannot be produced by accident.
 - Both scripts fail if the file is missing, is not a valid Semantic Version, or
   its numeric part does not match `build.zig.zon`.
@@ -130,13 +130,13 @@ build on the `windows` branch has the form `X.Y.Z-windows-+abcdef0`.
 
 ### When Updating the Bundled ConPTY Host
 
-Ghostty ships `conpty.dll` and `OpenConsole.exe` next to its executable and
+Gooztty ships `conpty.dll` and `OpenConsole.exe` next to its executable and
 loads them in preference to the ConPTY in `kernel32.dll`, which drops the
 escape sequences that carry images. They are pinned to one version of the
 `Microsoft.Windows.Console.ConPTY` package and are fetched rather than
 committed. See `vendor/conpty/README.md`.
 
-This version moves independently of Ghostty's own, so it is not touched
+This version moves independently of Gooztty's own, so it is not touched
 during a normal version update.
 
 - [ ] Update `$Version` and all three hashes in `scripts/fetch-conpty.ps1`:
@@ -169,7 +169,7 @@ during a normal version update.
   variable `CODESIGN_CERT`, add `-Sign`, and confirm that the resulting
   `ExecutableSignature` and `InstallerSignature` are `Valid`.
 - [ ] Confirm that the output file name is
-  `ghostty-X.Y.Z-windows.N-x64-setup.exe`.
+  `gooztty-X.Y.Z-windows.N-x64-setup.exe`.
 - [ ] Confirm that the release tree has `bin\conpty.dll` and
   `bin\OpenConsole.exe` (the script refuses to build without them) and that
   the installed tree contains both plus `THIRD-PARTY-NOTICES.md`.
@@ -197,12 +197,12 @@ an archive or installer. The version comes from `dist/windows/version.txt`.
 ```powershell
 ./scripts/build-release.ps1
 
-./zig-out/release/bin/ghostty.exe --version
-./zig-out/release/bin/ghostty.exe +list-keybinds --default
+./zig-out/release/bin/gooztty.exe --version
+./zig-out/release/bin/gooztty.exe +list-keybinds --default
 ```
 
 - [ ] The Release build succeeds.
-- [ ] `ghostty.exe --version` shows the intended `X.Y.Z-windows.N` (`X.Y.Z` for
+- [ ] `gooztty.exe --version` shows the intended `X.Y.Z-windows.N` (`X.Y.Z` for
   an upstream-equivalent version).
 - [ ] `+list-keybinds --default` completes with exit code 0.
 - [ ] The Release script reports the PE format, CPU, GUI subsystem, and
@@ -214,7 +214,7 @@ an archive or installer. The version comes from `dist/windows/version.txt`.
 
 ## 6. Checking the Windows File Properties
 
-`src/build/WindowsVersionResource.zig` generates a header from Ghostty's build
+`src/build/WindowsVersionResource.zig` generates a header from the build
 version, and `dist/windows/ghostty.rc` embeds it into the Windows version
 information.
 
@@ -235,14 +235,14 @@ separately from the CLI output.
 
 ```powershell
 $info = (Get-Item -LiteralPath `
-    './zig-out/release/bin/ghostty.exe').VersionInfo
+    './zig-out/release/bin/gooztty.exe').VersionInfo
 $info.FileVersion
 $info.ProductVersion
 $info.FileMajorPart, $info.FileMinorPart, $info.FileBuildPart, $info.FilePrivatePart
 ```
 
 - [ ] `FileVersion` and `ProductVersion` are not empty.
-- [ ] The major, minor, and patch of both match `ghostty.exe --version`.
+- [ ] The major, minor, and patch of both match `gooztty.exe --version`.
 - [ ] `IsDebug` is `False` for the Release build.
 - [ ] The fourth element of the numeric version (`FilePrivatePart`) is the
   sequence number `N` for a Windows preview and `0` otherwise.
