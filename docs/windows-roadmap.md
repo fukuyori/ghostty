@@ -35,7 +35,7 @@ order, or status changes.
 
 | Branch | Purpose | Status |
 |---|---|---|
-| `main` | Mirror upstream `main` without Windows-specific changes | Local and `origin/main` are at `6d53bafb1`, the completed 2026-10-12 synchronization baseline (checked 2026-10-16) |
+| `main` | Mirror upstream `main` without Windows-specific changes | Local and `origin/main` are at `b58ef1d67`, the 2026-10-25 pre-cutover synchronization: the last upstream commit that builds with Zig 0.16. Later upstream commits require Zig 0.17 and wait for [#50](https://github.com/fukuyori/ghostty/issues/50) |
 | `windows` | Track upstream via `main`, implement upstream Ghostty features on Windows (including F4-F8), and fix port defects. This responsibility continues after `gooztty` is created. Until cutover it also handles the current product distribution | Current working branch |
 | `gooztty` | Long-lived branch created from `windows`: the rename, features or behavior extensions not provided by upstream Ghostty, product distribution, and user-facing documentation | Not yet created; branch workflow follows the advance Windows-support work, immediately before rename implementation |
 | `rebrand/gozitty` | Provisional rename branch, superseded by `gooztty` | Local branch from `windows` at `d440594ab`; not pushed; deleted only on request |
@@ -1457,7 +1457,7 @@ Completed work is excluded from the remaining schedule:
 
 | Work | Status | Evidence / issue handling |
 |---|---|---|
-| Upstream baseline synchronization | Done | Through `6d53bafb1`; details in the port log |
+| Upstream baseline synchronization | Done | Through `6d53bafb1` (2026-10-12), then through `b58ef1d67` before cutover (2026-10-25, `ab098bf02`); details in the port log |
 | Win32 apprt restructuring | Done | Completed 2026-10-15; #12 closed |
 | F1 command palette, F2 scrollbar, F3 file/directory drop | Done | Implementation and acceptance verification complete |
 | Creation rollback and IPC timeout verification | Done | 37 controlled cases verified; #49 closed on 2026-10-18 |
@@ -1501,7 +1501,7 @@ does not have to wait for the preceding feature's implementation.
 | Real-hardware verification (#5-#10) | On the existing-name build: 144/192 DPI, high contrast, screen readers, actual sleep/resume, several-hour endurance and real GPU-loss recovery. Sleep/resume is confirmed working by the owner (2026-10-17). High contrast was verified on 2026-10-14; the owner reported 144/192 DPI title bar, tab bar and divider checks and Narrator tab selection-state speech on 2026-10-18 (#5-#8 closed). Windows 10 is outside the support target. Real GPU-loss reproduction and the several-hour soak procedure remain unscheduled until reproducible steps are available; continue other checks when hardware is available |
 | F4-F8 specifications | Resolve open decisions early, before implementing each feature. Separate any new-name-dependent integration from upstream-compatible Windows behavior |
 | Build, distribution and output name indirection | Implement on `windows` with `ghostty` values before step 8. Extend the runtime name module to build/resource generation, installed outputs, CLI parsing and PowerShell tooling; decide how tools receive the shared values. Verify unchanged names, paths and behavior before cutover. Preserve source-file names and other exceptions listed in the rebranding plan |
-| Upstream synchronization before cutover | Before step 8, check the upstream state, select and record the integration revision, synchronize through `main` into `windows`, and pass the build/tests and affected runtime checks. Record the range and results in the port log; reconcile Zig/dependency changes with #50. The 2026-10-12 baseline alone does not satisfy this later check |
+| Upstream synchronization before cutover | Before step 8, check the upstream state, select and record the integration revision, synchronize through `main` into `windows`, and pass the build/tests and affected runtime checks. Record the range and results in the port log; reconcile Zig/dependency changes with #50. The 2026-10-12 baseline alone does not satisfy this later check. Done on 2026-10-25 through `b58ef1d67` (`ab098bf02`), the last Zig 0.16 commit; upstream's Zig 0.17 migration and the 121 later commits follow with #50 |
 | Rename preparation | Inventory naming sites including F4-F8, prepare icon assets, and draft migration instructions and acceptance cases. This does not apply the product rename or require early creation of `gooztty` |
 | Zig migration (#50) | Advance investigation and preparation on `windows`; migration and regression checks require upstream's Zig 0.17 support to be complete. This schedule does not assert that the prerequisite is met |
 | Other recorded acceptance gaps | Track search-specific physical IME/mixed-DPI checks, OpenGL, forced Acrylic fallback, terminal/divider capture loss and remaining accessibility checks against their existing evidence. Schedule checks when their environments are available; the completion of historical phases does not prove these checks passed. Windows 10 is unsupported and excluded from acceptance |
