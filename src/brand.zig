@@ -118,6 +118,7 @@ pub const manifest: Manifest = .{
 test {
     _ = @import("config/config_template.zig");
     _ = @import("brand_text.zig");
+    _ = @import("brand_env.zig");
 }
 
 test "brand values are unchanged until the rename" {

@@ -664,6 +664,7 @@ pub fn init(
 
         // don't leak GHOSTTY_LOG to any subprocesses
         _ = env.orderedRemove(brand.env_prefix ++ "LOG");
+        if (comptime builtin.os.tag == .windows) @import("brand_env.zig").removeOldTerminalVars(&env);
 
         var buf: [18]u8 = undefined;
         try env.put(

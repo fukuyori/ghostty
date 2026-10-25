@@ -5,6 +5,26 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-25: Old terminal variables removed after a rename (#67)
+
+- Decided by the owner: a renamed build removes, from its child
+  environment, the `GHOSTTY_*` variables that Ghostty itself sets for its
+  shell (`RESOURCES_DIR`, `BIN_DIR`, `SURFACE_ID`, `SHELL_FEATURES`,
+  `SHELL_INTEGRATION_POWERSHELL`/`_XDG_DIR`, `BASH_*`, `ZSH_ZDOTDIR`,
+  `SAVE_PS`, `QUICK_TERMINAL`). Variables a user sets for the old product,
+  such as `GHOSTTY_LOG` and `GHOSTTY_PAGER`, are kept.
+- `src/brand_env.zig` holds the list and does nothing while
+  `brand.env_prefix` is still `GHOSTTY_`; `src/Surface.zig` calls it on
+  Windows next to the existing `LOG` removal.
+- Verification from a shell inside the installed Ghostty, whose environment
+  had `GHOSTTY_BIN_DIR`, `_RESOURCES_DIR`, `_SHELL_FEATURES`,
+  `_SHELL_INTEGRATION_POWERSHELL` and `_SURFACE_ID`: a scratch build with
+  the Gooztty values in `brand.zig` started `pwsh -Command` through `-e`,
+  exited 0, and its child had only `GOOZTTY_*`, `TERM=xterm-gooztty` and
+  `TERM_PROGRAM=gooztty`, with no `GHOSTTY_*` variable. The Debug build
+  with unchanged names still passed its own `GHOSTTY_*` variables. Unit
+  tests cover both cases.
+
 ## 2026-10-25: Branch cutover to gooztty (rename step 8, #31)
 
 - Before the cutover, `windows` and `origin/windows` were both at
