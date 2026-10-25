@@ -5,6 +5,24 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-25: Command palette entry and ConPTY pipe names from brand.zig (#31)
+
+- The acceptance scan of a release build with the Gooztty values found two
+  product names outside the help strings that a rename should change: the
+  default command palette entry for the `text` action ("Ghostty", "Put a
+  little Ghostty in your terminal.", `src/input/command.zig`) and the
+  ConPTY pipe name `\\.\pipe\LOCAL\ghostty-pty-<pid>-<n>` (`src/pty.zig`).
+  Both now take the name from `src/brand.zig`; the command palette entry
+  does so on Windows only, keeping upstream's translatable strings
+  elsewhere. Values are unchanged with the Ghostty names.
+- Kept by the owner's decision: the crash directory `ghostty/crash`
+  (`src/crash/dir.zig`; the crash reporter is not available on Windows)
+  and the decorative `impure (ghostty-env)` prompt in the `+list-themes`
+  preview.
+- Verification: Debug and `-Demit-lib-vt` builds; full Zig suite 95/95
+  steps, 4121 passed, 64 skipped; a Debug GUI launch running
+  `cmd /c exit 0` exited 0.
+
 ## 2026-10-25: libghostty-vt left out of the release tree (#68)
 
 - The terminal does not load `ghostty-vt.dll`: the Debug `gooztty.exe`

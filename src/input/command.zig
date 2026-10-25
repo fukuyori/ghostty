@@ -1,5 +1,7 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const assert = @import("../quirks.zig").inlineAssert;
+const brand = @import("../brand.zig");
 const Allocator = std.mem.Allocator;
 const Action = @import("Binding.zig").Action;
 const i18n = @import("../os/i18n.zig");
@@ -705,8 +707,11 @@ fn actionCommands(action: Action.Key) []const Command {
 
         .text => comptime &.{.{
             .action = .{ .text = "👻" },
-            .title = i18n.N_("Ghostty"),
-            .description = i18n.N_("Put a little Ghostty in your terminal."),
+            .title = if (builtin.os.tag == .windows) brand.display_name else i18n.N_("Ghostty"),
+            .description = if (builtin.os.tag == .windows)
+                "Put a little " ++ brand.display_name ++ " in your terminal."
+            else
+                i18n.N_("Put a little Ghostty in your terminal."),
         }},
 
         // No commands because they're parameterized and there
