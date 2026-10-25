@@ -146,7 +146,7 @@ development phases are recorded in the
 | 7 | Release under the Ghostty name | `windows` | Done (`1.3.2-windows.16`) |
 | 8 | Name indirection with unchanged values, upstream synchronization, then create `gooztty` | `windows` → `gooztty` | Done |
 | 9 | Apply the Gooztty name: build and UI, configuration and terminal identity, installer, documentation | `gooztty` | Done |
-| 10 | Acceptance of the renamed application: names, paths, notification identity, signed installer, installation and removal | `gooztty` | In progress |
+| 10 | Acceptance of the renamed application: names, paths, notification identity, signed installer, installation and removal | `gooztty` | Done |
 
 Remaining real-hardware verification, open decisions, and deferred
 refactoring are tracked as

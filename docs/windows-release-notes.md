@@ -42,10 +42,8 @@ See the [changelog](windows-changelog.md#132-windows17) for the full list.
 
 ### Verification
 
-These are checks of release builds made from the `gooztty` sources during
-development; they precede the `.17` distribution and do not verify its
-artifacts. Installer, signature, installation, coexistence and removal
-checks of the distribution are separate.
+Development checks of release builds made from the `gooztty` sources,
+before the distribution was built:
 
 - Full Zig suite: 95/95 steps on `gooztty` at `6fc32eb68` (4121 passed, 64
   skipped) and on `windows` at `8392c08b1` (4122 passed, 64 skipped). The
@@ -71,6 +69,29 @@ checks of the distribution are separate.
 - IME input in the PowerShell prompt: the owner's `112233えん` commit gave
   `112233円` with a probe build of the fix; the window-state regression and
   the full Zig suite (4123 passed, 64 skipped) passed.
+
+Distribution checks of the artifacts the owner built with `-Sign` on
+2026-10-25 (installer from `94a0dc5b9`; archive from `e038edd3d`, which adds
+only the archive script):
+
+- `gooztty-1.3.2-windows.17-x64-setup.exe`: the installer, the staged
+  executable and the installed uninstaller are signed (`Valid`, timestamped);
+  product `Gooztty`, version `1.3.2-windows.17`. The installed tree holds the
+  Gooztty executable, the ConPTY host, the resources and the `xterm-gooztty`
+  terminfo entries only. A first installer built from an older release tree
+  also carried the old Ghostty terminfo files and was replaced;
+  `build-release.ps1` now starts from an empty output directory.
+- `gooztty-1.3.2-windows.17-x64-portable.zip` (SHA-256
+  `03E1970E86B8C064F667D25B581A3E3DABD04ACE95AD7E4A0E8339799F09589E`): 801
+  files under one folder, with the signed executable, `LICENSE` and the
+  third-party notices; only `Ghostty Default Style Dark` (an upstream theme)
+  keeps the old name.
+- Beside the installed `1.3.2-windows.16`: separate Apps & features entries,
+  Start menu groups, `PATH` entries and notification identities; `gooztty`
+  and `ghostty` resolve to their own executables in PowerShell and cmd;
+  Gooztty started from the Start menu opened its own window while Ghostty kept
+  running; removing Gooztty left the old Ghostty, its settings and
+  `%LOCALAPPDATA%\gooztty` in place.
 
 ### Known Limitations
 
