@@ -54,7 +54,7 @@ test "cache entry parsing valid formats" {
     // Test default terminfo version
     const entry_no_version = Entry.parse("test.com|1640995200").?;
     try testing.expectEqualStrings(
-        "xterm-ghostty",
+        brand.terminfo_name,
         entry_no_version.terminfo_version,
     );
 
