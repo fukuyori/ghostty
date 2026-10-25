@@ -5,6 +5,36 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-25: Release and installer scripts read brand.json (rename step 8, #31)
+
+- `scripts/build-release.ps1` reads `brand.json` from the prefix it just
+  built and takes the executable, resource directory, terminfo source and
+  entry names, and the display name that starts the `--version` line from
+  it. `scripts/build-installer.ps1` reads `brand.json` from the release
+  tree for the same names, the staged executable and resources, the user
+  terminfo directory (hex of the terminfo name's first letter) and the
+  default output file name; it stops when the executable's ProductName
+  differs from `brand.json`, and passes the display name, executable name,
+  resource directory, AppId (without braces) and AUMID to ISCC.
+- `dist/windows/ghostty.iss` takes those five values as required defines
+  (`#error` when missing) for AppId, AppName, version-info names, install
+  directory, group, uninstall name and icon, PATH message, files, shortcuts,
+  the notification registry keys and the launch entry. URLs, the
+  upstream-shared `ghostty.ico` file name and the internal sign-tool name
+  are unchanged.
+- Verification: `build-release.ps1 -OutputDirectory zig-out\release-step8`
+  exited 0 with version 1.3.2-windows.16 (numeric 1.3.2.16), compiled
+  terminfo detected and 8 shell-integration files. ISCC 6 compiled
+  `ghostty.iss` with `/O-` and the values from that tree's `brand.json`;
+  without the new defines it stopped with "GhosttyAppName must be
+  defined". `build-installer.ps1` itself was not run, because it produces
+  a distribution package.
+- `/O-` does not protect the output directory: ISCC still deleted the
+  same-named `ghostty-1.3.2-windows.16-x64-setup.exe` from the default
+  `zig-out\installer`. That file is the owner's published package; the
+  owner chose not to restore it. Script compile checks must pass a scratch
+  `GhosttyOutputDir`.
+
 ## 2026-10-25: Content rewrite of installed files (rename step 8, #31)
 
 - An inventory of the installed contents found 606 product-name

@@ -1,4 +1,4 @@
-﻿; Inno Setup script for the Ghostty Windows installer.
+; Inno Setup script for the Ghostty Windows installer.
 ;
 ; Compile through scripts/build-installer.ps1, which supplies every define
 ; below from the release tree and optionally configures Authenticode signing.
@@ -10,6 +10,13 @@
 ;   GhosttySourceDir       Release prefix that contains bin\ and share\
 ;   GhosttyOutputDir       Directory that receives the installer
 ;   GhosttyOutputBase      Installer file name without extension
+;   GhosttyAppName         Product name shown to people (brand.display_name)
+;   GhosttyExeName         Executable name without .exe (brand.exe_name)
+;   GhosttyResourcesDir    Directory under share\ (brand.resources_dir_name)
+;   GhosttyAppId           Installer AppId GUID without braces
+;                          (brand.windows.installer_app_id)
+;   GhosttyAppUserModelId  Toast notification AUMID
+;                          (brand.windows.app_user_model_id)
 ;   GhosttySign            Defined when the installer and uninstaller are
 ;                          signed with the "ghosttysign" sign tool that the
 ;                          build script registers on the ISCC command line.
@@ -23,20 +30,35 @@
 #ifndef GhosttySourceDir
   #error GhosttySourceDir must be defined
 #endif
+#ifndef GhosttyAppName
+  #error GhosttyAppName must be defined
+#endif
+#ifndef GhosttyExeName
+  #error GhosttyExeName must be defined
+#endif
+#ifndef GhosttyResourcesDir
+  #error GhosttyResourcesDir must be defined
+#endif
+#ifndef GhosttyAppId
+  #error GhosttyAppId must be defined
+#endif
+#ifndef GhosttyAppUserModelId
+  #error GhosttyAppUserModelId must be defined
+#endif
 #ifndef GhosttyOutputDir
   #define GhosttyOutputDir "..\..\zig-out\installer"
 #endif
 #ifndef GhosttyOutputBase
-  #define GhosttyOutputBase "ghostty-" + GhosttyVersion + "-x64-setup"
+  #define GhosttyOutputBase GhosttyExeName + "-" + GhosttyVersion + "-x64-setup"
 #endif
 
 [Setup]
 ; Keep this GUID stable across releases so upgrades replace the previous
 ; installation instead of creating a second entry.
-AppId={{6F0C5B4E-2B6D-4E4A-9C2E-3A1D5F7B8C90}
-AppName=Ghostty
+AppId={{{#GhosttyAppId}}
+AppName={#GhosttyAppName}
 AppVersion={#GhosttyVersion}
-AppVerName=Ghostty {#GhosttyVersion}
+AppVerName={#GhosttyAppName} {#GhosttyVersion}
 AppPublisher=fukuyori
 AppPublisherURL=https://github.com/fukuyori/ghostty
 AppSupportURL=https://github.com/fukuyori/ghostty/issues
@@ -44,13 +66,13 @@ AppUpdatesURL=https://github.com/fukuyori/ghostty/releases
 VersionInfoVersion={#GhosttyNumericVersion}
 VersionInfoTextVersion={#GhosttyVersion}
 VersionInfoProductTextVersion={#GhosttyVersion}
-VersionInfoDescription=Ghostty terminal emulator setup
-VersionInfoProductName=Ghostty
-DefaultDirName={autopf}\Ghostty
-DefaultGroupName=Ghostty
+VersionInfoDescription={#GhosttyAppName} terminal emulator setup
+VersionInfoProductName={#GhosttyAppName}
+DefaultDirName={autopf}\{#GhosttyAppName}
+DefaultGroupName={#GhosttyAppName}
 DisableProgramGroupPage=yes
-UninstallDisplayName=Ghostty
-UninstallDisplayIcon={app}\bin\ghostty.exe
+UninstallDisplayName={#GhosttyAppName}
+UninstallDisplayIcon={app}\bin\{#GhosttyExeName}.exe
 LicenseFile=..\..\LICENSE
 SetupIconFile=ghostty.ico
 ; The terminal is x64 only. x64compatible also covers Arm64 hosts that run
@@ -82,9 +104,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
 
 [CustomMessages]
-english.AddToPath=Add Ghostty to the PATH environment variable
+english.AddToPath=Add {#GhosttyAppName} to the PATH environment variable
 english.EnvironmentGroup=Environment:
-japanese.AddToPath=環境変数 PATH に Ghostty を追加する
+japanese.AddToPath=環境変数 PATH に {#GhosttyAppName} を追加する
 japanese.EnvironmentGroup=環境:
 
 [Tasks]
@@ -95,7 +117,7 @@ Name: "addtopath"; Description: "{cm:AddToPath}"; GroupDescription: "{cm:Environ
 ; The layout must stay bin\ + share\ because the executable locates its
 ; resources by climbing from its own path until share\terminfo\ghostty.terminfo
 ; is found; share\ghostty next to it then becomes the resources directory.
-Source: "{#GhosttySourceDir}\bin\ghostty.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
+Source: "{#GhosttySourceDir}\bin\{#GhosttyExeName}.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
 ; The ConPTY host, next to the executable so Ghostty loads it in preference
 ; to the one in kernel32. That one drops APC, which hides every image a
 ; program draws with the Kitty graphics protocol. Both files are required
@@ -109,23 +131,23 @@ Source: "..\..\dist\windows\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; Flags: ig
 ; source. Without it, programs that read terminfo inside Ghostty fail with
 ; 'xterm-ghostty': unknown terminal type.
 Source: "{#GhosttySourceDir}\share\terminfo\*"; DestDir: "{app}\share\terminfo"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#GhosttySourceDir}\share\ghostty\*"; DestDir: "{app}\share\ghostty"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#GhosttySourceDir}\share\{#GhosttyResourcesDir}\*"; DestDir: "{app}\share\{#GhosttyResourcesDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Ghostty"; Filename: "{app}\bin\ghostty.exe"; WorkingDir: "{userdocs}"
-Name: "{group}\Uninstall Ghostty"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\Ghostty"; Filename: "{app}\bin\ghostty.exe"; WorkingDir: "{userdocs}"; Tasks: desktopicon
+Name: "{group}\{#GhosttyAppName}"; Filename: "{app}\bin\{#GhosttyExeName}.exe"; WorkingDir: "{userdocs}"
+Name: "{group}\Uninstall {#GhosttyAppName}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\{#GhosttyAppName}"; Filename: "{app}\bin\{#GhosttyExeName}.exe"; WorkingDir: "{userdocs}"; Tasks: desktopicon
 
 [Registry]
 ; Ghostty registers this AppUserModelID for toast notifications when it first
 ; shows one, and Windows then keeps per-app notification settings under it.
 ; Neither is created here; both are removed for the uninstalling user. The
-; value must match brand.windows.app_user_model_id.
-Root: HKCU; Subkey: "Software\Classes\AppUserModelId\fukuyori.Ghostty"; Flags: uninsdeletekey dontcreatekey
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\fukuyori.Ghostty"; Flags: uninsdeletekey dontcreatekey
+; value comes from brand.windows.app_user_model_id.
+Root: HKCU; Subkey: "Software\Classes\AppUserModelId\{#GhosttyAppUserModelId}"; Flags: uninsdeletekey dontcreatekey
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\{#GhosttyAppUserModelId}"; Flags: uninsdeletekey dontcreatekey
 
 [Run]
-Filename: "{app}\bin\ghostty.exe"; Description: "{cm:LaunchProgram,Ghostty}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\bin\{#GhosttyExeName}.exe"; Description: "{cm:LaunchProgram,{#GhosttyAppName}}"; Flags: nowait postinstall skipifsilent
 
 [Code]
 // PATH is edited in the registry hive that matches the install mode:

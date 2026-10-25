@@ -126,12 +126,16 @@ $outputRoot = if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
 # ---------------------------------------------------------------------------
 # Validate the release tree.
 # ---------------------------------------------------------------------------
-$releaseExecutable = Join-Path $releaseRoot "bin\ghostty.exe"
+# The product names come from the brand.json the release build installed.
+. (Join-Path $PSScriptRoot "windows-brand.ps1")
+$brand = Get-GhosttyBrand -Prefix $releaseRoot
+$releaseExecutable = Get-GhosttyBrandExecutable -Prefix $releaseRoot -Brand $brand
+$releaseResources = Join-Path $releaseRoot (Join-Path "share" $brand.resources_dir_name)
 $requiredPaths = @(
     $releaseExecutable
-    (Join-Path $releaseRoot "share\terminfo\ghostty.terminfo")
-    (Join-Path $releaseRoot "share\ghostty\themes")
-    (Join-Path $releaseRoot "share\ghostty\shell-integration")
+    (Join-Path $releaseRoot ("share\terminfo\{0}.terminfo" -f $brand.identifier))
+    (Join-Path $releaseResources "themes")
+    (Join-Path $releaseResources "shell-integration")
     # Both halves of the ConPTY host. Without them Ghostty falls back to the
     # ConPTY in kernel32, which drops the escapes that carry images.
     (Join-Path $releaseRoot "bin\conpty.dll")
@@ -145,11 +149,11 @@ foreach ($required in $requiredPaths) {
 
 # The compiled terminfo database is only present when the release build found
 # tic. Ship whatever is there, and say so when the database is missing: without
-# it, programs reading terminfo inside Ghostty cannot resolve xterm-ghostty.
+# it, programs reading terminfo inside Ghostty cannot resolve its terminfo name.
 $terminfoRoot = Join-Path $releaseRoot (Join-Path "share" "terminfo")
 $terminfoCompiled = @(
     Get-ChildItem -LiteralPath $terminfoRoot -File -Recurse |
-        Where-Object { $_.Name -in @("ghostty", "xterm-ghostty") }
+        Where-Object { $_.Name -in @($brand.identifier, $brand.terminfo_name) }
 ).Count -gt 0
 if (-not $terminfoCompiled) {
     Write-Warning ("The release tree has no compiled terminfo database, so " +
@@ -158,16 +162,17 @@ if (-not $terminfoCompiled) {
 }
 
 # At startup Ghostty copies this one entry into the running user's
-# ~/.terminfo\78, which is where the ncurses in Git for Windows finds it no
+# ~/.terminfo\<hex of the first letter>, which is where the ncurses in Git for Windows finds it no
 # matter which drive the working directory is on. Without the entry in the
 # package there is nothing to copy, and the users of such a build have to run
 # tic themselves. Report the state so package verification can see it.
-$terminfoUserEntry = Join-Path $terminfoRoot (Join-Path "78" "xterm-ghostty")
+$terminfoUserDir = "{0:x2}" -f [int][char]$brand.terminfo_name[0]
+$terminfoUserEntry = Join-Path $terminfoRoot (Join-Path $terminfoUserDir $brand.terminfo_name)
 $terminfoUserEntryPresent = Test-Path -LiteralPath $terminfoUserEntry -PathType Leaf
 if (-not $terminfoUserEntryPresent) {
-    Write-Warning ("The release tree has no share\terminfo\78\xterm-ghostty, " +
+    Write-Warning ("The release tree has no share\terminfo\$terminfoUserDir\$($brand.terminfo_name), " +
         "so Ghostty cannot register the terminfo entry for the user at " +
-        "startup and xterm-ghostty stays unresolved outside the install " +
+        "startup and $($brand.terminfo_name) stays unresolved outside the install " +
         "drive. See docs/windows.md, Terminal Type and terminfo.")
 }
 
@@ -179,6 +184,10 @@ if ($versionInfo.IsDebug) {
     throw "The release executable is a debug build; installers are built from ReleaseFast output."
 }
 $versionString = $versionInfo.FileVersion
+if ($versionInfo.ProductName -ne $brand.display_name) {
+    throw ("brand.json names the product $($brand.display_name) but the executable " +
+        "reports $($versionInfo.ProductName). Rebuild with scripts/build-release.ps1.")
+}
 . (Join-Path $PSScriptRoot "windows-version.ps1")
 $expectedVersion = Get-GhosttyWindowsVersion -RepositoryRoot $repositoryRoot
 if ($expectedVersion -ne $versionString) {
@@ -192,13 +201,13 @@ $numericVersion = "{0}.{1}.{2}.{3}" -f `
     $versionInfo.FilePrivatePart
 # The file name carries the version, minus any build metadata. Inno Setup
 # rejects file names outside this character set.
-#   1.3.2-windows.3 -> ghostty-1.3.2-windows.3-x64-setup.exe
+#   1.3.2-windows.3 -> <exe name>-1.3.2-windows.3-x64-setup.exe
 if (-not [string]::IsNullOrWhiteSpace($OutputBaseName)) {
     $outputBase = $OutputBaseName
 } else {
     $safeVersion = $versionString.Split("+")[0]
     $safeVersion = ($safeVersion -replace '[^0-9A-Za-z.\-]', '-') -replace '-{2,}', '-'
-    $outputBase = "ghostty-$($safeVersion.Trim('-'))-x64-setup"
+    $outputBase = "$($brand.exe_name)-$($safeVersion.Trim('-'))-x64-setup"
 }
 
 # ---------------------------------------------------------------------------
@@ -349,7 +358,8 @@ if (Test-Path -LiteralPath $stageRoot) {
 [System.IO.Directory]::CreateDirectory($outputRoot) | Out-Null
 [System.IO.Directory]::CreateDirectory((Join-Path $stageRoot "bin")) | Out-Null
 [System.IO.Directory]::CreateDirectory((Join-Path $stageRoot "share")) | Out-Null
-Copy-Item -LiteralPath $releaseExecutable -Destination (Join-Path $stageRoot "bin\ghostty.exe")
+$stagedExecutable = Get-GhosttyBrandExecutable -Prefix $stageRoot -Brand $brand
+Copy-Item -LiteralPath $releaseExecutable -Destination $stagedExecutable
 # The ConPTY host travels with the executable, and signing must not reach
 # into zig-out/release, so it is staged too. Both halves or neither:
 # conpty.dll on its own silently falls back to the in-box host.
@@ -365,11 +375,10 @@ Copy-Item `
     -Destination (Join-Path $stageRoot "share\terminfo") `
     -Recurse
 Copy-Item `
-    -LiteralPath (Join-Path $releaseRoot "share\ghostty") `
-    -Destination (Join-Path $stageRoot "share\ghostty") `
+    -LiteralPath $releaseResources `
+    -Destination (Join-Path $stageRoot (Join-Path "share" $brand.resources_dir_name)) `
     -Recurse
 
-$stagedExecutable = Join-Path $stageRoot "bin\ghostty.exe"
 if ($Sign) {
     Write-Host "Signing $stagedExecutable"
     Invoke-SignTool -File $stagedExecutable
@@ -384,6 +393,11 @@ $isccArguments = @(
     "/DGhosttySourceDir=$stageRoot"
     "/DGhosttyOutputDir=$outputRoot"
     "/DGhosttyOutputBase=$outputBase"
+    "/DGhosttyAppName=$($brand.display_name)"
+    "/DGhosttyExeName=$($brand.exe_name)"
+    "/DGhosttyResourcesDir=$($brand.resources_dir_name)"
+    "/DGhosttyAppId=$($brand.installer_app_id.Trim('{', '}'))"
+    "/DGhosttyAppUserModelId=$($brand.app_user_model_id)"
 )
 if ($Sign) {
     # Inno Setup runs this command for the installer and the uninstaller.
@@ -437,7 +451,7 @@ $executableSignature = Get-AuthenticodeSignature -LiteralPath $stagedExecutable
 $installerSignature = Get-AuthenticodeSignature -LiteralPath $installer
 if ($Sign) {
     foreach ($entry in @(
-        @{ Name = "ghostty.exe"; Signature = $executableSignature },
+        @{ Name = "$($brand.exe_name).exe"; Signature = $executableSignature },
         @{ Name = "installer"; Signature = $installerSignature }
     )) {
         if ($null -eq $entry.Signature.SignerCertificate) {

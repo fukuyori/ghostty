@@ -72,6 +72,7 @@ if (@($AdditionalZigArgs | Where-Object { $_ -like "-Dversion-string*" }).Count 
         "in dist/windows/version.txt instead.")
 }
 . (Join-Path $PSScriptRoot "windows-version.ps1")
+. (Join-Path $PSScriptRoot "windows-brand.ps1")
 $expectedVersion = Get-GhosttyWindowsVersion -RepositoryRoot $repositoryRoot
 
 $buildArguments = @(
@@ -103,12 +104,14 @@ try {
     Pop-Location
 }
 
-$executable = Join-Path $releaseRoot "bin\ghostty.exe"
+# The product names come from the brand.json the build just installed.
+$brand = Get-GhosttyBrand -Prefix $releaseRoot
+$executable = Get-GhosttyBrandExecutable -Prefix $releaseRoot -Brand $brand
 if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
     throw "The build completed without producing $executable."
 }
 
-$resources = Join-Path $releaseRoot "share\ghostty"
+$resources = Join-Path $releaseRoot (Join-Path "share" $brand.resources_dir_name)
 if (-not (Test-Path -LiteralPath $resources -PathType Container)) {
     throw "The build completed without producing $resources."
 }
@@ -133,21 +136,21 @@ if ($shellIntegrationFileCount -eq 0 -or $themeFileCount -eq 0) {
 
 # The terminfo source is always installed; the compiled database only when the
 # build machine had tic. Without it, programs that read terminfo inside
-# Ghostty report 'xterm-ghostty': unknown terminal type.
+# Ghostty report that its terminfo name is an unknown terminal type.
 $terminfoRoot = Join-Path $releaseRoot (Join-Path "share" "terminfo")
-$terminfoSource = Join-Path $terminfoRoot "ghostty.terminfo"
+$terminfoSource = Join-Path $terminfoRoot ("{0}.terminfo" -f $brand.identifier)
 if (-not (Test-Path -LiteralPath $terminfoSource -PathType Leaf)) {
     throw "The release is missing the terminfo source: $terminfoSource"
 }
 $terminfoEntries = @(
     Get-ChildItem -LiteralPath $terminfoRoot -File -Recurse |
-        Where-Object { $_.Name -in @("ghostty", "xterm-ghostty") }
+        Where-Object { $_.Name -in @($brand.identifier, $brand.terminfo_name) }
 )
 $terminfoCompiled = $terminfoEntries.Count -gt 0
 if (-not $terminfoCompiled) {
     Write-Warning ("The release contains no compiled terminfo database. " +
         "Install tic (Git for Windows ships one) and rebuild, or programs " +
-        "that read terminfo will not resolve xterm-ghostty.")
+        "that read terminfo will not resolve $($brand.terminfo_name).")
 }
 
 $stream = [System.IO.File]::OpenRead($executable)
@@ -304,13 +307,15 @@ $versionOutput = & $executable --version 2>&1 | Out-String
 if ($LASTEXITCODE -ne 0) {
     throw "The release executable failed to report its version."
 }
+# The first line is "<display name> <version>".
+$versionPattern = '^' + [regex]::Escape($brand.display_name) + '\s+(\S+)'
 $versionLine = @(
-    $versionOutput -split "`r?`n" | Where-Object { $_ -match '^Ghostty\s+\S+' }
+    $versionOutput -split "`r?`n" | Where-Object { $_ -match $versionPattern }
 ) | Select-Object -First 1
 if ([string]::IsNullOrWhiteSpace($versionLine)) {
     throw "The release executable returned an unrecognized version string."
 }
-$cliVersion = ($versionLine -replace '^Ghostty\s+', '').Trim()
+$cliVersion = ($versionLine -replace $versionPattern, '$1').Trim()
 if ($cliVersion -ne $versionInfo.FileVersion) {
     throw "The CLI version does not match the Windows FileVersion."
 }

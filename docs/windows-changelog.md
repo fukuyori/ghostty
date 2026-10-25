@@ -33,6 +33,9 @@ known issues, and known limitations of each version; the
   value and the Vim attribution; a guard fails the build on unexpected
   names. With unchanged values the installed files are byte-identical
   (rename step 8, #31).
+- Make the release and installer scripts and the Inno Setup script take the
+  executable, resource, terminfo, display, AppId and AUMID names from
+  `brand.json`, with unchanged values (rename step 8, #31).
 
 ### Documentation
 
