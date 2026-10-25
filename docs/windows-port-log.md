@@ -5,6 +5,21 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-25: Branch cutover to gooztty (rename step 8, #31)
+
+- Before the cutover, `windows` and `origin/windows` were both at
+  `842825597` with a clean working tree. `gooztty` was created from that
+  commit and pushed, and the GitHub default branch was switched from
+  `windows` to `gooztty` (`gh repo view` reports `gooztty`).
+- Decided by the owner on 2026-10-25: no pull requests (changes are
+  committed directly to the owning branch; pull-request creation is limited
+  to collaborators), and no emergency distribution while the rename is being
+  implemented.
+- From this point `windows` publishes nothing and edits only this log among
+  the documentation; `AGENTS.md` on `windows` describes that role. The
+  provisional local `rebrand/gozitty` branch is kept until its deletion is
+  requested.
+
 ## 2026-10-25: Pre-cutover upstream synchronization through b58ef1d67 (rename step 8, #31)
 
 - Upstream state on 2026-10-25: `upstream/main` at `cec8b92f1` was 263

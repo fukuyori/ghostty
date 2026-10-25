@@ -2,10 +2,13 @@
 
 A file for [guiding coding agents](https://agents.md/).
 
-This fork develops the native Windows build of Ghostty on the `windows`
-branch. The macOS and Linux apps are not built or tested here; upstream owns
-them. Work in this repository targets Win32, D3D11, and the PowerShell
-tooling around them.
+This fork develops the native Windows build of Ghostty. This copy of the
+guide belongs to the `windows` branch, which keeps the Windows port in step
+with upstream. The product rename to Gooztty, its own features and all
+releases live on `gooztty`, which is the default branch and has its own copy
+of this guide. The macOS and Linux apps are not built or tested here;
+upstream owns them. Work in this repository targets Win32, D3D11, and the
+PowerShell tooling around them.
 
 ## Branch Responsibilities
 
@@ -23,14 +26,20 @@ tooling around them.
 - Changes flow upstream → `main` → `windows` → `gooztty`. Fix port defects
   on `windows` first, including those found while running Gooztty. Fix rename
   and Gooztty-specific defects on `gooztty`; never merge it into `windows`.
-- F4-F8 proceed on `windows` before the rename. After F8 acceptance, the
-  owner performs a release under the current Ghostty name. Then create
-  `gooztty` immediately
-  before rename implementation, when instructed, after completing the
-  build/distribution/output name-indirection mechanisms with unchanged
-  Ghostty values and verifying the pre-cutover upstream synchronization.
-  Branch creation, naming changes, and feature implementation are separate
-  actions.
+- `gooztty` was created from `windows` at `842825597` on 2026-10-25. The
+  name indirection (`src/brand.zig`, `brand.json`, the build-time rewrites)
+  stays on `windows` with the Ghostty values; only `gooztty` changes them.
+- Commit directly to the branch that owns the change. Pull requests are not
+  used, and the repository limits their creation to collaborators. Before
+  committing, check with `git status -sb` that the current branch matches
+  the purpose of the change.
+- On `windows`, record synchronization results, Windows-support
+  implementations, design decisions and verification evidence only in
+  `docs/windows-port-log.md`. The README, the other `docs/windows*.md`
+  files, release notes, changelog, roadmap and
+  `docs/version-update-checklist.md` are maintained on `gooztty`; do not
+  edit them on `windows`. When `windows` is merged into `gooztty`, those
+  documents are updated there.
 
 See `docs/windows-rebranding-plan.md` Section 1.2 for the full boundary and
 `docs/windows-roadmap.md` Section 7 for the schedule.
@@ -109,12 +118,12 @@ the exit code.
 - Windows packaging: `dist/windows` (icon, manifest, resource script, and the
   Inno Setup script)
 - Windows tooling: `scripts/*.ps1`
-- Windows documentation: `docs/windows.md` (user guide),
-  `docs/windows-roadmap.md` (implementation status and verification matrix),
-  `docs/windows-release-notes.md`, `docs/windows-changelog.md`, and
-  `docs/version-update-checklist.md`
-- Windows development records: `docs/windows-port-log.md` (synchronization,
-  implementation decisions and verification evidence),
+- Windows development record edited on `windows`: `docs/windows-port-log.md`
+  (synchronization, implementation decisions and verification evidence)
+- Documentation maintained on `gooztty` and read-only here:
+  `docs/windows.md` (user guide), `docs/windows-roadmap.md` (implementation
+  status and verification matrix), `docs/windows-release-notes.md`,
+  `docs/windows-changelog.md`, `docs/version-update-checklist.md`,
   `docs/windows-upstream-feature-plan.md` (feature scope and acceptance), and
   `docs/windows-rebranding-plan.md` (branch responsibilities and rename plan)
 
@@ -124,16 +133,14 @@ manageable and other platforms keep their behavior.
 
 ## Releases
 
-- The default branch is `windows`. Push to `origin` only; `upstream` and
+- `windows` publishes nothing: no version change, tag, release or
+  installer. Releases are built from `gooztty`. `dist\windows\version.txt`
+  stays as it was at the cutover; the release and installer scripts remain
+  usable here for verification builds only.
+- The default branch is `gooztty`. Push to `origin` only; `upstream` and
   `mattn` are configured with pushing disabled.
-- Preview versions are `X.Y.Z-windows.N`, where `X.Y.Z` matches the numeric
-  part of `build.zig.zon` and `N` is the preview sequence. Tags are
-  `vX.Y.Z-windows.N`. The numbering rules and the full checklist are in
-  `docs/version-update-checklist.md`.
-- Record every release in `docs/windows-release-notes.md` and every change
-  between releases in `docs/windows-changelog.md`, then update the state,
-  remaining work, and verification matrix in `docs/windows-roadmap.md`.
-- Commit, tag, push, and package only when the request says so.
+- Existing `vX.Y.Z-windows.N` tags record releases under the Ghostty name.
+- Commit and push only when the request says so.
 
 ## Issue and PR Guidelines
 
@@ -142,5 +149,5 @@ These rules are about the upstream repository, `ghostty-org/ghostty`:
 - Never create an issue upstream.
 - Never create a PR upstream.
 
-Issues and pull requests on this fork, `fukuyori/ghostty`, are fine when the
-repository owner asks for them.
+Issues on this fork, `fukuyori/ghostty`, are fine when the repository owner
+asks for them. The fork does not use pull requests.
