@@ -27,6 +27,12 @@ known issues, and known limitations of each version; the
   executable's ProductName, FileDescription and OriginalFilename from
   `src/brand.zig`, with unchanged values and an unchanged install tree
   (rename step 8, #31).
+- Rewrite the contents of the installed shell integration, completions,
+  Vim and Sublime files and the configuration template from
+  `src/brand.zig` at build time, keeping upstream URLs, the `window-theme`
+  value and the Vim attribution; a guard fails the build on unexpected
+  names. With unchanged values the installed files are byte-identical
+  (rename step 8, #31).
 
 ### Documentation
 

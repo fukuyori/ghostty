@@ -429,6 +429,16 @@ pub fn build(b: *std.Build) !void {
         });
         const build_helpers_run = b.addRunArtifact(build_helpers_test);
         test_step.dependOn(&build_helpers_run.step);
+        const brand_rewrite_test = b.addTest(.{
+            .name = "ghostty-brand-rewrite-test",
+            .filters = test_filters,
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("src/build/brand_rewrite.zig"),
+                .target = config.baselineTarget(b.graph.io),
+                .optimize = .Debug,
+            }),
+        });
+        test_step.dependOn(&b.addRunArtifact(brand_rewrite_test).step);
 
         // Normal tests always test our libghostty modules
         //test_step.dependOn(test_lib_vt_step);

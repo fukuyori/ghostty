@@ -4309,7 +4309,7 @@ fn writeConfigTemplate(path: []const u8) !void {
     var file_writer = file.writer(global.io(), &buf);
     const writer = &file_writer.interface;
     try writer.print(
-        @embedFile("./config-template"),
+        @import("config_template.zig").text,
         .{ .path = path },
     );
     try writer.flush();

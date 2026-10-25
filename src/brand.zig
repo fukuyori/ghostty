@@ -20,8 +20,16 @@ pub const identifier = "ghostty";
 /// Prefix of environment variables the product reads.
 pub const env_prefix = "GHOSTTY_";
 
-/// File name of the executable, without the platform extension.
+/// File name of the executable, without the platform extension. It must
+/// equal `identifier`: the installed shell integration and completions
+/// (src/build/brand_rewrite.zig) use one name for both.
 pub const exe_name = identifier;
+
+comptime {
+    if (!@import("std").mem.eql(u8, exe_name, identifier)) {
+        @compileError("brand.exe_name must equal brand.identifier");
+    }
+}
 
 /// Directory under `share/` that holds the installed resources.
 pub const resources_dir_name = identifier;
@@ -101,6 +109,10 @@ pub const manifest: Manifest = .{
     .app_user_model_id = windows.app_user_model_id,
     .installer_app_id = windows.installer_app_id,
 };
+
+test {
+    _ = @import("config/config_template.zig");
+}
 
 test "brand values are unchanged until the rename" {
     const testing = @import("std").testing;

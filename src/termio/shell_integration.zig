@@ -398,7 +398,7 @@ fn setupBash(
     var script_path_buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
     const script_path = try std.fmt.bufPrint(
         &script_path_buf,
-        "{s}/shell-integration/bash/ghostty.bash",
+        "{s}/shell-integration/bash/" ++ brand.identifier ++ ".bash",
         .{resource_dir},
     );
     if (std.Io.Dir.openFileAbsolute(global.io(), script_path, .{})) |file| {
@@ -455,7 +455,7 @@ test "bash" {
 
     var path_buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
     try testing.expectEqualStrings(
-        try std.fmt.bufPrint(&path_buf, "{s}/ghostty.bash", .{res.shell_path}),
+        try std.fmt.bufPrint(&path_buf, "{s}/" ++ brand.identifier ++ ".bash", .{res.shell_path}),
         env.get("ENV").?,
     );
 }
@@ -594,7 +594,7 @@ test "bash: ENV" {
 
     var path_buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
     try testing.expectEqualStrings(
-        try std.fmt.bufPrint(&path_buf, "{s}/ghostty.bash", .{res.shell_path}),
+        try std.fmt.bufPrint(&path_buf, "{s}/" ++ brand.identifier ++ ".bash", .{res.shell_path}),
         env.get("ENV").?,
     );
 }
@@ -834,7 +834,7 @@ fn setupNushell(
     // We can consider making this more specific based on the set of
     // enabled shell features (e.g. `use ghostty sudo`). At the moment,
     // shell features are all runtime-guarded in the nushell script.
-    try cmd.appendArg("--execute 'use ghostty *'");
+    try cmd.appendArg("--execute 'use " ++ brand.identifier ++ " *'");
 
     // Walk through the rest of the given arguments. If we see an option that
     // would require complex or unsupported integration behavior, we bail out
@@ -919,7 +919,7 @@ fn setupPowerShell(
     var path_buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
     const script_path = try std.fmt.bufPrint(
         &path_buf,
-        "{s}/shell-integration/powershell/ghostty-integration.ps1",
+        "{s}/shell-integration/powershell/" ++ brand.identifier ++ "-integration.ps1",
         .{resource_dir},
     );
     const file = std.Io.Dir.openFileAbsolute(global.io(), script_path, .{}) catch |err| {
@@ -966,7 +966,7 @@ test "PowerShell integration loads only for interactive startup" {
         integrated_args[4],
     );
     try testing.expectEqualStrings(
-        try std.fmt.allocPrint(alloc, "{s}/ghostty-integration.ps1", .{res.shell_path}),
+        try std.fmt.allocPrint(alloc, "{s}/" ++ brand.identifier ++ "-integration.ps1", .{res.shell_path}),
         env.get(brand.env_prefix ++ "SHELL_INTEGRATION_POWERSHELL").?,
     );
 
@@ -1016,7 +1016,7 @@ test "nushell" {
     defer env.deinit();
 
     const command = try setupNushell(alloc, .{ .shell = "nu" }, res.path, &env);
-    try testing.expectEqualStrings("nu --execute 'use ghostty *'", command.?.shell);
+    try testing.expectEqualStrings("nu --execute 'use " ++ brand.identifier ++ " *'", command.?.shell);
 
     var path_buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
     try testing.expectEqualStrings(
@@ -1198,11 +1198,11 @@ const TmpResourcesDir = struct {
 
         switch (shell) {
             .bash => try tmp_dir.dir.writeFile(std.testing.io, .{
-                .sub_path = "shell-integration/bash/ghostty.bash",
+                .sub_path = "shell-integration/bash/" ++ brand.identifier ++ ".bash",
                 .data = "",
             }),
             .powershell => try tmp_dir.dir.writeFile(std.testing.io, .{
-                .sub_path = "shell-integration/powershell/ghostty-integration.ps1",
+                .sub_path = "shell-integration/powershell/" ++ brand.identifier ++ "-integration.ps1",
                 .data = "",
             }),
             else => {},

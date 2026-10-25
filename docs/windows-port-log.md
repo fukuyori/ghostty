@@ -5,6 +5,48 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-25: Content rewrite of installed files (rename step 8, #31)
+
+- An inventory of the installed contents found 606 product-name
+  occurrences: 271 in the shell integration, 327 in the generated
+  completions and editor files and 8 in the configuration template. Codex
+  reviewed it read-only; its findings (linked names across files and Zig,
+  further test literals, a semantic guard instead of a bare count, and a
+  test with substitute names) were applied. Owner decisions on 2026-10-25:
+  keep the Vim `Maintainer: Ghostty <...ghostty-org/ghostty>` line and the
+  template line pointing at ghostty.org verbatim; rename internal shell
+  identifiers; rename the elvish module with a migration note at the rename
+  (step 9); apply the CLI-help rewrite where the help strings are generated
+  (the CLI-output package), which the fish descriptions follow; ship the
+  same generated files as now; require `exe_name == identifier`, enforced
+  at compile time in `src/brand.zig`.
+- `src/build/brand_rewrite.zig` (fork-owned, std only) holds the rules per
+  profile: shell integration (env prefix, the `+ssh` executable paths, then
+  every remaining name; `bash-preexec.sh` copied verbatim; `.md` skipped;
+  path components renamed), bash/zsh/fish completions (anchored rules only,
+  so the `window-theme` value `ghostty` and URLs stay), Vim (attribution
+  line kept, file-type patterns follow the configuration directory and
+  extension) and Sublime. The build runs it as a host tool on every
+  generator output and on the shell-integration tree. A guard rewrites each
+  file with substitute names and fails the build unless the number of
+  Ghostty names left equals the profile's kept count (shell 0, bash 3,
+  zsh 1, fish 19 until the help rewrite, each Vim file 3, Sublime 0).
+- The configuration template is rewritten at compile time by
+  `src/config/config_template.zig`; `Config.zig` changes one line to use it.
+  `src/termio/shell_integration.zig` takes the bash script, nushell module
+  and PowerShell script names from `brand.identifier`, including tests.
+- Verification: `zig fmt --check`, Debug build with all 93 steps; tests for
+  the rewrite rules (identity with Ghostty names, substitute names, kept
+  values, guard, paths), the template (identity, substitute names, kept
+  line, `{[path]s}`), brand, `shell_integration` and Win32 (196 passed,
+  1 skipped) passed. A fresh install prefix matched the baseline inventory
+  file for file: shell integration, completions, Vim and Sublime files have
+  identical hashes; only `ghostty-vt.dll` and the prefix-bearing pkg-config
+  files differ. Running the tool on `src/shell-integration` with substitute
+  names left no Ghostty name except in the verbatim `bash-preexec.sh` and
+  renamed the files, the environment variables, the `+ssh` paths, the
+  nushell module and the elvish prompt-state variable.
+
 ## 2026-10-25: Build and resource name indirection (rename step 8, #31)
 
 - The build takes installed names from `src/brand.zig`, values unchanged:
