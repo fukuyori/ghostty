@@ -118,6 +118,12 @@ pending_high_surrogate: ?u16 = null,
 /// keyboard message so one keydown can suppress multiple UTF-16 code units.
 suppressed_char_keycode: ?u32 = null,
 
+/// Physical keys whose press the IME took (VK_PROCESSKEY), indexed by scan
+/// code with the extended-key bit. Windows still reports their release
+/// with the real virtual key, so the release is not sent either; in
+/// win32-input-mode an unmatched release reached PowerShell as input.
+ime_consumed_keys: std.StaticBitSet(512) = .initEmpty(),
+
 /// Buttons captured by this window. Keeping this separately from WPARAM lets
 /// us release core state when Windows cancels capture unexpectedly.
 mouse_buttons_down: u8 = 0,

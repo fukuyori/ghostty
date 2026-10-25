@@ -70,6 +70,12 @@ fn scanCode(lparam: win32.LPARAM) u32 {
 /// Scan code with the extended-key prefix folded in the way the Chromium
 /// keycode table behind `input.keycodes` expects (0xE000 marks extended
 /// keys). Zero means the message carried no scan code.
+/// Index into Surface.ime_consumed_keys: the scan code, plus 256 for an
+/// extended key.
+fn imeKeyIndex(lparam: win32.LPARAM) usize {
+    return scanCode(lparam) + @as(usize, if (isExtendedKey(lparam)) 256 else 0);
+}
+
 fn nativeKeycode(lparam: win32.LPARAM) u32 {
     const scan = scanCode(lparam);
     if (scan == 0) return 0;
@@ -366,29 +372,16 @@ fn win32KeyMetadata(
     };
 }
 
-fn virtualKeyForText(lparam: win32.LPARAM, codepoint: u21) u16 {
-    const layout = win32.GetKeyboardLayout(0);
-    if (scanCode(lparam) != 0) {
-        const mapped = win32.MapVirtualKeyExW(nativeKeycode(lparam), 3, layout);
-        if (mapped != 0) return @truncate(mapped);
-    }
-    if (codepoint <= 0xFFFF) {
-        const mapped = win32.VkKeyScanExW(@intCast(codepoint), layout);
-        if (mapped != -1) return @as(u16, @bitCast(mapped)) & 0xFF;
-    }
-    return 0;
-}
-
+/// Key metadata for a character message, or null for text without a
+/// physical keystroke, such as IME-committed text. Such text is sent as
+/// plain characters: as press-only key records with a guessed virtual key,
+/// PowerShell under win32-input-mode repeated some of them ("112233円"
+/// became "11222333円").
 fn win32TextMetadata(
     pending: ?Surface.PendingTextKey,
-    lparam: win32.LPARAM,
-    mods: input.Mods,
     codepoint: u21,
-) input.KeyEvent.Win32 {
-    var native = if (pending) |value|
-        value.win32
-    else
-        win32KeyMetadata(virtualKeyForText(lparam, codepoint), lparam, mods, .press);
+) ?input.KeyEvent.Win32 {
+    var native = (pending orelse return null).win32;
     const unicode = unicodeFromCodepoint(codepoint);
     native.unicode = unicode.units;
     native.unicode_len = unicode.len;
@@ -513,7 +506,7 @@ fn handleTextInput(
             value.unshifted_codepoint
         else
             0,
-        .win32 = win32TextMetadata(pending, lparam, mods, codepoint),
+        .win32 = win32TextMetadata(pending, codepoint),
     };
     _ = core.keyCallback(event) catch |err| {
         log.err("key callback error: {}", .{err});
@@ -650,13 +643,19 @@ pub fn keyDown(
     // composition, not to one physical keystroke.
     if (wparam == vk_processkey) {
         if (WndProc.getSurface(hwnd)) |surface| {
-            if (hwnd == surface.hwnd) surface.pending_text_key = null;
+            if (hwnd == surface.hwnd) {
+                surface.pending_text_key = null;
+                surface.ime_consumed_keys.set(imeKeyIndex(lparam));
+            }
         }
         return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
     }
 
     if (WndProc.getSurface(hwnd)) |surface| {
         if (hwnd == surface.hwnd) {
+            // A press the terminal receives starts a new keystroke even if
+            // an earlier IME press of this key never saw its release.
+            surface.ime_consumed_keys.unset(imeKeyIndex(lparam));
             if (surface.core_surface) |core| {
                 const mods = getModifiers();
                 const key = mapKey(wparam, lparam);
@@ -712,6 +711,12 @@ pub fn keyUp(
 
     if (WndProc.getSurface(hwnd)) |surface| {
         if (hwnd == surface.hwnd) {
+            // The IME took this key's press, so the terminal never saw it.
+            const index = imeKeyIndex(lparam);
+            if (surface.ime_consumed_keys.isSet(index)) {
+                surface.ime_consumed_keys.unset(index);
+                return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
+            }
             if (surface.core_surface) |core| {
                 const key = mapKey(wparam, lparam);
                 const mods = getModifiers();
@@ -778,6 +783,21 @@ test "map Win32 scan codes to physical keys" {
     try std.testing.expect(!(letter >= 'A' and letter <= 'Z'));
     try std.testing.expectEqual(@as(?u21, null), layoutUnshiftedCodepoint(0x25, scan.lparam(0x4B, true)));
     try std.testing.expectEqual(@as(u21, 0), unshiftedCodepoint(0x25, scan.lparam(0x4B, true)));
+}
+
+test "IME key index separates extended keys" {
+    const scan = struct {
+        fn lparam(code: usize, extended: bool) win32.LPARAM {
+            var bits: usize = code << 16;
+            if (extended) bits |= @as(usize, 1) << 24;
+            return @bitCast(bits);
+        }
+    };
+    try std.testing.expectEqual(@as(usize, 0x02), imeKeyIndex(scan.lparam(0x02, false)));
+    try std.testing.expectEqual(@as(usize, 0x11C), imeKeyIndex(scan.lparam(0x1C, true)));
+    try std.testing.expectEqual(@as(usize, 0), imeKeyIndex(scan.lparam(0, false)));
+    const keys: @FieldType(Surface, "ime_consumed_keys") = .initEmpty();
+    try std.testing.expect(keys.capacity() > imeKeyIndex(scan.lparam(0xFF, true)));
 }
 
 test "Win32 IME process keys are not terminal keys" {
@@ -850,7 +870,6 @@ test "Win32 input metadata for Ctrl+Space" {
     try std.testing.expect(native.key_down);
     try std.testing.expectEqual(@as(u16, 0x08), native.control_key_state & ~@as(u16, 0x40));
     try std.testing.expectEqual(@as(u16, 1), native.repeat_count);
-    try std.testing.expectEqual(@as(u16, 0x20), virtualKeyForText(lparam, ' '));
 }
 
 test "Win32 input metadata preserves supplementary Unicode" {
@@ -861,10 +880,6 @@ test "Win32 input metadata preserves supplementary Unicode" {
 }
 
 test "Win32 text metadata uses the WM_CHAR Unicode value" {
-    const lparam: win32.LPARAM = @bitCast(
-        @as(usize, 1) |
-            (@as(usize, 0x1E) << 16),
-    );
     const pending: Surface.PendingTextKey = .{
         .action = .press,
         .key = .key_a,
@@ -877,17 +892,15 @@ test "Win32 text metadata uses the WM_CHAR Unicode value" {
             .control_key_state = 0x10,
         },
     };
-    const text = win32TextMetadata(pending, lparam, pending.mods, 'A');
+    const text = win32TextMetadata(pending, 'A') orelse return error.TestUnexpectedResult;
     try std.testing.expectEqual(@as(u16, 0x41), text.virtual_key);
     try std.testing.expectEqual(@as(u16, 0x1E), text.scan_code);
     try std.testing.expectEqual(@as(u16, 'A'), text.unicode[0]);
     try std.testing.expectEqual(@as(u16, 0x10), text.control_key_state);
 
-    // A committed character without a pending physical key follows the same
-    // path and derives the best available virtual key from the character.
-    const committed = win32TextMetadata(null, 0, .{}, ' ');
-    try std.testing.expectEqual(@as(u16, 0x20), committed.virtual_key);
-    try std.testing.expectEqual(@as(u16, ' '), committed.unicode[0]);
+    // A committed character without a pending physical key, such as IME
+    // output, carries no key record and is sent as plain text.
+    try std.testing.expect(win32TextMetadata(null, ' ') == null);
 }
 
 test "match Win32 character messages to consumed physical keys" {
