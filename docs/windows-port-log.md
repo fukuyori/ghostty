@@ -5,6 +5,35 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-25: Portable ZIP script and a clean release prefix
+
+- The first Gooztty installer built from `zig-out\release` carried
+  `share\terminfo\ghostty.terminfo`, `67\ghostty` and `78\xterm-ghostty`:
+  the prefix still held files from earlier Ghostty-named builds
+  (`bin\ghostty.exe`, `share\ghostty`, 1549 files instead of 799), because
+  `zig build` adds to an existing prefix. The owner rebuilt into an emptied
+  prefix; the second installer had only the Gooztty files.
+- `build-release.ps1` now empties its output before building when the
+  directory holds `brand.json` from an earlier release build, and refuses
+  any other non-empty directory.
+- New `scripts/build-zip.ps1` builds `<exe>-<version>-x64-portable.zip` from
+  the release tree: a top folder with the tree, `LICENSE` and
+  `THIRD-PARTY-NOTICES.md`; `-Sign` signs the staged executable with the
+  same certificate options as the installer script. It checks the product
+  name, the version against `dist/windows/version.txt`, a non-Debug build,
+  and that `bin` holds no executable other than the product's and
+  `OpenConsole.exe`, then verifies the archive's file count and executable
+  entry. The release tree is not modified.
+- Verification on `windows` (Ghostty values): a non-empty directory without
+  `brand.json` was refused and left intact; a release prefix with an added
+  `bin\stale.exe` and `share\oldproduct` was emptied and rebuilt to 799
+  files. An unsigned archive held 801 files under
+  `ghostty-1.3.2-windows.16-x64-portable/`; an extra `bin\extra.exe` was
+  refused. Extracted to another drive and started without inherited
+  `GHOSTTY_*` variables, the executable found the archive's own resources
+  and ConPTY host, and `+version` and a GUI launch exited 0. Signing was
+  not exercised.
+
 ## 2026-10-25: IME text duplicated in PowerShell under win32-input-mode
 
 - Owner report: in the PowerShell prompt, composing `112233えん` and

@@ -87,6 +87,24 @@ $buildArguments = @(
     "all"
 ) + $(if ($TestHooks) { @("-Dwin32-test-hooks=true") } else { @() }) + $AdditionalZigArgs
 
+# zig build adds to an existing prefix without removing files from an earlier
+# build, so a tree once built under another product name kept its executable,
+# resources and terminfo entries, and the installer and archive picked them up.
+# Start from an empty prefix. Only a prefix this script built (it has
+# brand.json) is emptied; any other non-empty directory is refused.
+if (Test-Path -LiteralPath $releaseRoot -PathType Container) {
+    if (@(Get-ChildItem -LiteralPath $releaseRoot -Force).Count -gt 0) {
+        if (-not (Test-Path -LiteralPath (Join-Path $releaseRoot "brand.json") -PathType Leaf)) {
+            throw ("$releaseRoot is not empty and has no brand.json from an earlier " +
+                "release build. Choose another -OutputDirectory or empty it yourself.")
+        }
+        Write-Host "Emptying the previous release in $releaseRoot"
+        Get-ChildItem -LiteralPath $releaseRoot -Force | Remove-Item -Recurse -Force
+    }
+} elseif (Test-Path -LiteralPath $releaseRoot) {
+    throw "$releaseRoot exists and is not a directory."
+}
+
 # Ghostty ships the ConPTY host beside its executable; build.zig only installs
 # it when it is on disk, and a release without it cannot show images.
 & (Join-Path $PSScriptRoot "fetch-conpty.ps1")
