@@ -5,6 +5,24 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-25: libghostty-vt left out of the release tree (#68)
+
+- The terminal does not load `ghostty-vt.dll`: the Debug `gooztty.exe`
+  contains no `ghostty-vt` string in ASCII or UTF-16, and its DLL names are
+  Windows system DLLs and `conpty.dll`. The installed `1.3.2-windows.16`
+  has only `ghostty.exe`, `conpty.dll` and `OpenConsole.exe` in `bin`, and
+  the installer never copied the library.
+- Decided by the owner: the library is not shipped. `build-release.ps1`
+  removes what the default build installs for it (`bin\ghostty-vt.dll` and
+  `.pdb`, `lib\ghostty-vt*.lib`, `include\ghostty\vt*`,
+  `share\pkgconfig\libghostty-vt*.pc`) and the directories left empty, and
+  fails if a `*ghostty-vt*` file remains. `build.zig` keeps upstream's
+  install step. The library keeps its upstream name.
+- Verification: `build-release.ps1 -OutputDirectory zig-out\release-novt`
+  exited 0 (1.3.2-windows.16, 771 theme files, compiled terminfo); the tree
+  has only `bin` and `share`, with 799 files. `+version` and a GUI launch
+  running `cmd /c exit 0` exited 0.
+
 ## 2026-10-25: Old terminal variables removed after a rename (#67)
 
 - Decided by the owner: a renamed build removes, from its child

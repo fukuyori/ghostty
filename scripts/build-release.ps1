@@ -104,6 +104,40 @@ try {
     Pop-Location
 }
 
+# The default build also installs libghostty-vt, a library for other programs.
+# The terminal links it statically and never loads the DLL, so the release
+# leaves it out (#68). build.zig keeps upstream's install step.
+$libVtItems = @(
+    "bin\ghostty-vt.dll"
+    "bin\ghostty-vt.pdb"
+    "lib\ghostty-vt.lib"
+    "lib\ghostty-vt-static.lib"
+    "include\ghostty\vt.h"
+    "include\ghostty\vt"
+    "share\pkgconfig\libghostty-vt.pc"
+    "share\pkgconfig\libghostty-vt-static.pc"
+)
+foreach ($item in $libVtItems) {
+    $path = Join-Path $releaseRoot $item
+    if (Test-Path -LiteralPath $path) {
+        Remove-Item -LiteralPath $path -Recurse -Force
+    }
+}
+foreach ($directory in @("include\ghostty", "include", "lib", "share\pkgconfig")) {
+    $path = Join-Path $releaseRoot $directory
+    if ((Test-Path -LiteralPath $path -PathType Container) -and
+        @(Get-ChildItem -LiteralPath $path -Force).Count -eq 0) {
+        Remove-Item -LiteralPath $path -Force
+    }
+}
+$libVtLeft = @(
+    Get-ChildItem -LiteralPath $releaseRoot -Recurse -File |
+        Where-Object { $_.Name -like "*ghostty-vt*" }
+)
+if ($libVtLeft.Count -gt 0) {
+    throw "The release still contains libghostty-vt files: $($libVtLeft.FullName -join ', ')"
+}
+
 # The product names come from the brand.json the build just installed.
 $brand = Get-GhosttyBrand -Prefix $releaseRoot
 $executable = Get-GhosttyBrandExecutable -Prefix $releaseRoot -Brand $brand
