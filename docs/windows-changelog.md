@@ -9,12 +9,21 @@ known issues, and known limitations of each version; the
 
 ## Unreleased
 
+### Build
+
+- Add the name values used by the build and distribution tooling to
+  `src/brand.zig` (executable, resource and configuration directory names,
+  configuration file name, terminfo name, `TERM_PROGRAM`, installer AppId),
+  all still Ghostty. Every Windows build writes them to `brand.json` at the
+  root of the install prefix, and `scripts/windows-brand.ps1` reads and
+  validates it for the PowerShell scripts (rename step 8, #31).
+
 ### Documentation
 
 - Add `docs/windows-config-support.md`, listing every configuration option
   with its Windows status (runtime-verified, supported from the code,
-  partial, not implemented, or not applicable) and notes, with a Japanese
-  translation, and link it from the README.
+  partial, not implemented, or not applicable) and a description, with a
+  Japanese translation, and link it from the README.
 - Add `README.ja.md`, a Japanese README linking the Japanese configuration
   table. Replace the README work phases with the roadmap's schedule through
   the rename (#31), with each step's status, and update the verified

@@ -5,6 +5,29 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-25: Name indirection foundation (rename step 8, #31)
+
+- Codex reviewed the step 8 plan read-only. It found that the plan omitted
+  the configuration lookup, user themes, terminfo/`TERM`/`TERM_PROGRAM`/
+  XTVERSION, `+ssh` and its cache, `GHOSTTY_*` producers and consumers, and
+  window class names hard-coded in test scripts; these became a separate
+  package. It also asked for a precise handoff contract for the PowerShell
+  scripts. The owner chose a build-generated manifest over a checked-in
+  copy of the values.
+- `src/brand.zig` adds the executable, resource directory, configuration
+  directory and file, terminfo, `TERM_PROGRAM` and installer AppId values,
+  all unchanged, and a `Manifest` of the values the scripts need (schema 1).
+  Its test asserts every value.
+- Every Windows build writes the manifest to `brand.json` at the root of the
+  install prefix (`zig-out\brand.json`, and `zig-out\release\brand.json` for
+  the release script, whose release tree the installer script consumes).
+  The path carries no product name. `scripts/windows-brand.ps1` reads it,
+  rejects a missing file, a different schema or an empty field, and builds
+  the executable path. Scripts are switched to it in a later package.
+- Verification: `zig fmt --check`, Debug `zig build` (exit 0) wrote the
+  expected manifest; the reader returned the values and the executable path
+  and rejected a prefix without `brand.json`; the brand test passed.
+
 ## 2026-10-17: Desktop and command-finished notifications (F8, #21)
 
 - Codex reviewed the proposed specification (amend before implementation).

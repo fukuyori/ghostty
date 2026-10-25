@@ -2,6 +2,7 @@ const std = @import("std");
 const assert = std.debug.assert;
 const builtin = @import("builtin");
 const buildpkg = @import("src/build/main.zig");
+const brand = @import("src/brand.zig");
 const translate_c = @import("translate_c");
 
 /// App version from build.zig.zon.
@@ -218,6 +219,7 @@ pub fn build(b: *std.Build) !void {
             if (i18n) |v| v.install();
             if (config.target.result.os.tag == .windows) {
                 installConPty(b);
+                installBrandManifest(b);
                 // Icon shown on Windows toast notifications.
                 b.getInstallStep().dependOn(&b.addInstallFile(
                     b.path("dist/windows/ghostty.ico"),
@@ -505,4 +507,19 @@ fn installConPty(b: *std.Build) void {
             name,
         ).step);
     }
+}
+
+/// Write the product names from src/brand.zig to `brand.json` at the root of
+/// the install prefix. The release, installer and test scripts read it
+/// (scripts/windows-brand.ps1) instead of spelling the names out, so a rename
+/// changes src/brand.zig only. The path itself carries no product name.
+fn installBrandManifest(b: *std.Build) void {
+    const json = std.json.Stringify.valueAlloc(
+        b.allocator,
+        brand.manifest,
+        .{ .whitespace = .indent_2 },
+    ) catch @panic("OOM");
+    const files = b.addWriteFiles();
+    const manifest = files.add("brand.json", json);
+    b.getInstallStep().dependOn(&b.addInstallFile(manifest, "brand.json").step);
 }
