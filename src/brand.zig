@@ -37,13 +37,18 @@ pub const resources_dir_name = identifier;
 /// Directory, under the platform configuration root, that holds the
 /// configuration, and the name of the configuration file in it.
 pub const config_dir_name = identifier;
-pub const config_file_name = "config." ++ identifier;
+pub const config_file_ext = identifier;
+pub const config_file_name = "config." ++ config_file_ext;
 
 /// The terminfo entry name and the `TERM` value the terminal sets.
 pub const terminfo_name = "xterm-" ++ identifier;
 
 /// The `TERM_PROGRAM` value the terminal sets.
 pub const term_program = identifier;
+
+/// Prefix of the link `+version` puts on its first line on a terminal, to
+/// which the build's commit hash is appended; null prints no link.
+pub const version_commit_url: ?[]const u8 = "https://github.com/ghostty-org/ghostty/commit/";
 
 /// Names used only by the Windows runtime.
 pub const windows = struct {
@@ -112,6 +117,7 @@ pub const manifest: Manifest = .{
 
 test {
     _ = @import("config/config_template.zig");
+    _ = @import("brand_text.zig");
 }
 
 test "brand values are unchanged until the rename" {

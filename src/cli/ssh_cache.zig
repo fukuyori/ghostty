@@ -1,4 +1,5 @@
 const std = @import("std");
+const brand = @import("../brand.zig");
 const fs = std.fs;
 const Allocator = std.mem.Allocator;
 const args = @import("args.zig");
@@ -95,7 +96,7 @@ pub fn run(alloc_gpa: Allocator) !u8 {
             if (is_host_flag) {
                 try stderr.print(
                     "Warning: --host is deprecated; pass the destination " ++
-                        "directly, e.g. `ghostty +ssh-cache {s}`.\n",
+                        "directly, e.g. `" ++ brand.exe_name ++ " +ssh-cache {s}`.\n",
                     .{arg["--host=".len..]},
                 );
             }
@@ -140,7 +141,7 @@ pub fn run(alloc_gpa: Allocator) !u8 {
     }
 
     // Setup our disk cache to the standard location
-    const cache_path = DiskCache.defaultPath(alloc, "ghostty") catch |err| {
+    const cache_path = DiskCache.defaultPath(alloc, brand.identifier) catch |err| {
         try stderr.print(
             "Error: unable to determine the cache path: {t}\n",
             .{err},

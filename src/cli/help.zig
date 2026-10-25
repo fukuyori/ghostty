@@ -1,4 +1,5 @@
 const std = @import("std");
+const brand_text = @import("../brand_text.zig");
 const Allocator = std.mem.Allocator;
 const args = @import("args.zig");
 const Action = @import("ghostty.zig").Action;
@@ -34,7 +35,7 @@ pub fn run(alloc: Allocator) !u8 {
     var buffer: [2048]u8 = undefined;
     var stdout_writer = std.Io.File.stdout().writer(global.io(), &buffer);
     const stdout = &stdout_writer.interface;
-    try stdout.writeAll(
+    try stdout.writeAll(brand_text.cli(
         \\Usage: ghostty [+action] [options]
         \\
         \\Run the Ghostty terminal emulator or a specific helper action.
@@ -61,7 +62,7 @@ pub fn run(alloc: Allocator) !u8 {
         \\Available actions:
         \\
         \\
-    );
+    , &.{ "open -na Ghostty.app", "open -na ghostty.app" }));
 
     inline for (@typeInfo(Action).@"enum".fields) |field| {
         try stdout.print("  +{s}\n", .{field.name});

@@ -3,6 +3,7 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
+const brand = @import("brand.zig");
 const Allocator = std.mem.Allocator;
 const posix = std.posix;
 const build_config = @import("build_config.zig");
@@ -47,7 +48,7 @@ pub fn main(minimal: std.process.Init.Minimal) !MainReturn {
             error.InvalidAction => try stderr.print(
                 "Error: unknown CLI action specified. CLI actions are specified with\n" ++
                     "the '+' character.\n\n" ++
-                    "All valid CLI actions can be listed with `ghostty +help`\n",
+                    "All valid CLI actions can be listed with `" ++ brand.exe_name ++ " +help`\n",
                 .{},
             ),
 
@@ -60,7 +61,7 @@ pub fn main(minimal: std.process.Init.Minimal) !MainReturn {
 
     if (comptime builtin.mode == .Debug) {
         std.log.warn("This is a debug build. Performance will be very poor.", .{});
-        std.log.warn("You should only use a debug build for developing Ghostty.", .{});
+        std.log.warn("You should only use a debug build for developing " ++ brand.display_name ++ ".", .{});
         std.log.warn("Otherwise, please rebuild in a release mode.", .{});
     }
 

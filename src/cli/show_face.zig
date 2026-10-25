@@ -1,4 +1,5 @@
 const std = @import("std");
+const brand = @import("../brand.zig");
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Action = @import("ghostty.zig").Action;
@@ -219,7 +220,7 @@ fn lookup(
 
     const face = font_grid.resolver.collection.getFace(idx) catch |err| switch (err) {
         error.SpecialHasNoFace => {
-            try stdout.print("U+{0X:0>2} « {0u} » is handled by Ghostty's internal sprites.\n", .{cp});
+            try stdout.print("U+{0X:0>2} « {0u} » is handled by " ++ brand.display_name ++ "'s internal sprites.\n", .{cp});
             return null;
         },
         else => {

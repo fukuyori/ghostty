@@ -699,7 +699,7 @@ const Subprocess = struct {
 
         // If we have a resources dir then set our env var
         if (cfg.resources_dir) |dir| {
-            log.info("found Ghostty resources dir: {s}", .{dir});
+            log.info("found " ++ brand.display_name ++ " resources dir: {s}", .{dir});
             try env.put(brand.env_prefix ++ "RESOURCES_DIR", dir);
         }
 
@@ -755,7 +755,7 @@ const Subprocess = struct {
                 global.io(),
                 &exe_buf,
             ) catch |err| {
-                log.warn("failed to get ghostty exe path err={}", .{err});
+                log.warn("failed to get " ++ brand.exe_name ++ " exe path err={}", .{err});
                 break :ghostty_path;
             }];
             const exe_dir = std.fs.path.dirname(exe_bin_path) orelse break :ghostty_path;

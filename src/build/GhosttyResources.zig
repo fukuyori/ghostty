@@ -2,6 +2,7 @@ const GhosttyResources = @This();
 
 const std = @import("std");
 const brand = @import("../brand.zig");
+const BrandRewriteStep = @import("BrandRewriteStep.zig");
 const assert = std.debug.assert;
 const Config = @import("Config.zig");
 const RunStep = std.Build.Step.Run;
@@ -27,15 +28,6 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
     });
 
     deps.help_strings.addImport(build_data_exe);
-
-    // Rewrites installed files that carry the product name (brand_rewrite.zig).
-    const rewrite_exe = b.addExecutable(.{
-        .name = "ghostty-brand-rewrite",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/build/brand_rewrite.zig"),
-            .target = b.graph.host,
-        }),
-    });
 
     // Terminfo
     terminfo: {
@@ -164,14 +156,7 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
 
     // Shell-integration
     {
-        const run = b.addRunArtifact(rewrite_exe);
-        run.addArg("dir");
-        run.addDirectoryArg(b.path("src/shell-integration"));
-        const out = run.addOutputDirectoryArg("shell-integration");
-        addBrandNames(run);
-        // The input is a directory, whose contents the run step does not
-        // hash; always rerun so edited scripts are installed.
-        run.has_side_effects = true;
+        const out = BrandRewriteStep.dir(b, b.path("src/shell-integration"), "shell-integration");
         const install_step = b.addInstallDirectory(.{
             .source_dir = out,
             .install_dir = .{ .custom = "share" },
@@ -199,7 +184,7 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
         const run = b.addRunArtifact(build_data_exe);
         run.addArg("+fish");
         const wf = b.addWriteFiles();
-        _ = wf.addCopyFile(rewritten(b, rewrite_exe, "fish_completion", run.captureStdOut(.{})), brand.identifier ++ ".fish");
+        _ = wf.addCopyFile(BrandRewriteStep.file(b, "fish_completion", run.captureStdOut(.{})), brand.identifier ++ ".fish");
 
         const install_step = b.addInstallDirectory(.{
             .source_dir = wf.getDirectory(),
@@ -214,7 +199,7 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
         const run = b.addRunArtifact(build_data_exe);
         run.addArg("+zsh");
         const wf = b.addWriteFiles();
-        _ = wf.addCopyFile(rewritten(b, rewrite_exe, "zsh_completion", run.captureStdOut(.{})), "_" ++ brand.identifier);
+        _ = wf.addCopyFile(BrandRewriteStep.file(b, "zsh_completion", run.captureStdOut(.{})), "_" ++ brand.identifier);
 
         const install_step = b.addInstallDirectory(.{
             .source_dir = wf.getDirectory(),
@@ -229,7 +214,7 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
         const run = b.addRunArtifact(build_data_exe);
         run.addArg("+bash");
         const wf = b.addWriteFiles();
-        _ = wf.addCopyFile(rewritten(b, rewrite_exe, "bash_completion", run.captureStdOut(.{})), brand.identifier ++ ".bash");
+        _ = wf.addCopyFile(BrandRewriteStep.file(b, "bash_completion", run.captureStdOut(.{})), brand.identifier ++ ".bash");
 
         const install_step = b.addInstallDirectory(.{
             .source_dir = wf.getDirectory(),
@@ -246,22 +231,22 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
         {
             const run = b.addRunArtifact(build_data_exe);
             run.addArg("+vim-syntax");
-            _ = wf.addCopyFile(rewritten(b, rewrite_exe, "vim", run.captureStdOut(.{})), "syntax/" ++ brand.identifier ++ ".vim");
+            _ = wf.addCopyFile(BrandRewriteStep.file(b, "vim", run.captureStdOut(.{})), "syntax/" ++ brand.identifier ++ ".vim");
         }
         {
             const run = b.addRunArtifact(build_data_exe);
             run.addArg("+vim-ftdetect");
-            _ = wf.addCopyFile(rewritten(b, rewrite_exe, "vim", run.captureStdOut(.{})), "ftdetect/" ++ brand.identifier ++ ".vim");
+            _ = wf.addCopyFile(BrandRewriteStep.file(b, "vim", run.captureStdOut(.{})), "ftdetect/" ++ brand.identifier ++ ".vim");
         }
         {
             const run = b.addRunArtifact(build_data_exe);
             run.addArg("+vim-ftplugin");
-            _ = wf.addCopyFile(rewritten(b, rewrite_exe, "vim", run.captureStdOut(.{})), "ftplugin/" ++ brand.identifier ++ ".vim");
+            _ = wf.addCopyFile(BrandRewriteStep.file(b, "vim", run.captureStdOut(.{})), "ftplugin/" ++ brand.identifier ++ ".vim");
         }
         {
             const run = b.addRunArtifact(build_data_exe);
             run.addArg("+vim-compiler");
-            _ = wf.addCopyFile(rewritten(b, rewrite_exe, "vim", run.captureStdOut(.{})), "compiler/" ++ brand.identifier ++ ".vim");
+            _ = wf.addCopyFile(BrandRewriteStep.file(b, "vim", run.captureStdOut(.{})), "compiler/" ++ brand.identifier ++ ".vim");
         }
 
         const vim_step = b.addInstallDirectory(.{
@@ -289,7 +274,7 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
         const run = b.addRunArtifact(build_data_exe);
         run.addArg("+sublime");
         const wf = b.addWriteFiles();
-        _ = wf.addCopyFile(rewritten(b, rewrite_exe, "sublime", run.captureStdOut(.{})), brand.identifier ++ ".sublime-syntax");
+        _ = wf.addCopyFile(BrandRewriteStep.file(b, "sublime", run.captureStdOut(.{})), brand.identifier ++ ".sublime-syntax");
 
         const install_step = b.addInstallDirectory(.{
             .source_dir = wf.getDirectory(),
@@ -309,40 +294,6 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
     return .{ .steps = steps.items };
 }
 
-/// The configuration file extension: `brand.config_file_name` after `config.`.
-const config_ext = blk: {
-    const prefix = "config.";
-    if (!std.mem.startsWith(u8, brand.config_file_name, prefix)) {
-        @compileError("brand.config_file_name must start with " ++ prefix);
-    }
-    break :blk brand.config_file_name[prefix.len..];
-};
-
-/// Pass the names from src/brand.zig to the brand_rewrite tool.
-fn addBrandNames(run: *RunStep) void {
-    run.addArgs(&.{
-        brand.display_name,
-        brand.identifier,
-        brand.env_prefix,
-        brand.config_dir_name,
-        config_ext,
-    });
-}
-
-/// `input` rewritten with a brand_rewrite.zig profile.
-fn rewritten(
-    b: *std.Build,
-    rewrite_exe: *std.Build.Step.Compile,
-    profile: []const u8,
-    input: std.Build.LazyPath,
-) std.Build.LazyPath {
-    const run = b.addRunArtifact(rewrite_exe);
-    run.addArgs(&.{ "file", profile });
-    run.addFileArg(input);
-    const out = run.addOutputFileArg("rewritten");
-    addBrandNames(run);
-    return out;
-}
 /// Add the resource files needed to make Ghostty a proper
 /// Linux desktop application (for various desktop environments).
 fn addLinuxAppResources(

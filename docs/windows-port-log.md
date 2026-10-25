@@ -5,6 +5,60 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-25: CLI output from brand.zig (rename step 8, #31)
+
+- An inventory of the generated help strings found 302 product-name
+  occurrences (178 to rename, 124 kept) and about 30 runtime messages; it
+  also found that `+help` prints its own text from `src/cli/help.zig`, not
+  the help strings, and that `src/cli/ssh_cache.zig` still passed
+  `"ghostty"` as the cache name while `+ssh` already used
+  `brand.identifier`. Codex reviewed it read-only: keep platform statements
+  per phrase rather than whole entries, guard by explained residuals,
+  kept-list staleness and required patterns rather than a count, and
+  separate the fish descriptions from the fish guard. Owner decisions on
+  2026-10-25: rewrite `+help` separately (macOS `open -na Ghostty.app`
+  kept); keep platform statements per phrase and rename entries that work
+  on Windows (`new-tab`, `freetype-load-flags`, `window-titlebar-*`); keep
+  upstream version history ("since Ghostty 1.3.0") and the Ghostty website;
+  rename the Vim `keyprotocol=ghostty:` example; follow the configuration
+  extension for `+list-themes`' `theme.ghostty`; make the `+version` OSC 8
+  link prefix a brand value (`version_commit_url`, upstream URL on
+  `windows`); use the identifier for the `ghostty version=` log keys; leave
+  man pages and webgen out; fix the SSH cache name (an existing Ghostty
+  cache is not carried over when the value changes).
+- `src/build/brand_rewrite_help.zig` adds the `help` profile, which
+  `src/build/HelpStrings.zig` applies to the helpgen output (two lines in
+  that upstream file). It rewrites only `\\` string lines, keeps whole
+  entries of platform-only options and actions and listed phrases (platform
+  statements, version history, website, `window-theme` value, macOS and GTK
+  identifiers, URLs), and renames commands, paths, environment variables,
+  the terminfo name and the display name. Its guard fails on any Ghostty
+  name outside kept text, on a kept entry or phrase that no longer matches,
+  and on a missing renamed form. The rewrite steps moved to the fork-owned
+  `src/build/BrandRewriteStep.zig`; `brand_rewrite.Names` gained the
+  resources directory and terminfo name; the fish guard now skips the
+  ` -d "..."` descriptions (expected residual 1).
+- `src/brand_text.zig` rewrites multi-line messages at compile time
+  (`+help`, `+ssh` usage, the Windows `+edit-config` message, the terminal
+  error texts in `termio/Thread.zig`); single-line messages in
+  `main_ghostty.zig`, `explain_config.zig`, `list_themes.zig`,
+  `show_face.zig`, `ssh.zig`, `ssh_cache.zig`, `version.zig`, `global.zig`,
+  `termio/Exec.zig` and `Surface.zig` concatenate brand values. Messages
+  that cannot appear on Windows (`list_fonts`/`show_face` without font
+  discovery, the `$EDITOR` text) stay as upstream has them.
+- Verification: `zig fmt --check`, Debug build (95 steps); tests for
+  brand, brand_text, the help and other rewrite profiles, ssh and Win32
+  (197 passed, 1 skipped). Rewriting the real generated help strings with
+  the Ghostty names is byte-identical; with substitute names it renamed
+  commands, paths, environment and terminfo names and kept the macOS
+  statements, version history, website, `window-theme` value and the
+  whole `new-window` entry; an added unexplained `ghostty` failed the
+  guard. Compared with the ReleaseFast executable from `fec97795c`, the new
+  Debug executable printed identical `+help`, `+explain-config`,
+  `+list-actions --docs`, `+ssh --help` and `+show-config --default --docs`
+  output except the build mode and the Debug-dependent
+  `gtk-opengl-debug` default. A fresh install tree is unchanged.
+
 ## 2026-10-25: Diagnostic and test scripts read brand.json (rename step 8, #31)
 
 - Twelve diagnostic and test scripts take the default executable, the

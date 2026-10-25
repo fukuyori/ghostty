@@ -14,6 +14,7 @@ pub const Thread = @This();
 const std = @import("std");
 const ArenaAllocator = std.heap.ArenaAllocator;
 const builtin = @import("builtin");
+const brand_text = @import("../brand_text.zig");
 const global = @import("../global.zig");
 const xev = global.xev;
 const crash = @import("../crash/main.zig");
@@ -170,7 +171,7 @@ pub fn threadMain(self: *Thread, io: *termio.Termio) void {
 
         switch (@as(Err, @errorCast(err))) {
             error.OpenptyFailed => {
-                const str =
+                const str = brand_text.cli(
                     \\Your system cannot allocate any more pty devices.
                     \\
                     \\Ghostty requires a pty device to launch a new terminal.
@@ -179,7 +180,7 @@ pub fn threadMain(self: *Thread, io: *termio.Termio) void {
                     \\many pty devices.
                     \\
                     \\Please free up some pty devices and try again.
-                ;
+                , &.{});
 
                 t.eraseDisplay(.complete, false);
                 t.printString(str) catch {};
@@ -188,7 +189,7 @@ pub fn threadMain(self: *Thread, io: *termio.Termio) void {
             error.InputNotFound,
             error.InputFailed,
             => {
-                const str =
+                const str = brand_text.cli(
                     \\A configured `input` path was not found, was not readable,
                     \\was too large, or the underlying pty failed to accept
                     \\the write.
@@ -197,7 +198,7 @@ pub fn threadMain(self: *Thread, io: *termio.Termio) void {
                     \\initial terminal state will be as desired. Please review
                     \\the value of `input` in your configuration file and
                     \\ensure that all the path values exist and are readable.
-                ;
+                , &.{});
 
                 t.eraseDisplay(.complete, false);
                 t.printString(str) catch {};

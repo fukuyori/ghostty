@@ -2,6 +2,7 @@ const std = @import("std");
 const build_options = @import("build_options");
 const Allocator = std.mem.Allocator;
 const builtin = @import("builtin");
+const brand = @import("../brand.zig");
 const build_config = @import("../build_config.zig");
 const internal_os = @import("../os/main.zig");
 const xev = @import("../global.zig").xev;
@@ -26,13 +27,13 @@ pub fn run(alloc: Allocator) !u8 {
     const stdout = &stdout_writer.interface;
     const tty = try stdout_file.isTty(global.io());
 
-    if (tty) if (build_config.version.build) |commit_hash| {
+    if (tty) if (build_config.version.build) |commit_hash| if (brand.version_commit_url) |url| {
         try stdout.print(
-            "\x1b]8;;https://github.com/ghostty-org/ghostty/commit/{s}\x1b\\",
-            .{commit_hash},
+            "\x1b]8;;{s}{s}\x1b\\",
+            .{ url, commit_hash },
         );
     };
-    try stdout.print("Ghostty {s}\n\n", .{build_config.version_string});
+    try stdout.print(brand.display_name ++ " {s}\n\n", .{build_config.version_string});
     if (tty) try stdout.print("\x1b]8;;\x1b\\", .{});
 
     try stdout.print("Version\n", .{});

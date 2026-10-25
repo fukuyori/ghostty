@@ -31,7 +31,17 @@ pub const Names = struct {
     /// Configuration file extension, the part of `brand.config_file_name`
     /// after `config.`.
     config_ext: []const u8,
+    /// Directory under `share/` (`brand.resources_dir_name`).
+    resources_dir: []const u8,
+    /// Terminfo entry name (`brand.terminfo_name`).
+    terminfo: []const u8,
 };
+
+const help = @import("brand_rewrite_help.zig");
+
+test {
+    _ = help;
+}
 
 pub const Profile = enum {
     /// Everything installed from src/shell-integration.
@@ -42,6 +52,9 @@ pub const Profile = enum {
     /// Each of the four Vim/Neovim files.
     vim,
     sublime,
+    /// The generated help strings (brand_rewrite_help.zig). Its guard does
+    /// not use `expectedResidual`.
+    help,
 
     /// Ghostty names that stay after the rewrite of one file: upstream URLs,
     /// the upstream `window-theme = ghostty` value, the Vim attribution line
@@ -53,12 +66,13 @@ pub const Profile = enum {
             .bash_completion => 3,
             // `dark ghostty`.
             .zsh_completion => 1,
-            // `dark ghostty`, and the descriptions, which come from the CLI
-            // help strings and follow their rewrite.
-            .fish_completion => 19,
+            // `dark ghostty`. The option descriptions come from the help
+            // strings; the help guard covers them and this one skips them.
+            .fish_completion => 1,
             // The Maintainer line: `Ghostty <...ghostty-org/ghostty>`.
             .vim => 3,
             .sublime => 0,
+            .help => 0,
         };
     }
 };
@@ -126,12 +140,14 @@ fn rules(arena: Allocator, profile: Profile, n: Names) Allocator.Error![]const R
             .{ .from = "Ghostty", .to = n.display },
             .{ .from = "ghostty", .to = id },
         }),
+        .help => unreachable,
     };
 }
 
 /// Rewrite `input` with the profile's rules. The result is allocated with
 /// `gpa`.
 pub fn rewrite(gpa: Allocator, profile: Profile, n: Names, input: []const u8) Allocator.Error![]u8 {
+    if (profile == .help) return help.rewrite(gpa, n, input, null);
     var arena_state: std.heap.ArenaAllocator = .init(gpa);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -185,6 +201,8 @@ pub const substitute: Names = .{
     .env_prefix = "SUBST_",
     .config_dir = "substdir",
     .config_ext = "substext",
+    .resources_dir = "substres",
+    .terminfo = "xterm-subst",
 };
 
 pub const GuardError = error{UnexpectedGhosttyNames} || Allocator.Error;
@@ -195,9 +213,30 @@ pub const GuardError = error{UnexpectedGhosttyNames} || Allocator.Error;
 /// configuration value from a name to rename; those profiles rely on their
 /// files having none today.
 pub fn guard(gpa: Allocator, profile: Profile, input: []const u8) GuardError!void {
+    if (profile == .help) return help.guard(gpa, substitute, input);
     const probe = try rewrite(gpa, profile, substitute, input);
     defer gpa.free(probe);
-    if (residual(probe) != profile.expectedResidual()) return error.UnexpectedGhosttyNames;
+    const counted = if (profile == .fish_completion) try withoutDescriptions(gpa, probe) else probe;
+    defer if (counted.ptr != probe.ptr) gpa.free(counted);
+    if (residual(counted) != profile.expectedResidual()) return error.UnexpectedGhosttyNames;
+}
+
+/// A fish completion without its ` -d "..."` descriptions, which come from
+/// the help strings.
+fn withoutDescriptions(gpa: Allocator, text: []const u8) Allocator.Error![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(gpa);
+    var i: usize = 0;
+    while (std.mem.indexOfPos(u8, text, i, " -d \"")) |start| {
+        try out.appendSlice(gpa, text[i..start]);
+        var end = start + " -d \"".len;
+        while (end < text.len and text[end] != '"') : (end += 1) {
+            if (text[end] == '\\') end += 1;
+        }
+        i = @min(end + 1, text.len);
+    }
+    try out.appendSlice(gpa, text[i..]);
+    return out.toOwnedSlice(gpa);
 }
 
 /// Installed path of a shell integration file: every `ghostty` in the path
@@ -219,7 +258,7 @@ pub fn isVerbatim(path: []const u8) bool {
 //   brand_rewrite dir <input dir> <output dir> <names...>
 //
 // where <names...> is display, identifier, env prefix, configuration
-// directory and configuration extension. `dir` applies the shell profile to
+// directory, configuration extension, resources directory and terminfo name. `dir` applies the shell profile to
 // a directory tree, skipping Markdown files.
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
@@ -230,13 +269,15 @@ pub fn main(init: std.process.Init) !void {
     if (!is_file and !std.mem.eql(u8, args[1], "dir")) return error.Usage;
     // file: profile, input, output; dir: input, output; then the names.
     const first_name: usize = if (is_file) 5 else 4;
-    if (args.len != first_name + 5) return error.Usage;
+    if (args.len != first_name + 7) return error.Usage;
     const n: Names = .{
         .display = args[first_name],
         .identifier = args[first_name + 1],
         .env_prefix = args[first_name + 2],
         .config_dir = args[first_name + 3],
         .config_ext = args[first_name + 4],
+        .resources_dir = args[first_name + 5],
+        .terminfo = args[first_name + 6],
     };
     const cwd = std.Io.Dir.cwd();
 
@@ -295,6 +336,8 @@ const ghostty: Names = .{
     .env_prefix = "GHOSTTY_",
     .config_dir = "ghostty",
     .config_ext = "ghostty",
+    .resources_dir = "ghostty",
+    .terminfo = "xterm-ghostty",
 };
 
 fn expectRewrite(profile: Profile, n: Names, input: []const u8, expected: []const u8) !void {
@@ -315,7 +358,7 @@ test "brand rewrite with the Ghostty names is the identity" {
 test "brand rewrite shell profile renames every name" {
     try expectRewrite(
         .shell,
-        .{ .display = "Newterm", .identifier = "newterm", .env_prefix = "NEWTERM_", .config_dir = "newterm", .config_ext = "newterm" },
+        .{ .display = "Newterm", .identifier = "newterm", .env_prefix = "NEWTERM_", .config_dir = "newterm", .config_ext = "newterm", .resources_dir = "newterm", .terminfo = "xterm-newterm" },
         "builtin local features=\"$GHOSTTY_SHELL_FEATURES\"\n" ++
             "  \"$GHOSTTY_BIN_DIR/ghostty\" +ssh \"$@\"\n" ++
             "var ghostty = $E:GHOSTTY_BIN_DIR/\"ghostty\"\n" ++

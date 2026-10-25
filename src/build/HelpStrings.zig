@@ -2,6 +2,7 @@ const HelpStrings = @This();
 
 const std = @import("std");
 const Config = @import("Config.zig");
+const BrandRewriteStep = @import("BrandRewriteStep.zig");
 
 /// The "helpgen" exe.
 exe: *std.Build.Step.Compile,
@@ -34,7 +35,7 @@ pub fn init(b: *std.Build, cfg: *const Config) !HelpStrings {
 
     // Generated Zig files have to end with .zig
     const wf = b.addWriteFiles();
-    const output = wf.addCopyFile(help_run.captureStdOut(.{}), "helpgen.zig");
+    const output = wf.addCopyFile(BrandRewriteStep.file(b, "help", help_run.captureStdOut(.{})), "helpgen.zig");
 
     return .{
         .exe = exe,

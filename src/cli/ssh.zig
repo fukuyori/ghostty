@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const brand = @import("../brand.zig");
+const brand_text = @import("../brand_text.zig");
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const cli_args = @import("args.zig");
@@ -13,7 +14,7 @@ const global = @import("../global.zig");
 
 const log = std.log.scoped(.ssh);
 
-const usage =
+const usage = brand_text.cli(
     \\Usage: ghostty +ssh [flags] [--] <ssh args...>
     \\
     \\Flags:
@@ -26,7 +27,7 @@ const usage =
     \\
     \\ssh flags and the destination go after +ssh's own flags (or after `--`).
     \\
-;
+, &.{});
 
 pub const Options = struct {
     /// Set by the CLI parser for deinit.
@@ -246,7 +247,7 @@ fn runInner(
 
         const cache: ?DiskCache = if (opts.cache) cache: {
             const path = DiskCache.defaultPath(alloc, brand.identifier) catch |err| {
-                warnPrint(stderr, "ghostty terminfo cache unavailable: {t}", .{err});
+                warnPrint(stderr, brand.identifier ++ " terminfo cache unavailable: {t}", .{err});
                 break :session .{ .term = "xterm-256color" };
             };
             break :cache .{ .path = path };

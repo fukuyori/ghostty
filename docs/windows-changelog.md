@@ -39,6 +39,13 @@ known issues, and known limitations of each version; the
 - Make the diagnostic and test scripts take the default executable, window
   class names, environment variable names, configuration file name and
   process name from `brand.json` (rename step 8, #31).
+- Take the product name in CLI output from `src/brand.zig`: the generated
+  help strings (action `--help`, `+explain-config`, `+show-config --docs`,
+  fish descriptions) are rewritten at build time with upstream version
+  history, website, platform statements and configuration values kept;
+  `+help`, `+version`, `+ssh` usage and runtime messages use brand values.
+  `+ssh-cache` now reads the same cache directory as `+ssh`. Output is
+  unchanged with the current values (rename step 8, #31).
 
 ### Documentation
 

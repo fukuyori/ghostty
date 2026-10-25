@@ -1,4 +1,5 @@
 const std = @import("std");
+const brand = @import("../brand.zig");
 const args = @import("args.zig");
 const Action = @import("ghostty.zig").Action;
 const Config = @import("../config/Config.zig");
@@ -127,8 +128,8 @@ pub fn run(gpa_alloc: std.mem.Allocator) !u8 {
 
     const resources_dir = global.resourcesDir().app();
     if (resources_dir == null)
-        try stderr.print("Could not find the Ghostty resources directory. Please ensure " ++
-            "that Ghostty is installed correctly.\n", .{});
+        try stderr.print("Could not find the " ++ brand.display_name ++ " resources directory. Please ensure " ++
+            "that " ++ brand.display_name ++ " is installed correctly.\n", .{});
 
     var count: usize = 0;
 
@@ -206,7 +207,7 @@ fn resolveAutoThemePath(alloc: std.mem.Allocator) ![]u8 {
     defer alloc.free(main_cfg_path);
 
     const base_dir = std.fs.path.dirname(main_cfg_path) orelse return error.BadPathName;
-    return try std.fs.path.join(alloc, &.{ base_dir, "auto", "theme.ghostty" });
+    return try std.fs.path.join(alloc, &.{ base_dir, "auto", "theme." ++ brand.config_file_ext });
 }
 
 fn writeAutoThemeFile(alloc: std.mem.Allocator, theme_name: []const u8) !void {
@@ -309,7 +310,7 @@ const Preview = struct {
 
         const writer = self.tty.writer();
         try self.vx.enterAltScreen(writer);
-        try self.vx.setTitle(writer, "👻 Ghostty Theme Preview 👻");
+        try self.vx.setTitle(writer, "👻 " ++ brand.display_name ++ " Theme Preview 👻");
         try self.vx.queryTerminal(writer, .fromSeconds(1));
         try self.vx.setMouseMode(writer, true);
         if (self.vx.caps.color_scheme_updates)
@@ -865,16 +866,16 @@ const Preview = struct {
                 child.fill(.{ .style = self.ui_standard() });
 
                 const save_instructions = [_][]const u8{
-                    "To apply this theme, add the following line to your Ghostty configuration:",
+                    "To apply this theme, add the following line to your " ++ brand.display_name ++ " configuration:",
                     "",
                     try std.fmt.allocPrint(alloc, "theme = {s}", .{theme.theme}),
                     "",
                     "Save the configuration file and then reload it to apply the new theme.",
                     "",
                     "Or press 'w' to write an auto theme file to your system's preferred default config path.",
-                    "Then add the following line to your Ghostty configuration and reload:",
+                    "Then add the following line to your " ++ brand.display_name ++ " configuration and reload:",
                     "",
-                    "config-file = ?auto/theme.ghostty",
+                    "config-file = ?auto/theme." ++ brand.config_file_ext,
                     "",
                     "For more details on configuration and themes, visit the Ghostty documentation:",
                     "",
