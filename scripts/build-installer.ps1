@@ -1,17 +1,17 @@
 <#
 .SYNOPSIS
-Builds the Ghostty Windows installer with Inno Setup.
+Builds the Windows installer with Inno Setup.
 
 .DESCRIPTION
 Stages the release tree produced by scripts/build-release.ps1, reads the
 version from the executable's file properties, and compiles
 dist/windows/ghostty.iss with the Inno Setup command-line compiler. With
--Sign, the staged ghostty.exe is signed with signtool before packaging and
+-Sign, the staged executable is signed with signtool before packaging and
 Inno Setup signs the installer and the embedded uninstaller with the same
 certificate. The release tree itself is never modified.
 
 .PARAMETER ReleaseDirectory
-The release prefix that contains bin\ghostty.exe and share\. Relative paths
+The release prefix that contains the executable in bin\ and share\. Relative paths
 are resolved from the repository root. The default is zig-out\release.
 
 .PARAMETER OutputDirectory
@@ -20,11 +20,11 @@ release files. The default is zig-out\installer.
 
 .PARAMETER OutputBaseName
 Installer file name without the extension. The default is
-ghostty-<version>-x64-setup, with the version read from the release
-executable.
+<exe>-<version>-x64-setup, with the executable name from brand.json and the
+version read from the release executable.
 
 .PARAMETER Sign
-Sign ghostty.exe, the installer, and the uninstaller with Authenticode.
+Sign the executable, the installer, and the uninstaller with Authenticode.
 By default the certificate is selected by subject name from the CODESIGN_CERT
 environment variable (signtool /n), the same convention as the other
 packaging scripts on this machine. CertificateSubject, CertificateThumbprint,
@@ -171,7 +171,7 @@ $terminfoUserEntry = Join-Path $terminfoRoot (Join-Path $terminfoUserDir $brand.
 $terminfoUserEntryPresent = Test-Path -LiteralPath $terminfoUserEntry -PathType Leaf
 if (-not $terminfoUserEntryPresent) {
     Write-Warning ("The release tree has no share\terminfo\$terminfoUserDir\$($brand.terminfo_name), " +
-        "so Ghostty cannot register the terminfo entry for the user at " +
+        "so $($brand.display_name) cannot register the terminfo entry for the user at " +
         "startup and $($brand.terminfo_name) stays unresolved outside the install " +
         "drive. See docs/windows.md, Terminal Type and terminfo.")
 }
@@ -416,7 +416,7 @@ if ($Sign) {
 }
 $isccArguments += $scriptFile
 
-Write-Host "Building Ghostty installer $versionString ($numericVersion)"
+Write-Host "Building $($brand.display_name) installer $versionString ($numericVersion)"
 Write-Host "Inno Setup: $iscc"
 Write-Host "Output: $outputRoot"
 & $iscc @isccArguments
