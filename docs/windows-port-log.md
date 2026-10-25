@@ -5,6 +5,42 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-25: Name indirection verification and rename rehearsal (rename step 8, #31)
+
+- Unchanged values at `b24899a8e`: the full Zig suite passed (95/95 steps,
+  4075 passed, 62 skipped). `build-release.ps1 -OutputDirectory
+  zig-out\release-step8-final` produced the same 756 files as the release
+  tree built at `fec97795c` (only `ghostty-vt.dll` and the prefix-bearing
+  pkg-config files differ) with an identical `brand.json`, and byte-
+  identical `+help`, `+version`, `+explain-config font-family`,
+  `+show-config --default --docs`, `+list-actions --docs`, `+ssh --help`
+  and `+edit-config` output. On that release executable the window-state
+  regression passed (exit 0, no forced termination) and the soak run
+  passed 20 of 20 in 114.6 seconds.
+- Rehearsal of the rename: a copy of `b24899a8e` from `git archive`, with
+  only `src/brand.zig` changed (display name `Testterm`, identifier
+  `testterm`, prefix `TESTTERM_`, another AppId, no `+version` link), built
+  with all rewrite guards passing. (A copy under the scratch directory
+  failed in the uucode generator with FileNotFound, presumably from path
+  length; at `D:\tmp\gr` it built.) The install tree had `bin\testterm.exe`,
+  `share\testterm`, `share\terminfo\testterm.terminfo` with entry
+  `xterm-testterm|testterm|Testterm` and its compiled `74\` directory, and a
+  matching `brand.json`. Product names left in file names were only
+  `ghostty-vt.dll`/`.pdb` and its pkg-config files, and the upstream theme
+  `Ghostty Default Style Dark`; in installed text only the kept cases
+  (window-theme value, upstream URLs, Vim attribution, the bash-preexec
+  marker, fish descriptions of platform-only options). `--version`,
+  `+help`, `+explain-config` and `+edit-config` printed the new names (the
+  macOS `open -na Ghostty.app` line kept). A GUI run exited 0 with
+  `TERM=xterm-testterm`, `TERM_PROGRAM=testterm`, `TESTTERM_*` variables and
+  `testterm version=` in the log; `run-windows-diagnostics.ps1` used
+  `TESTTERM_LOG` from that prefix's `brand.json`. The child also received
+  `GHOSTTY_*` variables inherited from the Ghostty that ran the check.
+  The copy was deleted afterwards.
+- Open for the rename (step 9): the handling of `GHOSTTY_*` variables
+  inherited from an old Ghostty, and the file name of `ghostty-vt.dll`,
+  which the release tree contains but the installer does not ship.
+
 ## 2026-10-25: CLI output from brand.zig (rename step 8, #31)
 
 - An inventory of the generated help strings found 302 product-name
