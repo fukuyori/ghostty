@@ -5,6 +5,25 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-25: Resource rebuilt when the icon or manifest changes
+
+- During the Gooztty icon check the owner saw the previous icon in the
+  taskbar. The executable from a fresh `build-release.ps1` run still
+  embedded the old icon, and its timestamp (18:44) was older than the
+  changed `ghostty.ico` (18:52): the build reused the compiled resource
+  because nothing it tracked had changed. The resource is recompiled when
+  the generated `ghostty-version.h` changes, which happened with every
+  commit through the version string, so an icon change committed together
+  with other changes was picked up, but an uncommitted icon change was not.
+- `src/build/WindowsVersionResource.zig` now appends a hash of
+  `dist/windows/ghostty.ico` and `dist/windows/ghostty.manifest` to the
+  generated header as a comment, so a change to either recompiles the
+  resource. The version and name definitions are unchanged.
+- Verification: after the change, the Debug and release executables built
+  from the uncommitted Gooztty icon embedded the new icon (checked with
+  `ExtractAssociatedIcon`), and the owner confirmed it in the taskbar and
+  Alt+Tab. Debug build and the header tests passed.
+
 ## 2026-10-25: Command palette entry and ConPTY pipe names from brand.zig (#31)
 
 - The acceptance scan of a release build with the Gooztty values found two
