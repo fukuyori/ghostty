@@ -2,13 +2,13 @@
 
 A file for [guiding coding agents](https://agents.md/).
 
-This fork develops the native Windows build of Ghostty. This copy of the
-guide belongs to the `windows` branch, which keeps the Windows port in step
-with upstream. The product rename to Gooztty, its own features and all
-releases live on `gooztty`, which is the default branch and has its own copy
-of this guide. The macOS and Linux apps are not built or tested here;
-upstream owns them. Work in this repository targets Win32, D3D11, and the
-PowerShell tooling around them.
+This fork develops the native Windows build of Ghostty, to be renamed
+Gooztty. This copy of the guide belongs to the `gooztty` branch, the default
+branch, which carries the product rename, Gooztty's own features, the
+documentation and all releases. The `windows` branch keeps the Windows port
+in step with upstream and has its own copy of this guide. The macOS and
+Linux apps are not built or tested here; upstream owns them. Work in this
+repository targets Win32, D3D11, and the PowerShell tooling around them.
 
 ## Branch Responsibilities
 
@@ -28,18 +28,24 @@ PowerShell tooling around them.
   and Gooztty-specific defects on `gooztty`; never merge it into `windows`.
 - `gooztty` was created from `windows` at `842825597` on 2026-10-25. The
   name indirection (`src/brand.zig`, `brand.json`, the build-time rewrites)
-  stays on `windows` with the Ghostty values; only `gooztty` changes them.
+  lives on `windows` with the Ghostty values; the rename on `gooztty`
+  changes the values in `src/brand.zig` and avoids editing the use sites.
 - Commit directly to the branch that owns the change. Pull requests are not
   used, and the repository limits their creation to collaborators. Before
   committing, check with `git status -sb` that the current branch matches
   the purpose of the change.
-- On `windows`, record synchronization results, Windows-support
-  implementations, design decisions and verification evidence only in
-  `docs/windows-port-log.md`. The README, the other `docs/windows*.md`
-  files, release notes, changelog, roadmap and
-  `docs/version-update-checklist.md` are maintained on `gooztty`; do not
-  edit them on `windows`. When `windows` is merged into `gooztty`, those
-  documents are updated there.
+- Bring Windows-support changes into `gooztty` by merging `windows`; an
+  urgent `windows` fix may additionally be cherry-picked from `windows`.
+  Never commit such a fix on `gooztty` first.
+- `gooztty` maintains the README, `docs/windows*.md` (except the port log),
+  release notes, changelog, roadmap and `docs/version-update-checklist.md`.
+  After each `windows` merge, update the roadmap's status and verification
+  entries from the new port-log entries. Never edit
+  `docs/windows-port-log.md` on `gooztty`; it arrives unchanged from
+  `windows`.
+- `AGENTS.md` differs between the branches. When a `windows` merge
+  conflicts in it, keep the `gooztty` text and port relevant `windows`
+  changes by hand. Resolve `README.md` conflicts the same way.
 
 See `docs/windows-rebranding-plan.md` Section 1.2 for the full boundary and
 `docs/windows-roadmap.md` Section 7 for the schedule.
@@ -118,14 +124,15 @@ the exit code.
 - Windows packaging: `dist/windows` (icon, manifest, resource script, and the
   Inno Setup script)
 - Windows tooling: `scripts/*.ps1`
-- Windows development record edited on `windows`: `docs/windows-port-log.md`
-  (synchronization, implementation decisions and verification evidence)
-- Documentation maintained on `gooztty` and read-only here:
-  `docs/windows.md` (user guide), `docs/windows-roadmap.md` (implementation
-  status and verification matrix), `docs/windows-release-notes.md`,
-  `docs/windows-changelog.md`, `docs/version-update-checklist.md`,
-  `docs/windows-upstream-feature-plan.md` (feature scope and acceptance), and
-  `docs/windows-rebranding-plan.md` (branch responsibilities and rename plan)
+- Documentation maintained here: `docs/windows.md` (user guide),
+  `docs/windows-roadmap.md` (implementation status and verification matrix),
+  `docs/windows-release-notes.md`, `docs/windows-changelog.md`,
+  `docs/version-update-checklist.md`, `docs/windows-upstream-feature-plan.md`
+  (feature scope and acceptance), and `docs/windows-rebranding-plan.md`
+  (branch responsibilities and rename plan)
+- Windows development record, edited only on `windows` and read-only here:
+  `docs/windows-port-log.md` (synchronization, implementation decisions and
+  verification evidence)
 
 Keep changes to shared core files minimal and guarded by
 `builtin.os.tag == .windows` or `build_config`, so that upstream merges stay
@@ -133,14 +140,23 @@ manageable and other platforms keep their behavior.
 
 ## Releases
 
-- `windows` publishes nothing: no version change, tag, release or
-  installer. Releases are built from `gooztty`. `dist\windows\version.txt`
-  stays as it was at the cutover; the release and installer scripts remain
-  usable here for verification builds only.
+- Releases are built from `gooztty` only; `windows` publishes nothing.
+  Nothing is distributed while the rename is being implemented, not even
+  an emergency build (decided 2026-10-25).
 - The default branch is `gooztty`. Push to `origin` only; `upstream` and
   `mattn` are configured with pushing disabled.
-- Existing `vX.Y.Z-windows.N` tags record releases under the Ghostty name.
-- Commit and push only when the request says so.
+- Preview versions are `X.Y.Z-windows.N`, where `X.Y.Z` matches the numeric
+  part of `build.zig.zon` and `N` is the preview sequence. Gooztty continues
+  the existing sequence. Tags are `vX.Y.Z-windows.N` and stay unique across
+  the repository. The numbering rules and the full checklist are in
+  `docs/version-update-checklist.md`.
+- `dist\windows\version.txt` is edited only on `gooztty`. After each
+  `windows` merge, check that its numeric base still matches
+  `build.zig.zon` and reconcile it here when upstream changed the base.
+- Record every release in `docs/windows-release-notes.md` and every change
+  between releases in `docs/windows-changelog.md`, then update the state,
+  remaining work, and verification matrix in `docs/windows-roadmap.md`.
+- Commit, tag, push, and package only when the request says so.
 
 ## Issue and PR Guidelines
 

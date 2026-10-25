@@ -1,7 +1,7 @@
 # Ghostty Windows Production-Readiness Roadmap
 
-- Last updated: 2026-10-16
-- Target branch: `windows`; this roadmap moves to `gooztty` when that branch is created (see Section 2)
+- Last updated: 2026-10-25
+- Target branch: `gooztty` (maintained there since the 2026-10-25 cutover; see Section 2)
 - Baseline commit: `132a5d078` (`docs: add Windows implementation roadmap`)
 - Phase breakdown basis: the six phases agreed in the conversation as of 2026-09-14
 - Phase 7 basis: the 2026-09-23 [upstream feature development plan](windows-upstream-feature-plan.md)
@@ -29,15 +29,15 @@ order, or status changes.
 
 | Remote | Purpose | push |
 |---|---|---|
-| `origin` (`fukuyori/ghostty`; the name is kept for now) | Keep upstream history on `main`; maintain the Windows port on `windows`; after the cutover, develop and publish Gooztty on `gooztty` (until then, `windows` is also the development and release branch) | Enabled |
+| `origin` (`fukuyori/ghostty`; the name is kept for now) | Keep upstream history on `main`; maintain the Windows port on `windows`; develop and publish Gooztty on `gooztty`, the default branch since 2026-10-25. Pull requests are not used; their creation is limited to collaborators | Enabled |
 | `upstream` (`ghostty-org/ghostty`) | Source for continuous merges from the official build | Disabled |
 | `mattn` (`mattn/ghostty`) | Reference for the earlier Windows implementation | Disabled |
 
 | Branch | Purpose | Status |
 |---|---|---|
 | `main` | Mirror upstream `main` without Windows-specific changes | Local and `origin/main` are at `b58ef1d67`, the 2026-10-25 pre-cutover synchronization: the last upstream commit that builds with Zig 0.16. Later upstream commits require Zig 0.17 and wait for [#50](https://github.com/fukuyori/ghostty/issues/50) |
-| `windows` | Track upstream via `main`, implement upstream Ghostty features on Windows (including F4-F8), and fix port defects. This responsibility continues after `gooztty` is created. Until cutover it also handles the current product distribution | Current working branch |
-| `gooztty` | Long-lived branch created from `windows`: the rename, features or behavior extensions not provided by upstream Ghostty, product distribution, and user-facing documentation | Not yet created; branch workflow follows the advance Windows-support work, immediately before rename implementation |
+| `windows` | Track upstream via `main`, implement upstream Ghostty features on Windows (including F4-F8), and fix port defects. This responsibility continues after `gooztty` is created. Publishes nothing and edits only the port log among the documentation | Merged into `gooztty`; `gooztty` was created from `842825597` |
+| `gooztty` | Long-lived branch created from `windows`: the rename, features or behavior extensions not provided by upstream Ghostty, product distribution, and user-facing documentation | Created and pushed on 2026-10-25 from `842825597`; GitHub default branch. Rename implementation (step 9) has not started |
 | `rebrand/gozitty` | Provisional rename branch, superseded by `gooztty` | Local branch from `windows` at `d440594ab`; not pushed; deleted only on request |
 
 Branch ownership follows purpose, not implementation date: Windows support
@@ -55,7 +55,7 @@ contains examples and fix/PR routing rules.
   release rules are in Section 1.2 of the
   [rebranding plan](windows-rebranding-plan.md). Check the history and
   working tree before creating `gooztty`. Do not force-push. The transition
-  to this workflow is not complete.
+  to this workflow was completed on 2026-10-25.
 - Upstream synchronization comes before the rename (decided 2026-10-11).
   Smooth upstream merges after the rename are the rebrand's top priority;
   the rules are in Section 1.1 of the
@@ -1478,7 +1478,7 @@ packaging. Resolve open specifications before implementing the affected item.
 | 5 | F7 quick terminal/global bindings (#24) | `windows` | Done — implemented and accepted with owner-run real-key checks on 2026-10-17 |
 | 6 | F8 desktop/command-finish notifications (#21) | `windows` | Done — implemented (toast API, per-user AUMID, in-process click, uninstall cleanup) and accepted with owner-run checks on 2026-10-18. New Gooztty identity integration is separate |
 | 7 | Owner-run release after F8 | `windows` | Done — the owner built the signed `1.3.2-windows.16` installer from tag `v1.3.2-windows.16` under the current Ghostty name, before branch cutover. This schedule does not authorize the agent to build packages, sign, tag or publish |
-| 8 | Branch workflow (rebranding Phase 2), immediately before the rename | `windows` → `gooztty` | First complete build/distribution/output name indirection on `windows` with unchanged values and the pre-cutover upstream synchronization checks below. Default branch `gooztty`, no pull requests (changes go directly to the owning branch) and no emergency distribution during the rename were decided on 2026-10-25. Create `gooztty` on instruction, switch the default branch, and update branch-specific AGENTS/documentation. F4-F8 do not depend on this step |
+| 8 | Branch workflow (rebranding Phase 2), immediately before the rename | `windows` → `gooztty` | Done on 2026-10-25 — name indirection with unchanged values and the pre-cutover upstream synchronization were completed on `windows`. Default branch `gooztty`, no pull requests (changes go directly to the owning branch) and no emergency distribution during the rename were decided. `gooztty` was created from `842825597`, pushed and made the default branch, and `AGENTS.md` was updated on each branch ([port log](windows-port-log.md#2026-10-25-branch-cutover-to-gooztty-rename-step-8-31)) |
 | 9 | Integrate the Gooztty name (rebranding Phases 5-8) | `gooztty` | Select the agreed product-name values using the mechanisms already implemented on `windows`; apply the icon, installer identity and documentation changes, and verify build/UI/configuration/terminal/distribution outputs including F4-F8 naming sites |
 | 10 | Acceptance requiring the renamed application | `gooztty` | Verify final names/paths/resources/terminal identity, notification identity and activation where applicable, signed artifacts, fresh/side-by-side installation and removal, and the final integrated runtime |
 
@@ -1909,14 +1909,12 @@ covered physical mouse input (selection, copy/paste, wheel, context-menu
 split, click focus) and appearance (opacity, title-bar colors, blur, light
 and dark themes, high contrast). Blur application and the paste are
 evidenced in the logs; the rest is owner-confirmed. The restructuring is
-complete and #12 is closed. The next rebranding phase is the branch workflow:
-create `gooztty` when requested, decide the default branch and pull-request
-target, and perform the documentation/AGENTS cutover described in the
-[rebranding plan](windows-rebranding-plan.md#12-branch-tiers).
-
-Under the revised schedule, that branch workflow is Section 7 step 8:
-after #48, F4-F8 and the owner-run release, with the name-indirection and upstream-synchronization
-prerequisites above satisfied. It is not the next overall project task.
+complete and #12 is closed. The following rebranding phase, the branch
+workflow described in the
+[rebranding plan](windows-rebranding-plan.md#12-branch-tiers), became
+Section 7 step 8 under the revised schedule and was completed on 2026-10-25,
+after #48, F4-F8, the owner-run release, the name indirection and the
+pre-cutover upstream synchronization.
 
 The name indirection is a fork-owned `src/brand.zig` usable by the runtime and
 the build, holding the current `ghostty` values. Runtime identifiers move to
