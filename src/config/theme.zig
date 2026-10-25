@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const brand = @import("../brand.zig");
 const Allocator = std.mem.Allocator;
 const internal_os = @import("../os/main.zig");
 const cli = @import("../cli.zig");
@@ -29,7 +30,7 @@ pub const Location = enum {
         return switch (self) {
             .user => user: {
                 const subdir = std.fs.path.join(arena_alloc, &.{
-                    "ghostty", "themes",
+                    brand.config_dir_name, "themes",
                 }) catch return error.OutOfMemory;
 
                 break :user internal_os.xdg.config(

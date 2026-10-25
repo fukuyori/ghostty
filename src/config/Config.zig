@@ -12,6 +12,7 @@ const Config = @This();
 
 const std = @import("std");
 const builtin = @import("builtin");
+const brand = @import("../brand.zig");
 const build_config = @import("../build_config.zig");
 const assert = @import("../quirks.zig").inlineAssert;
 const Allocator = std.mem.Allocator;
@@ -3941,7 +3942,7 @@ else
 /// features. An option exists in vim to modify this: `:set
 /// keyprotocol=ghostty:kitty`, however a bug in the implementation prevents it
 /// from working properly. https://github.com/vim/vim/pull/13211 fixes this.
-term: []const u8 = "xterm-ghostty",
+term: []const u8 = brand.terminfo_name,
 
 /// String to send when we receive `ENQ` (`0x05`) from the command that we are
 /// running. Defaults to an empty string if not set.
@@ -4878,7 +4879,7 @@ pub fn finalize(self: *Config) !void {
     // Prevent setting TERM to an empty string
     if (self.term.len == 0) {
         // HACK: See comment above at definition
-        self.term = "xterm-ghostty";
+        self.term = brand.terminfo_name;
     }
 
     // The default for the working directory depends on the system.

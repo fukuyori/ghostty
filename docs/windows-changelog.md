@@ -17,6 +17,11 @@ known issues, and known limitations of each version; the
   all still Ghostty. Every Windows build writes them to `brand.json` at the
   root of the install prefix, and `scripts/windows-brand.ps1` reads and
   validates it for the PowerShell scripts (rename step 8, #31).
+- Take the configuration location and file name, user themes directory,
+  terminfo names and `TERM` default, `TERM_PROGRAM`, the XTVERSION name,
+  the `+ssh` terminfo and cache names, and the `GHOSTTY_*` environment
+  variable names from `src/brand.zig`, with unchanged values (rename step 8,
+  #31).
 
 ### Documentation
 

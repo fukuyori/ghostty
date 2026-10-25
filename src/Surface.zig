@@ -17,6 +17,7 @@ pub const Message = apprt.surface.Message;
 
 const std = @import("std");
 const builtin = @import("builtin");
+const brand = @import("brand.zig");
 const assert = @import("quirks.zig").inlineAssert;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
@@ -652,11 +653,11 @@ pub fn init(
         errdefer env.deinit();
 
         // don't leak GHOSTTY_LOG to any subprocesses
-        _ = env.orderedRemove("GHOSTTY_LOG");
+        _ = env.orderedRemove(brand.env_prefix ++ "LOG");
 
         var buf: [18]u8 = undefined;
         try env.put(
-            "GHOSTTY_SURFACE_ID",
+            brand.env_prefix ++ "SURFACE_ID",
             std.fmt.bufPrint(&buf, "0x{x:0>16}", .{self.id}) catch unreachable,
         );
 

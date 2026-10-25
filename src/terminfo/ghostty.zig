@@ -1,4 +1,5 @@
 const std = @import("std");
+const brand = @import("../brand.zig");
 const Source = @import("Source.zig");
 
 /// Ghostty's terminfo entry.
@@ -13,13 +14,13 @@ pub const ghostty: Source = .{
         // the primary terminfo name must be the value of TERM.
         // https://github.com/gdamore/tcell/pull/639 fixes the issue but is not
         // merged yet. Consider switching these in the future.
-        "xterm-ghostty",
+        brand.terminfo_name,
 
         // The preferred name
-        "ghostty",
+        brand.identifier,
 
         // Our "formal" name
-        "Ghostty",
+        brand.display_name,
     },
 
     // NOTE: These capabilities are super underdocumented and I'm not 100%

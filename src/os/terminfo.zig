@@ -26,6 +26,7 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
+const brand = @import("../brand.zig");
 const Allocator = std.mem.Allocator;
 const windows = @import("windows.zig");
 const osfile = @import("file.zig");
@@ -37,7 +38,7 @@ const log = std.log.scoped(.terminfo);
 /// character, so xterm-ghostty lives in 78 rather than in x. An entry written
 /// to x\ is not found.
 const subdir = "78";
-const entry_name = "xterm-ghostty";
+const entry_name = brand.terminfo_name;
 
 /// A compiled entry is a few kilobytes. The bound only keeps a wrong
 /// terminfo_dir from turning into a large allocation.

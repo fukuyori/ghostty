@@ -4,6 +4,7 @@
 const Entry = @This();
 
 const std = @import("std");
+const brand = @import("../../brand.zig");
 
 hostname: []const u8,
 timestamp: i64,
@@ -17,7 +18,7 @@ pub fn parse(line: []const u8) ?Entry {
     var iter = std.mem.tokenizeScalar(u8, trimmed, '|');
     const hostname = iter.next() orelse return null;
     const timestamp_str = iter.next() orelse return null;
-    const terminfo_version = iter.next() orelse "xterm-ghostty";
+    const terminfo_version = iter.next() orelse brand.terminfo_name;
     const timestamp = std.fmt.parseInt(i64, timestamp_str, 10) catch |err| {
         std.log.warn(
             "Invalid timestamp in cache entry: {s} err={}",

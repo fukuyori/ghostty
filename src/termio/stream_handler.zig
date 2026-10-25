@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const brand = @import("../brand.zig");
 const assert = @import("../quirks.zig").inlineAssert;
 const Allocator = std.mem.Allocator;
 const global = @import("../global.zig");
@@ -966,7 +967,7 @@ pub const StreamHandler = struct {
             &buf,
             "\x1BP>|{s} {s}\x1B\\",
             .{
-                "ghostty",
+                brand.identifier,
                 build_config.version_string,
             },
         );

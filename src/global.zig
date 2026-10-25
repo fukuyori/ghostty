@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const brand = @import("brand.zig");
 const build_config = @import("build_config.zig");
 const build_options = @import("build_options");
 const cli = @import("cli.zig");
@@ -149,7 +150,7 @@ pub fn init(opts: InitOpts) !void {
     // this. Env vars are useful for logging too because they are
     // easy to set.
     logging: {
-        const v = self.environ.getAlloc(self.alloc, "GHOSTTY_LOG") catch |err| switch (err) {
+        const v = self.environ.getAlloc(self.alloc, brand.env_prefix ++ "LOG") catch |err| switch (err) {
             error.EnvironmentVariableMissing => break :logging,
             else => return err,
         };

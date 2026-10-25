@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const brand = @import("../brand.zig");
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const cli_args = @import("args.zig");
@@ -244,7 +245,7 @@ fn runInner(
         };
 
         const cache: ?DiskCache = if (opts.cache) cache: {
-            const path = DiskCache.defaultPath(alloc, "ghostty") catch |err| {
+            const path = DiskCache.defaultPath(alloc, brand.identifier) catch |err| {
                 warnPrint(stderr, "ghostty terminfo cache unavailable: {t}", .{err});
                 break :session .{ .term = "xterm-256color" };
             };
@@ -267,7 +268,7 @@ fn runInner(
 
             if (cached) {
                 verbosePrint(opts, stderr, "dest: {s} (cached, skipping install)", .{dest});
-                break :session .{ .term = "xterm-ghostty" };
+                break :session .{ .term = brand.terminfo_name };
             } else {
                 verbosePrint(opts, stderr, "dest: {s} (not cached, will install)", .{dest});
             }
@@ -275,7 +276,7 @@ fn runInner(
             verbosePrint(opts, stderr, "dest: {s} (cache disabled, will install)", .{dest});
         }
 
-        stderr.print("Setting up xterm-ghostty terminfo on {s}...\n", .{dest}) catch {};
+        stderr.print("Setting up " ++ brand.terminfo_name ++ " terminfo on {s}...\n", .{dest}) catch {};
         stderr.flush() catch {};
 
         installRemoteTerminfo(alloc, opts, stderr) catch |err| {
@@ -283,7 +284,7 @@ fn runInner(
             break :session .{ .term = "xterm-256color" };
         };
         break :session .{
-            .term = "xterm-ghostty",
+            .term = brand.terminfo_name,
             .to_cache = if (cache) |c| .{ .cache = c, .dest = dest } else null,
         };
     };
@@ -498,7 +499,7 @@ fn installRemoteTerminfo(
     // ControlPath as the bind address for a Unix domain socket; macOS
     // limits sockaddr_un.sun_path to ~104 bytes, so keeping the path
     // short leaves margin.
-    const control_path = try internal_os.randomTmpPath(alloc, "ghostty-ssh-");
+    const control_path = try internal_os.randomTmpPath(alloc, brand.identifier ++ "-ssh-");
     const control_path_opt = try std.fmt.allocPrint(
         alloc,
         "ControlPath={s}",

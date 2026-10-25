@@ -1,4 +1,5 @@
 const std = @import("std");
+const brand = @import("../brand.zig");
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Action = @import("../cli.zig").ghostty.Action;
@@ -247,7 +248,7 @@ fn runArgs(
     const surface_id = opts.@"surface-id" orelse surface: {
         var env = global.environMap() catch break :surface 0;
         defer env.deinit();
-        const e = env.get("GHOSTTY_SURFACE_ID") orelse break :surface 0;
+        const e = env.get(brand.env_prefix ++ "SURFACE_ID") orelse break :surface 0;
         break :surface std.fmt.parseUnsigned(u64, e, 0) catch break :surface 0;
     };
 

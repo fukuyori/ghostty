@@ -8,6 +8,7 @@
 const Pager = @This();
 const builtin = @import("builtin");
 const std = @import("std");
+const brand = @import("../brand.zig");
 const Allocator = std.mem.Allocator;
 const internal_os = @import("../os/main.zig");
 const global = @import("../global.zig");
@@ -60,7 +61,7 @@ fn initPager() ?std.process.Child {
 
     // Resolve the pager command: $GHOSTTY_PAGER > $PAGER > `less`.
     // An empty value for either env var disables paging.
-    const ghostty_var = env.get("GHOSTTY_PAGER");
+    const ghostty_var = env.get(brand.env_prefix ++ "PAGER");
     const pager_var = env.get("PAGER");
     const cmd: ?[]const u8 = cmd: {
         if (ghostty_var) |v| break :cmd if (v.len > 0) v else null;

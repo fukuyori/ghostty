@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const brand = @import("../brand.zig");
 const Allocator = std.mem.Allocator;
 const global = @import("../global.zig");
 
@@ -49,7 +50,7 @@ pub fn resourcesDir(alloc: Allocator) !ResourcesDir {
     // Note: we ALWAYS want to allocate here because the result is always
     // freed, do not try to use internal_os.getenv or posix getenv.
     if (comptime builtin.mode != .Debug) env: {
-        const dir = global.environ().getAlloc(alloc, "GHOSTTY_RESOURCES_DIR") catch |err| switch (err) {
+        const dir = global.environ().getAlloc(alloc, brand.env_prefix ++ "RESOURCES_DIR") catch |err| switch (err) {
             error.EnvironmentVariableMissing => break :env,
             else => return err,
         };
@@ -111,7 +112,7 @@ pub fn resourcesDir(alloc: Allocator) !ResourcesDir {
     // If terminfo detection failed in debug builds (somehow),
     // fallback and use the provided resources dir.
     if (comptime builtin.mode == .Debug) {
-        if (global.environ().getAlloc(alloc, "GHOSTTY_RESOURCES_DIR")) |dir| {
+        if (global.environ().getAlloc(alloc, brand.env_prefix ++ "RESOURCES_DIR")) |dir| {
             if (dir.len > 0) return .{ .app_path = dir };
         } else |err| switch (err) {
             error.InvalidWtf8, error.EnvironmentVariableMissing => {},

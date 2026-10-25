@@ -5,6 +5,43 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-25: Configuration and terminal identity indirection (rename step 8, #31)
+
+- Shared files now take the configuration, terminal and environment names
+  from `src/brand.zig`, one reference per site plus one import per file,
+  with every value unchanged:
+  - configuration lookup (`config/file_load.zig`: XDG/`%LOCALAPPDATA%`
+    `ghostty/config.ghostty`, legacy `ghostty/config`, macOS application
+    support) and user themes (`config/theme.zig`);
+  - the terminfo entry names (`terminfo/ghostty.zig`), the `term` default
+    and its fallback (`config/Config.zig`), the Windows user terminfo entry
+    (`os/terminfo.zig`), `TERM_PROGRAM` (`termio/Exec.zig`) and the XTVERSION
+    name (`termio/stream_handler.zig`);
+  - `+ssh`: the terminfo name, its progress message, the cache directory
+    name, the control-socket prefix (`cli/ssh.zig`) and the cache entry
+    default (`cli/ssh-cache/Entry.zig`);
+  - the `GHOSTTY_*` variables the terminal produces or reads: `LOG`,
+    `PAGER`, `SURFACE_ID`, `RESOURCES_DIR`, `BIN_DIR`, `SHELL_FEATURES`, the
+    Bash and zsh injection variables, `SHELL_INTEGRATION_XDG_DIR` and
+    `SHELL_INTEGRATION_POWERSHELL` with the injected PowerShell command.
+- Tests in `termio/shell_integration.zig` that read those variables use the
+  same references, so changing the values on `gooztty` does not require
+  editing them. Tests that build their own terminfo sources or cache lines
+  keep their literals. Comments, log text and other runtime messages are
+  left to the CLI-output package; `GHOSTTY_MAC_LAUNCH_SOURCE` (macOS only)
+  and the `GHOSTTY_LZ4_SLOW` test switch are not product interfaces on
+  Windows and stay as upstream has them. The Win32 runtime already used
+  `brand.env_prefix`.
+- Verification: `zig fmt --check src`; Debug `zig build` and
+  `zig build -Demit-lib-vt` (exit 0); filtered Zig tests for
+  `shell_integration`, `ssh`, `Entry`, `terminfo`, `resourcesdir`, `theme`
+  and `Config` passed; Win32 tests 195 passed, 1 skipped. A Debug run with
+  `--config-default-files=false -e pwsh -File <dump>` exited 0 and gave the
+  child `TERM=xterm-ghostty`, `TERM_PROGRAM=ghostty`,
+  `GHOSTTY_RESOURCES_DIR`, `GHOSTTY_BIN_DIR`, `GHOSTTY_SHELL_FEATURES` and
+  `GHOSTTY_SURFACE_ID` under their unchanged names. XTVERSION, `+ssh` and
+  theme lookup were not exercised at runtime.
+
 ## 2026-10-25: Name indirection foundation (rename step 8, #31)
 
 - Codex reviewed the step 8 plan read-only. It found that the plan omitted
