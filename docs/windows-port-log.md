@@ -5,6 +5,34 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-25: IME text duplicated in PowerShell under win32-input-mode
+
+- Owner report: in the PowerShell prompt, composing `112233えん` and
+  committing `112233円` produced `11222333円`. `123456円` was correct. It
+  happened in the installed `1.3.2-windows.16` and in Gooztty, not in cmd
+  or Claude Code, and not in Windows Terminal or WezTerm.
+- A temporary key log (not committed) in a ReleaseFast build showed two
+  departures from a real keyboard in the win32-input-mode records sent to
+  ConPTY: each key the IME took (`VK_PROCESSKEY` press) still sent its
+  release with the real virtual key and character, and each committed
+  character was sent as a press-only record with a virtual key guessed by
+  `VkKeyScan`, without a release. Suppressing the unmatched releases alone
+  left `11222333円`; sending the committed characters as plain text fixed
+  it. Repeated identical press-only records are the likely trigger, since
+  only doubled digits were affected (not confirmed).
+- `Keyboard.zig` now remembers keys whose press the IME took
+  (`Surface.ime_consumed_keys`, by scan code with the extended bit) and
+  does not send their release, and text without a physical keystroke
+  (IME commits) carries no win32 key record, so the encoder sends it as
+  UTF-8 and ConPTY generates the records.
+- Verification: with the probe build the owner's input gave `112233円`,
+  and the log showed no IME-key releases and the committed text as plain
+  UTF-8 while ordinary keys kept their press and release records. Debug
+  build; Win32 tests with hooks 197 passed, 1 skipped; window-state
+  regression passed, including the IME Enter/Backspace suppression check
+  (exit 0, no forced termination); full Zig suite 95/95 steps, 4123
+  passed, 64 skipped.
+
 ## 2026-10-25: +ssh terminfo install on Windows (#71)
 
 - The SSH check of the renamed build (rename step 10, ID 33) found that
