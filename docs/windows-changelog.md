@@ -7,11 +7,13 @@ known issues, and known limitations of each version; the
 [version update checklist](version-update-checklist.md) describes the
 `X.Y.Z-windows.N` numbering.
 
-## Unreleased
+## 1.3.2-windows.17
 
-Versions up to `1.3.2-windows.16` were published under the name Ghostty.
-The changes below rename the application to Gooztty on the `gooztty`
-branch (rename step 9, #31).
+The first version under the name Gooztty. Versions up to
+`1.3.2-windows.16` were published under the name Ghostty. Includes the
+changes after `1.3.2-windows.16` on `windows` and the rename on `gooztty`
+(rename steps 8 and 9, #31); verification is recorded in the
+[release notes](windows-release-notes.md#132-windows17).
 
 ### Changed
 
@@ -27,7 +29,10 @@ branch (rename step 9, #31).
   is migrated automatically; the README describes the manual steps.
 - Use the selected ghoultty artwork as the application icon
   (`dist/windows/build-gooztty-icon.ps1` writes `ghostty.ico`) and remove
-  the unused icon candidates.
+  the unused icon candidates. Sizes up to 48 px use a crop around the hood
+  and face, which stays readable in the taskbar and Alt+Tab.
+- The default command palette entry for the `text` action and the ConPTY
+  pipe names take the product name from `src/brand.zig`.
 - A renamed build started from inside Ghostty removes the `GHOSTTY_*`
   variables Ghostty set for its own shell (resources and binary
   directories, surface ID, shell integration and quick terminal variables)
@@ -38,8 +43,25 @@ branch (rename step 9, #31).
   terminal links it statically and never loaded the DLL, and the installer
   never shipped it (#68).
 
+### Fixed
+
+- Load the window icons at the window's DPI after creation and on a DPI
+  change, so the title bar, taskbar and Alt+Tab icons are no longer
+  stretched and blurry at another display scale (#70).
+- `+ssh` installs its terminfo entry on Windows: the install no longer uses
+  an SSH ControlMaster, which OpenSSH for Windows cannot set up, and it is
+  skipped when a remote command is given (#71).
+- Recompile the Windows resource when the icon or manifest changes; an
+  uncommitted icon change used to leave the old icon in the executable.
+- IME input in the PowerShell prompt no longer repeats doubled characters
+  (`112233円` became `11222333円`): committed IME text is sent as plain
+  characters, and the releases of keys the IME took are not sent.
+
 ### Build
 
+- Synchronize with upstream through `b58ef1d67`, the last upstream commit
+  that builds with Zig 0.16, and follow upstream's lazily created render
+  device in the D3D11 renderer.
 - Add the name values used by the build and distribution tooling to
   `src/brand.zig` (executable, resource and configuration directory names,
   configuration file name, terminfo name, `TERM_PROGRAM`, installer AppId),
@@ -77,6 +99,8 @@ branch (rename step 9, #31).
   unchanged with the current values (rename step 8, #31).
 - Make the configuration template and `+ssh-cache` entry tests independent
   of the values in `src/brand.zig`, so they pass with the renamed values.
+- Release and installer script messages no longer name the product before
+  `brand.json` exists, and use its display name afterwards.
 
 ### Documentation
 
@@ -88,7 +112,6 @@ branch (rename step 9, #31).
   installer names.
 - Record the branch cutover: `gooztty` was created on 2026-10-25 and is the
   default branch; `AGENTS.md` describes each branch's role.
-
 - Add `docs/windows-config-support.md`, listing every configuration option
   with its Windows status (runtime-verified, supported from the code,
   partial, not implemented, or not applicable) and a description, with a

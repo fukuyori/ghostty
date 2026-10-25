@@ -1,6 +1,7 @@
-# Ghostty for Windows Release Notes
+# Gooztty Release Notes
 
-This is the release history of the Windows previews. See the
+This is the release history of the Windows previews. Versions up to
+`1.3.2-windows.16` were published under the name Ghostty. See the
 [Changelog](windows-changelog.md) for the full list of changes between
 versions with their commits, the
 [Version Update Checklist](version-update-checklist.md) for the version
@@ -10,6 +11,75 @@ limitations, and the [Roadmap](windows-roadmap.md) for implementation status.
 Publication status is maintained in
 [GitHub Releases](https://github.com/fukuyori/ghostty/releases). These notes
 record each version's changes, verification results and limitations.
+
+## 1.3.2-windows.17
+
+- Source: `gooztty` after `1.3.2-windows.16`, including the `windows`
+  changes through `1f2b06f3f`.
+- Base version: upstream Ghostty 1.3.2 series (`1.3.2-dev`), synchronized
+  through `b58ef1d67`.
+- Product name: Gooztty, the first version under this name. It installs as
+  a separate application beside the Ghostty for Windows previews; nothing is
+  migrated automatically (see the README, "Moving from Ghostty for
+  Windows").
+
+### Changes Since 1.3.2-windows.16
+
+- Rename the application to Gooztty: `gooztty.exe`, `share\gooztty`,
+  `%LOCALAPPDATA%\gooztty\config.gooztty`, `TERM=xterm-gooztty`,
+  `TERM_PROGRAM=gooztty`, `GOOZTTY_*` variables, window classes, IPC pipe,
+  notification identity `fukuyori.Gooztty` and a new installer AppId (#31).
+- New application icon from the ghoultty artwork.
+- Remove the old Ghostty's terminal variables from the child environment
+  when started from inside Ghostty (#67), and leave libghostty-vt out of the
+  release tree (#68).
+- Sharp window icons at any display scale (#70), and a working `+ssh`
+  terminfo install on Windows (#71).
+- Japanese IME input in the PowerShell prompt no longer repeats doubled
+  characters (`112233円` became `11222333円` in `1.3.2-windows.16`).
+
+See the [changelog](windows-changelog.md#132-windows17) for the full list.
+
+### Verification
+
+These are checks of release builds made from the `gooztty` sources during
+development; they precede the `.17` distribution and do not verify its
+artifacts. Installer, signature, installation, coexistence and removal
+checks of the distribution are separate.
+
+- Full Zig suite: 95/95 steps on `gooztty` at `6fc32eb68` (4121 passed, 64
+  skipped) and on `windows` at `8392c08b1` (4122 passed, 64 skipped). The
+  `windows..gooztty` code difference is `src/brand.zig` only.
+- Executable: `+version`, `--help`, file properties and icon; the
+  window-state regression passed (exit 0, no forced termination).
+- Configuration: `%LOCALAPPDATA%\gooztty\config.gooztty`, precedence of
+  `XDG_CONFIG_HOME`, the extensionless legacy file, reload, the template
+  written on first launch, and the old `ghostty` directory left unread.
+- Terminal identity: `TERM`, `TERM_PROGRAM`, `GOOZTTY_*` variables,
+  XTVERSION `gooztty 1.3.2-windows.16` (before the version change), the
+  user terminfo entry, PowerShell shell integration, and SSH to a Linux
+  host with `xterm-gooztty` installed by `+ssh` and Neovim colors inside
+  Gooztty.
+- Names left in the release tree are the approved exceptions only
+  (upstream URLs and attribution, version history, platform-only option
+  descriptions, the `window-theme = ghostty` value).
+- Owner-run UI and notification checks on 2026-10-25: title, tabs,
+  taskbar, Alt+Tab, icon sizes, configuration error dialog, Narrator,
+  multiple windows, 150% scaling, toasts under the Gooztty name, click
+  activation, the notification settings entry, command-finished toasts and
+  removal on exit.
+- IME input in the PowerShell prompt: the owner's `112233えん` commit gave
+  `112233円` with a probe build of the fix; the window-state regression and
+  the full Zig suite (4123 passed, 64 skipped) passed.
+
+### Known Limitations
+
+- `gooztty +ssh` run from a shell opens the SSH session in a new console
+  window (Windows Terminal) instead of the current pane (#72). Plain `ssh`
+  inside Gooztty works.
+- Settings, themes and the terminfo entries of the old Ghostty are not
+  migrated; copy them by hand as the README describes.
+- The limitations listed for `1.3.2-windows.16` still apply.
 
 ## 1.3.2-windows.16
 
