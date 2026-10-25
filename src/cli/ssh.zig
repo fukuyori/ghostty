@@ -277,6 +277,15 @@ fn runInner(
             verbosePrint(opts, stderr, "dest: {s} (cache disabled, will install)", .{dest});
         }
 
+        // The install passes the ssh arguments on and appends its script,
+        // so a remote command would run together with it (#71).
+        if (comptime builtin.os.tag == .windows) {
+            if (hasRemoteCommand(opts._ssh_args.items)) {
+                verbosePrint(opts, stderr, "remote command given; skipping terminfo install", .{});
+                break :session .{ .term = "xterm-256color" };
+            }
+        }
+
         stderr.print("Setting up " ++ brand.terminfo_name ++ " terminfo on {s}...\n", .{dest}) catch {};
         stderr.flush() catch {};
 
@@ -483,6 +492,42 @@ fn parseDestination(alloc: Allocator, stdout: []const u8) ?[]const u8 {
     return std.fmt.allocPrint(alloc, "{s}@{s}:{s}", .{ user, host, port }) catch null;
 }
 
+/// Whether the ssh arguments include a remote command: arguments after the
+/// destination, which is the first argument that is neither an option nor
+/// the value of one. The options that take a value are those of OpenSSH's
+/// `ssh` usage; a value may be attached (`-p22`) or follow (`-p 22`).
+fn hasRemoteCommand(args: []const []const u8) bool {
+    const with_value = "BbcDEeFIiJLlmOoPpQRSWw";
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) {
+        const arg = args[i];
+        if (std.mem.eql(u8, arg, "--")) return i + 2 < args.len;
+        if (arg.len < 2 or arg[0] != '-') return i + 1 < args.len;
+        for (arg[1..], 1..) |c, j| {
+            if (std.mem.indexOfScalar(u8, with_value, c) != null) {
+                if (j + 1 == arg.len) i += 1;
+                break;
+            }
+        }
+    }
+    return false;
+}
+
+test hasRemoteCommand {
+    const testing = std.testing;
+    try testing.expect(!hasRemoteCommand(&.{"host"}));
+    try testing.expect(!hasRemoteCommand(&.{ "-p", "2222", "user@host" }));
+    try testing.expect(!hasRemoteCommand(&.{ "-p2222", "-i", "key", "-A", "user@host" }));
+    try testing.expect(!hasRemoteCommand(&.{ "-o", "SetEnv=X=1", "-tv", "host" }));
+    try testing.expect(!hasRemoteCommand(&.{ "-vp", "22", "host" }));
+    try testing.expect(!hasRemoteCommand(&.{ "--", "host" }));
+    try testing.expect(hasRemoteCommand(&.{ "host", "uname" }));
+    try testing.expect(hasRemoteCommand(&.{ "-p", "22", "host", "echo", "hi" }));
+    try testing.expect(hasRemoteCommand(&.{ "-vp", "22", "host", "ls" }));
+    try testing.expect(hasRemoteCommand(&.{ "--", "host", "ls" }));
+    try testing.expect(!hasRemoteCommand(&.{ "-p", "22" }));
+}
+
 /// Install Ghostty's terminfo on the remote host over a short-lived SSH
 /// ControlMaster connection. The master tears down with the client
 /// (`ControlPersist=no`) so no socket lingers.
@@ -500,12 +545,23 @@ fn installRemoteTerminfo(
     // ControlPath as the bind address for a Unix domain socket; macOS
     // limits sockaddr_un.sun_path to ~104 bytes, so keeping the path
     // short leaves margin.
-    const control_path = try internal_os.randomTmpPath(alloc, brand.identifier ++ "-ssh-");
-    const control_path_opt = try std.fmt.allocPrint(
-        alloc,
-        "ControlPath={s}",
-        .{control_path},
-    );
+    //
+    // OpenSSH for Windows fails to set up the master ("getsockname
+    // failed: Not a socket"), so on Windows the install uses a plain
+    // connection of its own (#71).
+    const control_opts: []const []const u8 = if (comptime builtin.os.tag == .windows) &.{} else control: {
+        const control_path = try internal_os.randomTmpPath(alloc, brand.identifier ++ "-ssh-");
+        const control_path_opt = try std.fmt.allocPrint(
+            alloc,
+            "ControlPath={s}",
+            .{control_path},
+        );
+        break :control try alloc.dupe([]const u8, &.{
+            "-o", "ControlMaster=yes",
+            "-o", "ControlPersist=no",
+            "-o", control_path_opt,
+        });
+    };
 
     // Under --verbose, let remote stderr through (the `tic` step is
     // the most common failure source) and inherit ssh's stderr so it
@@ -526,11 +582,7 @@ fn installRemoteTerminfo(
     //     exits; no socket lingers on the remote side.
     const argv = try std.mem.concat(alloc, []const u8, &.{
         &.{opts.ssh},
-        &.{
-            "-o", "ControlMaster=yes",
-            "-o", "ControlPersist=no",
-            "-o", control_path_opt,
-        },
+        control_opts,
         opts._ssh_args.items,
         &.{remote_script},
     });

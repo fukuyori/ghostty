@@ -5,6 +5,35 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-25: +ssh terminfo install on Windows (#71)
+
+- The SSH check of the renamed build (rename step 10, ID 33) found that
+  `+ssh` never installs the terminfo entry from Windows. The install ran
+  `ssh -o ControlMaster=yes -o ControlPersist=no -o ControlPath=...` and
+  failed with `getsockname failed: Not a socket`; the session then fell
+  back to `TERM=xterm-256color` as designed. The same options with the
+  Windows `ssh.exe` alone (`OpenSSH_for_Windows_9.5p2`) failed the same
+  way, while a plain connection worked. Interactive sessions get `TERM`
+  (`-tt` printed `TERM=xterm-256color`); a command-only session printed an
+  empty `TERM` because the server takes `TERM` from the pty request only.
+- A Codex review confirmed the install builds the ControlMaster command
+  from `src/cli/ssh.zig` and found a second defect shared with upstream:
+  every argument after `+ssh`'s flags, including a remote command, goes to
+  the install connection before the install script, so `+ssh host cmd`
+  sends `cmd <script>` as one command.
+- On Windows the install now uses a plain connection without the
+  ControlMaster options, and it is skipped when the ssh arguments contain
+  a remote command (`hasRemoteCommand`, which finds the destination after
+  OpenSSH's options and their values). Both are guarded by
+  `builtin.os.tag == .windows`. Without keys the user authenticates twice.
+- Verification against a Linux host (`fuk@192.168.12.12`, `tic` present)
+  with a scratch build carrying the Gooztty values and `--cache=false`:
+  with a remote command, `+ssh` printed "remote command given; skipping
+  terminfo install" and ran it with `TERM=xterm-256color` (exit 0); without
+  one, it installed `~/.terminfo/x/xterm-gooztty` over a plain connection
+  (`infocmp` showed `xterm-gooztty|gooztty|Gooztty,`) and connected with
+  `SetEnv=TERM=xterm-gooztty`. New unit tests cover `hasRemoteCommand`.
+
 ## 2026-10-25: Window icons at the window's DPI (#70)
 
 - The owner saw a blurry title bar icon at 150% scaling while the text was
@@ -21,7 +50,7 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   termination) with monitors at 96, 144 and 120 DPI. Moving a window by
   `SetWindowPos` gave small/large icons of 16/32 px at 96 DPI, 24/48 at 144,
   20/40 at 120 and 16/32 again at 96, read back with `WM_GETICON` and
-  `GetIconInfo`. Owner check of the title bar at 150% is pending.
+  `GetIconInfo`. The owner confirmed on a Gooztty release build that the title bar, taskbar and Alt+Tab icons are sharp at 150% and stay correct back at 100%.
 
 ## 2026-10-25: Resource rebuilt when the icon or manifest changes
 
