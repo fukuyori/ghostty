@@ -2509,7 +2509,7 @@ keybind: Keybinds = .{},
 
 /// Require confirmation before pasting text that appears unsafe. This helps
 /// prevent a "copy/paste attack" where a user may accidentally execute unsafe
-/// commands by pasting text with newlines.
+/// commands by pasting text with newlines or carriage returns.
 @"clipboard-paste-protection": bool = true,
 
 /// If true, bracketed pastes will be considered safe. By default, bracketed
@@ -3832,6 +3832,13 @@ else
 /// keybind if your window doesn't have a title bar, or you can switch tabs
 /// with keybinds.
 @"gtk-tabs-location": GtkTabsLocation = .top,
+
+/// If true, the close button of each tab is shown at the start of the tab
+/// (the left, in left-to-right languages) and the tab's icon at the end.
+/// This applies to both the tab bar and the tab overview. GTK only.
+///
+/// Available since: 1.4.0
+@"gtk-tabs-inverted": bool = false,
 
 /// If this is `true`, the titlebar will be hidden when the window is maximized,
 /// and shown when the titlebar is unmaximized. GTK only.

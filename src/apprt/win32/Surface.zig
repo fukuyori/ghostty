@@ -308,6 +308,13 @@ pub fn releaseMainThreadContext(_: *Self) void {
     releaseContext();
 }
 
+/// Options for the app-scoped render device, created with the first
+/// surface. Each D3D11 surface creates its own device, so there are none.
+pub fn renderDeviceOptions(self: *const Self) !@import("../../renderer.zig").Device.Options {
+    _ = self;
+    return .{};
+}
+
 pub fn getContentScale(self: *const Self) !apprt.ContentScale {
     const dpi = win32.GetDpiForWindow(self.window_hwnd);
     if (dpi == 0) {

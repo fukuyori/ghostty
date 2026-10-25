@@ -5,6 +5,48 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-25: Pre-cutover upstream synchronization through b58ef1d67 (rename step 8, #31)
+
+- Upstream state on 2026-10-25: `upstream/main` at `cec8b92f1` was 263
+  commits ahead of `main` (`6d53bafb1`). Upstream moved to Zig 0.17 with
+  `3d07ef9e2` "Update to Zig 0.17 (#14519)" (2026-10-20); its first parent
+  `b58ef1d67` "Update VOUCHED list (#14772)" is the last first-parent commit
+  that still requires Zig 0.16.0. The owner chose to integrate through
+  `b58ef1d67` (142 commits) before branch cutover and to do the Zig 0.17
+  migration (#50) separately on `windows`; the remaining 121 commits follow
+  with it.
+- Local `main` was fast-forwarded to `b58ef1d67` and merged into
+  `windows`. Conflicts: eleven `.github` files deleted on `windows` and
+  changed upstream stay deleted, as in earlier synchronizations;
+  `src/build/SharedDeps.zig` keeps the Win32 system libraries with
+  upstream's `addGtkNg` -> `addGtk` rename; `src/renderer/generic.zig`
+  keeps `recoverGpuResources` with upstream's rewritten display-link
+  comment.
+- Upstream `2d2ceb0f8` made the render device lazily created from the first
+  surface (`rt_surface.renderDeviceOptions()`, `Device.init(alloc,
+  options) !*Device`, `deinit(self, alloc)`). The D3D11 `Device` follows
+  that shape with empty `Options`, and the Win32 surface returns empty
+  options, as the embedded runtime does for Metal; each D3D11 surface still
+  creates its own device.
+- Verification: Debug build with all name-rewrite guards passing on the new
+  upstream help strings and shell integration; full Zig suite 95/95 steps,
+  4119 passed, 64 skipped; `-Demit-lib-vt` build; hook-enabled Win32 tests
+  197 passed, 1 skipped; ReleaseFast `build-release.ps1 -OutputDirectory
+  zig-out\release-sync` (1.3.2.16, 771 theme files). Window state, modal
+  actions, context menu and lifecycle passed. Configuration diagnostics
+  failed only the known `OwnerCloseWithOtherWindow` (#66).
+- Two intermittent failures occur with and without the merge. Parity's
+  "typing hides pointer" timed out: alternating runs gave 0/2 passes for
+  the pre-merge ReleaseFast build (`b24899a8e`) and 1/2 for the post-merge
+  one, after one earlier pre-merge pass. A temporary log showed the core
+  already treating the pointer as hidden (`hidden=true`) when the typed key
+  arrived while the pointer was visible on screen. Window state with
+  `-TestOverlayScrollbar -TestCommandPalette` timed out waiting for the
+  temporary pane scrollbar in 1 of 2 runs for each build. Without
+  `-Executable`, `test-windows-parity.ps1` runs the 2026-09-22 build in
+  `zig-out\parity-d3d11`, so a default run does not test the current
+  source.
+
 ## 2026-10-25: Name indirection verification and rename rehearsal (rename step 8, #31)
 
 - Unchanged values at `b24899a8e`: the full Zig suite passed (95/95 steps,

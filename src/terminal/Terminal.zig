@@ -1535,9 +1535,13 @@ pub fn print(self: *Terminal, c: u21) !void {
     // We have a printable character, save it
     self.previous_char = c;
 
-    // If we're soft-wrapping, then handle that first.
-    if (self.screens.active.cursor.pending_wrap and self.modes.get(.wraparound)) {
-        try self.printWrap();
+    if (self.screens.active.cursor.pending_wrap) {
+        if (self.modes.get(.wraparound)) {
+            try self.printWrap();
+        } else {
+            // Match xterm's consumption of a pending wrap.
+            self.screens.active.cursor.pending_wrap = false;
+        }
     }
 
     // If we have insert mode enabled then we need to handle that. We
@@ -1943,9 +1947,15 @@ pub fn cursorLeft(self: *Terminal, count_req: usize) void {
     var count = @max(count_req, 1);
 
     // If we are in no wrap mode, then we move the cursor left and exit
-    // since this is the fastest and most typical path.
+    // since this is the fastest and most typical path. Like cursorRight,
+    // we stop at the left margin unless the cursor is already left of it.
     if (wrap_mode == .none) {
-        self.screens.active.cursorLeft(@min(count, self.screens.active.cursor.x));
+        const x = self.screens.active.cursor.x;
+        const left_margin = if (x < self.scrolling_region.left)
+            0
+        else
+            self.scrolling_region.left;
+        self.screens.active.cursorLeft(@min(count, x - left_margin));
         self.screens.active.cursor.pending_wrap = false;
         return;
     }
@@ -2613,6 +2623,46 @@ pub fn setCursorPos(self: *Terminal, row_req: usize, col_req: usize) void {
     // If everything changed we do an absolute change which is slightly slower
     self.screens.active.cursorAbsolute(x, y);
     // log.info("set cursor position: col={} row={}", .{ self.screens.active.cursor.x, self.screens.active.cursor.y });
+}
+
+/// The cursor position in the coordinates setCursorPos takes: 1-indexed,
+/// and relative to the top-left of the scrolling region in origin mode.
+/// Handing either coordinate back to setCursorPos leaves it unchanged.
+fn cursorPosForSet(self: *const Terminal) struct { row: usize, col: usize } {
+    const cursor = &self.screens.active.cursor;
+    const origin = self.modes.get(.origin);
+    return .{
+        .row = @as(usize, cursor.y -| if (origin) self.scrolling_region.top else 0) + 1,
+        .col = @as(usize, cursor.x -| if (origin) self.scrolling_region.left else 0) + 1,
+    };
+}
+
+/// Move the cursor to the given row (1-indexed), keeping its column (VPA).
+/// In origin mode the row is relative to the top margin.
+pub fn setCursorRow(self: *Terminal, row: usize) void {
+    self.setCursorPos(row, self.cursorPosForSet().col);
+}
+
+/// Move the cursor to the given column (1-indexed), keeping its row (CHA
+/// and HPA). In origin mode the column is relative to the left margin.
+pub fn setCursorCol(self: *Terminal, col: usize) void {
+    self.setCursorPos(self.cursorPosForSet().row, col);
+}
+
+/// Move the cursor down by count rows, keeping its column (VPR). Unlike
+/// cursorDown, this stops only at the bottom of the screen, or of the
+/// scrolling region in origin mode.
+pub fn cursorRowRelative(self: *Terminal, count: usize) void {
+    const pos = self.cursorPosForSet();
+    self.setCursorPos(pos.row +| count, pos.col);
+}
+
+/// Move the cursor right by count columns, keeping its row (HPR). Unlike
+/// cursorRight, this stops only at the right edge of the screen, or of
+/// the scrolling region in origin mode.
+pub fn cursorColRelative(self: *Terminal, count: usize) void {
+    const pos = self.cursorPosForSet();
+    self.setCursorPos(pos.row, pos.col +| count);
 }
 
 /// Set Top and Bottom Margins If bottom is not specified, 0 or bigger than
@@ -3669,9 +3719,15 @@ pub fn eraseDisplay(
                         .prompt_continuation,
                         => break,
 
-                        // If we have command output, then we're most certainly not
-                        // at a prompt.
-                        .none => break :at_prompt,
+                        .none => {
+                            // Blank rows below the prompt tell us nothing,
+                            // keep searching for the last non-empty row.
+                            if (!Cell.hasTextAny(p.cells(.all))) continue;
+
+                            // If we have command output, then we're most
+                            // certainly not at a prompt.
+                            break :at_prompt;
+                        },
                     }
                 } else break :at_prompt;
 
@@ -4335,6 +4391,49 @@ test "Terminal setScrollbackMaxLines" {
     try testing.expect(
         primary.pages.total_rows - primary.pages.rows > page_rows,
     );
+}
+
+test "Terminal: linefeed on single row screen prunes cursor page" {
+    // With a single row, growing moves the cursor row out of the active
+    // area, so the scrollback line limit can prune the cursor's page
+    // before the cursor moves to the new row. The cursor must not keep
+    // using anything from the pruned page.
+    const alloc = testing.allocator;
+    var t = try init(testing.io, alloc, .{ .cols = 3, .rows = 1 });
+    defer t.deinit(alloc);
+    t.setScrollbackMaxLines(0);
+
+    // Reflowing wrapped hyperlinked text wider produces a page with more
+    // rows than the line limit allows in scrollback, so the whole page is
+    // pruned once it's full and scrolls into history.
+    const s = t.screens.active;
+    try t.setAttribute(.{ .bold = {} });
+    try s.startHyperlink("http://example.com", null);
+    for (0..103) |_| try t.print('a');
+    try t.resize(alloc, .{ .cols = 80, .rows = 1 });
+
+    const node = s.cursor.page_pin.node;
+    try testing.expect(node == s.pages.pages.first.?);
+    try testing.expect(node.capacity().rows > s.pages.limits.max(.lines));
+
+    // Fill the page and then scroll one more row so it's pruned.
+    const x = s.cursor.x;
+    const scrolls = node.capacity().rows - node.rows() + 1;
+    for (0..scrolls) |_| try t.linefeed();
+    try testing.expectEqual(@as(usize, 1), s.pages.total_rows);
+    try testing.expectEqual(x, s.cursor.x);
+    try testing.expect(!s.cursor.page_pin.garbage);
+
+    // The cursor style and hyperlink must be usable on the new page.
+    try t.print('b');
+    const list_cell = s.pages.getCell(.{ .active = .{ .x = x } }).?;
+    const page: *Page = list_cell.node.page();
+    const cell = list_cell.cell;
+    try testing.expectEqual(@as(u21, 'b'), cell.content.codepoint.data);
+    try testing.expect(page.styles.get(page.memory, cell.style_id).flags.bold);
+    try testing.expect(cell.hyperlink);
+    const link = page.hyperlink_set.get(page.memory, page.lookupHyperlink(cell).?);
+    try testing.expectEqualStrings("http://example.com", link.uri.slice(page.memory));
 }
 
 test "Terminal setScrollback only affects primary screen" {
@@ -5028,6 +5127,9 @@ pub fn softReset(self: *Terminal) void {
     screen.cursor.style = .{};
     screen.manualStyleUpdate() catch unreachable;
     screen.cursor.protected = false;
+    // xterm also forgets which protection mode was used last, so erasing
+    // after a soft reset no longer skips ISO (SPA) protected cells.
+    screen.protected_mode = .off;
     screen.charset = .{};
 
     // A saved cursor now restores to the home position with the defaults.
@@ -5073,6 +5175,79 @@ test "Terminal: setCursorPos saturates overflowing origin offsets" {
     t.setCursorPos(std.math.maxInt(usize), std.math.maxInt(usize));
     try testing.expectEqual(@as(size.CellCountInt, 8), t.screens.active.cursor.x);
     try testing.expectEqual(@as(size.CellCountInt, 7), t.screens.active.cursor.y);
+}
+
+test "Terminal: setCursorRow and setCursorCol in origin mode" {
+    const alloc = testing.allocator;
+    const io_impl = testing.io;
+    var t = try init(io_impl, alloc, .{ .cols = 10, .rows = 10 });
+    defer t.deinit(alloc);
+
+    t.scrolling_region = .{
+        .top = 2,
+        .bottom = 7,
+        .left = 3,
+        .right = 8,
+    };
+    t.modes.set(.origin, true);
+    t.setCursorPos(2, 2);
+
+    // Only the requested coordinate changes, relative to the margins.
+    t.setCursorCol(1);
+    try testing.expectEqual(@as(size.CellCountInt, 3), t.screens.active.cursor.x);
+    try testing.expectEqual(@as(size.CellCountInt, 3), t.screens.active.cursor.y);
+
+    t.setCursorRow(1);
+    try testing.expectEqual(@as(size.CellCountInt, 3), t.screens.active.cursor.x);
+    try testing.expectEqual(@as(size.CellCountInt, 2), t.screens.active.cursor.y);
+}
+
+test "Terminal: cursorRowRelative and cursorColRelative in origin mode" {
+    const alloc = testing.allocator;
+    const io_impl = testing.io;
+    var t = try init(io_impl, alloc, .{ .cols = 10, .rows = 10 });
+    defer t.deinit(alloc);
+
+    t.scrolling_region = .{
+        .top = 2,
+        .bottom = 7,
+        .left = 3,
+        .right = 8,
+    };
+    t.modes.set(.origin, true);
+    t.setCursorPos(2, 2);
+
+    t.cursorColRelative(2);
+    try testing.expectEqual(@as(size.CellCountInt, 6), t.screens.active.cursor.x);
+    try testing.expectEqual(@as(size.CellCountInt, 3), t.screens.active.cursor.y);
+
+    t.cursorRowRelative(2);
+    try testing.expectEqual(@as(size.CellCountInt, 6), t.screens.active.cursor.x);
+    try testing.expectEqual(@as(size.CellCountInt, 5), t.screens.active.cursor.y);
+
+    // Large moves stop at the edges of the scrolling region.
+    t.cursorColRelative(100);
+    t.cursorRowRelative(100);
+    try testing.expectEqual(@as(size.CellCountInt, 8), t.screens.active.cursor.x);
+    try testing.expectEqual(@as(size.CellCountInt, 7), t.screens.active.cursor.y);
+}
+
+test "Terminal: cursorRowRelative and cursorColRelative stop at screen edge" {
+    const alloc = testing.allocator;
+    const io_impl = testing.io;
+    var t = try init(io_impl, alloc, .{ .cols = 10, .rows = 10 });
+    defer t.deinit(alloc);
+
+    t.setCursorPos(3, 4);
+    t.cursorColRelative(2);
+    t.cursorRowRelative(1);
+    try testing.expectEqual(@as(size.CellCountInt, 5), t.screens.active.cursor.x);
+    try testing.expectEqual(@as(size.CellCountInt, 3), t.screens.active.cursor.y);
+
+    t.cursorColRelative(std.math.maxInt(usize));
+    t.cursorRowRelative(std.math.maxInt(usize));
+    try testing.expectEqual(@as(size.CellCountInt, 9), t.screens.active.cursor.x);
+    try testing.expectEqual(@as(size.CellCountInt, 9), t.screens.active.cursor.y);
 }
 
 test "Terminal: input with no control characters" {
@@ -7373,6 +7548,31 @@ test "Terminal: disabled wraparound with wide grapheme and half space" {
 
     // Should not be dirty since we didn't modify anything
     try testing.expect(!t.isDirty(.{ .screen = .{ .x = 0, .y = 0 } }));
+}
+
+test "Terminal: print with wraparound disabled clears pending wrap after CBT" {
+    for ([_]bool{ true, false }) |wrap_on_fill| {
+        var t = try init(testing.io, testing.allocator, .{ .rows = 2, .cols = 6 });
+        defer t.deinit(testing.allocator);
+
+        t.modes.set(.wraparound, wrap_on_fill);
+        try t.printString("abcdef");
+        t.modes.set(.wraparound, false);
+        // CBT preserves pending wrap even though the cursor leaves the margin.
+        t.horizontalTabBack();
+        try testing.expect(t.screens.active.cursor.pending_wrap);
+        try t.print('x');
+        try testing.expect(!t.screens.active.cursor.pending_wrap);
+
+        t.modes.set(.wraparound, true);
+        try t.print('y');
+        try testing.expectEqual(0, t.screens.active.cursor.y);
+        try testing.expectEqual(2, t.screens.active.cursor.x);
+
+        const str = try t.plainString(testing.allocator);
+        defer testing.allocator.free(str);
+        try testing.expectEqualStrings("xycdef", str);
+    }
 }
 
 test "Terminal: print right margin wrap" {
@@ -11190,6 +11390,60 @@ test "Terminal: cursorLeft no wrap" {
         const str = try t.plainString(testing.allocator);
         defer testing.allocator.free(str);
         try testing.expectEqualStrings("A\nB", str);
+    }
+}
+
+test "Terminal: cursorLeft stops at left margin" {
+    const alloc = testing.allocator;
+    const io_impl = testing.io;
+    var t = try init(io_impl, alloc, .{ .rows = 5, .cols = 5 });
+    defer t.deinit(alloc);
+
+    t.scrolling_region.left = 2;
+    t.setCursorPos(1, 4);
+    t.cursorLeft(100);
+    try t.print('X');
+
+    {
+        const str = try t.plainString(testing.allocator);
+        defer testing.allocator.free(str);
+        try testing.expectEqualStrings("  X", str);
+    }
+}
+
+test "Terminal: cursorLeft left of left margin" {
+    const alloc = testing.allocator;
+    const io_impl = testing.io;
+    var t = try init(io_impl, alloc, .{ .rows = 5, .cols = 5 });
+    defer t.deinit(alloc);
+
+    t.scrolling_region.left = 3;
+    t.setCursorPos(1, 3);
+    t.cursorLeft(100);
+    try t.print('X');
+
+    {
+        const str = try t.plainString(testing.allocator);
+        defer testing.allocator.free(str);
+        try testing.expectEqualStrings("X", str);
+    }
+}
+
+test "Terminal: backspace at left margin" {
+    const alloc = testing.allocator;
+    const io_impl = testing.io;
+    var t = try init(io_impl, alloc, .{ .rows = 5, .cols = 5 });
+    defer t.deinit(alloc);
+
+    t.scrolling_region.left = 2;
+    t.setCursorPos(1, 3);
+    t.backspace();
+    try t.print('X');
+
+    {
+        const str = try t.plainString(testing.allocator);
+        defer testing.allocator.free(str);
+        try testing.expectEqualStrings("  X", str);
     }
 }
 
@@ -16268,6 +16522,23 @@ test "Terminal: softReset pen, protection, and charsets" {
     try testing.expectEqual(charsets.Charset.utf8, t.screens.active.charset.charsets.get(.G0));
 }
 
+test "Terminal: softReset ends ISO protection for erase" {
+    var t = try init(testing.io, testing.allocator, .{ .cols = 10, .rows = 10 });
+    defer t.deinit(testing.allocator);
+
+    t.setProtectedMode(.iso);
+    try t.print('A');
+    t.setProtectedMode(.off);
+    t.softReset();
+    t.eraseDisplay(.complete, false);
+
+    {
+        const str = try t.plainString(testing.allocator);
+        defer testing.allocator.free(str);
+        try testing.expectEqualStrings("", str);
+    }
+}
+
 test "Terminal: softReset status display and checksum" {
     var t = try init(testing.io, testing.allocator, .{ .cols = 10, .rows = 10 });
     defer t.deinit(testing.allocator);
@@ -17144,4 +17415,28 @@ test "Terminal: eraseDisplay complete ignores stale prompt on recycled row" {
     t.eraseDisplay(.complete, false);
 
     try testing.expectEqual(t.screens.active.pages.rows, t.screens.active.pages.total_rows);
+}
+
+test "Terminal: eraseDisplay complete at prompt not on last row scrolls" {
+    const alloc = testing.allocator;
+    const io_impl = testing.io;
+    var t = try init(io_impl, alloc, .{ .cols = 10, .rows = 15 });
+    defer t.deinit(alloc);
+
+    // Command output, then a prompt in the middle of the screen with
+    // blank rows below it, like `seq 1 10` in a fresh tall window.
+    for (0..10) |_| {
+        try t.printString("x");
+        t.carriageReturn();
+        try t.linefeed();
+    }
+    try t.semanticPrompt(.init(.prompt_start));
+    try t.printString("$ ");
+    try t.semanticPrompt(.init(.end_prompt_start_input));
+
+    // What bash/zsh send for clear-screen
+    t.setCursorPos(1, 1);
+    t.eraseDisplay(.complete, false);
+
+    try testing.expect(t.screens.active.pages.total_rows > t.screens.active.pages.rows);
 }

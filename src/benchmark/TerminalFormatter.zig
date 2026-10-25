@@ -391,7 +391,7 @@ fn stepReport(ptr: *anyopaque) Benchmark.Error!void {
         pin_hasher.update(std.mem.asBytes(&y));
     }
 
-    std.debug.print(
+    log.debug(
         "terminal-formatter emit={s} formatter={s} region={s} pages={d} " ++
             "rows={d} cols={d} cells={d} out_bytes={d} pin_bytes={d} " ++
             "out_hash={x} pin_hash={x}\n",
@@ -413,7 +413,7 @@ fn stepReport(ptr: *anyopaque) Benchmark.Error!void {
     // Pin map storage details on a separate line so the main report
     // line remains comparable across implementations.
     if (self.opts.@"pin-map") {
-        std.debug.print(
+        log.debug(
             "terminal-formatter-pins points={d} nodes={d}\n",
             .{ self.pins.points.items.len, self.pins.nodes.items.len },
         );
@@ -467,7 +467,7 @@ fn stepRoundtripImpl(self: *TerminalFormatter) !void {
     const second = out2.written();
 
     const equal = std.mem.eql(u8, first, second);
-    std.debug.print(
+    log.debug(
         "terminal-formatter roundtrip emit={s} formatter={s} bytes={d} " ++
             "replay_bytes={d} equal={}\n",
         .{
@@ -484,7 +484,7 @@ fn stepRoundtripImpl(self: *TerminalFormatter) !void {
         const n = @min(first.len, second.len);
         var i: usize = 0;
         while (i < n and first[i] == second[i]) i += 1;
-        std.debug.print(
+        log.debug(
             "terminal-formatter roundtrip mismatch offset={d} " ++
                 "first={f} second={f}\n",
             .{

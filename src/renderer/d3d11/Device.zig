@@ -8,11 +8,14 @@ const Device = @This();
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-pub fn init(self: *Device, alloc: Allocator) !void {
-    _ = alloc;
-    self.* = .{};
+/// Options used when creating the device. There are none.
+pub const Options = struct {};
+
+pub fn init(alloc: Allocator, options: Options) !*Device {
+    _ = options;
+    return try alloc.create(Device);
 }
 
-pub fn deinit(self: *Device) void {
-    self.* = undefined;
+pub fn deinit(self: *Device, alloc: Allocator) void {
+    alloc.destroy(self);
 }
