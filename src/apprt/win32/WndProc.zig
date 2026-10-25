@@ -9,6 +9,7 @@ const CommandPalette = @import("CommandPalette.zig");
 const FileDrop = @import("FileDrop.zig");
 const Keyboard = @import("Keyboard.zig");
 const Mouse = @import("Mouse.zig");
+const NativeWindow = @import("NativeWindow.zig");
 const QuickTerminal = @import("QuickTerminal.zig");
 const Recovery = @import("Recovery.zig");
 const App = @import("App.zig");
@@ -129,9 +130,14 @@ pub fn wndProc(
         win32.WM_SIZE => return WindowLayout.sizeChanged(hwnd, lparam),
         win32.WM_MOVE => return WindowLayout.moved(hwnd),
         win32.WM_DPICHANGED => {
+            NativeWindow.updateWindowIcons(hwnd);
             const result = WindowLayout.dpiChanged(hwnd, wparam, lparam);
             refreshQuickTerminal(hwnd);
             return result;
+        },
+        win32.WM_NCDESTROY => {
+            NativeWindow.releaseWindowIcons(hwnd);
+            return win32.DefWindowProcW(hwnd, msg, wparam, lparam);
         },
         win32.WM_DISPLAYCHANGE => {
             refreshQuickTerminal(hwnd);
