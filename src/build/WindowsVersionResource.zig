@@ -22,7 +22,19 @@ pub fn add(
     optimize: std.builtin.OptimizeMode,
     names: Names,
 ) !void {
-    const contents = try header(b.allocator, version, optimize, names);
+    // The resource compiler's cache does not follow the files that
+    // ghostty.rc embeds, so a changed icon or manifest alone left the old
+    // one in the executable. Their hash in the header makes such a change
+    // recompile the resource.
+    var hasher = std.hash.Wyhash.init(0);
+    for ([_][]const u8{ "dist/windows/ghostty.ico", "dist/windows/ghostty.manifest" }) |path| {
+        const data = try b.build_root.handle.readFileAlloc(b.graph.io, path, b.allocator, .limited(16 * 1024 * 1024));
+        hasher.update(data);
+    }
+    const contents = try std.fmt.allocPrint(b.allocator, "{s}// embedded files {x:0>16}\n", .{
+        try header(b.allocator, version, optimize, names),
+        hasher.final(),
+    });
     const generated = b.addWriteFiles().add(
         "ghostty-version.h",
         contents,
