@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Builds a portable Windows release of Ghostty.
+Builds a portable Windows release of the terminal.
 
 .DESCRIPTION
 Runs the default Zig build in ReleaseFast mode for the baseline CPU and
@@ -45,12 +45,12 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
-    throw "This script builds the native Windows Ghostty executable."
+    throw "This script builds the native Windows executable."
 }
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 if (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot "build.zig") -PathType Leaf)) {
-    throw "Unable to locate the Ghostty repository root."
+    throw "Unable to locate the repository root."
 }
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
@@ -91,14 +91,14 @@ $buildArguments = @(
 # it when it is on disk, and a release without it cannot show images.
 & (Join-Path $PSScriptRoot "fetch-conpty.ps1")
 
-Write-Host "Building Ghostty release $expectedVersion with Zig $zigVersion"
+Write-Host "Building release $expectedVersion with Zig $zigVersion"
 Write-Host "Output: $releaseRoot"
 
 Push-Location $repositoryRoot
 try {
     & $zig.Path @buildArguments
     if ($LASTEXITCODE -ne 0) {
-        throw "Ghostty release build failed with exit code $LASTEXITCODE."
+        throw "Release build failed with exit code $LASTEXITCODE."
     }
 } finally {
     Pop-Location
