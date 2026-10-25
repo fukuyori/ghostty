@@ -4,6 +4,7 @@ const windows = @import("os/main.zig").windows;
 const conpty = @import("os/conpty.zig");
 const posix = std.posix;
 const assert = @import("quirks.zig").inlineAssert;
+const brand = @import("brand.zig");
 
 const log = std.log.scoped(.pty);
 
@@ -349,7 +350,7 @@ const WindowsPty = struct {
         var pipe_path_buf_w: [128]u16 = undefined;
         const pipe_path = std.fmt.bufPrintZ(
             &pipe_path_buf,
-            "\\\\.\\pipe\\LOCAL\\ghostty-pty-{d}-{d}",
+            "\\\\.\\pipe\\LOCAL\\" ++ brand.identifier ++ "-pty-{d}-{d}",
             .{
                 windows.GetCurrentProcessId(),
                 pipe_name_counter.fetchAdd(1, .monotonic),
