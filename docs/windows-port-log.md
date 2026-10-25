@@ -5,6 +5,24 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-25: Window icons at the window's DPI (#70)
+
+- The owner saw a blurry title bar icon at 150% scaling while the text was
+  sharp. The window class icons are loaded once at the system DPI sizes
+  (`GetSystemMetrics`), so a window at another scale showed a stretched
+  16 px small icon.
+- `NativeWindow.updateWindowIcons` now loads the large and small icons at
+  the window's DPI (`GetSystemMetricsForDpi`, not shared) and sets them with
+  `WM_SETICON` after a top-level window is created and on `WM_DPICHANGED`,
+  destroying the icons it replaces; `WM_NCDESTROY` releases them. The class
+  icons stay as the fallback.
+- Verification: Debug build; Win32 tests with hooks 197 passed, 1 skipped;
+  window-state regression on the Debug build passed (exit 0, no forced
+  termination) with monitors at 96, 144 and 120 DPI. Moving a window by
+  `SetWindowPos` gave small/large icons of 16/32 px at 96 DPI, 24/48 at 144,
+  20/40 at 120 and 16/32 again at 96, read back with `WM_GETICON` and
+  `GetIconInfo`. Owner check of the title bar at 150% is pending.
+
 ## 2026-10-25: Resource rebuilt when the icon or manifest changes
 
 - During the Gooztty icon check the owner saw the previous icon in the

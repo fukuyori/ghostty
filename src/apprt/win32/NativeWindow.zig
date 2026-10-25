@@ -190,6 +190,52 @@ fn loadWindowIcon(
     return @ptrCast(handle);
 }
 
+/// Give a top-level window its own large and small icons at the sizes for
+/// its current DPI. The class icons are sized for the system DPI, so on a
+/// monitor with another scale, or after the scale changes, Windows stretched
+/// them and the title bar icon looked blurry (#70). Called after creation
+/// and on WM_DPICHANGED; releaseWindowIcons frees them.
+pub fn updateWindowIcons(hwnd: win32.HWND) void {
+    const hinstance = win32.GetModuleHandleW(null) orelse return;
+    const dpi = win32.GetDpiForWindow(hwnd);
+    if (dpi == 0) return;
+    setWindowIcon(hwnd, hinstance, win32.ICON_BIG, dpi, win32.SM_CXICON, win32.SM_CYICON);
+    setWindowIcon(hwnd, hinstance, win32.ICON_SMALL, dpi, win32.SM_CXSMICON, win32.SM_CYSMICON);
+}
+
+/// Free the icons updateWindowIcons set; the window procedure calls this on
+/// WM_NCDESTROY.
+pub fn releaseWindowIcons(hwnd: win32.HWND) void {
+    for ([_]u32{ win32.ICON_BIG, win32.ICON_SMALL }) |which| {
+        destroyIconResult(win32.SendMessageW(hwnd, win32.WM_SETICON, which, 0));
+    }
+}
+
+fn setWindowIcon(
+    hwnd: win32.HWND,
+    hinstance: win32.HINSTANCE,
+    which: u32,
+    dpi: u32,
+    width_index: win32.SYSTEM_METRICS_INDEX,
+    height_index: win32.SYSTEM_METRICS_INDEX,
+) void {
+    const width = @max(1, win32.GetSystemMetricsForDpi(@intCast(@intFromEnum(width_index)), dpi));
+    const height = @max(1, win32.GetSystemMetricsForDpi(@intCast(@intFromEnum(height_index)), dpi));
+    // Not shared: a shared image is cached by resource, not by size.
+    const handle = win32.LoadImageW(hinstance, @ptrFromInt(icon_resource_id), .ICON, width, height, .{}) orelse {
+        log.debug("LoadImageW(icon {d}x{d}) failed: err={d}", .{ width, height, @intFromEnum(win32.GetLastError()) });
+        return;
+    };
+    destroyIconResult(win32.SendMessageW(hwnd, win32.WM_SETICON, which, @bitCast(@intFromPtr(handle))));
+}
+
+/// Destroy the previous icon that WM_SETICON returns. Only icons this module
+/// set are ever returned: the class icons are not window icons.
+fn destroyIconResult(previous: win32.LRESULT) void {
+    if (previous == 0) return;
+    _ = win32.DestroyIcon(@ptrFromInt(@as(usize, @bitCast(previous))));
+}
+
 pub fn createWindow() !win32.HWND {
     return createTopLevel(nativeWindowExStyle(), topLevelWindowStyle());
 }
@@ -212,7 +258,7 @@ fn createTopLevel(ex_style: win32.WINDOW_EX_STYLE, style: win32.WINDOW_STYLE) !w
     try TestHooks.fail(.parent_hwnd);
     const hinstance = win32.GetModuleHandleW(null);
 
-    return win32.CreateWindowExW(
+    const hwnd = win32.CreateWindowExW(
         ex_style,
         window_class_name,
         default_window_title,
@@ -229,6 +275,8 @@ fn createTopLevel(ex_style: win32.WINDOW_EX_STYLE, style: win32.WINDOW_STYLE) !w
         log.err("CreateWindowExW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
         return error.Win32Error;
     };
+    updateWindowIcons(hwnd);
+    return hwnd;
 }
 
 pub fn createSurface(window_hwnd: win32.HWND) !win32.HWND {
