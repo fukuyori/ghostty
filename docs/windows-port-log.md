@@ -5,6 +5,34 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-25: Diagnostic and test scripts read brand.json (rename step 8, #31)
+
+- Twelve diagnostic and test scripts take the default executable, the
+  Win32 window class names (Window, TabBar, SplitDivider,
+  OverlayScrollbar), the `LOG`, `SURFACE_ID` and `TEST_*` environment
+  variable names, the configuration file name and the process name from
+  `brand.json`. Embedded C# receives class names through static fields set
+  from PowerShell. `scripts/windows-brand.ps1` adds
+  `Get-GhosttyBrandForPrefix` and `Get-GhosttyBrandForExecutable`: an
+  executable under `<prefix>\bin` uses that prefix's `brand.json`, and
+  falls back to the repository's `zig-out\brand.json`. C# type names,
+  script function names, messages, help and script-chosen fixture names are
+  unchanged; `test-windows-soak.ps1`, `test-windows-html-clipboard.ps1` and
+  `fetch-conpty.ps1` needed no change. A PowerShell session that already
+  loaded an older C# type skips `Add-Type`; run the scripts in a fresh
+  `pwsh`.
+- Verification, each script in a fresh `pwsh` against the Debug build:
+  window-state passed (exit 0, no forced termination), and with
+  `-TestOverlayScrollbar -TestCommandPalette` passed on a rerun after one
+  timeout waiting for the temporary pane scrollbar (the unchanged script
+  also passed). Modal actions, context menu, parity and lifecycle (37
+  cases, ordinary build) passed. Configuration diagnostics failed
+  `OwnerCloseWithOtherWindow` ("Stale diagnostic survived its owner"); the
+  unchanged script from `fec97795c` failed the same case (and
+  `RepeatedReload` with a window-text timeout), so the failure predates
+  this change and remains open. Parse checks and compilation of the
+  edited C# definitions passed.
+
 ## 2026-10-25: Release and installer scripts read brand.json (rename step 8, #31)
 
 - `scripts/build-release.ps1` reads `brand.json` from the prefix it just

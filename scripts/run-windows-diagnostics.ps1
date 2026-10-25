@@ -46,9 +46,11 @@ if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
 }
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+. (Join-Path $PSScriptRoot "windows-brand.ps1")
 
 if ([string]::IsNullOrWhiteSpace($Executable)) {
-    $executablePath = Join-Path $repositoryRoot "zig-out\bin\ghostty.exe"
+    $defaultPrefix = Join-Path $repositoryRoot "zig-out"
+    $executablePath = Get-GhosttyBrandExecutable -Prefix $defaultPrefix -Brand (Get-GhosttyBrand -Prefix $defaultPrefix)
 } elseif ([System.IO.Path]::IsPathRooted($Executable)) {
     $executablePath = [System.IO.Path]::GetFullPath($Executable)
 } else {
@@ -58,6 +60,8 @@ if ([string]::IsNullOrWhiteSpace($Executable)) {
 if (-not (Test-Path -LiteralPath $executablePath -PathType Leaf)) {
     throw "Ghostty executable not found: $executablePath"
 }
+$brand = Get-GhosttyBrandForExecutable -Executable $executablePath -RepositoryRoot $repositoryRoot
+$logVariable = $brand.env_prefix + "LOG"
 
 if ([string]::IsNullOrWhiteSpace($LogDirectory)) {
     $logDirectoryPath = Join-Path $repositoryRoot "zig-out\logs"
@@ -74,13 +78,13 @@ $stdoutPath = Join-Path $logDirectoryPath "$sessionName.stdout.log"
 $stderrPath = Join-Path $logDirectoryPath "$sessionName.stderr.log"
 
 $previousGhosttyLog = [System.Environment]::GetEnvironmentVariable(
-    "GHOSTTY_LOG",
+    $logVariable,
     [System.EnvironmentVariableTarget]::Process
 )
 
 try {
     [System.Environment]::SetEnvironmentVariable(
-        "GHOSTTY_LOG",
+        $logVariable,
         "stderr=true",
         [System.EnvironmentVariableTarget]::Process
     )
@@ -96,7 +100,7 @@ try {
     $process = Start-Process @startOptions
 } finally {
     [System.Environment]::SetEnvironmentVariable(
-        "GHOSTTY_LOG",
+        $logVariable,
         $previousGhosttyLog,
         [System.EnvironmentVariableTarget]::Process
     )

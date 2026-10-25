@@ -7,11 +7,19 @@ the native menu and selected text through search_selection, and saves PNGs.
 Does not use or alter the clipboard. Physical user acceptance is separate.
 #>
 [CmdletBinding()]
-param([string]$Executable = 'zig-out/blank-context/bin/ghostty.exe')
+param([string]$Executable = '')
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$exe = (Resolve-Path (Join-Path $root $Executable)).Path
+. (Join-Path $PSScriptRoot 'windows-brand.ps1')
+$exe = if ($Executable) {
+    (Resolve-Path (Join-Path $root $Executable)).Path
+} else {
+    $defaultPrefix = Join-Path $root 'zig-out/blank-context'
+    (Resolve-Path (Get-GhosttyBrandExecutable -Prefix $defaultPrefix -Brand (Get-GhosttyBrandForPrefix -Prefix $defaultPrefix -RepositoryRoot $root))).Path
+}
+$brand = Get-GhosttyBrandForExecutable -Executable $exe -RepositoryRoot $root
+$windowClass = $brand.window_class_prefix + 'Window'
 $name = 'blank-context-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff')
 # Retain reproduction inputs outside the window-state/soak cleanup area.
 $state = Join-Path $root "zig-out/test-fixtures/$name"
@@ -144,12 +152,12 @@ $null = [GhosttyContextNative]::GetCursorPos([ref]$pointer)
 try {
     Write-Verbose "Mouse buttons swapped: $([GhosttyContextNative]::GetSystemMetrics(23) -ne 0)"
     $process = Start-Process -FilePath $exe -WindowStyle Hidden -ArgumentList @('--config-default-files=false',"--config-file=`"$config`"") -PassThru -RedirectStandardOutput (Join-Path $logs "$name.stdout.log") -RedirectStandardError (Join-Path $logs "$name.stderr.log")
-    Wait-State 'test window' { [GhosttyContextNative]::Find($process.Id,'GhosttyWindow',[IntPtr]::Zero).Count -eq 1 }
-    $window = [GhosttyContextNative]::Find($process.Id,'GhosttyWindow',[IntPtr]::Zero)[0]
+    Wait-State 'test window' { [GhosttyContextNative]::Find($process.Id,$windowClass,[IntPtr]::Zero).Count -eq 1 }
+    $window = [GhosttyContextNative]::Find($process.Id,$windowClass,[IntPtr]::Zero)[0]
     $null = [GhosttyContextNative]::ShowWindow($window,9)
     $null = [GhosttyContextNative]::SetForegroundWindow($window)
-    Wait-State 'terminal child' { [GhosttyContextNative]::Find($process.Id,'GhosttyWindow',$window).Count -eq 1 }
-    $surface = [GhosttyContextNative]::Find($process.Id,'GhosttyWindow',$window)[0]
+    Wait-State 'terminal child' { [GhosttyContextNative]::Find($process.Id,$windowClass,$window).Count -eq 1 }
+    $surface = [GhosttyContextNative]::Find($process.Id,$windowClass,$window)[0]
     Wait-State 'fixture output' { Test-Path -LiteralPath $marker }
     Start-Sleep -Milliseconds 700
     Click 15 1 $true
@@ -192,7 +200,7 @@ try {
     [GhosttyContextNative]::Mouse(4) # Release a drag if a check interrupted it.
     $null = [GhosttyContextNative]::SetCursorPos($pointer.X,$pointer.Y)
     if ($process -and -not $process.HasExited) {
-        foreach ($h in [GhosttyContextNative]::Find($process.Id,'GhosttyWindow',[IntPtr]::Zero)) { $null = [GhosttyContextNative]::PostMessageW($h,0x10,[UIntPtr]::Zero,[IntPtr]::Zero) }
+        foreach ($h in [GhosttyContextNative]::Find($process.Id,$windowClass,[IntPtr]::Zero)) { $null = [GhosttyContextNative]::PostMessageW($h,0x10,[UIntPtr]::Zero,[IntPtr]::Zero) }
         if (-not $process.WaitForExit(5000)) { $process.Kill(); $process.WaitForExit() }
     }
 }

@@ -124,8 +124,12 @@ if ($ListOnly) {
 }
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+. (Join-Path $PSScriptRoot "windows-brand.ps1")
 if ([string]::IsNullOrWhiteSpace($Executable)) {
-    $executablePath = Join-Path $repositoryRoot "zig-out\release\bin\ghostty.exe"
+    $defaultPrefix = Join-Path $repositoryRoot "zig-out\release"
+    $executablePath = Get-GhosttyBrandExecutable -Prefix $defaultPrefix -Brand (
+        Get-GhosttyBrandForPrefix -Prefix $defaultPrefix -RepositoryRoot $repositoryRoot
+    )
 } elseif ([System.IO.Path]::IsPathRooted($Executable)) {
     $executablePath = [System.IO.Path]::GetFullPath($Executable)
 } else {
@@ -136,6 +140,7 @@ if ([string]::IsNullOrWhiteSpace($Executable)) {
 if (-not (Test-Path -LiteralPath $executablePath -PathType Leaf)) {
     throw "Ghostty executable not found: $executablePath"
 }
+$brand = Get-GhosttyBrandForExecutable -Executable $executablePath -RepositoryRoot $repositoryRoot
 
 $diagnosticScript = Join-Path $PSScriptRoot "run-windows-diagnostics.ps1"
 if (-not (Test-Path -LiteralPath $diagnosticScript -PathType Leaf)) {
@@ -162,7 +167,7 @@ if ([string]::IsNullOrWhiteSpace($ResultsPath)) {
 
 $testStateRoot = Join-Path $repositoryRoot "zig-out\test-state"
 $sessionDirectory = Join-Path $testStateRoot $sessionName
-$configPath = Join-Path $sessionDirectory "config.ghostty"
+$configPath = Join-Path $sessionDirectory $brand.config_file_name
 [System.IO.Directory]::CreateDirectory($sessionDirectory) | Out-Null
 $config = @(
     "command = direct:cmd.exe /D /Q"

@@ -36,6 +36,9 @@ known issues, and known limitations of each version; the
 - Make the release and installer scripts and the Inno Setup script take the
   executable, resource, terminfo, display, AppId and AUMID names from
   `brand.json`, with unchanged values (rename step 8, #31).
+- Make the diagnostic and test scripts take the default executable, window
+  class names, environment variable names, configuration file name and
+  process name from `brand.json` (rename step 8, #31).
 
 ### Documentation
 

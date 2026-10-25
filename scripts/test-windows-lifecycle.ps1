@@ -19,7 +19,7 @@ zig build -Dwin32-test-hooks=true --prefix zig-out/lifecycle-hooks
 #>
 [CmdletBinding()]
 param(
-    [string]$Executable = 'zig-out/lifecycle-hooks/bin/ghostty.exe',
+    [string]$Executable = '',
     [ValidateSet('All', 'Rollback', 'Ipc', 'HooksDisabled')][string]$Area = 'All',
     [string]$CaseFilter = '',
     [switch]$CaptureWindows,
@@ -29,7 +29,16 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $PSScriptRoot 'windows-brand.ps1')
+if (-not $Executable) {
+    $defaultPrefix = Join-Path $root 'zig-out/lifecycle-hooks'
+    $Executable = Get-GhosttyBrandExecutable -Prefix $defaultPrefix -Brand (Get-GhosttyBrandForPrefix -Prefix $defaultPrefix -RepositoryRoot $root)
+}
 $exe = if ([IO.Path]::IsPathRooted($Executable)) { (Resolve-Path $Executable).Path } else { (Resolve-Path (Join-Path $root $Executable)).Path }
+$brand = Get-GhosttyBrandForExecutable -Executable $exe -RepositoryRoot $root
+$windowClass = $brand.window_class_prefix + 'Window'
+$lifecycleVariable = $brand.env_prefix + 'TEST_LIFECYCLE'
+$surfaceIdVariable = $brand.env_prefix + 'SURFACE_ID'
 $name = 'lifecycle-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff')
 $fixture = Join-Path $root "zig-out/test-fixtures/$name"
 $logs = Join-Path $root 'zig-out/logs'
@@ -52,6 +61,8 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 public static class GhosttyLifecycleNative {
+    // Set from brand.json before the first lookup.
+    public static string SurfaceClass, TabBarClass;
     [StructLayout(LayoutKind.Sequential)] public struct Rect { public int L,T,R,B; }
     [StructLayout(LayoutKind.Sequential)] public struct Point { public int X,Y; }
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out Rect rect);
@@ -122,7 +133,7 @@ public static class GhosttyLifecycleNative {
     }
     public static IntPtr[] Children(IntPtr parent) {
         var list=new List<IntPtr>();
-        EnumChildWindows(parent,(h,p)=>{if(Class(h)=="GhosttyWindow" && IsWindowVisible(h))list.Add(h); return true;},IntPtr.Zero);
+        EnumChildWindows(parent,(h,p)=>{if(Class(h)==SurfaceClass && IsWindowVisible(h))list.Add(h); return true;},IntPtr.Zero);
         return list.ToArray();
     }
     public static string Handles(uint pid) {
@@ -133,11 +144,13 @@ public static class GhosttyLifecycleNative {
     }
     public static int TabBars(uint pid) {
         // Tab bars are owned popups, not WS_CHILD windows.
-        return Windows(pid,"GhosttyTabBar").Length;
+        return Windows(pid,TabBarClass).Length;
     }
 }
 '@
 }
+[GhosttyLifecycleNative]::SurfaceClass = $windowClass
+[GhosttyLifecycleNative]::TabBarClass = $brand.window_class_prefix + 'TabBar'
 function Control([int]$Op, [long]$Value = 0) {
     [GhosttyLifecycleNative]::Send($script:window, $testMessage, $Op, $Value)
 }
@@ -219,9 +232,9 @@ keybind = f7=toggle_split_zoom
 keybind = f9=close_surface
 keybind = f10=close_all_windows
 "@ | Set-Content -LiteralPath $config -Encoding utf8
-    $script:process = Start-Process -FilePath $exe -WindowStyle Hidden -ArgumentList @('--config-default-files=false', "--config-file=`"$config`"") -Environment @{ GHOSTTY_TEST_LIFECYCLE = '1' } -PassThru -RedirectStandardOutput "$script:prefix.stdout.log" -RedirectStandardError "$script:prefix.stderr.log"
-    Wait-State 'main window' { [GhosttyLifecycleNative]::Windows($script:process.Id,'GhosttyWindow').Count -eq 1 }
-    $script:window = [GhosttyLifecycleNative]::Windows($script:process.Id,'GhosttyWindow')[0]
+    $script:process = Start-Process -FilePath $exe -WindowStyle Hidden -ArgumentList @('--config-default-files=false', "--config-file=`"$config`"") -Environment @{ $lifecycleVariable = '1' } -PassThru -RedirectStandardOutput "$script:prefix.stdout.log" -RedirectStandardError "$script:prefix.stderr.log"
+    Wait-State 'main window' { [GhosttyLifecycleNative]::Windows($script:process.Id,$windowClass).Count -eq 1 }
+    $script:window = [GhosttyLifecycleNative]::Windows($script:process.Id,$windowClass)[0]
     $expectedProbe = if ($Area -eq 'HooksDisabled') { 0 } else { 0x47484c54 }
     if ((Control 0) -ne $expectedProbe) { throw "Unexpected lifecycle hook probe (expected $expectedProbe)" }
     Wait-State 'initial shell' { @(Get-ChildItem $script:directory -Filter 'shell-*.txt').Count -eq 1 }
@@ -235,7 +248,7 @@ function Finish-Case($Result) {
     if ($null -ne $script:process) {
         Track-Children
         if (-not $script:process.HasExited) {
-            foreach ($h in [GhosttyLifecycleNative]::Windows($script:process.Id,'GhosttyWindow')) {
+            foreach ($h in [GhosttyLifecycleNative]::Windows($script:process.Id,$windowClass)) {
                 $null = [GhosttyLifecycleNative]::PostMessageW($h,0x10,[UIntPtr]::Zero,[IntPtr]::Zero)
             }
             if (-not $script:process.WaitForExit($TimeoutSeconds * 1000)) {
@@ -295,7 +308,7 @@ if ($Area -in 'All','Rollback') {
                     if ($after.Windows -ne $before.Windows + 1 -or $after.CoreSurfaces -ne $before.CoreSurfaces + 1 -or $after.Valid -ne 1) { throw 'Tab-bar failure did not degrade to a usable window' }
                     if ([GhosttyLifecycleNative]::TabBars($script:process.Id) -ne $beforeTabBars) { throw 'Failed tab bar unexpectedly exists' }
                     $result.TabBarFallback = $true
-                    $fallback = @([GhosttyLifecycleNative]::Windows($script:process.Id,'GhosttyWindow') | Where-Object { $_ -ne $script:window })
+                    $fallback = @([GhosttyLifecycleNative]::Windows($script:process.Id,$windowClass) | Where-Object { $_ -ne $script:window })
                     if ($fallback.Count -ne 1) { throw 'Expected exactly one fallback window' }
                     $panes = @([GhosttyLifecycleNative]::Children($fallback[0]))
                     if ($panes.Count -ne 1) { throw 'Expected one visible fallback pane' }
@@ -340,7 +353,7 @@ if ($Area -in 'All','Ipc') {
             $before = Snapshot
             $null = Control 8 1
             $watch = [Diagnostics.Stopwatch]::StartNew()
-            $client = Start-Process -FilePath $exe -WindowStyle Hidden -ArgumentList '+new-tab' -Environment @{GHOSTTY_SURFACE_ID='0'} -PassThru -RedirectStandardError "$script:prefix.client.stderr.log" -RedirectStandardOutput "$script:prefix.client.stdout.log"
+            $client = Start-Process -FilePath $exe -WindowStyle Hidden -ArgumentList '+new-tab' -Environment @{$surfaceIdVariable='0'} -PassThru -RedirectStandardError "$script:prefix.client.stderr.log" -RedirectStandardOutput "$script:prefix.client.stdout.log"
             Wait-State 'held IPC request' { (Control 9) -eq 1 }
             if ($mode -eq 'shutdown-before-timeout') {
                 $result.ShutdownRequestedSeconds = $watch.Elapsed.TotalSeconds
@@ -363,7 +376,7 @@ if ($Area -in 'All','Ipc') {
                     if ((Control 2) -ne $expected -or (Control 6) -ne 1) { throw 'Late completion left invalid state' }
                     $result.LateSurfaces = Control 2
                     # A subsequent real IPC request must still succeed.
-                    $retry = Start-Process -FilePath $exe -WindowStyle Hidden -ArgumentList '+new-tab' -Environment @{GHOSTTY_SURFACE_ID='0'} -PassThru -RedirectStandardError "$script:prefix.retry.stderr.log" -RedirectStandardOutput "$script:prefix.retry.stdout.log"
+                    $retry = Start-Process -FilePath $exe -WindowStyle Hidden -ArgumentList '+new-tab' -Environment @{$surfaceIdVariable='0'} -PassThru -RedirectStandardError "$script:prefix.retry.stderr.log" -RedirectStandardOutput "$script:prefix.retry.stdout.log"
                     if (-not $retry.WaitForExit(12000) -or $retry.ExitCode -ne 0) { throw 'Subsequent IPC request failed' }
                     Wait-State 'retry tab and release' { (Control 2) -eq $expected + 1 -and (Control 10) -eq 0 }
                     $result.SubsequentIpcSucceeded = $true
@@ -401,7 +414,7 @@ if ($results.Count -eq 0) { throw 'No cases selected' }
 $shellIds = @(Get-ChildItem $fixture -Recurse -Filter 'shell-*.txt' | ForEach-Object { [int]([IO.File]::ReadAllText($_.FullName)) })
 function Find-Leftovers {
     Get-Process -ErrorAction SilentlyContinue | Where-Object {
-        ($_.ProcessName -eq 'ghostty' -and $_.Path -eq $exe) -or
+        ($_.ProcessName -eq $brand.exe_name -and $_.Path -eq $exe) -or
         ($_.ProcessName -eq 'pwsh' -and $_.Id -in $shellIds) -or
         ($trackedChildren.ContainsKey($_.Id) -and $null -ne $_.StartTime -and $_.StartTime.ToUniversalTime().Ticks -eq $trackedChildren[$_.Id])
     } | Select-Object Id, ProcessName

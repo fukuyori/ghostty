@@ -102,8 +102,12 @@ if (-not $TestGpuRecovery -and $PSBoundParameters.ContainsKey("GpuRecoveryFailur
 }
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+. (Join-Path $PSScriptRoot "windows-brand.ps1")
 if ([string]::IsNullOrWhiteSpace($Executable)) {
-    $executablePath = Join-Path $repositoryRoot "zig-out\release\bin\ghostty.exe"
+    $defaultPrefix = Join-Path $repositoryRoot "zig-out\release"
+    $executablePath = Get-GhosttyBrandExecutable -Prefix $defaultPrefix -Brand (
+        Get-GhosttyBrandForPrefix -Prefix $defaultPrefix -RepositoryRoot $repositoryRoot
+    )
 } elseif ([System.IO.Path]::IsPathRooted($Executable)) {
     $executablePath = [System.IO.Path]::GetFullPath($Executable)
 } else {
@@ -116,6 +120,15 @@ if (-not (Test-Path -LiteralPath $executablePath -PathType Leaf)) {
     throw "Ghostty executable not found: $executablePath"
 }
 
+$brand = Get-GhosttyBrandForExecutable -Executable $executablePath -RepositoryRoot $repositoryRoot
+$surfaceClass = $brand.window_class_prefix + "Window"
+$tabBarClass = $brand.window_class_prefix + "TabBar"
+$splitDividerClass = $brand.window_class_prefix + "SplitDivider"
+$scrollbarClass = $brand.window_class_prefix + "OverlayScrollbar"
+$logVariable = $brand.env_prefix + "LOG"
+$recoveryVariable = $brand.env_prefix + "TEST_DEVICE_RECOVERY"
+$recoveryFailuresVariable = $brand.env_prefix + "TEST_DEVICE_RECOVERY_FAILURES"
+
 $logDirectory = Join-Path $repositoryRoot "zig-out\logs"
 [System.IO.Directory]::CreateDirectory($logDirectory) | Out-Null
 $sessionName = "window-state-{0}-{1}" -f `
@@ -125,7 +138,7 @@ $stdoutPath = Join-Path $logDirectory "$sessionName.stdout.log"
 $stderrPath = Join-Path $logDirectory "$sessionName.stderr.log"
 $testStateRoot = Join-Path $repositoryRoot "zig-out\test-state"
 $sessionDirectory = Join-Path $testStateRoot $sessionName
-$configPath = Join-Path $sessionDirectory "config.ghostty"
+$configPath = Join-Path $sessionDirectory $brand.config_file_name
 $inputMarkerPath = Join-Path $sessionDirectory "terminal-input.txt"
 $imeMarkerPath = Join-Path $sessionDirectory "ime-process-key.txt"
 $gridMarkerPath = Join-Path $sessionDirectory "grid-at-start.txt"
@@ -147,6 +160,9 @@ using System.Text;
 
 public static class GhosttyWindowStateNative
 {
+    // Set from brand.json before the first lookup.
+    public static string SurfaceClass;
+
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT
     {
@@ -248,7 +264,7 @@ public static class GhosttyWindowStateNative
         StringBuilder className = new StringBuilder(256);
         if (GetClassNameW(hWnd, className, className.Capacity) == 0)
             return false;
-        return String.Equals(className.ToString(), "GhosttyWindow", StringComparison.Ordinal);
+        return String.Equals(className.ToString(), SurfaceClass, StringComparison.Ordinal);
     }
 
     [DllImport("user32.dll")]
@@ -421,6 +437,7 @@ public static class GhosttyWindowStateNative
 }
 "@
 }
+[GhosttyWindowStateNative]::SurfaceClass = $surfaceClass
 
 # PowerShell itself may be DPI unaware. Without a per-monitor-aware thread,
 # USER32 virtualizes rectangles returned for windows on scaled monitors and a
@@ -629,9 +646,9 @@ function Test-InitialGrid {
             -RedirectStandardError (Join-Path $logDirectory "$sessionName.grid.stderr.log") `
             -PassThru
         Wait-ForCondition -Description "grid test window creation" -Condition {
-            [GhosttyWindowStateNative]::FindWindow($gridProcess.Id, "GhosttyWindow") -ne [IntPtr]::Zero
+            [GhosttyWindowStateNative]::FindWindow($gridProcess.Id, $surfaceClass) -ne [IntPtr]::Zero
         }
-        $gridWindow = [GhosttyWindowStateNative]::FindWindow($gridProcess.Id, "GhosttyWindow")
+        $gridWindow = [GhosttyWindowStateNative]::FindWindow($gridProcess.Id, $surfaceClass)
         $null = [GhosttyWindowStateNative]::ShowWindow($gridWindow, $swRestore)
         $gridWindow = Wait-ForMainWindow -Process $gridProcess
         $gridSurface = @(Get-ChildWindowHandles -ParentHandle $gridWindow)[0]
@@ -895,7 +912,7 @@ function Get-ProcessTopLevelWindows {
     @(
         [GhosttyWindowStateNative]::FindWindows(
             $ProcessId,
-            "GhosttyWindow"
+            $surfaceClass
         )
     )
 }
@@ -1207,7 +1224,7 @@ function Test-ScrollbarHistoryBoundaries {
         }
         $historyBar = [GhosttyWindowStateNative]::FindWindow(
             $historyProcess.Id,
-            "GhosttyOverlayScrollbar"
+            $scrollbarClass
         )
         if ($historyBar -eq [IntPtr]::Zero) {
             throw "The scrollbar history test overlay was not created."
@@ -1819,31 +1836,31 @@ try {
         )
     }
     $previousGhosttyLog = [System.Environment]::GetEnvironmentVariable(
-        "GHOSTTY_LOG",
+        $logVariable,
         [System.EnvironmentVariableTarget]::Process
     )
     $previousRecoveryTest = [System.Environment]::GetEnvironmentVariable(
-        "GHOSTTY_TEST_DEVICE_RECOVERY",
+        $recoveryVariable,
         [System.EnvironmentVariableTarget]::Process
     )
     $previousRecoveryFailures = [System.Environment]::GetEnvironmentVariable(
-        "GHOSTTY_TEST_DEVICE_RECOVERY_FAILURES",
+        $recoveryFailuresVariable,
         [System.EnvironmentVariableTarget]::Process
     )
     try {
         [System.Environment]::SetEnvironmentVariable(
-            "GHOSTTY_LOG",
+            $logVariable,
             "stderr=true",
             [System.EnvironmentVariableTarget]::Process
         )
         if ($TestGpuRecovery -or $TestPowerResume) {
             [System.Environment]::SetEnvironmentVariable(
-                "GHOSTTY_TEST_DEVICE_RECOVERY",
+                $recoveryVariable,
                 "1",
                 [System.EnvironmentVariableTarget]::Process
             )
             [System.Environment]::SetEnvironmentVariable(
-                "GHOSTTY_TEST_DEVICE_RECOVERY_FAILURES",
+                $recoveryFailuresVariable,
                 $GpuRecoveryFailures.ToString(),
                 [System.EnvironmentVariableTarget]::Process
             )
@@ -1856,17 +1873,17 @@ try {
             -PassThru
     } finally {
         [System.Environment]::SetEnvironmentVariable(
-            "GHOSTTY_LOG",
+            $logVariable,
             $previousGhosttyLog,
             [System.EnvironmentVariableTarget]::Process
         )
         [System.Environment]::SetEnvironmentVariable(
-            "GHOSTTY_TEST_DEVICE_RECOVERY",
+            $recoveryVariable,
             $previousRecoveryTest,
             [System.EnvironmentVariableTarget]::Process
         )
         [System.Environment]::SetEnvironmentVariable(
-            "GHOSTTY_TEST_DEVICE_RECOVERY_FAILURES",
+            $recoveryFailuresVariable,
             $previousRecoveryFailures,
             [System.EnvironmentVariableTarget]::Process
         )
@@ -1882,7 +1899,7 @@ try {
     Write-Verbose "Found top-level window $windowHandle."
     $tabBarHandle = Wait-ForProcessWindow `
         -ProcessId $process.Id `
-        -ClassName "GhosttyTabBar"
+        -ClassName $tabBarClass
     Write-Verbose "Found tab bar window $tabBarHandle."
     $shellEligibility = Test-ShellEligibility -Handle $windowHandle
 
@@ -2047,7 +2064,7 @@ try {
     $rendererWakeup = $null
     $overlayScrollbar = $null
     if ($TestOverlayScrollbar) {
-        $barHandle = [GhosttyWindowStateNative]::FindWindow($process.Id, "GhosttyOverlayScrollbar")
+        $barHandle = [GhosttyWindowStateNative]::FindWindow($process.Id, $scrollbarClass)
         if ($barHandle -eq [IntPtr]::Zero) {
             throw "Overlay scrollbar child was not created."
         }
@@ -2515,7 +2532,7 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
         Wait-ForCondition -Description "the overlay scrollbar to be removed after config reload" -Condition {
             [GhosttyWindowStateNative]::FindWindow(
                 $process.Id,
-                "GhosttyOverlayScrollbar"
+                $scrollbarClass
             ) -eq [IntPtr]::Zero
         }
         $overlayScrollbar.ConfigReloadNever = $true
@@ -2536,7 +2553,7 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
         Wait-ForCondition -Description "the overlay scrollbar to return after config reload" -Condition {
             [GhosttyWindowStateNative]::FindWindow(
                 $process.Id,
-                "GhosttyOverlayScrollbar"
+                $scrollbarClass
             ) -ne [IntPtr]::Zero
         }
         $overlayScrollbar.ConfigReloadRestored = $true
@@ -2557,7 +2574,7 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
         -Description "split test"
     $dividerHandle = Wait-ForProcessWindow `
         -ProcessId $process.Id `
-        -ClassName "GhosttySplitDivider"
+        -ClassName $splitDividerClass
     Write-Verbose "Created split divider window $dividerHandle."
     $initialDivider = Wait-ForSplitDividerLayout `
         -ParentHandle $windowHandle `
@@ -2605,14 +2622,14 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
             @(
                 [GhosttyWindowStateNative]::FindWindows(
                     $process.Id,
-                    "GhosttyOverlayScrollbar"
+                    $scrollbarClass
                 )
             ).Count -eq 2
         }
         $overlayBarHandles = @(
             [GhosttyWindowStateNative]::FindWindows(
                 $process.Id,
-                "GhosttyOverlayScrollbar"
+                $scrollbarClass
             )
         )
         $initialOverlayLayouts = @(
@@ -2839,14 +2856,14 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
             @(
                 [GhosttyWindowStateNative]::FindWindows(
                     $process.Id,
-                    "GhosttyOverlayScrollbar"
+                    $scrollbarClass
                 )
             ).Count -eq 3
         }
         $threeBars = @(
             [GhosttyWindowStateNative]::FindWindows(
                 $process.Id,
-                "GhosttyOverlayScrollbar"
+                $scrollbarClass
             )
         )
         $threeLayouts = @(
@@ -2910,7 +2927,7 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
     }
     $secondTabBarHandle = Wait-ForOwnedProcessWindow `
         -ProcessId $process.Id `
-        -ClassName "GhosttyTabBar" `
+        -ClassName $tabBarClass `
         -OwnerHandle $secondWindowHandle
     $null = Wait-ForTabBarLayout `
         -ParentHandle $secondWindowHandle `

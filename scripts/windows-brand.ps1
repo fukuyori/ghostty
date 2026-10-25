@@ -74,3 +74,44 @@ function Get-GhosttyBrandExecutable {
 
     return Join-Path $Prefix ("bin\{0}.exe" -f $Brand.exe_name)
 }
+
+function Get-GhosttyBrandForPrefix {
+    param(
+        # Install prefix a test script uses, which may not have brand.json.
+        [Parameter(Mandatory)]
+        [string]$Prefix,
+
+        # Repository root; its zig-out\brand.json is the fallback.
+        [Parameter(Mandatory)]
+        [string]$RepositoryRoot
+    )
+
+    if (Test-Path -LiteralPath (Join-Path $Prefix "brand.json") -PathType Leaf) {
+        return Get-GhosttyBrand -Prefix $Prefix
+    }
+    return Get-GhosttyBrand -Prefix (Join-Path $RepositoryRoot "zig-out")
+}
+
+function Get-GhosttyBrandForExecutable {
+    param(
+        # Executable a test script was given, as the script resolved it.
+        [Parameter(Mandatory)]
+        [string]$Executable,
+
+        # Repository root; its zig-out\brand.json is the fallback.
+        [Parameter(Mandatory)]
+        [string]$RepositoryRoot
+    )
+
+    # An executable under <prefix>\bin uses that prefix's brand.json. An
+    # executable elsewhere, or from a prefix without brand.json, falls back
+    # to the repository's default zig-out prefix.
+    $directory = Split-Path -Parent $Executable
+    if ($directory -and (Split-Path -Leaf $directory) -eq "bin") {
+        $prefix = Split-Path -Parent $directory
+        if ($prefix) {
+            return Get-GhosttyBrandForPrefix -Prefix $prefix -RepositoryRoot $RepositoryRoot
+        }
+    }
+    return Get-GhosttyBrand -Prefix (Join-Path $RepositoryRoot "zig-out")
+}

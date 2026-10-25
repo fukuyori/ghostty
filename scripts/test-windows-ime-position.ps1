@@ -11,7 +11,7 @@ This run must fail and record forced termination of its own test process.
 #>
 [CmdletBinding()]
 param(
-    [string]$Executable = 'zig-out/ime-diagnostics/bin/ghostty.exe',
+    [string]$Executable = '',
     [switch]$SimulateCloseTimeout,
     [switch]$Probe,
     [string]$Directory
@@ -51,6 +51,8 @@ using System;
 using System.Text;
 using System.Runtime.InteropServices;
 public static class GhosttyImePositionNative {
+    // Set from brand.json before the first lookup.
+    public static string TerminalClass;
     private delegate bool EnumProc(IntPtr hwnd, IntPtr param);
     [DllImport("user32.dll")] private static extern bool EnumWindows(EnumProc callback, IntPtr param);
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
@@ -63,7 +65,7 @@ public static class GhosttyImePositionNative {
     public static bool IsTerminal(IntPtr hwnd) {
         var name = new StringBuilder(256);
         GetClassNameW(hwnd, name, name.Capacity);
-        return name.ToString() == "GhosttyWindow";
+        return name.ToString() == TerminalClass;
     }
     public static IntPtr Find(uint pid) {
         IntPtr found = IntPtr.Zero;
@@ -156,8 +158,16 @@ function Assert-Aligned {
 }
 
 $root = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'windows-brand.ps1')
+if (-not $Executable) {
+    $defaultPrefix = Join-Path $root 'zig-out/ime-diagnostics'
+    $Executable = Get-GhosttyBrandExecutable -Prefix $defaultPrefix -Brand (Get-GhosttyBrandForPrefix -Prefix $defaultPrefix -RepositoryRoot $root)
+}
 $exe = if ([IO.Path]::IsPathRooted($Executable)) { $Executable } else { Join-Path $root $Executable }
 $exe = (Resolve-Path -LiteralPath $exe).Path
+$brand = Get-GhosttyBrandForExecutable -Executable $exe -RepositoryRoot $root
+[GhosttyImePositionNative]::TerminalClass = $brand.window_class_prefix + 'Window'
+$traceVariable = $brand.env_prefix + 'TEST_IME_TRACE'
 $directory = Join-Path $root ('zig-out/test-fixtures/ime-position-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
 $null = New-Item -ItemType Directory -Path $directory -Force
 $probeCommand = "& '$($PSCommandPath.Replace("'", "''"))' -Probe -Directory '$($directory.Replace("'", "''"))'"
@@ -177,7 +187,7 @@ keybind = f9=close_surface
 "@ | Set-Content -LiteralPath $config -Encoding utf8
 $stderr = Join-Path $directory 'stderr.log'
 $stdout = Join-Path $directory 'stdout.log'
-$previousTrace = $env:GHOSTTY_TEST_IME_TRACE
+$previousTrace = [Environment]::GetEnvironmentVariable($traceVariable)
 $process = $null
 $failure = $null
 $checks = [Collections.Generic.List[string]]::new()
@@ -189,12 +199,12 @@ $head = (& git -C $root rev-parse HEAD)
 $script:queryId = 0
 try {
     try {
-        $env:GHOSTTY_TEST_IME_TRACE = '1'
+        [Environment]::SetEnvironmentVariable($traceVariable, '1')
         $process = Start-Process -FilePath $exe -WorkingDirectory $root -ArgumentList @(
             '--config-default-files=false', "--config-file=`"$config`""
         ) -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
         $null = $process.Handle
-    } finally { $env:GHOSTTY_TEST_IME_TRACE = $previousTrace }
+    } finally { [Environment]::SetEnvironmentVariable($traceVariable, $previousTrace) }
     Wait-Check {
         $script:parent = [GhosttyImePositionNative]::Find($process.Id)
         $script:parent -ne [IntPtr]::Zero
@@ -301,7 +311,7 @@ if ($closeWhileComposing -and -not $failure -and -not $forcedTerminations.Count 
 $result = [ordered]@{
     Executable = $exe; Sha256 = $hash; Commit = $head
     Command = $PSCommandPath; Arguments = @{ Executable = $Executable; SimulateCloseTimeout = [bool]$SimulateCloseTimeout }
-    TraceEnvironment = 'GHOSTTY_TEST_IME_TRACE=1'
+    TraceEnvironment = "$traceVariable=1"
     Pid = if ($process) { $process.Id } else { $null }
     ExitCode = if ($process -and $process.HasExited) { $process.ExitCode } else { $null }
     Checks = @($checks.ToArray()); Failure = $failure

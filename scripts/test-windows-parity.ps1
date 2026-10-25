@@ -8,18 +8,25 @@ and mixed-DPI monitors still require separate checks.
 #>
 [CmdletBinding()]
 param(
-    [string]$Executable = 'zig-out/parity-d3d11/bin/ghostty.exe',
+    [string]$Executable = '',
     [ValidateRange(1, 60)][int]$TimeoutSeconds = 15,
     [switch]$DisableCwdInheritance
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $PSScriptRoot 'windows-brand.ps1')
+if (-not $Executable) {
+    $defaultPrefix = Join-Path $root 'zig-out/parity-d3d11'
+    $Executable = Get-GhosttyBrandExecutable -Prefix $defaultPrefix -Brand (Get-GhosttyBrandForPrefix -Prefix $defaultPrefix -RepositoryRoot $root)
+}
 $exe = if ([IO.Path]::IsPathRooted($Executable)) {
     (Resolve-Path -LiteralPath $Executable).Path
 } else {
     (Resolve-Path -LiteralPath (Join-Path $root $Executable)).Path
 }
+$brand = Get-GhosttyBrandForExecutable -Executable $exe -RepositoryRoot $root
+$windowClass = $brand.window_class_prefix + 'Window'
 $name = 'parity-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff')
 # Retain reproduction inputs outside the window-state/soak cleanup area.
 $state = Join-Path $root "zig-out/test-fixtures/$name"
@@ -40,6 +47,8 @@ using System.Collections.Generic;
 using System.Text;
 using System.Runtime.InteropServices;
 public static class GhosttyParityNative {
+    // Set from brand.json before the first lookup.
+    public static string WindowClass;
     public delegate bool EnumProc(IntPtr h, IntPtr p);
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L,T,R,B; }
     [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X,Y; }
@@ -70,12 +79,13 @@ public static class GhosttyParityNative {
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr LoadCursorW(IntPtr h, IntPtr id);
     public static string Class(IntPtr h) { var s=new StringBuilder(256); GetClassNameW(h,s,256); return s.ToString(); }
     public static string Text(IntPtr h) { var s=new StringBuilder(4096); ReadTextMessageW(h,0x000D,new UIntPtr(4096),s); return s.ToString(); }
-    public static IntPtr[] Windows(uint pid) { var list=new List<IntPtr>(); EnumWindows((h,p)=>{ uint n; GetWindowThreadProcessId(h,out n); if(n==pid && Class(h)=="GhosttyWindow") list.Add(h); return true; },IntPtr.Zero); return list.ToArray(); }
+    public static IntPtr[] Windows(uint pid) { var list=new List<IntPtr>(); EnumWindows((h,p)=>{ uint n; GetWindowThreadProcessId(h,out n); if(n==pid && Class(h)==WindowClass) list.Add(h); return true; },IntPtr.Zero); return list.ToArray(); }
     public static IntPtr[] Children(IntPtr parent,string cls) { var list=new List<IntPtr>(); EnumChildWindows(parent,(h,p)=>{ if(Class(h)==cls) list.Add(h); return true; },IntPtr.Zero); return list.ToArray(); }
     public static CURSORINFO Cursor() { var c=new CURSORINFO(); c.Size=Marshal.SizeOf(c); if(!GetCursorInfo(ref c)) throw new Exception("GetCursorInfo"); return c; }
 }
 '@
 }
+[GhosttyParityNative]::WindowClass = $windowClass
 
 function Wait-State([string]$Description, [scriptblock]$Check) {
     $timer = [Diagnostics.Stopwatch]::StartNew()
@@ -174,8 +184,8 @@ try {
     $window = [GhosttyParityNative]::Windows($process.Id)[0]
     $null = [GhosttyParityNative]::ShowWindow($window, 9)
     $null = [GhosttyParityNative]::SetForegroundWindow($window)
-    Wait-State 'initial terminal' { [GhosttyParityNative]::Children($window, 'GhosttyWindow').Count -eq 1 }
-    $surface = [GhosttyParityNative]::Children($window, 'GhosttyWindow')[0]
+    Wait-State 'initial terminal' { [GhosttyParityNative]::Children($window, $windowClass).Count -eq 1 }
+    $surface = [GhosttyParityNative]::Children($window, $windowClass)[0]
     Assert-Cwd 1 $root
     Start-Sleep -Milliseconds 800
     Key $surface 113 # F2
@@ -263,7 +273,7 @@ try {
     Key $surface 114 # new tab
     Assert-Cwd 2 $expectedCwd
     Wait-State 'old tab search hidden' { -not [GhosttyParityNative]::IsWindowVisible($bar) }
-    $newTabSurface = @([GhosttyParityNative]::Children($window, 'GhosttyWindow') | Where-Object { $_ -ne $surface })[0]
+    $newTabSurface = @([GhosttyParityNative]::Children($window, $windowClass) | Where-Object { $_ -ne $surface })[0]
     Key $newTabSurface 113
     Wait-State 'second pane search' { [GhosttyParityNative]::Children($window, '#32770').Count -eq 2 }
     $secondBar = @([GhosttyParityNative]::Children($window, '#32770') | Where-Object { $_ -ne $bar })[0]
@@ -275,7 +285,7 @@ try {
     Wait-State 'tab search visibility restored' { [GhosttyParityNative]::IsWindowVisible($bar) -and -not [GhosttyParityNative]::IsWindowVisible($secondBar) }
     Key $surface 115 # split
     Assert-Cwd 3 $expectedCwd
-    $splitSurface = @([GhosttyParityNative]::Children($window, 'GhosttyWindow') | Where-Object { $_ -ne $surface -and $_ -ne $newTabSurface })[0]
+    $splitSurface = @([GhosttyParityNative]::Children($window, $windowClass) | Where-Object { $_ -ne $surface -and $_ -ne $newTabSurface })[0]
     Key $splitSurface 113
     Wait-State 'split search bar' { [GhosttyParityNative]::Children($window, '#32770').Count -eq 3 }
     $splitBar = @([GhosttyParityNative]::Children($window, '#32770') | Where-Object { $_ -ne $bar -and $_ -ne $secondBar })[0]
@@ -283,7 +293,7 @@ try {
     $null = [GhosttyParityNative]::SetWindowTextW([GhosttyParityNative]::GetDlgItem($splitBar, 1101), 'parity-needle')
     Wait-State 'split search matches' { (Status $splitBar) -match '/ 3$' }
     Key $splitSurface 117 # close pane with running search
-    Wait-State 'search pane closed' { [GhosttyParityNative]::Children($window, 'GhosttyWindow').Count -eq 2 -and [GhosttyParityNative]::Children($window, '#32770').Count -eq 2 }
+    Wait-State 'search pane closed' { [GhosttyParityNative]::Children($window, $windowClass).Count -eq 2 -and [GhosttyParityNative]::Children($window, '#32770').Count -eq 2 }
     Key $surface 116 # window
     Assert-Cwd 4 $expectedCwd
     Wait-State 'two top-level windows' { [GhosttyParityNative]::Windows($process.Id).Count -eq 2 }

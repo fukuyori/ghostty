@@ -16,7 +16,7 @@ separately; a successful basic partial commit does not establish those cases.
 #>
 [CmdletBinding()]
 param(
-    [string]$Executable = 'zig-out/ime-diagnostics/bin/ghostty.exe',
+    [string]$Executable = '',
     [switch]$Probe,
     [string]$RecordPath
 )
@@ -63,8 +63,15 @@ if ($Probe) {
 }
 
 $root = Split-Path $PSScriptRoot -Parent
+. (Join-Path $PSScriptRoot 'windows-brand.ps1')
+if (-not $Executable) {
+    $defaultPrefix = Join-Path $root 'zig-out/ime-diagnostics'
+    $Executable = Get-GhosttyBrandExecutable -Prefix $defaultPrefix -Brand (Get-GhosttyBrandForPrefix -Prefix $defaultPrefix -RepositoryRoot $root)
+}
 $exe = if ([IO.Path]::IsPathRooted($Executable)) { $Executable } else { Join-Path $root $Executable }
 $exe = (Resolve-Path -LiteralPath $exe).Path
+$brand = Get-GhosttyBrandForExecutable -Executable $exe -RepositoryRoot $root
+$traceVariable = $brand.env_prefix + 'TEST_IME_TRACE'
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
 $directory = Join-Path $root "zig-out/test-fixtures/ime-$stamp"
 $null = New-Item -ItemType Directory -Path $directory -Force
@@ -84,15 +91,15 @@ keybind = f10=quit
 $stderr = Join-Path $directory 'stderr.log'
 $stdout = Join-Path $directory 'stdout.log'
 $hash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
-$previousTrace = $env:GHOSTTY_TEST_IME_TRACE
+$previousTrace = [Environment]::GetEnvironmentVariable($traceVariable)
 try {
-    $env:GHOSTTY_TEST_IME_TRACE = '1'
+    [Environment]::SetEnvironmentVariable($traceVariable, '1')
     # This window is intentionally visible for physical IME input and inspection.
     $process = Start-Process -FilePath $exe -WorkingDirectory $root -ArgumentList @(
         '--config-default-files=false', "--config-file=`"$config`""
     ) -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
 } finally {
-    $env:GHOSTTY_TEST_IME_TRACE = $previousTrace
+    [Environment]::SetEnvironmentVariable($traceVariable, $previousTrace)
 }
 Write-Host "IME check PID $($process.Id), evidence: $directory"
 $null = $process.Handle
@@ -120,7 +127,7 @@ $result = [ordered]@{
     Commit = (& git -C $root rev-parse HEAD)
     Command = $PSCommandPath
     Arguments = @{ Executable = $Executable }
-    TraceEnvironment = 'GHOSTTY_TEST_IME_TRACE=1'
+    TraceEnvironment = "$traceVariable=1"
     MainProcessExited = $process.HasExited
     ObservedProbePid = if ($probeProcess) { $probeProcess.Id } else { $null }
     ProbeExited = if ($probeProcess) { $probeProcess.HasExited } else { $null }

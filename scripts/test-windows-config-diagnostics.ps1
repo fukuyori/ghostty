@@ -11,7 +11,7 @@ An invalid configuration is intentional: the test checks its diagnostic UI.
 #>
 [CmdletBinding()]
 param(
-    [string]$Executable = 'zig-out/bin/ghostty.exe',
+    [string]$Executable = '',
     [ValidateSet('StartupClose', 'ReloadClose', 'ReloadDismiss', 'RepeatedReload',
         'QueuedOwnerClose', 'OwnerCloseWithOtherWindow', 'ShellExit', 'PaletteReloadClose')]
     [string[]]$Case = @('StartupClose', 'ReloadClose', 'ReloadDismiss', 'RepeatedReload',
@@ -21,11 +21,18 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $PSScriptRoot 'windows-brand.ps1')
+if (-not $Executable) {
+    $defaultPrefix = Join-Path $root 'zig-out'
+    $Executable = Get-GhosttyBrandExecutable -Prefix $defaultPrefix -Brand (Get-GhosttyBrand -Prefix $defaultPrefix)
+}
 $exe = if ([IO.Path]::IsPathRooted($Executable)) {
     (Resolve-Path -LiteralPath $Executable).Path
 } else {
     (Resolve-Path -LiteralPath (Join-Path $root $Executable)).Path
 }
+$brand = Get-GhosttyBrandForExecutable -Executable $exe -RepositoryRoot $root
+$windowClass = $brand.window_class_prefix + 'Window'
 $name = 'config-diagnostics-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff')
 $logs = Join-Path $root 'zig-out/logs'
 $fixture = Join-Path $root "zig-out/test-fixtures/$name"
@@ -78,7 +85,7 @@ function Key([IntPtr]$Handle, [int]$Code) {
 }
 function Dialogs {
     @([GhosttyDiagnosticNative]::Windows($process.Id, '#32770') | Where-Object {
-        [GhosttyDiagnosticNative]::Text($_) -eq 'Ghostty Configuration Error'
+        [GhosttyDiagnosticNative]::Text($_) -eq "$($brand.display_name) Configuration Error"
     })
 }
 function Diagnostic-Text([IntPtr]$Dialog) {
@@ -157,16 +164,16 @@ keybind = f5=toggle_command_palette
     $failure = $null
     try {
         $process = Start-Process -FilePath $exe -WindowStyle Hidden -ArgumentList @('--config-default-files=false', "--config-file=`"$config`"") -PassThru -RedirectStandardOutput "$prefix.stdout.log" -RedirectStandardError $stderr
-        Wait-State 'main window' { [GhosttyDiagnosticNative]::Windows($process.Id, 'GhosttyWindow').Count -eq 1 }
-        $window = [GhosttyDiagnosticNative]::Windows($process.Id, 'GhosttyWindow')[0]
-        Wait-State 'surface' { [GhosttyDiagnosticNative]::Children($window, 'GhosttyWindow').Count -eq 1 }
-        $surface = [GhosttyDiagnosticNative]::Children($window, 'GhosttyWindow')[0]
+        Wait-State 'main window' { [GhosttyDiagnosticNative]::Windows($process.Id, $windowClass).Count -eq 1 }
+        $window = [GhosttyDiagnosticNative]::Windows($process.Id, $windowClass)[0]
+        Wait-State 'surface' { [GhosttyDiagnosticNative]::Children($window, $windowClass).Count -eq 1 }
+        $surface = [GhosttyDiagnosticNative]::Children($window, $windowClass)[0]
         if ($scenario -ne 'StartupClose') {
             Wait-State 'outer event loop' { Select-String -LiteralPath $stderr -Pattern 'starting Win32 event loop' -Quiet }
         }
         if ($scenario -eq 'OwnerCloseWithOtherWindow') {
             Key $surface 114
-            Wait-State 'second window' { [GhosttyDiagnosticNative]::Windows($process.Id, 'GhosttyWindow').Count -eq 2 }
+            Wait-State 'second window' { [GhosttyDiagnosticNative]::Windows($process.Id, $windowClass).Count -eq 2 }
         }
         if ($scenario -eq 'PaletteReloadClose') {
             Key $surface 116
@@ -207,10 +214,10 @@ keybind = f5=toggle_command_palette
             'ShellExit' { [IO.File]::WriteAllText($exitMarker, 'exit') }
             'OwnerCloseWithOtherWindow' {
                 Post $window 0x10
-                Wait-State 'owner closed and survivor remains' { [GhosttyDiagnosticNative]::Windows($process.Id, 'GhosttyWindow').Count -eq 1 -and -not [GhosttyDiagnosticNative]::IsWindow($window) }
+                Wait-State 'owner closed and survivor remains' { [GhosttyDiagnosticNative]::Windows($process.Id, $windowClass).Count -eq 1 -and -not [GhosttyDiagnosticNative]::IsWindow($window) }
                 Start-Sleep -Milliseconds 250
                 if (@(Dialogs).Count -ne 0) { throw 'Stale diagnostic survived its owner' }
-                $survivor = [GhosttyDiagnosticNative]::Windows($process.Id, 'GhosttyWindow')[0]
+                $survivor = [GhosttyDiagnosticNative]::Windows($process.Id, $windowClass)[0]
                 Post $survivor 0x10
             }
             default { Post $window 0x10 }
@@ -222,7 +229,7 @@ keybind = f5=toggle_command_palette
         $failure = $_.Exception.Message
     } finally {
         if ($null -ne $process -and -not $process.HasExited) {
-            foreach ($owned in [GhosttyDiagnosticNative]::Windows($process.Id, 'GhosttyWindow')) {
+            foreach ($owned in [GhosttyDiagnosticNative]::Windows($process.Id, $windowClass)) {
                 $null = [GhosttyDiagnosticNative]::PostMessageW($owned, 0x10, [UIntPtr]::Zero, [IntPtr]::Zero)
             }
             if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {

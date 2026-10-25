@@ -14,6 +14,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $PSScriptRoot 'windows-brand.ps1')
 $directory = Join-Path $root ('zig-out/logs/ime-verification-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
 $null = New-Item -ItemType Directory -Path $directory -Force
 $summaryPath = Join-Path $directory 'summary.json'
@@ -61,8 +62,10 @@ try {
     Invoke-Check 'hook-build' $zig @('build','-Dwin32-test-hooks=true','--prefix','zig-out/ime-diagnostics','--summary','all')
     Invoke-Check 'normal-tests' $zig @('build','test','-Dtest-filter=Win32','--summary','all')
     Invoke-Check 'hook-tests' $zig @('build','test','-Dtest-filter=Win32','-Dwin32-test-hooks=true','--summary','all')
-    $normal = Join-Path $root 'zig-out/ime-normal/bin/ghostty.exe'
-    $hook = Join-Path $root 'zig-out/ime-diagnostics/bin/ghostty.exe'
+    $normalPrefix = Join-Path $root 'zig-out/ime-normal'
+    $hookPrefix = Join-Path $root 'zig-out/ime-diagnostics'
+    $normal = Get-GhosttyBrandExecutable -Prefix $normalPrefix -Brand (Get-GhosttyBrand -Prefix $normalPrefix)
+    $hook = Get-GhosttyBrandExecutable -Prefix $hookPrefix -Brand (Get-GhosttyBrand -Prefix $hookPrefix)
     $summary.Executables = @(Get-FileHash -LiteralPath $normal,$hook | Select-Object Path,Hash)
     Invoke-Check 'position' $pwsh @('-NoProfile','-File',(Join-Path $PSScriptRoot 'test-windows-ime-position.ps1'),'-Executable',$hook)
     Invoke-Check 'normal-window' $pwsh @('-NoProfile','-File',(Join-Path $PSScriptRoot 'test-windows-window-state.ps1'),'-Executable',$normal)

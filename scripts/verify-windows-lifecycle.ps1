@@ -18,6 +18,7 @@ $ErrorActionPreference = 'Stop'
 # Native exit codes are collected explicitly, including a failed build.
 $PSNativeCommandUseErrorActionPreference = $false
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $PSScriptRoot 'windows-brand.ps1')
 $logs = Join-Path $root 'zig-out/logs'
 $null = New-Item -ItemType Directory -Force -Path $logs
 $name = 'lifecycle-acceptance-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff')
@@ -66,8 +67,10 @@ try {
 
     Invoke-Check 'normal-build' $zig @('build','--prefix','zig-out/lifecycle-normal','--summary','all')
     Invoke-Check 'hook-build' $zig @('build','-Dwin32-test-hooks=true','--prefix','zig-out/lifecycle-hooks','--summary','all')
-    $normal = Join-Path $root 'zig-out/lifecycle-normal/bin/ghostty.exe'
-    $hook = Join-Path $root 'zig-out/lifecycle-hooks/bin/ghostty.exe'
+    $normalPrefix = Join-Path $root 'zig-out/lifecycle-normal'
+    $hookPrefix = Join-Path $root 'zig-out/lifecycle-hooks'
+    $normal = Get-GhosttyBrandExecutable -Prefix $normalPrefix -Brand (Get-GhosttyBrand -Prefix $normalPrefix)
+    $hook = Get-GhosttyBrandExecutable -Prefix $hookPrefix -Brand (Get-GhosttyBrand -Prefix $hookPrefix)
     $summary.Executables = @(Get-FileHash -LiteralPath $normal,$hook | Select-Object Path,Hash)
 
     $script = Join-Path $PSScriptRoot 'test-windows-lifecycle.ps1'

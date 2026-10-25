@@ -7,7 +7,7 @@ not verify physical input or Narrator speech. Logs and fixtures stay in zig-out.
 #>
 [CmdletBinding()]
 param(
-    [string]$Executable = 'zig-out/bin/ghostty.exe',
+    [string]$Executable = '',
     [ValidateSet('RenameShellExit', 'CloseTabIndexShift', 'CloseAllShellExit', 'QuitShellExit')]
     [string[]]$Case = @('RenameShellExit', 'CloseTabIndexShift', 'CloseAllShellExit', 'QuitShellExit'),
     [ValidateRange(1, 60)][int]$TimeoutSeconds = 15
@@ -15,9 +15,16 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $PSScriptRoot 'windows-brand.ps1')
+if (-not $Executable) {
+    $defaultPrefix = Join-Path $root 'zig-out'
+    $Executable = Get-GhosttyBrandExecutable -Prefix $defaultPrefix -Brand (Get-GhosttyBrand -Prefix $defaultPrefix)
+}
 $exe = if ([IO.Path]::IsPathRooted($Executable)) {
     (Resolve-Path -LiteralPath $Executable).Path
 } else { (Resolve-Path -LiteralPath (Join-Path $root $Executable)).Path }
+$brand = Get-GhosttyBrandForExecutable -Executable $exe -RepositoryRoot $root
+$windowClass = $brand.window_class_prefix + 'Window'
 $name = 'modal-actions-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff')
 $fixture = Join-Path $root "zig-out/test-fixtures/$name"
 $logs = Join-Path $root 'zig-out/logs'
@@ -29,6 +36,8 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 public static class GhosttyModalNative {
+    // Set from brand.json before the first lookup.
+    public static string SurfaceClass;
     public delegate bool EnumProc(IntPtr h, IntPtr p);
     [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc f, IntPtr p);
     [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr h, EnumProc f, IntPtr p);
@@ -43,10 +52,11 @@ public static class GhosttyModalNative {
     public static string Class(IntPtr h) { var s=new StringBuilder(256); GetClassNameW(h,s,256); return s.ToString(); }
     public static string Text(IntPtr h) { var s=new StringBuilder(4096); UIntPtr r; if(ReadText(h,0xD,new UIntPtr(4096),s,2,2000,out r)==IntPtr.Zero) throw new Exception("Window text timed out"); return s.ToString(); }
     public static IntPtr[] Windows(uint pid, string cls) { var list=new List<IntPtr>(); EnumWindows((h,p)=>{ uint n; GetWindowThreadProcessId(h,out n); if(n==pid && Class(h)==cls) list.Add(h); return true; },IntPtr.Zero); return list.ToArray(); }
-    public static IntPtr[] Children(IntPtr parent) { var list=new List<IntPtr>(); EnumChildWindows(parent,(h,p)=>{ if(Class(h)=="GhosttyWindow") list.Add(h); return true; },IntPtr.Zero); return list.ToArray(); }
+    public static IntPtr[] Children(IntPtr parent) { var list=new List<IntPtr>(); EnumChildWindows(parent,(h,p)=>{ if(Class(h)==SurfaceClass) list.Add(h); return true; },IntPtr.Zero); return list.ToArray(); }
 }
 '@
 }
+[GhosttyModalNative]::SurfaceClass = $windowClass
 function Wait-State([string]$Description, [scriptblock]$Check) {
     $timer = [Diagnostics.Stopwatch]::StartNew()
     do {
@@ -109,8 +119,8 @@ keybind = f9=quit
     $forced = $false
     try {
         $process = Start-Process -FilePath $exe -WindowStyle Hidden -ArgumentList @('--config-default-files=false', "--config-file=`"$config`"") -PassThru -RedirectStandardOutput "$prefix.stdout.log" -RedirectStandardError "$prefix.stderr.log"
-        Wait-State 'main window' { [GhosttyModalNative]::Windows($process.Id, 'GhosttyWindow').Count -eq 1 }
-        $window = [GhosttyModalNative]::Windows($process.Id, 'GhosttyWindow')[0]
+        Wait-State 'main window' { [GhosttyModalNative]::Windows($process.Id, $windowClass).Count -eq 1 }
+        $window = [GhosttyModalNative]::Windows($process.Id, $windowClass)[0]
         $null = [GhosttyModalNative]::ShowWindow($window, 9)
         Wait-State 'visible terminal' { @([GhosttyModalNative]::Children($window) | Where-Object { [GhosttyModalNative]::IsWindowVisible($_) }).Count -eq 1 }
         $first = Wait-Title
