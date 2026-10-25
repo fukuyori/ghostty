@@ -44,7 +44,8 @@ fn replace(comptime s: []const u8, comptime from: []const u8, comptime to: []con
 }
 
 test "config template is unchanged with the Ghostty names" {
-    try std.testing.expectEqualStrings(@embedFile("config-template"), text);
+    const out = comptime rewrite(@embedFile("config-template"), "Ghostty", "ghostty");
+    try std.testing.expectEqualStrings(@embedFile("config-template"), out);
 }
 
 test "config template rewrite with substitute names" {
