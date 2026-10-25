@@ -223,7 +223,7 @@ pub fn build(b: *std.Build) !void {
                 // Icon shown on Windows toast notifications.
                 b.getInstallStep().dependOn(&b.addInstallFile(
                     b.path("dist/windows/ghostty.ico"),
-                    "share/ghostty/ghostty.ico",
+                    "share/" ++ brand.resources_dir_name ++ "/" ++ brand.identifier ++ ".ico",
                 ).step);
             }
         }

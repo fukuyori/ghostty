@@ -1,6 +1,7 @@
 const GhosttyResources = @This();
 
 const std = @import("std");
+const brand = @import("../brand.zig");
 const assert = std.debug.assert;
 const Config = @import("Config.zig");
 const RunStep = std.Build.Step.Run;
@@ -39,15 +40,15 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
         const run = b.addRunArtifact(build_data_exe);
         run.addArg("+terminfo");
         const wf = b.addWriteFiles();
-        const source = wf.addCopyFile(run.captureStdOut(.{}), "ghostty.terminfo");
+        const source = wf.addCopyFile(run.captureStdOut(.{}), brand.identifier ++ ".terminfo");
 
         if (cfg.emit_terminfo) {
             const source_install = b.addInstallFile(
                 source,
                 if (os_tag == .freebsd)
-                    "share/site-terminfo/ghostty.terminfo"
+                    "share/site-terminfo/" ++ brand.identifier ++ ".terminfo"
                 else
-                    "share/terminfo/ghostty.terminfo",
+                    "share/terminfo/" ++ brand.identifier ++ ".terminfo",
             );
 
             try steps.append(b.allocator, &source_install.step);
@@ -107,9 +108,9 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
             const cap_install = b.addInstallFile(
                 out_source,
                 if (os_tag == .freebsd)
-                    "share/site-terminfo/ghostty.termcap"
+                    "share/site-terminfo/" ++ brand.identifier ++ ".termcap"
                 else
-                    "share/terminfo/ghostty.termcap",
+                    "share/terminfo/" ++ brand.identifier ++ ".termcap",
             );
 
             try steps.append(b.allocator, &cap_install.step);
@@ -157,7 +158,7 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
         const install_step = b.addInstallDirectory(.{
             .source_dir = b.path("src/shell-integration"),
             .install_dir = .{ .custom = "share" },
-            .install_subdir = b.pathJoin(&.{ "ghostty", "shell-integration" }),
+            .install_subdir = b.pathJoin(&.{ brand.resources_dir_name, "shell-integration" }),
             .exclude_extensions = &.{".md"},
         });
         try steps.append(b.allocator, &install_step.step);
@@ -169,7 +170,7 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
             const install_step = b.addInstallDirectory(.{
                 .source_dir = upstream.path(""),
                 .install_dir = .{ .custom = "share" },
-                .install_subdir = b.pathJoin(&.{ "ghostty", "themes" }),
+                .install_subdir = b.pathJoin(&.{ brand.resources_dir_name, "themes" }),
                 .exclude_extensions = &.{".md"},
             });
             try steps.append(b.allocator, &install_step.step);
@@ -181,7 +182,7 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
         const run = b.addRunArtifact(build_data_exe);
         run.addArg("+fish");
         const wf = b.addWriteFiles();
-        _ = wf.addCopyFile(run.captureStdOut(.{}), "ghostty.fish");
+        _ = wf.addCopyFile(run.captureStdOut(.{}), brand.identifier ++ ".fish");
 
         const install_step = b.addInstallDirectory(.{
             .source_dir = wf.getDirectory(),
@@ -196,7 +197,7 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
         const run = b.addRunArtifact(build_data_exe);
         run.addArg("+zsh");
         const wf = b.addWriteFiles();
-        _ = wf.addCopyFile(run.captureStdOut(.{}), "_ghostty");
+        _ = wf.addCopyFile(run.captureStdOut(.{}), "_" ++ brand.identifier);
 
         const install_step = b.addInstallDirectory(.{
             .source_dir = wf.getDirectory(),
@@ -211,7 +212,7 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
         const run = b.addRunArtifact(build_data_exe);
         run.addArg("+bash");
         const wf = b.addWriteFiles();
-        _ = wf.addCopyFile(run.captureStdOut(.{}), "ghostty.bash");
+        _ = wf.addCopyFile(run.captureStdOut(.{}), brand.identifier ++ ".bash");
 
         const install_step = b.addInstallDirectory(.{
             .source_dir = wf.getDirectory(),
@@ -228,22 +229,22 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
         {
             const run = b.addRunArtifact(build_data_exe);
             run.addArg("+vim-syntax");
-            _ = wf.addCopyFile(run.captureStdOut(.{}), "syntax/ghostty.vim");
+            _ = wf.addCopyFile(run.captureStdOut(.{}), "syntax/" ++ brand.identifier ++ ".vim");
         }
         {
             const run = b.addRunArtifact(build_data_exe);
             run.addArg("+vim-ftdetect");
-            _ = wf.addCopyFile(run.captureStdOut(.{}), "ftdetect/ghostty.vim");
+            _ = wf.addCopyFile(run.captureStdOut(.{}), "ftdetect/" ++ brand.identifier ++ ".vim");
         }
         {
             const run = b.addRunArtifact(build_data_exe);
             run.addArg("+vim-ftplugin");
-            _ = wf.addCopyFile(run.captureStdOut(.{}), "ftplugin/ghostty.vim");
+            _ = wf.addCopyFile(run.captureStdOut(.{}), "ftplugin/" ++ brand.identifier ++ ".vim");
         }
         {
             const run = b.addRunArtifact(build_data_exe);
             run.addArg("+vim-compiler");
-            _ = wf.addCopyFile(run.captureStdOut(.{}), "compiler/ghostty.vim");
+            _ = wf.addCopyFile(run.captureStdOut(.{}), "compiler/" ++ brand.identifier ++ ".vim");
         }
 
         const vim_step = b.addInstallDirectory(.{
@@ -271,7 +272,7 @@ pub fn init(b: *std.Build, cfg: *const Config, deps: *const SharedDeps) !Ghostty
         const run = b.addRunArtifact(build_data_exe);
         run.addArg("+sublime");
         const wf = b.addWriteFiles();
-        _ = wf.addCopyFile(run.captureStdOut(.{}), "ghostty.sublime-syntax");
+        _ = wf.addCopyFile(run.captureStdOut(.{}), brand.identifier ++ ".sublime-syntax");
 
         const install_step = b.addInstallDirectory(.{
             .source_dir = wf.getDirectory(),

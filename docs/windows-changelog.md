@@ -22,6 +22,11 @@ known issues, and known limitations of each version; the
   the `+ssh` terminfo and cache names, and the `GHOSTTY_*` environment
   variable names from `src/brand.zig`, with unchanged values (rename step 8,
   #31).
+- Take the Windows executable name, the `share` resource directory, the
+  terminfo and completion file names, the notification icon path and the
+  executable's ProductName, FileDescription and OriginalFilename from
+  `src/brand.zig`, with unchanged values and an unchanged install tree
+  (rename step 8, #31).
 
 ### Documentation
 

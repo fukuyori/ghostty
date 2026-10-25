@@ -295,7 +295,7 @@ fn iconPath(buf: []u16) ?[:0]const u16 {
     for (0..2) |_| {
         end = std.mem.lastIndexOfScalar(u16, buf[0..end], '\\') orelse return null;
     }
-    const suffix = std.unicode.utf8ToUtf16LeStringLiteral("\\share\\" ++ brand.identifier ++ "\\" ++ brand.identifier ++ ".ico");
+    const suffix = std.unicode.utf8ToUtf16LeStringLiteral("\\share\\" ++ brand.resources_dir_name ++ "\\" ++ brand.identifier ++ ".ico");
     if (end + suffix.len + 1 > buf.len) return null;
     @memcpy(buf[end..][0..suffix.len], suffix);
     buf[end + suffix.len] = 0;

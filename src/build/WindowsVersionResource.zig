@@ -2,6 +2,14 @@ const std = @import("std");
 
 const max_component = std.math.maxInt(u16);
 
+/// Product names written to the string fields. The caller passes them from
+/// src/brand.zig; this file is also compiled alone for its tests, outside
+/// the module that contains brand.zig.
+pub const Names = struct {
+    display_name: []const u8,
+    exe_name: []const u8,
+};
+
 /// Add the Windows resource file with a generated header containing the
 /// application version. Windows stores four numeric 16-bit components, while
 /// the string fields retain the complete semantic version. The fourth
@@ -12,8 +20,9 @@ pub fn add(
     module: *std.Build.Module,
     version: std.SemanticVersion,
     optimize: std.builtin.OptimizeMode,
+    names: Names,
 ) !void {
-    const contents = try header(b.allocator, version, optimize);
+    const contents = try header(b.allocator, version, optimize, names);
     const generated = b.addWriteFiles().add(
         "ghostty-version.h",
         contents,
@@ -29,6 +38,7 @@ fn header(
     allocator: std.mem.Allocator,
     version: std.SemanticVersion,
     optimize: std.builtin.OptimizeMode,
+    names: Names,
 ) ![]u8 {
     if (version.major > max_component or
         version.minor > max_component or
@@ -46,6 +56,9 @@ fn header(
         \\#define GHOSTTY_VERSION_BUILD {d}
         \\#define GHOSTTY_VERSION_DEBUG {d}
         \\#define GHOSTTY_VERSION_STRING "{f}"
+        \\#define GHOSTTY_PRODUCT_NAME "{s}"
+        \\#define GHOSTTY_FILE_DESCRIPTION "{s} terminal emulator"
+        \\#define GHOSTTY_ORIGINAL_FILENAME "{s}.exe"
         \\
     ,
         .{
@@ -55,6 +68,9 @@ fn header(
             build,
             @intFromBool(optimize == .Debug),
             version,
+            names.display_name,
+            names.display_name,
+            names.exe_name,
         },
     );
 }
@@ -76,12 +92,15 @@ fn buildComponent(version: std.SemanticVersion) !u16 {
         error.WindowsVersionComponentTooLarge;
 }
 
+const test_names: Names = .{ .display_name = "Ghostty", .exe_name = "ghostty" };
+
 test "header preserves a stable semantic version" {
     const allocator = std.testing.allocator;
     const contents = try header(
         allocator,
         try std.SemanticVersion.parse("1.2.3"),
         .ReleaseFast,
+        test_names,
     );
     defer allocator.free(contents);
 
@@ -92,6 +111,9 @@ test "header preserves a stable semantic version" {
         \\#define GHOSTTY_VERSION_BUILD 0
         \\#define GHOSTTY_VERSION_DEBUG 0
         \\#define GHOSTTY_VERSION_STRING "1.2.3"
+        \\#define GHOSTTY_PRODUCT_NAME "Ghostty"
+        \\#define GHOSTTY_FILE_DESCRIPTION "Ghostty terminal emulator"
+        \\#define GHOSTTY_ORIGINAL_FILENAME "ghostty.exe"
         \\
     ,
         contents,
@@ -104,14 +126,15 @@ test "header preserves prerelease and build metadata" {
         allocator,
         try std.SemanticVersion.parse("1.3.2-windows-+abcdef0"),
         .Debug,
+        test_names,
     );
     defer allocator.free(contents);
 
-    try std.testing.expect(std.mem.endsWith(
+    try std.testing.expect(std.mem.indexOf(
         u8,
         contents,
         "#define GHOSTTY_VERSION_STRING \"1.3.2-windows-+abcdef0\"\n",
-    ));
+    ) != null);
 }
 
 test "header maps the preview sequence to the fourth component" {
@@ -120,6 +143,7 @@ test "header maps the preview sequence to the fourth component" {
         allocator,
         try std.SemanticVersion.parse("1.3.2-windows.4"),
         .ReleaseFast,
+        test_names,
     );
     defer allocator.free(contents);
 
@@ -130,6 +154,9 @@ test "header maps the preview sequence to the fourth component" {
         \\#define GHOSTTY_VERSION_BUILD 4
         \\#define GHOSTTY_VERSION_DEBUG 0
         \\#define GHOSTTY_VERSION_STRING "1.3.2-windows.4"
+        \\#define GHOSTTY_PRODUCT_NAME "Ghostty"
+        \\#define GHOSTTY_FILE_DESCRIPTION "Ghostty terminal emulator"
+        \\#define GHOSTTY_ORIGINAL_FILENAME "ghostty.exe"
         \\
     ,
         contents,
@@ -167,6 +194,6 @@ test "header rejects components that do not fit VERSIONINFO" {
     const version = try std.SemanticVersion.parse("65536.0.0");
     try std.testing.expectError(
         error.WindowsVersionComponentTooLarge,
-        header(std.testing.allocator, version, .Debug),
+        header(std.testing.allocator, version, .Debug, test_names),
     );
 }

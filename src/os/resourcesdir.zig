@@ -61,7 +61,7 @@ pub fn resourcesDir(alloc: Allocator) !ResourcesDir {
     // This is the sentinel value we look for in the path to know
     // we've found the resources directory.
     const sentinels = switch (comptime builtin.target.os.tag) {
-        .windows => .{"terminfo/ghostty.terminfo"},
+        .windows => .{"terminfo/" ++ brand.identifier ++ ".terminfo"},
         .macos => .{"terminfo/78/xterm-ghostty"},
         .freebsd => .{ "site-terminfo/g/ghostty", "site-terminfo/x/xterm-ghostty" },
         else => .{ "terminfo/g/ghostty", "terminfo/x/xterm-ghostty" },
@@ -89,7 +89,7 @@ pub fn resourcesDir(alloc: Allocator) !ResourcesDir {
                     "Contents/Resources",
                     sentinel,
                 )) |v| {
-                    return .{ .app_path = try std.fs.path.join(alloc, &.{ v, "ghostty" }) };
+                    return .{ .app_path = try std.fs.path.join(alloc, &.{ v, brand.resources_dir_name }) };
                 }
             }
         }
@@ -104,7 +104,7 @@ pub fn resourcesDir(alloc: Allocator) !ResourcesDir {
                 if (builtin.target.os.tag == .freebsd) "local/share" else "share",
                 sentinel,
             )) |v| {
-                return .{ .app_path = try std.fs.path.join(alloc, &.{ v, "ghostty" }) };
+                return .{ .app_path = try std.fs.path.join(alloc, &.{ v, brand.resources_dir_name }) };
             }
         }
     }

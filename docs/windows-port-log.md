@@ -5,6 +5,40 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-25: Build and resource name indirection (rename step 8, #31)
+
+- The build takes installed names from `src/brand.zig`, values unchanged:
+  the Windows executable name (`src/build/GhosttyExe.zig`; other targets
+  keep `ghostty`), the `share/<resources>` directory for shell integration,
+  themes and the notification icon (`src/build/GhosttyResources.zig`,
+  `build.zig`), the terminfo and termcap source file names, and the file
+  names of the generated fish, zsh and bash completions, Vim files and
+  Sublime syntax. Resource lookup (`src/os/resourcesdir.zig`) uses the same
+  directory name and the Windows terminfo sentinel; the toast icon path
+  (`Notifications.zig`) uses the resource directory name.
+- `dist/windows/ghostty.rc` reads ProductName, FileDescription and
+  OriginalFilename from macros in the generated `ghostty-version.h`.
+  `WindowsVersionResource.zig` is also compiled alone for its tests, outside
+  the module that contains `brand.zig`, so it receives the names from
+  `GhosttyExe.zig` as a `Names` argument; its tests pass Ghostty names and
+  check the new macros. A first version imported `brand.zig` directly and
+  failed that test build with "import of file outside module path".
+- Not changed: file contents (shell integration, completions, editor files,
+  configuration template) are a separate package; man pages and webdata are
+  not built for Windows; the upstream-shared `ghostty.rc`, `ghostty.manifest`
+  and `ghostty.ico` keep their file names.
+- Verification: the Debug install tree of `09a09c0bd` (`zig-out`) was
+  inventoried (relative path and SHA-256 of every file under `bin\` and
+  `share\`, executable version fields). The changed source was installed
+  into an empty prefix (`zig-out\step8-after`): all 757 files exist under
+  the same names; only `ghostty-vt.dll` (rebuilt code) and the two
+  pkg-config files (which embed the prefix) differ. FileDescription,
+  OriginalFilename and ProductName are unchanged. A run of that executable
+  found its resources directory and terminfo there (`GHOSTTY_RESOURCES_DIR`,
+  `TERMINFO`) and exited 0. `zig fmt --check`, Debug build, the version
+  resource, `resourcesdir` and brand tests, and Win32 tests (195 passed,
+  1 skipped) passed with all 91 build steps succeeding.
+
 ## 2026-10-25: Configuration and terminal identity indirection (rename step 8, #31)
 
 - Shared files now take the configuration, terminal and environment names
