@@ -12,6 +12,24 @@ Publication status is maintained in
 [GitHub Releases](https://github.com/fukuyori/ghostty/releases). These notes
 record each version's changes, verification results and limitations.
 
+## 1.4.0-windows.1
+
+- Base: upstream 1.4.0 at `83fb95624`, integrated through Windows
+  `33709d14e`, using Zig 0.17.0. The preview sequence restarts for 1.4.0.
+- Both product snapshots passed Debug/fast/hook builds, full Zig and
+  targeted Win32 tests, GUI/parity, controlled GPU/power recovery and
+  37 lifecycle cases with four inspected captures each.
+- Config diagnostics passed 7/8 on each product. The existing
+  `OwnerCloseWithOtherWindow` assertion uses the wrong owner; the formal
+  test correction remains pending (#66). The intermittent #69 observation
+  was not reproduced by the bounded P0 investigation and remains open.
+- Kitty image/animation and controlled recovery checks passed. SSH
+  argument/TERM probes used a local helper, not a remote server.
+  The separate-console behavior of +ssh (#72) remains unresolved.
+- These are development-stage checks. Final physical IME, real sleep/GPU
+  fault, endurance and signed installer/ZIP acceptance remain separate
+  tasks. See the November plan and B migration record.
+
 ## 1.3.2-windows.17
 
 - Source: `gooztty` after `1.3.2-windows.16`, including the `windows`
@@ -1227,3 +1245,4 @@ All of these are fixed in `1.3.2-windows.2`.
 - If another process of the same user posts the power notification message,
   GPU resources are re-created for all surfaces. The display is only briefly
   disturbed and the session is preserved.
+

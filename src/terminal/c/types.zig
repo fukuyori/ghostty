@@ -247,6 +247,7 @@ const type_decls = [_]TypeDecl{
     .initTaggedStruct("GhosttyTerminalUnknownSequence", terminal.UnknownSequence.C, "tag", "value", .generated),
     .initStruct("GhosttyTerminalUnknownOscSequence", terminal.UnknownOscSequence),
     .initStruct("GhosttyTerminalUnknownStringSequence", terminal.UnknownStringSequence),
+    .initStruct("GhosttyTerminalWriteStop", terminal.WriteStop),
     .initUnion(
         "GhosttyTerminalUnknownSequenceValue",
         terminal.UnknownSequence.CValue,
@@ -267,6 +268,7 @@ const type_decls = [_]TypeDecl{
     .initEnum("GhosttyColorScheme", device_status.ColorScheme, "GHOSTTY_COLOR_SCHEME_"),
     .initEnum("GhosttyFocusEvent", focus_pkg.Event, "GHOSTTY_FOCUS_"),
     .initEnum("GhosttyFormatterFormat", formatter_pkg.Format, "GHOSTTY_FORMATTER_FORMAT_"),
+    .initEnum("GhosttyImageProtocol", render.ImageProtocol, "GHOSTTY_IMAGE_PROTOCOL_"),
     .initEnum("GhosttyKey", input_key.Key, "GHOSTTY_KEY_"),
     .initEnum("GhosttyKeyAction", input_key.Action, "GHOSTTY_KEY_ACTION_"),
     .initEnum("GhosttyKeyEncoderOption", key_encode.Option, "GHOSTTY_KEY_ENCODER_OPT_"),
@@ -301,6 +303,9 @@ const type_decls = [_]TypeDecl{
     .initEnum("GhosttyRenderStateCursorVisualStyle", render.CursorVisualStyle, "GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_"),
     .initEnum("GhosttyRenderStateData", render.Data, "GHOSTTY_RENDER_STATE_DATA_"),
     .initEnum("GhosttyRenderStateDirty", render.Dirty, "GHOSTTY_RENDER_STATE_DIRTY_"),
+    .initEnum("GhosttyRenderStateImageData", render.ImageData, "GHOSTTY_RENDER_STATE_IMAGE_DATA_"),
+    .initEnum("GhosttyRenderStateImageLayer", render.ImageLayer, "GHOSTTY_RENDER_STATE_IMAGE_LAYER_"),
+    .initEnum("GhosttyRenderStateKittyPlacementKind", render.KittyPlacementKind, "GHOSTTY_RENDER_STATE_KITTY_PLACEMENT_KIND_"),
     .initEnum("GhosttyRenderStateOption", render.SetOption, "GHOSTTY_RENDER_STATE_OPTION_"),
     .initEnum("GhosttyRenderStateRowCellsData", render.RowCellsData, "GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_"),
     .initEnum("GhosttyRenderStateRowData", render.RowData, "GHOSTTY_RENDER_STATE_ROW_DATA_"),
@@ -325,9 +330,11 @@ const type_decls = [_]TypeDecl{
     .initEnumSentinel("GhosttySizeReportStyle", size_report.Style, "GHOSTTY_SIZE_REPORT_", "STYLE_MAX_VALUE"),
     .initEnum("GhosttySnapshotDecoderData", snapshot.DecoderData, "GHOSTTY_SNAPSHOT_DECODER_DATA_"),
     .initEnum("GhosttySnapshotDecoderOption", snapshot.DecoderOption, "GHOSTTY_SNAPSHOT_DECODER_OPT_"),
+    .initEnum("GhosttySnapshotDecoderProgressKind", snapshot.DecoderProgressKind, "GHOSTTY_SNAPSHOT_DECODER_PROGRESS_KIND_"),
     .initEnumSentinel("GhosttyStyleColorTag", style.ColorTag, "GHOSTTY_STYLE_COLOR_", "TAG_MAX_VALUE"),
     .initEnum("GhosttySysLogLevel", sys.LogLevel, "GHOSTTY_SYS_LOG_LEVEL_"),
     .initEnum("GhosttySysOption", sys.Option, "GHOSTTY_SYS_OPT_"),
+    .initEnum("GhosttyTerminalBoundary", terminal.Boundary, "GHOSTTY_TERMINAL_BOUNDARY_"),
     .initEnum("GhosttyTerminalCompressionMode", terminal.CompressionMode, "GHOSTTY_TERMINAL_COMPRESSION_MODE_"),
     .initEnum("GhosttyTerminalCompressionResult", terminal.CompressionResult, "GHOSTTY_TERMINAL_COMPRESSION_RESULT_"),
     .initEnum("GhosttyTerminalCursorStyle", terminal.TerminalCursorStyle, "GHOSTTY_TERMINAL_CURSOR_STYLE_"),
@@ -337,6 +344,9 @@ const type_decls = [_]TypeDecl{
     .initEnum("GhosttyTerminalScreen", terminal.TerminalScreen, "GHOSTTY_TERMINAL_SCREEN_"),
     .initEnum("GhosttyTerminalResizeWindowTag", terminal.ResizeWindow.Tag, "GHOSTTY_TERMINAL_RESIZE_WINDOW_"),
     .initEnum("GhosttyTerminalScrollViewportTag", terminal.ZigTerminal.ScrollViewport.Tag, "GHOSTTY_SCROLL_VIEWPORT_"),
+    .initEnum("GhosttyTerminalStringEnd", terminal.StringEnd, "GHOSTTY_TERMINAL_STRING_END_"),
+    .initEnum("GhosttyTerminalStringIntroducer", terminal.StringIntroducer, "GHOSTTY_TERMINAL_STRING_INTRODUCER_"),
+    .initEnum("GhosttyTerminalStringKind", terminal.StringKind, "GHOSTTY_TERMINAL_STRING_KIND_"),
     .initEnum("GhosttyTerminalUnknownSequenceTag", terminal.UnknownSequence.Tag, "GHOSTTY_TERMINAL_UNKNOWN_SEQUENCE_"),
 
     .initPacked("GhosttyCell", page.Cell.CLayout),
@@ -358,6 +368,7 @@ const type_decls = [_]TypeDecl{
     .initOpaque("GhosttyOscCommand"),
     .initOpaque("GhosttyOscParser"),
     .initOpaque("GhosttyRenderState"),
+    .initOpaque("GhosttyRenderStateImageIterator"),
     .initOpaque("GhosttyRenderStateRowCells"),
     .initOpaque("GhosttyRenderStateRowIterator"),
     .initOpaque("GhosttySearch"),
@@ -1099,6 +1110,10 @@ test "manifest uses public enum names" {
     const mode_values = manifest_types.get("GhosttyModeReportState").?.object.get("values").?.object;
     try std.testing.expectEqual(@as(i64, 0), mode_values.get("NOT_RECOGNIZED").?.integer);
     try std.testing.expectEqual(@as(i64, 4), mode_values.get("PERMANENTLY_RESET").?.integer);
+
+    const kitty_kind_values = manifest_types.get("GhosttyRenderStateKittyPlacementKind").?.object.get("values").?.object;
+    try std.testing.expectEqual(@as(i64, 1), kitty_kind_values.get("RELATIVE").?.integer);
+    try std.testing.expectEqual(@as(i64, 2), kitty_kind_values.get("FIXED").?.integer);
 }
 
 test "manifest named references resolve" {

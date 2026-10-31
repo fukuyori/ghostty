@@ -4,9 +4,7 @@
   fetchgit,
   fetchurl,
   fetchzip,
-  runCommandLocal,
-  # nixpkgs has no Zig 0.17 yet, so until it does this has to be passed in:
-  # `zig_0_17 = zig-overlay.packages.${system}."0.17.0"`, for instance.
+  runCommand,
   zig_0_17,
   zstd,
   name ? "zig-packages",
@@ -100,10 +98,10 @@
       url = "https://deps.files.ghostty.org/N-V-__8AAEbOfQBnvcFcCX2W5z7tDaN8vaNZGamEQtNOe0UI.tar.gz";
       hash = "sha256-/jVT7+874LCeSF/pdNVTFoSOfRisSqxCJnt5/SGCXPQ=";
     };
-    "N-V-__8AAI2WBQDrsjfyEiqnmYZ4VfGdJaZhN2mKsaTaIVWq" = fetchzip {
+    "N-V-__8AAJ3vBQAq1fLMh5J8uWLkeDLS6WAdR2x5KcrmEyz6" = fetchzip {
       name = "iterm2_themes";
-      url = "https://deps.files.ghostty.org/ghostty-themes-release-20261012-151317-d3e95e4.tgz";
-      hash = "sha256-cC8U6wYmluVf/7Pc2FoAs1C6xQNBgwLrfwJ5gkO5VTo=";
+      url = "https://deps.files.ghostty.org/ghostty-themes-release-20261019-151001-86a776d.tgz";
+      hash = "sha256-x/hcGF3iiHl9ZF3AWsASJS8biQdTL1vFHf1CvHU7KOE=";
     };
     "N-V-__8AAIC5lwAVPJJzxnCAahSvZTIlG-HhtOvnM1uh-66x" = fetchurl {
       url = "https://deps.files.ghostty.org/JetBrainsMono-2.304.tar.gz";
@@ -188,10 +186,10 @@
       url = "https://deps.files.ghostty.org/wuffs-7411f488fe2e2c205c3d3b3d28638b7356522930.tar.gz";
       hash = "sha256-sOuwt3R6xG7oqXaA66QGUjFHrEjGnTXjwYs6rSRb+7I=";
     };
-    "z2d-0.12.2-pre-j5P_HilCEQDH_2RC0PZqYQd4rHTl13b-VXpaDQ1sE4kZ" = fetchzip {
+    "z2d-0.13.0-j5P_HgsRFABzZDH54gI35P0OSrg7HFyJwS2bXX5uBdU4" = fetchzip {
       name = "z2d";
-      url = "https://deps.files.ghostty.org/z2d-f3cf28188dae39946964c81475ff234c008125a6.tar.gz";
-      hash = "sha256-VF45ZKB+EWy219JTRSWSo+SnXJXsdztfWe8Wa5fGB+k=";
+      url = "https://deps.files.ghostty.org/z2d-40af3e84a4e15a9f31d126b3f281f23ce6a3dae5.tar.gz";
+      hash = "sha256-3fpPl8dvDhqJMa4xreFSKHSqaXSNdP+22kQUQobTOEY=";
     };
     "zf-0.11.0-OIRy8XCRAAB6FiMwIrtD6FqlagnFwpI6YyOu7bXeYH5J" = fetchzip {
       name = "zf";
@@ -226,9 +224,13 @@
     };
   };
 
-  # The packages whose own manifest declares a dependency by `.path`, which
-  # Zig 0.16.0 cannot build through `zig build --system`. Listed here too so
-  # that every version's expression offers the same things; see the README.
+  # The packages whose own manifest declares a dependency by `.path`. Zig
+  # 0.17.0 cannot build these through `zig build --system`: it roots the system
+  # package directory at its absolute store path, so a `.path` dependency
+  # inside one of these resolves to an absolute path, which it refuses with
+  # "expected path relative to build root; found absolute path". A package
+  # that wants `--system` copies each of these into its build root and passes
+  # `--fork=` with a relative path; see the README.
   pathDependencyPackages = [
   ];
 in
@@ -243,7 +245,13 @@ in
   # what the directory walk calls a file, so symlinked headers are skipped
   # without a word. Building them all in one derivation gives real files from
   # the start, without a second copy of everything.
-  runCommandLocal name
+  #
+  # `runCommand` and not `runCommandLocal`: the result is worth taking from a
+  # binary cache. Building it locally means first fetching a whole Zig, and
+  # under 0.17 compiling its fetch build runner too, which is minutes on a small
+  # CI machine; `runCommandLocal` forbids substituting it, so every job that
+  # wants the packages builds them again even when a cache already holds them.
+  runCommand name
   {
     nativeBuildInputs = [zig_0_17];
     passthru = {inherit pathDependencyPackages;};
@@ -284,9 +292,11 @@ in
     export -f unpack
 
     # Several at a time: `zig fetch` spends most of a package on one core.
+    # `-r` because otherwise xargs runs `unpack` once, with no arguments, when
+    # there are no packages at all, and the build fails.
     cores="''${NIX_BUILD_CORES:-0}"
     if [ "$cores" -le 0 ]; then cores="$(nproc)"; fi
-    xargs -P "$cores" -n 2 bash -c 'unpack "$@"' unpack <<'EOF'
+    xargs -r -P "$cores" -n 2 bash -c 'unpack "$@"' unpack <<'EOF'
     ${lib.concatStrings (lib.mapAttrsToList (hash: src: "${hash} ${src}\n") packages)}
     EOF
   ''

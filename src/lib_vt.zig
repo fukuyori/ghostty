@@ -97,6 +97,7 @@ pub const Terminal = terminal.Terminal;
 pub const TerminalStream = terminal.TerminalStream;
 pub const Stream = terminal.Stream;
 pub const StreamAction = terminal.StreamAction;
+pub const StreamBoundary = terminal.StreamBoundary;
 pub const SemanticPrompt = terminal.SemanticPrompt;
 pub const UnknownSequence = terminal.UnknownSequence;
 
@@ -316,6 +317,11 @@ comptime {
             @export(&c.render_state_row_cells_get, .{ .name = "ghostty_render_state_row_cells_get" });
             @export(&c.render_state_row_cells_get_multi, .{ .name = "ghostty_render_state_row_cells_get_multi" });
             @export(&c.render_state_row_cells_free, .{ .name = "ghostty_render_state_row_cells_free" });
+            @export(&c.render_state_image_iterator_new, .{ .name = "ghostty_render_state_image_iterator_new" });
+            @export(&c.render_state_image_iterator_next, .{ .name = "ghostty_render_state_image_iterator_next" });
+            @export(&c.render_state_image_iterator_free, .{ .name = "ghostty_render_state_image_iterator_free" });
+            @export(&c.render_state_image_get, .{ .name = "ghostty_render_state_image_get" });
+            @export(&c.render_state_image_get_multi, .{ .name = "ghostty_render_state_image_get_multi" });
             @export(&c.render_state_free, .{ .name = "ghostty_render_state_free" });
         }
         @export(&c.terminal_new, .{ .name = "ghostty_terminal_new" });
@@ -324,7 +330,7 @@ comptime {
         @export(&c.terminal_resize, .{ .name = "ghostty_terminal_resize" });
         @export(&c.terminal_set, .{ .name = "ghostty_terminal_set" });
         @export(&c.terminal_vt_write, .{ .name = "ghostty_terminal_vt_write" });
-        @export(&c.terminal_vt_write_until_ground, .{ .name = "ghostty_terminal_vt_write_until_ground" });
+        @export(&c.terminal_vt_write_until, .{ .name = "ghostty_terminal_vt_write_until" });
         @export(&c.terminal_scroll_viewport, .{ .name = "ghostty_terminal_scroll_viewport" });
         @export(&c.terminal_compression_activity, .{ .name = "ghostty_terminal_compression_activity" });
         @export(&c.terminal_compress, .{ .name = "ghostty_terminal_compress" });
@@ -389,6 +395,7 @@ comptime {
         }
         if (features.kitty_graphics) {
             @export(&c.kitty_graphics_get, .{ .name = "ghostty_kitty_graphics_get" });
+            @export(&c.kitty_graphics_animation_tick, .{ .name = "ghostty_kitty_graphics_animation_tick" });
             @export(&c.kitty_graphics_image, .{ .name = "ghostty_kitty_graphics_image" });
             @export(&c.kitty_graphics_image_get, .{ .name = "ghostty_kitty_graphics_image_get" });
             @export(&c.kitty_graphics_image_get_multi, .{ .name = "ghostty_kitty_graphics_image_get_multi" });

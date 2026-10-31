@@ -413,9 +413,9 @@ const entries: []const ModeEntry = &.{
     .{
         .name = "kitty_paste_events",
         .value = 5522,
-        // The macOS app and libghostty-vt can both serve the follow-up
+        // The Windows app cannot yet serve the follow-up
         // Kitty clipboard read that a paste event grants.
-        .disabled = build_options.artifact != .lib and builtin.target.os.tag != .macos,
+        .disabled = build_options.artifact != .lib and builtin.target.os.tag == .windows,
     },
     // Win32 input mode. ConPTY enables this mode to request lossless
     // KEY_EVENT_RECORD fields encoded as CSI Vk;Sc;Uc;Kd;Cs;Rc_.
