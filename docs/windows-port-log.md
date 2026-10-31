@@ -5,6 +5,52 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-11-01: Follow the Windows light/dark mode (#52)
+
+- `theme = light:X,dark:Y` always used the light theme: the Win32 runtime
+  never reported the system mode. `ColorScheme.zig` reads it the way
+  Microsoft's "Support Dark and Light themes in Win32 apps" describes:
+  `UISettings` (`IUISettings3.GetColorValue(Foreground)`), dark when the
+  foreground is light by the guide's integer test. The interface ID and
+  vtable are copied from `windows.ui.viewmanagement.h` (SDK 10.0.26100.0).
+  A WinRT failure is logged and reported as light.
+- The app reads the mode before creating the first surface and again on
+  `WM_SETTINGCHANGE`, `WM_SYSCOLORCHANGE` and `WM_THEMECHANGED`. A change is
+  reported to the core app and every surface as the GTK runtime does, so the
+  conditional configuration reloads and mode 2031 reports the change.
+- `window-theme = system` set the DWM dark-mode attribute to TRUE, which
+  draws a dark frame in light mode too. It now follows the detected mode.
+- Zig 0.17.0 Debug build and `zig fmt` passed; Win32 tests passed 199 with
+  one skipped, including new interface-layout, colour-classification and
+  titlebar tests. In dark app mode with Solarized light/dark themes, the
+  fixed build logged `scheme=dark`, drew the terminal at `#002B36` with a
+  dark frame, and exited 0; the build before this change drew `#FDF6E3`.
+  Captures inspected. The owner switched the app mode light and dark while
+  it ran and confirmed the terminal and title bar followed.
+- Owner display check for the font size inheritance below (#57) passed.
+
+## 2026-11-01: Soak empty test-state baseline and font size inheritance (#57)
+
+- `scripts/test-windows-soak.ps1` stopped the first N11 attempt when
+  `zig-out/test-state` was empty: assigning an `if` statement unrolls an
+  empty array to `$null`, which `Compare-Object` rejects. The baseline and
+  per-run entry lists now wrap the whole `if` in `@(...)`. Checked for a
+  missing, empty, grown and shrunk directory on PowerShell 7.6.9, and one
+  `-Iterations 1` soak on the Gooztty `0a7cba0` normal Release completed
+  1/1 with no leftover process. The 180-minute run is still to be made.
+- `window-inherit-font-size` (#57): new windows, tabs and splits now take
+  the previously focused surface's font size. As in the embedded runtime,
+  the size is applied with `setFontSize` after core surface init and
+  `font-size` is left unchanged, so resetting the size returns to the
+  configured default. Splits are included, as on macOS and in #57.
+- Zig 0.17.0 Debug build and `zig fmt` passed; Win32 tests passed 196 with
+  one skipped. A probe raised the font from 12 to 16 points and created a
+  tab, a split and a window from the enlarged surface: with the option true
+  the stderr log showed four `set font size size=16` lines, with false only
+  the one from the increase; both exited 0 with no leftover process. The
+  unfixed `0a7cba0` Debug build showed one line with the option true. This
+  is log evidence; the owner's display check is still pending.
+
 ## 2026-10-31: Fixed upstream C integration checks (N16)
 
 - Integrated fixed C `fbed180a5f181915c92a8f2f561903a6e4645b5a`

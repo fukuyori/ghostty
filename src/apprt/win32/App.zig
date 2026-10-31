@@ -41,6 +41,7 @@ const CommandPalette = @import("CommandPalette.zig");
 const FileDrop = @import("FileDrop.zig");
 const GlobalHotkeys = @import("GlobalHotkeys.zig");
 const Bell = @import("Bell.zig");
+const ColorScheme = @import("ColorScheme.zig");
 const Notifications = @import("Notifications.zig");
 const QuickTerminal = @import("QuickTerminal.zig");
 const Keyboard = @import("Keyboard.zig");
@@ -105,6 +106,8 @@ windows: WindowList = .empty,
 backdrop_runtime: Backdrop.Runtime = .{},
 taskbar_progress_runtime: TaskbarProgress.Runtime = .{},
 high_contrast: bool = false,
+/// The Windows app light/dark mode last reported to the core.
+color_scheme: apprt.ColorScheme = .light,
 test_device_recovery: bool = false,
 test_device_recovery_failures: u32 = 0,
 power_suspended: bool = false,
@@ -199,6 +202,9 @@ pub fn init(
         break :server null;
     };
     errdefer if (self.ipc_server) |server| server.deinit();
+    // Before any surface exists, so the first one starts with the
+    // conditional configuration for the current Windows mode.
+    self.refreshColorScheme();
     var restored = false;
     log.debug("session startup mode={s} allowed={}", .{
         @tagName(self.config.@"window-save-state"),
@@ -225,6 +231,25 @@ pub fn init(
     }
     if (!restored) try WindowLifecycle.createWindow(self, .{});
     ConfigActions.showConfigDiagnostics(self, .app, self.config);
+}
+
+/// Read the Windows app mode and, when it changed, report it to the core app
+/// and every surface as the GTK runtime does: the app and surfaces reload
+/// their conditional configuration, and surfaces with mode 2031 enabled
+/// report the change. Repeated setting-change broadcasts are no-ops.
+pub fn refreshColorScheme(self: *App) void {
+    const scheme = ColorScheme.current();
+    if (scheme == self.color_scheme) return;
+    log.info("system color scheme changed scheme={s}", .{@tagName(scheme)});
+    self.color_scheme = scheme;
+    self.core_app.colorSchemeEvent(self, scheme) catch |err| {
+        log.warn("error updating app color scheme: {}", .{err});
+    };
+    for (self.core_app.surfaces.items) |surface| {
+        surface.core().colorSchemeCallback(scheme) catch |err| {
+            log.warn("unable to tell surface about color scheme change: {}", .{err});
+        };
+    }
 }
 
 /// Register the `global:` keybindings again after a keyboard layout change.

@@ -80,6 +80,14 @@ fn initCoreSurface(
     );
     defer config.deinit();
 
+    // Like the embedded runtime, apply the previously focused surface's size
+    // after init instead of rewriting `font-size`, so resetting the font
+    // size still returns to the configured default.
+    const inherited_font_points: ?f32 = if (config.@"window-inherit-font-size")
+        if (self.core_app.focusedSurface()) |prev| prev.font_size.points else null
+    else
+        null;
+
     if (opts.command) |command| {
         config.command = try command.clone(config.arenaAlloc());
         if (opts.shell_integration) |shell_integration| {
@@ -118,7 +126,7 @@ fn initCoreSurface(
         )) {
             log.warn("failed to apply initial window-decoration setting", .{});
         }
-        Titlebar.apply(surface.windowHwnd(), &config, self.high_contrast);
+        Titlebar.apply(surface.windowHwnd(), &config, self.high_contrast, self.color_scheme == .dark);
     }
     try TestHooks.fail(.core_init);
     core_surface.init(
@@ -134,6 +142,15 @@ fn initCoreSurface(
 
     surface.core_surface = core_surface;
     if (opts.dynamic_title) if (opts.title) |title| try surface.setTitle(title);
+    if (inherited_font_points) |points| {
+        if (points != core_surface.font_size.points) {
+            var font_size = core_surface.font_size;
+            font_size.points = points;
+            core_surface.setFontSize(font_size) catch |err| {
+                log.warn("failed to inherit the previous font size: {}", .{err});
+            };
+        }
+    }
     try TestHooks.fail(.core_ready);
 
     // The initial_size action can resize the native windows while the core
