@@ -16,7 +16,7 @@ const log = std.log.scoped(.win32);
 /// VK_PROCESSKEY. Windows substitutes this virtual key in keyboard messages
 /// for every keystroke an active IME consumes, leaving the physical scan
 /// code untouched.
-const vk_processkey: win32.WPARAM = @intFromEnum(win32.VK_PROCESSKEY);
+const vk_processkey: win32.WPARAM = @backingInt(win32.VK_PROCESSKEY);
 
 // Terminal-child timer; distinct from ImeDiagnostics' observation timer.
 const ime_timer_id = 0x494D46;
@@ -320,7 +320,7 @@ fn unicodeFromCodepoint(codepoint: u21) Win32Unicode {
 /// the thread's dead-key state. This mirrors the character value that conhost
 /// places in a KEY_EVENT_RECORD for Ctrl/Alt-modified key events.
 fn modifiedUnicode(vk: win32.WPARAM, lparam: win32.LPARAM, mods: input.Mods) Win32Unicode {
-    var key_state = [_]u8{0} ** 256;
+    var key_state = @as([256]u8, @splat(0));
     if (mods.shift) {
         key_state[0x10] = 0x80;
         key_state[if (mods.sides.shift == .right) 0xA1 else 0xA0] = 0x80;
@@ -400,7 +400,7 @@ fn unshiftedCodepoint(vk: win32.WPARAM, lparam: win32.LPARAM) u21 {
 /// state. Returns null for dead keys and keys without a text translation,
 /// leaving the caller to decide on a fallback.
 fn layoutUnshiftedCodepoint(vk: win32.WPARAM, lparam: win32.LPARAM) ?u21 {
-    var key_state = [_]u8{0} ** 256;
+    var key_state = @as([256]u8, @splat(0));
     var buffer: [4:0]u16 = .{ 0, 0, 0, 0 };
     const layout = win32.GetKeyboardLayout(0);
     // Flag 0x4 (Windows 10 1607+) keeps the thread's dead-key state intact
@@ -796,7 +796,7 @@ test "IME key index separates extended keys" {
     try std.testing.expectEqual(@as(usize, 0x02), imeKeyIndex(scan.lparam(0x02, false)));
     try std.testing.expectEqual(@as(usize, 0x11C), imeKeyIndex(scan.lparam(0x1C, true)));
     try std.testing.expectEqual(@as(usize, 0), imeKeyIndex(scan.lparam(0, false)));
-    const keys: @FieldType(Surface, "ime_consumed_keys") = .initEmpty();
+    const keys: @FieldType(Surface, "ime_consumed_keys") = .empty;
     try std.testing.expect(keys.capacity() > imeKeyIndex(scan.lparam(0xFF, true)));
 }
 

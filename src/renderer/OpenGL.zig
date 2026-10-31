@@ -32,7 +32,7 @@ pub const custom_shader_y_is_down = false;
 
 /// Triple-buffering gives the GPU room to pipeline renders without
 /// having to wait on the apprt consuming previous frames.
-pub const swap_chain_count = if (builtin.os.tag == .windows) 1 else 3;
+pub const swap_chain_count = if (builtin.target.os.tag == .windows) 1 else 3;
 
 const log = std.log.scoped(.opengl);
 
@@ -57,7 +57,7 @@ pub fn init(
     device: *const Device,
     opts: rendererpkg.Options,
 ) !OpenGL {
-    if (comptime builtin.os.tag == .windows) {
+    if (comptime builtin.target.os.tag == .windows) {
         // Win32 owns the WGL context. GPU initialization now happens on
         // the renderer thread, so release the main thread's ownership here.
         opts.rt_surface.releaseMainThreadContext();
@@ -103,7 +103,7 @@ pub fn init(
 }
 
 pub fn deinit(self: *OpenGL) void {
-    if (comptime builtin.os.tag == .windows) {
+    if (comptime builtin.target.os.tag == .windows) {
         self.* = undefined;
         return;
     }
@@ -120,7 +120,7 @@ const gl_debug_proc_callconv =
                 gl.c.GLDEBUGPROC,
             ).optional.child,
         ).pointer.child,
-    ).@"fn".calling_convention;
+    ).@"fn".attrs.@"callconv";
 
 fn glDebugMessageCallback(
     src: gl.c.GLenum,
@@ -216,7 +216,7 @@ fn prepareContext(getProcAddress: anytype) !void {
 /// here we (re)bind it to this thread and load the thread-local glad
 /// function pointers so all subsequent GL work on this thread is valid.
 pub fn threadEnter(self: *OpenGL, surface: *apprt.Surface) !void {
-    if (comptime builtin.os.tag == .windows) {
+    if (comptime builtin.target.os.tag == .windows) {
         surface.makeContextCurrent();
         try prepareContext(null);
         return;
@@ -230,7 +230,7 @@ pub fn threadEnter(self: *OpenGL, surface: *apprt.Surface) !void {
 /// thread; unbinds the context from this thread so it can be destroyed on
 /// the main thread.
 pub fn threadExit(self: *OpenGL) void {
-    if (comptime builtin.os.tag == .windows) {
+    if (comptime builtin.target.os.tag == .windows) {
         gl.glad.unload();
         apprt.win32.Surface.releaseContext();
         return;
@@ -305,7 +305,7 @@ pub fn present(
     target: Target,
     presentation_health: rendererpkg.Health,
 ) !ExportedFrame {
-    if (comptime builtin.os.tag == .windows) {
+    if (comptime builtin.target.os.tag == .windows) {
         try gl.disable(gl.c.GL_FRAMEBUFFER_SRGB);
         defer gl.enable(gl.c.GL_FRAMEBUFFER_SRGB) catch |err| {
             log.err("Error re-enabling GL_FRAMEBUFFER_SRGB, err={}", .{err});
@@ -346,7 +346,7 @@ pub fn present(
 }
 
 /// A finished frame exported for presentation by the apprt.
-pub const ExportedFrame = if (builtin.os.tag == .windows) void else union(enum) {
+pub const ExportedFrame = if (builtin.target.os.tag == .windows) void else union(enum) {
     dmabuf: Dmabuf,
     memory: Memory,
 
@@ -373,7 +373,7 @@ pub const ExportedFrame = if (builtin.os.tag == .windows) void else union(enum) 
 
 /// WGL swaps its window buffers even if no new terminal frame was drawn.
 pub fn presentLastTarget(self: *OpenGL) !void {
-    if (comptime builtin.os.tag == .windows) {
+    if (comptime builtin.target.os.tag == .windows) {
         if (self.last_target) |target| try self.present(target, .healthy);
     }
 }

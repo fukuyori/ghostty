@@ -104,7 +104,7 @@ the exit code.
 ## libghostty-vt
 
 - Build: `zig build -Demit-lib-vt`
-- Build WASM: `zig build -Demit-lib-vt -Dtarget=wasm32-freestanding -Doptimize=ReleaseSmall`
+- Build WASM: `zig build -Demit-lib-vt -Dtarget=wasm32-freestanding -Doptimize=small`
 - Test: `zig build test-lib-vt -Dtest-filter=<filter>`
   - Prefer this when the change is in a libghostty-vt file
 - All C enums in `include/ghostty/vt/` must have a `_MAX_VALUE = GHOSTTY_ENUM_MAX_VALUE`

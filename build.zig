@@ -26,7 +26,7 @@ pub fn build(b: *std.Build) !void {
     // If we have a VERSION file (present in source tarballs) then we
     // use that as the version source of truth. Otherwise we fall back
     // to what is in the build.zig.zon.
-    const file_version: ?[]const u8 = if (b.build_root.handle.readFileAlloc(
+    const file_version: ?[]const u8 = if (b.root.root_dir.handle.readFileAlloc(
         b.graph.io,
         "VERSION",
         b.allocator,
@@ -152,10 +152,7 @@ pub fn build(b: *std.Build) !void {
         type_schema_test.addFileArg(shared.output);
         test_lib_vt_schema_step.dependOn(&type_schema_test.step);
     } else {
-        try test_lib_vt_schema_step.addError(
-            "cannot execute the ABI manifest for a native freestanding target",
-            .{},
-        );
+        _ = b.addFail("cannot execute the ABI manifest for a native freestanding target");
     }
 
     // libghostty-vt static lib
@@ -195,7 +192,7 @@ pub fn build(b: *std.Build) !void {
     // xcodebuild is required.
     if (config.emit_lib_vt and
         config.emit_xcframework and
-        builtin.os.tag.isDarwin() and
+        builtin.target.os.tag.isDarwin() and
         config.target.result.os.tag.isDarwin())
     {
         const apple_libs = try buildpkg.GhosttyLibVt.initStaticAppleUniversal(
@@ -291,16 +288,17 @@ pub fn build(b: *std.Build) !void {
     run: {
         if (config.app_runtime != .none) {
             const run_cmd = b.addRunArtifact(exe.exe);
-            if (b.args) |args| run_cmd.addArgs(args);
+            run_cmd.addPassthruArgs();
 
             // Set the proper resources dir so things like shell integration
             // work correctly. If we're running `zig build run` in Ghostty,
             // this also ensures it overwrites the release one with our debug
             // build.
-            run_cmd.setEnvironmentVariable(
-                "GHOSTTY_RESOURCES_DIR",
-                b.getInstallPath(.prefix, "share/ghostty"),
-            );
+            // FIXME: This is not possible after Zig 0.17.
+            // run_cmd.setEnvironmentVariable(
+            //     "GHOSTTY_RESOURCES_DIR",
+            //     b.getInstallPath(.prefix, "share/ghostty"),
+            // );
 
             run_step.dependOn(&run_cmd.step);
             break :run;
@@ -358,11 +356,11 @@ pub fn build(b: *std.Build) !void {
             "--leak-check=full",
             "--error-exitcode=1",
             "--num-callers=50",
-            b.fmt("--suppressions={s}", .{b.pathFromRoot("valgrind.supp")}),
             "--gen-suppressions=all",
         });
+        run_cmd.addFileArg2(b.path("valgrind.supp"), .{ .prefix = "--suppressions=" });
         run_cmd.addArtifactArg(valgrind_exe.exe);
-        if (b.args) |args| run_cmd.addArgs(args);
+        run_cmd.addPassthruArgs();
         run_valgrind_step.dependOn(&run_cmd.step);
     }
 
@@ -394,7 +392,7 @@ pub fn build(b: *std.Build) !void {
             .root_module = b.createModule(.{
                 .root_source_file = b.path("src/main.zig"),
                 .target = config.baselineTarget(b.graph.io),
-                .optimize = .Debug,
+                .optimize = .debug,
                 .strip = false,
                 .omit_frame_pointer = false,
                 .unwind_tables = .sync,
@@ -409,7 +407,7 @@ pub fn build(b: *std.Build) !void {
         }
         _ = try deps.add(test_exe);
 
-        addGhosttyH(b, test_exe.root_module, config.baselineTarget(b.graph.io), .Debug);
+        addGhosttyH(b, test_exe.root_module, config.baselineTarget(b.graph.io), .debug);
 
         // Normal test running
         const test_run = b.addRunArtifact(test_exe);
@@ -424,7 +422,7 @@ pub fn build(b: *std.Build) !void {
             .root_module = b.createModule(.{
                 .root_source_file = b.path("src/build/WindowsVersionResource.zig"),
                 .target = config.baselineTarget(b.graph.io),
-                .optimize = .Debug,
+                .optimize = .debug,
             }),
         });
         const build_helpers_run = b.addRunArtifact(build_helpers_test);
@@ -435,7 +433,7 @@ pub fn build(b: *std.Build) !void {
             .root_module = b.createModule(.{
                 .root_source_file = b.path("src/build/brand_rewrite.zig"),
                 .target = config.baselineTarget(b.graph.io),
-                .optimize = .Debug,
+                .optimize = .debug,
             }),
         });
         test_step.dependOn(&b.addRunArtifact(brand_rewrite_test).step);
@@ -449,9 +447,9 @@ pub fn build(b: *std.Build) !void {
             "--leak-check=full",
             "--error-exitcode=1",
             "--num-callers=50",
-            b.fmt("--suppressions={s}", .{b.pathFromRoot("valgrind.supp")}),
             "--gen-suppressions=all",
         });
+        valgrind_run.addFileArg2(b.path("valgrind.supp"), .{ .prefix = "--suppressions=" });
         valgrind_run.addArtifactArg(test_exe);
         config.addPatchElf(test_exe, &valgrind_run.step);
         test_valgrind_step.dependOn(&valgrind_run.step);
@@ -462,7 +460,7 @@ pub fn build(b: *std.Build) !void {
     if (i18n) |v| {
         translations_step.dependOn(v.update_step);
     } else {
-        try translations_step.addError("cannot update translations when i18n is disabled", .{});
+        _ = b.addFail("cannot update translations when i18n is disabled");
     }
 }
 
@@ -470,7 +468,7 @@ fn addGhosttyH(
     b: *std.Build,
     module: *std.Build.Module,
     target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
+    optimize: std.lang.Optimize,
 ) void {
     translate_c.addImportToModule(b, "ghostty.h", module, .{
         .source = .{ .includes = .{ .files = &.{
@@ -500,7 +498,8 @@ fn installConPty(b: *std.Build) void {
     const names: []const []const u8 = &.{ "conpty.dll", "OpenConsole.exe" };
     for (names) |name| {
         const path = b.pathJoin(&.{ "vendor", "conpty", name });
-        b.build_root.handle.access(b.graph.io, path, .{}) catch {
+        b.dependOnFileMetadata(b.path(path));
+        b.root.root_dir.handle.access(b.graph.io, b.pathJoin(&.{ b.root.sub_path, path }), .{}) catch {
             std.log.warn(
                 "vendor/conpty/{s} is missing, so Ghostty will use the ConPTY " ++
                     "in kernel32 and programs will not be able to draw images. " ++

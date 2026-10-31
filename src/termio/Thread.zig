@@ -205,8 +205,7 @@ pub fn threadMain(self: *Thread, io: *termio.Termio) void {
             },
 
             else => {
-                const str = std.fmt.allocPrint(
-                    alloc,
+                const str = alloc.print(
                     \\error starting IO thread: {}
                     \\
                     \\The underlying shell or command was unable to be started.
@@ -245,7 +244,7 @@ fn threadMain_(self: *Thread, io: *termio.Termio) !void {
     // Right now, on Darwin, `std.Thread.setName` can only name the current
     // thread, and we have no way to get the current thread from within it,
     // so instead we use this code to name the thread instead.
-    if (builtin.os.tag.isDarwin()) {
+    if (builtin.target.os.tag.isDarwin()) {
         internal_os.macos.pthread_setname_np(&"io".*);
     }
 
@@ -330,7 +329,7 @@ fn drainMailbox(
             },
             .inspector => |v| self.flags.has_inspector = v,
             .resize => |v| self.handleResize(cb, v),
-            .conpty_resync => if (comptime builtin.os.tag == .windows) {
+            .conpty_resync => if (comptime builtin.target.os.tag == .windows) {
                 self.handleConptyResync(cb);
             },
             .size_report => |v| try io.sizeReport(data, v),
@@ -477,7 +476,7 @@ fn coalesceCallback(
     // Windows only: a resize above already set the pty size. Otherwise
     // reassert the current size to the pty alone; a full terminal resize
     // would also reset synchronized output and send size reports.
-    if (comptime builtin.os.tag == .windows) {
+    if (comptime builtin.target.os.tag == .windows) {
         if (cb.self.coalesce_data.conpty_resync) {
             cb.self.coalesce_data.conpty_resync = false;
             if (!resized) cb.io.backend.resize(

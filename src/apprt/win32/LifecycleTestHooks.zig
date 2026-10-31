@@ -63,7 +63,7 @@ fn hashTree(hash: *std.hash.Wyhash, node: *const Tree.Node) void {
         },
         .split => |branch| {
             hashValue(hash, @as(u8, 1));
-            hashValue(hash, @as(u8, @intFromEnum(branch.direction)));
+            hashValue(hash, @as(u8, @backingInt(branch.direction)));
             hashValue(hash, branch.ratio);
             for (branch.children) |child| hashTree(hash, child);
         },
@@ -124,8 +124,8 @@ pub fn control(hwnd: win32.HWND, wparam: win32.WPARAM, lparam: win32.LPARAM) win
     return switch (wparam) {
         0 => 0x47484c54,
         1 => blk: {
-            if (lparam < 0 or lparam > @intFromEnum(Point.split_owned)) break :blk -1;
-            armed = @enumFromInt(lparam);
+            if (lparam < 0 or lparam > @backingInt(Point.split_owned)) break :blk -1;
+            armed = @fromBackingInt(@intCast(lparam));
             break :blk 1;
         },
         2 => @intCast(app.core_app.surfaces.items.len),

@@ -112,7 +112,7 @@ pub fn stop(self: *Self) void {
 pub fn updateStatus(self: *Self) void {
     var buffer: [96]u8 = undefined;
     const text = if (self.total) |total|
-        std.fmt.bufPrintZ(&buffer, "{d} / {d}", .{ if (self.selected) |n| n + 1 else 0, total }) catch return
+        std.mem.printSentinel(&buffer, "{d} / {d}", .{ if (self.selected) |n| n + 1 else 0, total }, 0) catch return
     else
         "";
     var wide: [96:0]u16 = undefined;
@@ -166,9 +166,9 @@ pub fn filterMessage(self: *Self, msg: *win32.MSG) bool {
         if (win32.ImmGetCompositionStringW(context, win32.GCS_COMPSTR, null, 0) > 0) return false;
     }
     if (msg.hwnd == win32.GetDlgItem(self.hwnd.?, edit_id) and
-        msg.message == win32.WM_KEYDOWN and msg.wParam == @intFromEnum(win32.VK_RETURN))
+        msg.message == win32.WM_KEYDOWN and msg.wParam == @backingInt(win32.VK_RETURN))
     {
-        self.navigate(win32.GetKeyState(@intFromEnum(win32.VK_SHIFT)) < 0);
+        self.navigate(win32.GetKeyState(@backingInt(win32.VK_SHIFT)) < 0);
         return true;
     }
     return win32.IsDialogMessageW(self.hwnd.?, msg) != 0;

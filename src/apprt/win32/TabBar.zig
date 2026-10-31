@@ -578,7 +578,7 @@ fn createFontForDpi(dpi: u32) ?win32.HFONT {
         0,
         0,
         0,
-        @intFromEnum(win32.DEFAULT_CHARSET),
+        @backingInt(win32.DEFAULT_CHARSET),
         win32.OUT_DEFAULT_PRECIS,
         .{},
         win32.CLEARTYPE_QUALITY,

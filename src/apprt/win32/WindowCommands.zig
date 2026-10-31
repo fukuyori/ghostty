@@ -68,7 +68,7 @@ pub fn gotoTab(
         .next => .next,
         .last => .last,
         else => raw: {
-            const raw = @intFromEnum(value);
+            const raw = @backingInt(value);
             if (raw < 0) return false;
             break :raw .{ .n = @intCast(raw) };
         },
@@ -131,7 +131,7 @@ pub fn gotoSplit(
 
     var client: win32.RECT = std.mem.zeroes(win32.RECT);
     if (win32.GetClientRect(window.hwnd, &client) == 0) {
-        log.warn("GetClientRect for split focus failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("GetClientRect for split focus failed: err={d}", .{@backingInt(win32.GetLastError())});
         return false;
     }
 
@@ -190,7 +190,7 @@ pub fn resizeSplit(
 
     var client: win32.RECT = std.mem.zeroes(win32.RECT);
     if (win32.GetClientRect(window.hwnd, &client) == 0) {
-        log.warn("GetClientRect for split resize failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("GetClientRect for split resize failed: err={d}", .{@backingInt(win32.GetLastError())});
         return false;
     }
 

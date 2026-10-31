@@ -312,7 +312,7 @@ pub fn setHostBackdrop(hwnd: win32.HWND, enabled: bool) Error!void {
 }
 
 pub fn setSystemBackdrop(hwnd: win32.HWND, kind: Kind) Error!void {
-    var value: i32 = @intFromEnum(kind);
+    var value: i32 = @backingInt(kind);
     const result = DwmSetWindowAttribute(
         hwnd,
         dwmwa_system_backdrop_type,
@@ -443,8 +443,8 @@ extern "dwmapi" fn DwmSetWindowAttribute(
 ) callconv(.winapi) win32.HRESULT;
 
 test "Win32 backdrop values match the native ABI" {
-    try std.testing.expectEqual(@as(i32, 1), @intFromEnum(Kind.none));
-    try std.testing.expectEqual(@as(i32, 3), @intFromEnum(Kind.transient_window));
+    try std.testing.expectEqual(@as(i32, 1), @backingInt(Kind.none));
+    try std.testing.expectEqual(@as(i32, 3), @backingInt(Kind.transient_window));
     try std.testing.expectEqual(@as(u32, 17), dwmwa_use_host_backdrop_brush);
     try std.testing.expectEqual(@as(u32, 38), dwmwa_system_backdrop_type);
     try std.testing.expectEqual(@as(usize, 8), @sizeOf(Vector2));

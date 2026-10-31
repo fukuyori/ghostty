@@ -67,7 +67,7 @@ fn armDrainTimer(self: *App) void {
     if (self.wakeup_hwnd) |hwnd| {
         if (win32.SetTimer(hwnd, drain_timer_id, drain_timer_ms, null) != 0) return;
         log.warn("SetTimer for queued URLs failed: err={d}", .{
-            @intFromEnum(win32.GetLastError()),
+            @backingInt(win32.GetLastError()),
         });
     }
     self.wakeup();
@@ -247,8 +247,7 @@ fn confirmUntrustedUrl(
     parent: ?win32.HWND,
     url: []const u8,
 ) bool {
-    const message = std.fmt.allocPrint(
-        self.alloc,
+    const message = self.alloc.print(
         "This link may open another application. Only continue if you recognize and trust the destination.\r\n\r\nTarget:\r\n{s}",
         .{url},
     ) catch |err| {
@@ -294,8 +293,7 @@ fn showBlockedUrl(
     };
     defer self.alloc.free(display);
 
-    const message = std.fmt.allocPrint(
-        self.alloc,
+    const message = self.alloc.print(
         "{s}\r\n\r\nTarget:\r\n{s}",
         .{ reason.message(), display },
     ) catch |err| {
@@ -416,7 +414,7 @@ const ShellJob = struct {
             log.warn("ShellExecuteW failed id={d} code={d} err={d}", .{
                 self.id,
                 code,
-                @intFromEnum(win32.GetLastError()),
+                @backingInt(win32.GetLastError()),
             });
         }
     }

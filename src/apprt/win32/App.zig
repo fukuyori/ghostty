@@ -337,7 +337,7 @@ fn destroyWakeupWindow(self: *App) void {
     const hwnd = self.wakeup_hwnd orelse return;
     self.wakeup_hwnd = null;
     if (win32.DestroyWindow(hwnd) == 0) {
-        log.warn("DestroyWindow(wakeup) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("DestroyWindow(wakeup) failed: err={d}", .{@backingInt(win32.GetLastError())});
     }
 }
 
@@ -393,7 +393,7 @@ pub fn run(self: *App) !void {
             break;
         }
         if (ret == -1) {
-            log.err("GetMessage failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.err("GetMessage failed: err={d}", .{@backingInt(win32.GetLastError())});
             return error.Win32Error;
         }
         // Thread-message fallback used only when the wakeup window could
@@ -477,12 +477,12 @@ fn hasExplicitStartupOptions(alloc: Allocator, config: *const Config) !bool {
 pub fn wakeup(self: *App) void {
     if (self.wakeup_hwnd) |hwnd| {
         if (win32.PostMessageW(hwnd, WM_WAKEUP, 0, 0) == 0) {
-            log.warn("PostMessage(WM_WAKEUP) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.warn("PostMessage(WM_WAKEUP) failed: err={d}", .{@backingInt(win32.GetLastError())});
         }
         return;
     }
     if (win32.PostThreadMessageW(self.thread_id, WM_WAKEUP, 0, 0) == 0) {
-        log.warn("PostThreadMessage(WM_WAKEUP) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("PostThreadMessage(WM_WAKEUP) failed: err={d}", .{@backingInt(win32.GetLastError())});
     }
 }
 
@@ -689,7 +689,7 @@ test "restore Win32 native window state after fullscreen" {
     }, 1);
     defer constant_buffer.deinit();
     var uniforms = std.mem.zeroes(D3D11Shaders.Uniforms);
-    uniforms.projection_matrix = math.ortho2d(0, 320, 240, 0);
+    uniforms.projection_matrix = @bitCast(math.ortho2d(0, 320, 240, 0));
     uniforms.screen_size = .{ 320, 240 };
     uniforms.cell_size = .{ 10, 20 };
     uniforms.grid_size = .{ 2, 2 };

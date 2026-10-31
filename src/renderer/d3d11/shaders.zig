@@ -2,7 +2,7 @@
 
 const std = @import("std");
 const win32 = @import("win32").everything;
-const math = @import("../../math.zig");
+
 const Pipeline = @import("Pipeline.zig");
 
 const source = @embedFile("shaders/terminal.hlsl");
@@ -10,7 +10,7 @@ const source = @embedFile("shaders/terminal.hlsl");
 /// Global values shared by all terminal shader stages. The explicit
 /// alignments mirror HLSL constant-buffer packing.
 pub const Uniforms = extern struct {
-    projection_matrix: math.Mat align(16),
+    projection_matrix: [4][4]f32 align(16),
     screen_size: [2]f32 align(8),
     cell_size: [2]f32 align(8),
     grid_size: [2]u16 align(4),

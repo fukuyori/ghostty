@@ -144,7 +144,7 @@ fn handleTabBarButtonUp(
     window.tab_bar_drag = null;
     if (win32.GetCapture() == hwnd and win32.ReleaseCapture() == 0) {
         log.warn("ReleaseCapture(tab bar) failed: err={d}", .{
-            @intFromEnum(win32.GetLastError()),
+            @backingInt(win32.GetLastError()),
         });
     }
     if (was_dragging or pressed == .none) return;

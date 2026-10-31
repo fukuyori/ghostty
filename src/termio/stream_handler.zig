@@ -870,7 +870,7 @@ pub const StreamHandler = struct {
                 // remainder for the row/column as base-10 numbers. This
                 // will support a very large terminal.
                 var msg: termio.Message = .{ .write_small = .{} };
-                const resp = try std.fmt.bufPrint(&msg.write_small.data, "\x1B[{};{}R", .{
+                const resp = try std.mem.print(&msg.write_small.data, "\x1B[{};{}R", .{
                     pos.y + 1,
                     pos.x + 1,
                 });
@@ -885,7 +885,7 @@ pub const StreamHandler = struct {
                 const pos = self.cursorReportPos();
 
                 var msg: termio.Message = .{ .write_small = .{} };
-                const resp = try std.fmt.bufPrint(&msg.write_small.data, "\x1B[?{};{};1R", .{
+                const resp = try std.mem.print(&msg.write_small.data, "\x1B[?{};{};1R", .{
                     pos.y + 1,
                     pos.x + 1,
                 });
@@ -958,7 +958,7 @@ pub const StreamHandler = struct {
     pub fn queryKittyKeyboard(self: *StreamHandler) !void {
         log.debug("querying kitty keyboard mode", .{});
         var data: termio.Message.WriteReq.Small.Array = undefined;
-        const resp = try std.fmt.bufPrint(&data, "\x1b[?{}u", .{
+        const resp = try std.mem.print(&data, "\x1b[?{}u", .{
             self.terminal.screens.active.kitty_keyboard.current().int(),
         });
 
@@ -975,7 +975,7 @@ pub const StreamHandler = struct {
     ) !void {
         log.debug("reporting XTVERSION: ghostty {s}", .{build_config.version_string});
         var buf: [288]u8 = undefined;
-        const resp = try std.fmt.bufPrint(
+        const resp = try std.mem.print(
             &buf,
             "\x1BP>|{s} {s}\x1B\\",
             .{
@@ -1186,11 +1186,11 @@ pub const StreamHandler = struct {
         const req = try alloc.create(apprt.ClipboardRequest.KittyRead);
         const mimes = try alloc.alloc([:0]const u8, mimes_len);
         for (mimes_buf[0..mimes_len], mimes) |src, *dst| {
-            dst.* = try alloc.dupeZ(u8, src);
+            dst.* = try alloc.dupeSentinel(u8, src, 0);
         }
         const id = try alloc.dupe(u8, meta.id);
         const pw_owned = try alloc.dupe(u8, pw);
-        const name_owned = try alloc.dupeZ(u8, meta.name);
+        const name_owned = try alloc.dupeSentinel(u8, meta.name, 0);
         req.* = .{
             // The arena must be copied in last so it tracks every
             // allocation above.
@@ -1405,12 +1405,12 @@ pub const StreamHandler = struct {
             committed.contents.len,
         );
         for (committed.contents, contents) |src, *dst| dst.* = .{
-            .mime = try alloc.dupeZ(u8, src.mime),
-            .data = try alloc.dupeZ(u8, src.data),
+            .mime = try alloc.dupeSentinel(u8, src.mime, 0),
+            .data = try alloc.dupeSentinel(u8, src.data, 0),
         };
         const id = try alloc.dupe(u8, committed.id);
         const pw_owned = try alloc.dupe(u8, pw);
-        const name_owned = try alloc.dupeZ(u8, committed.name);
+        const name_owned = try alloc.dupeSentinel(u8, committed.name, 0);
         req.* = .{
             // The arena must be copied in last so it tracks every
             // allocation above.
@@ -1536,7 +1536,7 @@ pub const StreamHandler = struct {
         // for this OSC 7 context (e.g. kitty-shell-cwd expects the full,
         // unencoded path).
         const uri: std.Uri = internal_os.uri.parse(url, .{
-            .mac_address = comptime builtin.os.tag != .macos,
+            .mac_address = comptime builtin.target.os.tag != .macos,
             .raw_path = std.mem.startsWith(u8, url, "kitty-shell-cwd://"),
         }) catch |e| {
             log.warn("invalid url in OSC 7: {}", .{e});
@@ -1552,10 +1552,14 @@ pub const StreamHandler = struct {
 
         var host_buffer: [std.Io.net.HostName.max_len]u8 = undefined;
         const host: []const u8 = host: {
-            const parsed = uri.getHost(&host_buffer) catch |err| switch (err) {
+            const parsed = std.Io.net.HostName.fromUri(uri, &host_buffer) catch |err| switch (err) {
+                error.NameTooLong, error.InvalidHostName => {
+                    log.warn("OSC 7 uri contains an invalid hostname: {}", .{err});
+                    return;
+                },
                 error.UriMissingHost => {
                     // file:///C:/... denotes a local Windows drive.
-                    if (comptime builtin.os.tag == .windows) break :host "";
+                    if (comptime builtin.target.os.tag == .windows) break :host "";
                     log.warn("OSC 7 uri must contain a hostname: {}", .{err});
                     return;
                 },
@@ -1566,7 +1570,7 @@ pub const StreamHandler = struct {
         // OSC 7 is a little sketchy because anyone can send any value from
         // any host (such an SSH session). The best practice terminals follow
         // is to valid the hostname to be local.
-        const host_valid = (builtin.os.tag == .windows and host.len == 0) or
+        const host_valid = (builtin.target.os.tag == .windows and host.len == 0) or
             internal_os.hostname.isLocal(host) catch |err| switch (err) {
                 error.PermissionDenied,
                 error.Unexpected,
@@ -1583,11 +1587,12 @@ pub const StreamHandler = struct {
         // We need the raw path, which might require unescaping. We try to
         // avoid making any heap allocations by using the stack first.
         var arena_alloc: std.heap.ArenaAllocator = .init(self.alloc);
-        var stack_alloc = std.heap.stackFallback(1024, arena_alloc.allocator());
+        var stack_alloc_buf: [1024]u8 = undefined;
+        var stack_alloc: std.heap.BufferFirstAllocator = .init(&stack_alloc_buf, arena_alloc.allocator());
         defer arena_alloc.deinit();
-        const path_alloc = stack_alloc.get();
+        const path_alloc = stack_alloc.allocator();
         const raw_path = try uri.path.toRawMaybeAlloc(path_alloc);
-        const path = if (comptime builtin.os.tag == .windows)
+        const path = if (comptime builtin.target.os.tag == .windows)
             internal_os.uri.windowsWorkingDirectory(path_alloc, raw_path) catch |err| {
                 log.warn("invalid Windows path in OSC 7: {}", .{err});
                 return;
@@ -1735,7 +1740,7 @@ pub const StreamHandler = struct {
                             },
                         });
                     }
-                    mask.* = .initEmpty();
+                    mask.* = .empty;
                 },
 
                 .reset_special => log.warn(
@@ -1788,7 +1793,7 @@ pub const StreamHandler = struct {
                             .dynamic => |dynamic| try response.writer.print(
                                 "\x1b]{d};rgb:{x:0>4}/{x:0>4}/{x:0>4}",
                                 .{
-                                    @intFromEnum(dynamic),
+                                    @backingInt(dynamic),
                                     @as(u16, color.r) * 257,
                                     @as(u16, color.g) * 257,
                                     @as(u16, color.b) * 257,
@@ -1810,7 +1815,7 @@ pub const StreamHandler = struct {
                             .dynamic => |dynamic| try response.writer.print(
                                 "\x1b]{d};rgb:{x:0>2}/{x:0>2}/{x:0>2}",
                                 .{
-                                    @intFromEnum(dynamic),
+                                    @backingInt(dynamic),
                                     @as(u16, color.r),
                                     @as(u16, color.g),
                                     @as(u16, color.b),

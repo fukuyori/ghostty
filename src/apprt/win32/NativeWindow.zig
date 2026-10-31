@@ -45,7 +45,7 @@ pub fn createWakeup() !win32.HWND {
         hinstance,
         null,
     ) orelse {
-        log.err("CreateWindowExW(wakeup) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.err("CreateWindowExW(wakeup) failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Error;
     };
     return hwnd;
@@ -53,7 +53,7 @@ pub fn createWakeup() !win32.HWND {
 
 pub fn registerClasses(procedures: Procedures) !void {
     const hinstance = win32.GetModuleHandleW(null) orelse {
-        log.err("GetModuleHandleW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.err("GetModuleHandleW failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Error;
     };
     const icons = loadWindowIcons(hinstance);
@@ -77,7 +77,7 @@ pub fn registerClasses(procedures: Procedures) !void {
     };
 
     if (win32.RegisterClassExW(&wc) == 0) {
-        log.err("RegisterClassExW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.err("RegisterClassExW failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Error;
     }
 
@@ -96,7 +96,7 @@ pub fn registerClasses(procedures: Procedures) !void {
         .hIconSm = null,
     };
     if (win32.RegisterClassExW(&tab_bar_class) == 0) {
-        log.err("RegisterClassExW(tab bar) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.err("RegisterClassExW(tab bar) failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Error;
     }
 
@@ -115,7 +115,7 @@ pub fn registerClasses(procedures: Procedures) !void {
         .hIconSm = null,
     };
     if (win32.RegisterClassExW(&split_divider_class) == 0) {
-        log.err("RegisterClassExW(split divider) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.err("RegisterClassExW(split divider) failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Error;
     }
 
@@ -134,7 +134,7 @@ pub fn registerClasses(procedures: Procedures) !void {
         .hIconSm = null,
     };
     if (win32.RegisterClassExW(&wakeup_class) == 0) {
-        log.err("RegisterClassExW(wakeup) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.err("RegisterClassExW(wakeup) failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Error;
     }
 }
@@ -183,7 +183,7 @@ fn loadWindowIcon(
         log.warn("LoadImageW(icon {d}x{d}) failed: err={d}", .{
             width,
             height,
-            @intFromEnum(win32.GetLastError()),
+            @backingInt(win32.GetLastError()),
         });
         return error.Win32Error;
     };
@@ -219,11 +219,11 @@ fn setWindowIcon(
     width_index: win32.SYSTEM_METRICS_INDEX,
     height_index: win32.SYSTEM_METRICS_INDEX,
 ) void {
-    const width = @max(1, win32.GetSystemMetricsForDpi(@intCast(@intFromEnum(width_index)), dpi));
-    const height = @max(1, win32.GetSystemMetricsForDpi(@intCast(@intFromEnum(height_index)), dpi));
+    const width = @max(1, win32.GetSystemMetricsForDpi(@intCast(@backingInt(width_index)), dpi));
+    const height = @max(1, win32.GetSystemMetricsForDpi(@intCast(@backingInt(height_index)), dpi));
     // Not shared: a shared image is cached by resource, not by size.
     const handle = win32.LoadImageW(hinstance, @ptrFromInt(icon_resource_id), .ICON, width, height, .{}) orelse {
-        log.debug("LoadImageW(icon {d}x{d}) failed: err={d}", .{ width, height, @intFromEnum(win32.GetLastError()) });
+        log.debug("LoadImageW(icon {d}x{d}) failed: err={d}", .{ width, height, @backingInt(win32.GetLastError()) });
         return;
     };
     destroyIconResult(win32.SendMessageW(hwnd, win32.WM_SETICON, which, @bitCast(@intFromPtr(handle))));
@@ -272,7 +272,7 @@ fn createTopLevel(ex_style: win32.WINDOW_EX_STYLE, style: win32.WINDOW_STYLE) !w
         hinstance,
         null,
     ) orelse {
-        log.err("CreateWindowExW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.err("CreateWindowExW failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Error;
     };
     updateWindowIcons(hwnd);
@@ -284,7 +284,7 @@ pub fn createSurface(window_hwnd: win32.HWND) !win32.HWND {
     const hinstance = win32.GetModuleHandleW(null);
     var rect: win32.RECT = std.mem.zeroes(win32.RECT);
     if (win32.GetClientRect(window_hwnd, &rect) == 0) {
-        log.err("GetClientRect for surface failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.err("GetClientRect for surface failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Error;
     }
 
@@ -302,7 +302,7 @@ pub fn createSurface(window_hwnd: win32.HWND) !win32.HWND {
         hinstance,
         null,
     ) orelse {
-        log.err("CreateWindowExW(surface) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.err("CreateWindowExW(surface) failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Error;
     };
 }
@@ -325,7 +325,7 @@ pub fn createTabBar(window_hwnd: win32.HWND) !win32.HWND {
         win32.GetModuleHandleW(null),
         null,
     ) orelse {
-        log.err("CreateWindowExW(tab bar) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.err("CreateWindowExW(tab bar) failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Error;
     };
     errdefer _ = win32.DestroyWindow(hwnd);
@@ -349,7 +349,7 @@ pub fn createSplitDivider(window_hwnd: win32.HWND) !win32.HWND {
         win32.GetModuleHandleW(null),
         null,
     ) orelse {
-        log.warn("CreateWindowExW(split divider) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("CreateWindowExW(split divider) failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Error;
     };
 }

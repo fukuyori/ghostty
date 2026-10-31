@@ -90,7 +90,7 @@ pub fn get() *const Functions {
 }
 
 fn assertWindows() void {
-    if (builtin.os.tag != .windows) {
+    if (builtin.target.os.tag != .windows) {
         @compileError("the ConPTY host is Windows-only");
     }
 }
@@ -195,7 +195,7 @@ fn dllPath(buf: []u16) ?[:0]const u16 {
 }
 
 test "dllPath replaces the executable name" {
-    if (comptime builtin.os.tag != .windows) return error.SkipZigTest;
+    if (comptime builtin.target.os.tag != .windows) return error.SkipZigTest;
 
     const testing = std.testing;
     var buf: [windows.MAX_PATH]u16 = undefined;

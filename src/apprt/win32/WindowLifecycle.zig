@@ -100,7 +100,7 @@ fn initCoreSurface(
         if (opts.dynamic_title) {
             config.title = null;
         } else {
-            config.title = try config.arenaAlloc().dupeZ(u8, title);
+            config.title = try config.arenaAlloc().dupeSentinel(u8, title, 0);
         }
     }
     surface.file_drop_shell = try FileDrop.classify(
@@ -382,7 +382,7 @@ pub fn requestSurfaceClose(surface: *Surface, confirm: bool) void {
         @bitCast(@intFromPtr(surface)),
     ) == 0) {
         surface.close_requested = false;
-        log.warn("PostMessage(WM_CLOSE_SURFACE) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("PostMessage(WM_CLOSE_SURFACE) failed: err={d}", .{@backingInt(win32.GetLastError())});
     }
 }
 
@@ -462,13 +462,13 @@ pub fn closeSurface(self: *App, surface: *Surface, confirm: bool) void {
     // the surface has released all native rendering resources.
     surface.deinit();
     if (win32.DestroyWindow(surface.hwnd) == 0) {
-        log.warn("DestroyWindow(surface) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("DestroyWindow(surface) failed: err={d}", .{@backingInt(win32.GetLastError())});
     }
 
     if (close_window) {
         if (window.quick) QuickTerminal.destroying(self, window);
         if (win32.DestroyWindow(window.hwnd) == 0) {
-            log.warn("DestroyWindow(window) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.warn("DestroyWindow(window) failed: err={d}", .{@backingInt(win32.GetLastError())});
         }
         self.alloc.destroy(surface);
         std.debug.assert(removeWindow(self, window));
@@ -526,7 +526,7 @@ fn destroyTabAt(self: *App, window: *Window, index: usize) bool {
     for (surfaces) |surface| {
         surface.deinit();
         if (win32.DestroyWindow(surface.hwnd) == 0) {
-            log.warn("DestroyWindow(tab surface) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.warn("DestroyWindow(tab surface) failed: err={d}", .{@backingInt(win32.GetLastError())});
         }
         self.alloc.destroy(surface);
     }
@@ -558,11 +558,11 @@ pub fn destroyAll(self: *App) void {
         while (surfaces.next()) |surface| {
             surface.deinit();
             if (win32.DestroyWindow(surface.hwnd) == 0) {
-                log.warn("DestroyWindow(surface) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+                log.warn("DestroyWindow(surface) failed: err={d}", .{@backingInt(win32.GetLastError())});
             }
         }
         if (win32.DestroyWindow(window.hwnd) == 0) {
-            log.warn("DestroyWindow(window) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.warn("DestroyWindow(window) failed: err={d}", .{@backingInt(win32.GetLastError())});
         }
         surfaces = window.surfaceIterator();
         while (surfaces.next()) |surface| self.alloc.destroy(surface);

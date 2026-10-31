@@ -64,7 +64,7 @@ pub fn setTitleOverride(
     const replacement = if (value.len == 0)
         null
     else
-        try alloc.dupeZ(u8, value);
+        try alloc.dupeSentinel(u8, value, 0);
     if (self.title_override) |previous| alloc.free(previous);
     self.title_override = replacement;
 }

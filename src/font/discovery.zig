@@ -14,7 +14,7 @@ const Library = @import("main.zig").Library;
 const Presentation = @import("main.zig").Presentation;
 const Variation = @import("main.zig").face.Variation;
 const global = @import("../global.zig");
-const win32 = if (builtin.os.tag == .windows) @import("win32").everything else struct {};
+const win32 = if (builtin.target.os.tag == .windows) @import("win32").everything else struct {};
 
 const log = std.log.scoped(.discovery);
 
@@ -108,8 +108,8 @@ pub const Descriptor = struct {
         // cleaned up somewhere else.
 
         var copy = self.*;
-        copy.family = if (self.family) |src| try alloc.dupeZ(u8, src) else null;
-        copy.style = if (self.style) |src| try alloc.dupeZ(u8, src) else null;
+        copy.family = if (self.family) |src| try alloc.dupeSentinel(u8, src, 0) else null;
+        copy.style = if (self.style) |src| try alloc.dupeSentinel(u8, src, 0) else null;
         copy.variations = try alloc.dupe(Variation, self.variations);
         return copy;
     }
@@ -138,12 +138,12 @@ pub const Descriptor = struct {
         ));
         if (self.bold) assert(pat.add(
             .weight,
-            .{ .integer = @intFromEnum(fontconfig.Weight.bold) },
+            .{ .integer = @backingInt(fontconfig.Weight.bold) },
             false,
         ));
         if (self.italic) assert(pat.add(
             .slant,
-            .{ .integer = @intFromEnum(fontconfig.Slant.italic) },
+            .{ .integer = @backingInt(fontconfig.Slant.italic) },
             false,
         ));
 
@@ -152,7 +152,7 @@ pub const Descriptor = struct {
         // exclude non-monospace but helps prefer it.
         assert(pat.add(
             .spacing,
-            .{ .integer = @intFromEnum(fontconfig.Spacing.mono) },
+            .{ .integer = @backingInt(fontconfig.Spacing.mono) },
             false,
         ));
 
@@ -887,7 +887,7 @@ pub const CoreText = struct {
             const fuzzy_type = @TypeOf(self.fuzzy_style);
             self.fuzzy_style = @intCast(style_str.len);
             for (desired_styles) |s| {
-                if (std.ascii.indexOfIgnoreCase(style_str, s) != null) {
+                if (std.ascii.findIgnoreCase(style_str, s) != null) {
                     self.fuzzy_style -|= @intCast(s.len);
                 }
             }
@@ -1271,7 +1271,7 @@ pub const Windows = struct {
 
             const path_utf8 = try std.unicode.utf16LeToUtf8Alloc(alloc, path_w);
             defer alloc.free(path_utf8);
-            const path = try alloc.dupeZ(u8, path_utf8);
+            const path = try alloc.dupeSentinel(u8, path_utf8, 0);
             errdefer alloc.free(path);
 
             const face_index_u32 = dwrite_face.GetIndex();
@@ -1594,11 +1594,12 @@ pub const Windows = struct {
                 .user => self.user_path.?,
                 .done => return null,
             };
-            var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-            const full_path = std.fmt.bufPrintZ(
+            var path_buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
+            const full_path = std.mem.printSentinel(
                 &path_buf,
                 "{s}\\{s}",
                 .{ dir_path, name },
+                0,
             ) catch return null;
             const is_ttc = std.ascii.endsWithIgnoreCase(name, ".ttc");
             const max_faces: i32 = if (is_ttc) 16 else 1;
@@ -1692,8 +1693,7 @@ pub const Windows = struct {
                 "SYSTEMROOT",
             ) catch return null;
             defer self.alloc.free(systemroot);
-            return std.fmt.allocPrintSentinel(
-                self.alloc,
+            return self.alloc.printSentinel(
                 "{s}\\Fonts",
                 .{systemroot},
                 0,
@@ -1706,8 +1706,7 @@ pub const Windows = struct {
                 "LOCALAPPDATA",
             ) catch return null;
             defer self.alloc.free(local_appdata);
-            return std.fmt.allocPrintSentinel(
-                self.alloc,
+            return self.alloc.printSentinel(
                 "{s}\\Microsoft\\Windows\\Fonts",
                 .{local_appdata},
                 0,
@@ -1726,10 +1725,11 @@ pub const Windows = struct {
             };
 
             var path_buf: [std.Io.Dir.max_path_bytes]u8 = undefined;
-            const full_path = std.fmt.bufPrintZ(
+            const full_path = std.mem.printSentinel(
                 &path_buf,
                 "{s}\\{s}",
                 .{ dir_path, name },
+                0,
             ) catch return;
 
             const is_ttc = std.ascii.endsWithIgnoreCase(name, ".ttc");
@@ -1750,7 +1750,7 @@ pub const Windows = struct {
                     const desired = desiredStyles(self.desc);
                     var fuzzy_style: u16 = 0;
                     for (desired) |style| {
-                        if (std.ascii.indexOfIgnoreCase(style_name, style) != null) {
+                        if (std.ascii.findIgnoreCase(style_name, style) != null) {
                             fuzzy_style +|= @intCast(style.len);
                         }
                     }
@@ -1797,7 +1797,7 @@ pub const Windows = struct {
             full_path: []const u8,
             face_index: i32,
         ) !DeferredFace {
-            const path_owned = try self.alloc.dupeZ(u8, full_path);
+            const path_owned = try self.alloc.dupeSentinel(u8, full_path, 0);
             errdefer self.alloc.free(path_owned);
 
             const presentation: Presentation =
@@ -2157,14 +2157,14 @@ test "Windows fallback loads a font from a UTF-8 path" {
     defer alloc.free(destination);
     try std.Io.Dir.copyFileAbsolute(source, destination, io, .{});
 
-    const destination_z = try alloc.dupeZ(u8, destination);
+    const destination_z = try alloc.dupeSentinel(u8, destination, 0);
     defer alloc.free(destination_z);
     var lib = try Library.init(alloc);
     defer lib.deinit();
     var loaded = try Windows.loadFileFace(alloc, lib, destination_z, 0);
     try testing.expect(loaded.face.glyphIndex('A') != null);
 
-    const deferred_path = alloc.dupeZ(u8, destination) catch |err| {
+    const deferred_path = alloc.dupeSentinel(u8, destination, 0) catch |err| {
         loaded.face.deinit();
         if (loaded.data) |data| alloc.free(data);
         return err;
@@ -2225,7 +2225,7 @@ test "Windows memory-backed deferred face owns loaded data" {
         alloc.free(data);
         return err;
     };
-    const deferred_path = alloc.dupeZ(u8, path) catch |err| {
+    const deferred_path = alloc.dupeSentinel(u8, path, 0) catch |err| {
         peek.deinit();
         alloc.free(data);
         return err;

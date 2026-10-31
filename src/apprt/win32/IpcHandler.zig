@@ -167,9 +167,9 @@ pub fn ipcHandler(
         0,
         ipc_ui_timeout_ms,
     );
-    const status: IpcProtocol.Status = if (@intFromEnum(wait_result) == 0)
+    const status: IpcProtocol.Status = if (@backingInt(wait_result) == 0)
         ui_request.status
-    else if (@intFromEnum(wait_result) == 1)
+    else if (@backingInt(wait_result) == 1)
         return error.Shutdown
     else if (wait_result == .WAIT_TIMEOUT)
         .timeout
@@ -323,7 +323,7 @@ test "Win32 IPC request survives either owner releasing first" {
         if (ui_first) request.complete() else request.release();
         try testing.expectEqual(@as(u32, 1), request.refs.load(.seq_cst));
         try testing.expectEqualStrings("owned until both release", payload);
-        const signaled = @intFromEnum(win32.WaitForSingleObject(request.completion, 0)) == 0;
+        const signaled = @backingInt(win32.WaitForSingleObject(request.completion, 0)) == 0;
         try testing.expectEqual(ui_first, signaled);
         if (ui_first) request.release() else request.complete();
     }

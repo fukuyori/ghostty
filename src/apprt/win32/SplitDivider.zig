@@ -57,7 +57,7 @@ pub fn layout(
     var origin: win32.POINT = .{ .x = 0, .y = 0 };
     if (win32.ClientToScreen(window.hwnd, &origin) == 0) {
         log.warn("ClientToScreen(split dividers) failed: err={d}", .{
-            @intFromEnum(win32.GetLastError()),
+            @backingInt(win32.GetLastError()),
         });
         hide(window, 0);
         return;
@@ -75,7 +75,7 @@ pub fn layout(
             .{ .NOZORDER = 1, .NOACTIVATE = 1, .SHOWWINDOW = 1 },
         ) == 0) {
             log.warn("SetWindowPos(split divider) failed: err={d}", .{
-                @intFromEnum(win32.GetLastError()),
+                @backingInt(win32.GetLastError()),
             });
         }
         _ = win32.InvalidateRect(hwnd, null, win32.TRUE);
@@ -183,13 +183,13 @@ fn pointInWindowClient(
     var point = local;
     if (win32.ClientToScreen(source_hwnd, &point) == 0) {
         log.warn("ClientToScreen(split pointer) failed: err={d}", .{
-            @intFromEnum(win32.GetLastError()),
+            @backingInt(win32.GetLastError()),
         });
         return null;
     }
     if (win32.ScreenToClient(surface.windowHwnd(), &point) == 0) {
         log.warn("ScreenToClient(split pointer) failed: err={d}", .{
-            @intFromEnum(win32.GetLastError()),
+            @backingInt(win32.GetLastError()),
         });
         return null;
     }
@@ -355,7 +355,7 @@ pub fn endDrag(
     }
     if (win32.GetCapture() == hwnd and win32.ReleaseCapture() == 0) {
         log.warn("ReleaseCapture(split divider) failed: err={d}", .{
-            @intFromEnum(win32.GetLastError()),
+            @backingInt(win32.GetLastError()),
         });
     }
     return true;
@@ -381,7 +381,7 @@ pub fn clearPointer(window: *Window) void {
     if (capture) |hwnd| {
         if (win32.GetCapture() == hwnd and win32.ReleaseCapture() == 0) {
             log.warn("ReleaseCapture(split reset) failed: err={d}", .{
-                @intFromEnum(win32.GetLastError()),
+                @backingInt(win32.GetLastError()),
             });
         }
     }

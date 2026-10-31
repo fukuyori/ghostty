@@ -181,7 +181,7 @@ if ([string]::IsNullOrWhiteSpace($versionInfo.FileVersion)) {
     throw "The release executable does not contain FileVersion information."
 }
 if ($versionInfo.IsDebug) {
-    throw "The release executable is a debug build; installers are built from ReleaseFast output."
+    throw "The release executable is a debug build; installers are built from fast output."
 }
 $versionString = $versionInfo.FileVersion
 if ($versionInfo.ProductName -ne $brand.display_name) {

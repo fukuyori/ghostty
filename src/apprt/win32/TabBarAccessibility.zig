@@ -32,8 +32,7 @@ fn accessibleName(
     active_title: []const u8,
 ) ![]u8 {
     const tab_word = if (tab_count == 1) "tab" else "tabs";
-    return std.fmt.allocPrint(
-        alloc,
+    return alloc.print(
         brand.display_name ++ " tabs. {d} {s}. Active tab {d}: {s}",
         .{ tab_count, tab_word, active_index + 1, active_title },
     );
@@ -78,7 +77,7 @@ pub fn sync(
 
     if (win32.SetWindowTextW(hwnd, wide) == 0) {
         log.warn("SetWindowTextW(tab bar accessible name) failed: err={d}", .{
-            @intFromEnum(win32.GetLastError()),
+            @backingInt(win32.GetLastError()),
         });
         return;
     }
@@ -378,8 +377,7 @@ fn getAccDescription(
     if (isSelf(child)) return setBstr(description, brand.display_name ++ " tab bar");
     const window = self.currentWindow() orelse return win32.E_FAIL;
     const index = self.childIndex(child) orelse return win32.E_INVALIDARG;
-    const text = std.fmt.allocPrint(
-        std.heap.page_allocator,
+    const text = std.heap.page_allocator.print(
         "Tab {d} of {d}",
         .{ index + 1, window.tabCount() },
     ) catch return win32.E_OUTOFMEMORY;
@@ -421,8 +419,8 @@ fn tabState(index: usize, active_index: usize, visible: bool) u32 {
     var flags: u32 = win32.STATE_SYSTEM_SELECTABLE;
     if (index == active_index) flags |= win32.STATE_SYSTEM_SELECTED;
     if (!visible) {
-        flags |= @intFromEnum(win32.STATE_SYSTEM_INVISIBLE);
-        flags |= @intFromEnum(win32.STATE_SYSTEM_OFFSCREEN);
+        flags |= @backingInt(win32.STATE_SYSTEM_INVISIBLE);
+        flags |= @backingInt(win32.STATE_SYSTEM_OFFSCREEN);
     }
     return flags;
 }
@@ -722,8 +720,8 @@ test "Win32 tab accessibility exposes selected and offscreen states" {
     );
     try std.testing.expectEqual(
         @as(u32, win32.STATE_SYSTEM_SELECTABLE) |
-            @as(u32, @intFromEnum(win32.STATE_SYSTEM_INVISIBLE)) |
-            @as(u32, @intFromEnum(win32.STATE_SYSTEM_OFFSCREEN)),
+            @as(u32, @backingInt(win32.STATE_SYSTEM_INVISIBLE)) |
+            @as(u32, @backingInt(win32.STATE_SYSTEM_OFFSCREEN)),
         tabState(2, 1, false),
     );
 }

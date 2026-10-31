@@ -103,7 +103,7 @@ pub fn promptTitle(
 
 const TabTitleDialogContext = struct {
     initial: [*:0]const u16,
-    result: [tab_title_capacity:0]u16 = [_:0]u16{0} ** tab_title_capacity,
+    result: [tab_title_capacity:0]u16 = @as([tab_title_capacity:0]u16, @splat(0)),
     result_len: usize = 0,
     accepted: bool = false,
 };
@@ -205,7 +205,7 @@ pub fn showPrompt(self: *App, id: u64) !void {
     );
     if (result == -1) {
         log.warn("DialogBoxParamW(tab title) failed: err={d}", .{
-            @intFromEnum(win32.GetLastError()),
+            @backingInt(win32.GetLastError()),
         });
         return;
     }

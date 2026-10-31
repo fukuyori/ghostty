@@ -122,7 +122,7 @@ suppressed_char_keycode: ?u32 = null,
 /// code with the extended-key bit. Windows still reports their release
 /// with the real virtual key, so the release is not sent either; in
 /// win32-input-mode an unmatched release reached PowerShell as input.
-ime_consumed_keys: std.StaticBitSet(512) = .initEmpty(),
+ime_consumed_keys: std.StaticBitSet(512) = .empty,
 
 /// Buttons captured by this window. Keeping this separately from WPARAM lets
 /// us release core state when Windows cancels capture unexpectedly.
@@ -219,7 +219,7 @@ pub fn deinit(self: *Self) void {
 fn updateClientSize(self: *Self) void {
     var rect: win32.RECT = std.mem.zeroes(win32.RECT);
     if (win32.GetClientRect(self.hwnd, &rect) == 0) {
-        log.warn("GetClientRect failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("GetClientRect failed: err={d}", .{@backingInt(win32.GetLastError())});
         return;
     }
 
@@ -233,7 +233,7 @@ fn updateClientSize(self: *Self) void {
 
 fn initOpenGL(self: *Self) !void {
     self.hdc = win32.GetDC(self.hwnd) orelse {
-        log.err("GetDC failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.err("GetDC failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Error;
     };
 
@@ -249,22 +249,22 @@ fn initOpenGL(self: *Self) !void {
 
     const pixel_format = win32.ChoosePixelFormat(self.hdc, &pfd);
     if (pixel_format == 0) {
-        log.err("ChoosePixelFormat failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.err("ChoosePixelFormat failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Error;
     }
 
     if (win32.SetPixelFormat(self.hdc, pixel_format, &pfd) == 0) {
-        log.err("SetPixelFormat failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.err("SetPixelFormat failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Error;
     }
 
     self.hglrc = win32.wglCreateContext(self.hdc) orelse {
-        log.err("wglCreateContext failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.err("wglCreateContext failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Error;
     };
 
     if (win32.wglMakeCurrent(self.hdc, self.hglrc) == 0) {
-        log.err("wglMakeCurrent failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.err("wglMakeCurrent failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Error;
     }
 
@@ -275,7 +275,7 @@ pub fn swapBuffers(self: *Self) void {
     if (comptime build_config.renderer != .opengl) return;
     if (self.hdc) |hdc| {
         if (win32.SwapBuffers(hdc) == 0) {
-            log.warn("SwapBuffers failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.warn("SwapBuffers failed: err={d}", .{@backingInt(win32.GetLastError())});
         }
     }
 }
@@ -297,7 +297,7 @@ pub fn makeContextCurrent(self: *Self) void {
     if (self.hdc) |hdc| {
         if (self.hglrc) |hglrc| {
             if (win32.wglMakeCurrent(hdc, hglrc) == 0) {
-                log.warn("wglMakeCurrent failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+                log.warn("wglMakeCurrent failed: err={d}", .{@backingInt(win32.GetLastError())});
             }
         }
     }
@@ -306,7 +306,7 @@ pub fn makeContextCurrent(self: *Self) void {
 pub fn releaseContext() void {
     if (comptime build_config.renderer != .opengl) return;
     if (win32.wglMakeCurrent(null, null) == 0) {
-        log.warn("wglMakeCurrent(null) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("wglMakeCurrent(null) failed: err={d}", .{@backingInt(win32.GetLastError())});
     }
 }
 
@@ -324,7 +324,7 @@ pub fn renderDeviceOptions(self: *const Self) !@import("../../renderer.zig").Dev
 pub fn getContentScale(self: *const Self) !apprt.ContentScale {
     const dpi = win32.GetDpiForWindow(self.window_hwnd);
     if (dpi == 0) {
-        log.warn("GetDpiForWindow failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("GetDpiForWindow failed: err={d}", .{@backingInt(win32.GetLastError())});
         return .{ .x = 1.0, .y = 1.0 };
     }
     return contentScaleForDpi(dpi, dpi);
@@ -344,7 +344,7 @@ pub fn getTitle(self: *Self) ?[:0]const u8 {
 
 pub fn setTitle(self: *Self, value: [:0]const u8) !void {
     const alloc = self.rtApp().alloc;
-    const title = try alloc.dupeZ(u8, value);
+    const title = try alloc.dupeSentinel(u8, value, 0);
     errdefer alloc.free(title);
 
     if (self.title) |old| alloc.free(old);
@@ -365,7 +365,7 @@ pub fn applyTitle(self: *Self, value: [:0]const u8) !void {
     const wide = try std.unicode.utf8ToUtf16LeAllocZ(alloc, value);
     defer alloc.free(wide);
     if (win32.SetWindowTextW(self.window_hwnd, wide) == 0) {
-        log.err("SetWindowTextW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.err("SetWindowTextW failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Error;
     }
 }
@@ -413,7 +413,7 @@ pub fn clipboardRequest(
         return .started;
     }
 
-    const format: u32 = @intFromEnum(win32.CF_UNICODETEXT);
+    const format: u32 = @backingInt(win32.CF_UNICODETEXT);
     if (win32.IsClipboardFormatAvailable(format) == 0) return .unavailable;
 
     // Paste events only need a MIME listing, not the clipboard contents.
@@ -425,20 +425,20 @@ pub fn clipboardRequest(
     const alloc = self.core().alloc;
     const text = text: {
         if (!self.openClipboard()) {
-            log.warn("OpenClipboard failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.warn("OpenClipboard failed: err={d}", .{@backingInt(win32.GetLastError())});
             return .unavailable;
         }
         defer if (win32.CloseClipboard() == 0) {
-            log.warn("CloseClipboard failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.warn("CloseClipboard failed: err={d}", .{@backingInt(win32.GetLastError())});
         };
 
         const handle = win32.GetClipboardData(format) orelse {
-            log.warn("GetClipboardData failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.warn("GetClipboardData failed: err={d}", .{@backingInt(win32.GetLastError())});
             return .unavailable;
         };
         const hglobal: isize = @bitCast(@intFromPtr(handle));
         const raw = win32.GlobalLock(hglobal) orelse {
-            log.warn("GlobalLock failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.warn("GlobalLock failed: err={d}", .{@backingInt(win32.GetLastError())});
             return .unavailable;
         };
         defer _ = win32.GlobalUnlock(hglobal);
@@ -513,12 +513,12 @@ pub fn setClipboard(
             (utf16.len + 1) * @sizeOf(u16),
         );
         if (text_hglobal == 0) {
-            log.err("GlobalAlloc failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.err("GlobalAlloc failed: err={d}", .{@backingInt(win32.GetLastError())});
             return error.Win32Clipboard;
         }
 
         const raw = win32.GlobalLock(text_hglobal) orelse {
-            log.err("GlobalLock failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.err("GlobalLock failed: err={d}", .{@backingInt(win32.GetLastError())});
             return error.Win32Clipboard;
         };
         const dst: [*]u16 = @ptrCast(@alignCast(raw));
@@ -533,17 +533,17 @@ pub fn setClipboard(
 
         html_format = win32.RegisterClipboardFormatW(std.unicode.utf8ToUtf16LeStringLiteral("HTML Format"));
         if (html_format.? == 0) {
-            log.err("RegisterClipboardFormatW(HTML Format) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.err("RegisterClipboardFormatW(HTML Format) failed: err={d}", .{@backingInt(win32.GetLastError())});
             return error.Win32Clipboard;
         }
 
         html_hglobal = win32.GlobalAlloc(win32.GMEM_MOVEABLE, cf_html.len + 1);
         if (html_hglobal == 0) {
-            log.err("GlobalAlloc(HTML Format) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.err("GlobalAlloc(HTML Format) failed: err={d}", .{@backingInt(win32.GetLastError())});
             return error.Win32Clipboard;
         }
         const raw = win32.GlobalLock(html_hglobal) orelse {
-            log.err("GlobalLock(HTML Format) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.err("GlobalLock(HTML Format) failed: err={d}", .{@backingInt(win32.GetLastError())});
             return error.Win32Clipboard;
         };
         const dst: [*]u8 = @ptrCast(raw);
@@ -553,15 +553,15 @@ pub fn setClipboard(
     }
 
     if (!self.openClipboard()) {
-        log.warn("OpenClipboard failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("OpenClipboard failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Clipboard;
     }
     defer if (win32.CloseClipboard() == 0) {
-        log.warn("CloseClipboard failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("CloseClipboard failed: err={d}", .{@backingInt(win32.GetLastError())});
     };
 
     if (win32.EmptyClipboard() == 0) {
-        log.err("EmptyClipboard failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.err("EmptyClipboard failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Clipboard;
     }
 
@@ -570,8 +570,8 @@ pub fn setClipboard(
 
     if (text_hglobal != 0) {
         const handle: win32.HANDLE = @ptrFromInt(@as(usize, @bitCast(text_hglobal)));
-        if (win32.SetClipboardData(@intFromEnum(win32.CF_UNICODETEXT), handle) == null) {
-            log.err("SetClipboardData(CF_UNICODETEXT) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        if (win32.SetClipboardData(@backingInt(win32.CF_UNICODETEXT), handle) == null) {
+            log.err("SetClipboardData(CF_UNICODETEXT) failed: err={d}", .{@backingInt(win32.GetLastError())});
             return error.Win32Clipboard;
         }
         // SetClipboardData transfers ownership to Windows on success.
@@ -581,7 +581,7 @@ pub fn setClipboard(
     if (html_hglobal != 0) {
         const handle: win32.HANDLE = @ptrFromInt(@as(usize, @bitCast(html_hglobal)));
         if (win32.SetClipboardData(html_format.?, handle) == null) {
-            log.err("SetClipboardData(HTML Format) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.err("SetClipboardData(HTML Format) failed: err={d}", .{@backingInt(win32.GetLastError())});
             return error.Win32Clipboard;
         }
         // SetClipboardData transfers ownership to Windows on success.

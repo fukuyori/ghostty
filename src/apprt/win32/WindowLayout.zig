@@ -19,7 +19,7 @@ const log = std.log.scoped(.win32);
 pub fn layoutWindow(self: *App, window: *Window) void {
     var client: win32.RECT = std.mem.zeroes(win32.RECT);
     if (win32.GetClientRect(window.hwnd, &client) == 0) {
-        log.warn("GetClientRect for window layout failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("GetClientRect for window layout failed: err={d}", .{@backingInt(win32.GetLastError())});
         return;
     }
 
@@ -35,7 +35,7 @@ pub fn layoutWindow(self: *App, window: *Window) void {
             var origin: win32.POINT = .{ .x = 0, .y = 0 };
             if (win32.ClientToScreen(window.hwnd, &origin) == 0) {
                 log.warn("ClientToScreen(tab bar) failed: err={d}", .{
-                    @intFromEnum(win32.GetLastError()),
+                    @backingInt(win32.GetLastError()),
                 });
                 return;
             }
@@ -48,7 +48,7 @@ pub fn layoutWindow(self: *App, window: *Window) void {
                 tab_height,
                 .{ .NOZORDER = 1, .NOACTIVATE = 1, .SHOWWINDOW = 1 },
             ) == 0) {
-                log.warn("SetWindowPos(tab bar) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+                log.warn("SetWindowPos(tab bar) failed: err={d}", .{@backingInt(win32.GetLastError())});
             }
             TabBarController.invalidate(window);
         } else {
@@ -83,7 +83,7 @@ pub fn layoutWindow(self: *App, window: *Window) void {
             entry.rect.height - search_height,
             .{ .NOZORDER = 1, .NOACTIVATE = 1 },
         ) == 0) {
-            log.warn("SetWindowPos(surface layout) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.warn("SetWindowPos(surface layout) failed: err={d}", .{@backingInt(win32.GetLastError())});
         }
         if (entry.view.scrollbar) |bar| {
             bar.layout(entry.rect.x, entry.rect.y + search_height, entry.rect.width, entry.rect.height - search_height, true);
@@ -166,7 +166,7 @@ pub fn currentWindowContentBounds(
     var client: win32.RECT = std.mem.zeroes(win32.RECT);
     if (win32.GetClientRect(window.hwnd, &client) == 0) {
         log.warn("GetClientRect(split pointer) failed: err={d}", .{
-            @intFromEnum(win32.GetLastError()),
+            @backingInt(win32.GetLastError()),
         });
         return null;
     }
@@ -206,7 +206,7 @@ fn handleDpiChanged(
         rect.bottom - rect.top,
         .{ .NOZORDER = 1, .NOACTIVATE = 1 },
     ) == 0) {
-        log.warn("SetWindowPos for DPI change failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("SetWindowPos for DPI change failed: err={d}", .{@backingInt(win32.GetLastError())});
     }
 }
 

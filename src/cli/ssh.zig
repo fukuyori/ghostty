@@ -279,7 +279,7 @@ fn runInner(
 
         // The install passes the ssh arguments on and appends its script,
         // so a remote command would run together with it (#71).
-        if (comptime builtin.os.tag == .windows) {
+        if (comptime builtin.target.os.tag == .windows) {
             if (hasRemoteCommand(opts._ssh_args.items)) {
                 verbosePrint(opts, stderr, "remote command given; skipping terminfo install", .{});
                 break :session .{ .term = "xterm-256color" };
@@ -301,8 +301,7 @@ fn runInner(
 
     // Build the full argv: [ssh, ...our opts, ...user args]
     const env_opts: []const []const u8 = if (opts.@"forward-env") env_opts: {
-        const set_term = try std.fmt.allocPrint(
-            alloc,
+        const set_term = try alloc.print(
             "SetEnv=TERM={s}",
             .{session.term},
         );
@@ -483,13 +482,13 @@ fn parseDestination(alloc: Allocator, stdout: []const u8) ?[]const u8 {
     }
 
     if (port.len == 0 or std.mem.eql(u8, port, "22")) {
-        return std.fmt.allocPrint(alloc, "{s}@{s}", .{ user, host }) catch null;
+        return alloc.print("{s}@{s}", .{ user, host }) catch null;
     }
 
     if (std.mem.indexOfScalar(u8, host, ':') != null) {
-        return std.fmt.allocPrint(alloc, "{s}@[{s}]:{s}", .{ user, host, port }) catch null;
+        return alloc.print("{s}@[{s}]:{s}", .{ user, host, port }) catch null;
     }
-    return std.fmt.allocPrint(alloc, "{s}@{s}:{s}", .{ user, host, port }) catch null;
+    return alloc.print("{s}@{s}:{s}", .{ user, host, port }) catch null;
 }
 
 /// Whether the ssh arguments include a remote command: arguments after the
@@ -549,10 +548,9 @@ fn installRemoteTerminfo(
     // OpenSSH for Windows fails to set up the master ("getsockname
     // failed: Not a socket"), so on Windows the install uses a plain
     // connection of its own (#71).
-    const control_opts: []const []const u8 = if (comptime builtin.os.tag == .windows) &.{} else control: {
+    const control_opts: []const []const u8 = if (comptime builtin.target.os.tag == .windows) &.{} else control: {
         const control_path = try internal_os.randomTmpPath(alloc, brand.identifier ++ "-ssh-");
-        const control_path_opt = try std.fmt.allocPrint(
-            alloc,
+        const control_path_opt = try alloc.print(
             "ControlPath={s}",
             .{control_path},
         );
@@ -623,7 +621,7 @@ fn childExec(argv: []const []const u8) !u8 {
     const term = try child.wait(global.io());
     return switch (term) {
         .exited => |rc| rc,
-        .signal => |sig| @as(u8, 128) + @as(u8, @intCast(@min(@intFromEnum(sig), 127))),
+        .signal => |sig| @as(u8, 128) + @as(u8, @intCast(@min(@backingInt(sig), 127))),
         .stopped, .unknown => 1,
     };
 }

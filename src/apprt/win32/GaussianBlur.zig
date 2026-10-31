@@ -286,11 +286,11 @@ fn getNamedPropertyMapping(
     const text = std.mem.span(value);
 
     if (std.mem.eql(u16, text, std.unicode.utf8ToUtf16LeStringLiteral("BlurAmount"))) {
-        index.* = @intFromEnum(win32.D2D1_GAUSSIANBLUR_PROP_STANDARD_DEVIATION);
+        index.* = @backingInt(win32.D2D1_GAUSSIANBLUR_PROP_STANDARD_DEVIATION);
     } else if (std.mem.eql(u16, text, std.unicode.utf8ToUtf16LeStringLiteral("Optimization"))) {
-        index.* = @intFromEnum(win32.D2D1_GAUSSIANBLUR_PROP_OPTIMIZATION);
+        index.* = @backingInt(win32.D2D1_GAUSSIANBLUR_PROP_OPTIMIZATION);
     } else if (std.mem.eql(u16, text, std.unicode.utf8ToUtf16LeStringLiteral("BorderMode"))) {
-        index.* = @intFromEnum(win32.D2D1_GAUSSIANBLUR_PROP_BORDER_MODE);
+        index.* = @backingInt(win32.D2D1_GAUSSIANBLUR_PROP_BORDER_MODE);
     } else {
         return win32.E_INVALIDARG;
     }
@@ -325,12 +325,12 @@ fn getProperty(
         ),
         1 => property_factory.vtable.CreateUInt32(
             property_factory,
-            @intFromEnum(win32.D2D1_GAUSSIANBLUR_OPTIMIZATION_BALANCED),
+            @backingInt(win32.D2D1_GAUSSIANBLUR_OPTIMIZATION_BALANCED),
             result,
         ),
         2 => property_factory.vtable.CreateUInt32(
             property_factory,
-            @intFromEnum(win32.D2D1_BORDER_MODE_HARD),
+            @backingInt(win32.D2D1_BORDER_MODE_HARD),
             result,
         ),
         else => win32.E_INVALIDARG,

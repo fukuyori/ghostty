@@ -138,7 +138,7 @@ pub fn register(
                 entry.trigger,
                 entry.chord.vk,
                 @as(u32, @bitCast(entry.chord.modifiers)),
-                @intFromEnum(win32.GetLastError()),
+                @backingInt(win32.GetLastError()),
             });
             reject(&rejected, scratch.allocator(), entry.trigger, "the keys are already used by another application or by Windows");
             continue;
@@ -187,8 +187,7 @@ fn disable(config: *Config, rejection: Rejection) void {
     log.warn("global keybinding {f} disabled: {s}", .{ rejection.trigger, rejection.reason });
     const alloc = config.arenaAlloc();
     config.keybind.set.remove(alloc, rejection.trigger);
-    const message = std.fmt.allocPrintSentinel(
-        alloc,
+    const message = alloc.printSentinel(
         "global:{f}: {s}; the keybinding is disabled",
         .{ rejection.trigger, rejection.reason },
         0,
@@ -211,7 +210,7 @@ pub fn unregister(self: *GlobalHotkeys) void {
     if (self.hwnd) |hwnd| {
         for (self.entries.items) |entry| {
             if (win32.UnregisterHotKey(hwnd, entry.id) == 0) {
-                log.warn("UnregisterHotKey failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+                log.warn("UnregisterHotKey failed: err={d}", .{@backingInt(win32.GetLastError())});
             }
         }
     }

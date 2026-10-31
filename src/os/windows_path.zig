@@ -55,9 +55,9 @@ test "Windows paths that can be checked" {
     try testing.expect(isCheckable("\\\\server\\share\\file.txt"));
     try testing.expect(isCheckable("\\\\?\\C:\\long\\path.txt"));
     try testing.expect(isCheckable("relative\\file.txt"));
-    try testing.expect(isCheckable("C:\\" ++ "a" ** max_component_len));
+    try testing.expect(isCheckable("C:\\" ++ repeatForTest("a", max_component_len)));
     // Non-ASCII names are counted in UTF-16 code units, not bytes.
-    try testing.expect(isCheckable("C:\\" ++ "\u{3042}" ** max_component_len));
+    try testing.expect(isCheckable("C:\\" ++ repeatForTest("\u{3042}", max_component_len)));
 }
 
 test "Windows paths that cannot be checked" {
@@ -70,7 +70,13 @@ test "Windows paths that cannot be checked" {
     try testing.expect(!isCheckable("C:\\Users\\test\\a\"b"));
     try testing.expect(!isCheckable("C:\\Users\\test\\a\x01b"));
     try testing.expect(!isCheckable("C:\\Users\\test\\file.txt:stream"));
-    try testing.expect(!isCheckable("C:\\" ++ "a" ** (max_component_len + 1)));
-    try testing.expect(!isCheckable("C:\\" ++ ("a\\" ** (max_path_len / 2 + 1))));
+    try testing.expect(!isCheckable("C:\\" ++ repeatForTest("a", max_component_len + 1)));
+    try testing.expect(!isCheckable("C:\\" ++ (repeatForTest("a\\", max_path_len / 2 + 1))));
     try testing.expect(!isCheckable("C:\\Users\\\xff"));
+}
+
+fn repeatForTest(comptime text: []const u8, comptime count: usize) [text.len * count]u8 {
+    var result: [text.len * count]u8 = undefined;
+    for (0..count) |i| @memcpy(result[i * text.len ..][0..text.len], text);
+    return result;
 }
