@@ -23,6 +23,24 @@ It is not the final distribution candidate; N17 determines that version.
   remain separate November plan tasks.
 - Piped `validate-config` output still fails with `FileTooBig`, reproduced
   on fixed B. This existing issue remains unresolved and is not a C regression.
+- Document that `+ssh`, and the bash, zsh, fish, elvish and nushell `ssh`
+  wrappers that use it, open a new console window (#72), and how to install
+  the terminfo entry for plain `ssh`.
+
+### Added
+
+- Follow the Windows light/dark app mode: `theme = light:X,dark:Y` uses the
+  matching theme at startup and when the mode changes, and programs using
+  mode 2031 are told (#52, `c47f092d4`).
+- `window-inherit-font-size`: new windows, tabs and splits start at the
+  previously focused surface's font size (#57, `728dd9924`).
+
+### Fixed
+
+- `window-theme = system` drew a dark title bar in light mode
+  (`c47f092d4`).
+- The soak check stopped on its first run when `zig-out/test-state` was
+  empty (`0b28d0a3a`).
 
 ## 1.3.2-windows.17
 

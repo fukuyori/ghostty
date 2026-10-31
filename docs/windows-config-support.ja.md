@@ -53,7 +53,7 @@ upstream の Ghostty の全設定項目(`src/config/Config.zig`)について、
 | `adjust-icon-height` | フォント | ○ | Nerd Font アイコンの最大の高さの調整値。 |
 | `grapheme-width-method` | ターミナル | ○ | 書記素クラスタのセル幅の算出方法（`unicode` または `legacy`）。 |
 | `freetype-load-flags` | フォント | ○ | ヒンティング、オートヒント、モノクロ描画など、FreeType のグリフ読み込みフラグ。 |
-| `theme` | 色 | △ | 名前またはパスで読み込むカラーテーマ（ライト／ダークモード別の指定も可）。 |
+| `theme` | 色 | ◎ | 名前またはパスで読み込むカラーテーマ（ライト／ダークモード別の指定も可）。 |
 | `background` | 色 | ◎ | ウィンドウの背景色。 |
 | `foreground` | 色 | ○ | ウィンドウの前景色（文字色）。 |
 | `background-image` | 背景 | ○ | ターミナルの背景に表示する PNG または JPEG 画像のパス。 |
@@ -125,7 +125,7 @@ upstream の Ghostty の全設定項目(`src/config/Config.zig`)について、
 | `window-inherit-working-directory` | 作業ディレクトリ | ◎ | 新しいウィンドウが直前にフォーカスされていたウィンドウの作業ディレクトリを引き継ぐかどうか。 |
 | `tab-inherit-working-directory` | 作業ディレクトリ | ◎ | 新しいタブが直前にフォーカスされていたタブの作業ディレクトリを引き継ぐかどうか。 |
 | `split-inherit-working-directory` | 作業ディレクトリ | ◎ | 新しい分割ペインが直前にフォーカスされていた分割の作業ディレクトリを引き継ぐかどうか。 |
-| `window-inherit-font-size` | ウィンドウ | ✕ | 新しいウィンドウやタブが直前にフォーカスされていたウィンドウのフォントサイズを引き継ぐかどうか。 |
+| `window-inherit-font-size` | ウィンドウ | ◎ | 新しいウィンドウやタブが直前にフォーカスされていたウィンドウのフォントサイズを引き継ぐかどうか。 |
 | `window-decoration` | ウィンドウ | ○ | タイトルバーや枠などのウィンドウ装飾の希望設定(OS 側で上書きされる場合がある)。 |
 | `window-title-font-family` | タイトルバー | ✕ | アプリケーションのウィンドウタイトルとタブタイトルに使うフォント。 |
 | `window-subtitle` | GTK | - | ウィンドウのサブタイトルに表示するテキスト(サーフェスの `working-directory` など)。 |

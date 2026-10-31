@@ -1,6 +1,6 @@
 # Ghostty Windows Production-Readiness Roadmap
 
-- Last updated: 2026-10-31
+- Last updated: 2026-11-01
 - Current state: `1.3.2-windows.17`, the first version under the name Gooztty, was built on 2026-10-25; the rename is complete. Open work is listed in Section 7, and [`windows-handoff.md`](windows-handoff.md) summarizes how to continue
 - Target branch: `gooztty` (maintained there since the 2026-10-25 cutover; see Section 2)
 - Baseline commit: `132a5d078` (`docs: add Windows implementation roadmap`)
@@ -1461,8 +1461,9 @@ phases: baseline, Zig 0.17 migration at `3d07ef9e2`, synchronization through
 `v1.4.0`, synchronization through fixed commit `fbed180a5`, final Gooztty
 integration audit, acceptance/endurance, and month-end reporting. Each
 integration stage flows through `main` → `windows` → `gooztty` with checks.
-The 13 November work items are tracked under `Gooztty > 2026-11` in tque;
-six deferred items are under `2026-12以降・候補`. This calendar takes precedence
+After the 2026-11-01 revision (plan Section 10), 18 November work items are
+tracked under `Gooztty > 2026-11` in tque and one deferred item (N13) remains
+under `2026-12以降・候補`. This calendar takes precedence
 over the suggested order below; it does not change implementation or
 verification status. Upstream Test CI is not Windows GUI acceptance.
 
@@ -1476,11 +1477,10 @@ order:
 
 | Work | Issue | Notes |
 |---|---|---|
-| `+ssh` opens the session in a new console window | [#72](https://github.com/fukuyori/ghostty/issues/72) | Decide between attaching to the parent console, a console helper executable, or documenting plain `ssh` |
-| Intermittent parity and scrollbar timeouts; parity's default executable is an old build | [#69](https://github.com/fukuyori/ghostty/issues/69) | The default-executable part is small |
-| Zig 0.17 migration and the upstream commits after `b58ef1d67` | [#50](https://github.com/fukuyori/ghostty/issues/50) | On `windows`, then merged into `gooztty` |
-| Configuration options not implemented on Windows | #51-#65 | See [configuration support](windows-config-support.md) |
-| Real-hardware verification | #9, #10 | Several-hour soak and real GPU device loss |
+| `+ssh` opens the session in a new console window | [#72](https://github.com/fukuyori/ghostty/issues/72) | Documented as a known limitation with plain `ssh` use (N08, option 3); attaching to the parent console or a console helper executable remain for a later fix |
+| Intermittent parity and scrollbar timeouts | [#69](https://github.com/fukuyori/ghostty/issues/69) | Parity now requires an explicit executable (N01) |
+| Configuration options not implemented on Windows | #51-#65 | #52 (light/dark mode) and #57 (font size inheritance) implemented on 2026-11-01; see [configuration support](windows-config-support.md) |
+| Real-hardware verification | #9, #10 | 180-minute soak is N11; the real GPU fault procedure is in the [N12 record](windows-november-gpu-fault-plan.md) |
 | Other limitations and design questions | #11, #13, #14, #18, #25-#30, #44, #66 | |
 
 [`windows-handoff.md`](windows-handoff.md) summarizes the current state,
@@ -2968,4 +2968,12 @@ November P0 investigation is complete, including N07's three-option SSH comparis
 N15 completed at Windows 33709d14e and Gooztty d9cbeef: committed fast builds, Win32 tests and CLI/resource versions passed after source equivalence checks. The preview base is aligned to 1.4.0-windows.1. N16 is eligible; C integration has not started. Known config diagnostics and final physical/distribution acceptance remain open.
 
 N16 merged fixed C at Windows `06d12a298` and Gooztty `281c300ae`. Full Zig/Win32, GUI/parity, controlled GPU/power and lifecycle 37/37 passed on both snapshots. Config diagnostics retain the known wrong-owner assertion; validate-config stdout-pipe FileTooBig also reproduces on B. Both remain open. See [C evidence](windows-november-c-migration.md).
+
+P3A (2026-11-01) brought N08, N09, N10 and N12 into November; all four are done. From the port log merged into Gooztty at `90f286428`:
+
+- N09 (#52, `c47f092d4`): the Windows app light/dark mode is read through `UISettings` at startup and on setting changes, reloads the conditional configuration and reports mode 2031; `window-theme = system` follows the mode. Win32 tests passed 199 with one skipped; a dark-mode startup drew the dark theme with a dark frame (captures inspected), and the owner confirmed switching the mode while running.
+- N10 (#57, `728dd9924`): new windows, tabs and splits inherit the previously focused surface's font size when `window-inherit-font-size` is true. Log probes passed for true and false, and the owner confirmed the display.
+- The soak script keeps an empty `zig-out/test-state` baseline as an array (`0b28d0a3a`); one iteration passed on candidate `0a7cba0`. The 180-minute run is N11 on the rebuilt candidate.
+- N08 documented `+ssh`'s separate console and plain `ssh` use in the user guide; N12 recorded the real GPU fault procedure. N13 needs an owner decision on running it on this machine.
+- The candidate is rebuilt to include these changes: N17 and N06 are repeated before N11 and N18.
 

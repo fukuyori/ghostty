@@ -181,26 +181,25 @@ Gooztty は、Ghostty for Windows のプレビュー版(`1.3.2-windows.16` 以�
 
 Gooztty は upstream の Ghostty と同じ形式の設定ファイルを
 `%LOCALAPPDATA%\gooztty\config.gooztty` から読みますが、すべての設定項目が
-Windows で効くわけではありません。`1.3.2-windows.16` 時点で、upstream の
-全 212 項目のうち Windows で使えるのは 136 項目(64%、◎ と ○)です。
-一部だけ使えるものを含めると 144 項目(68%)です。
+Windows で効くわけではありません。`1.4.1-windows.1` 時点で、upstream の
+全 212 項目のうち Windows で使えるのは 138 項目(65%、◎ と ○)です。
+一部だけ使えるものを含めると 145 項目(68%)です。
 
 | 状態 | 項目数 | 意味 |
 |---|---:|---|
-| ◎ | 41 | Windows で使える。動作確認の記録がある |
+| ◎ | 43 | Windows で使える。動作確認の記録がある |
 | ○ | 95 | Windows で使える(コードから判断) |
-| △ | 8 | 一部だけ使える |
-| ✕ | 24 | Windows では未実装 |
+| △ | 7 | 一部だけ使える |
+| ✕ | 23 | Windows では未実装 |
 | - | 44 | 対象外。macOS、GTK、Linux、X11、Wayland だけの設定 |
 
 主な未対応の点:
 
 - 未実装: フォーカスのない分割ペインを暗くする設定と `split-divider-color`、
-  ウィンドウの初期位置、`window-inherit-font-size`、サイズ変更時のサイズ表示、
+  ウィンドウの初期位置、サイズ変更時のサイズ表示、
   `focus-follows-mouse`、`undo-timeout`、リンクのプレビュー、カスタムシェーダー
   ([#14](https://github.com/fukuyori/ghostty/issues/14))、音声のベル。
-- 一部だけ: `light:`/`dark:` のテーマの組み合わせは常にライト側になる、
-  `mouse-scroll-multiplier` は `discrete` の値だけ効く、`copy-on-select = primary`
+- 一部だけ: `mouse-scroll-multiplier` は `discrete` の値だけ効く、`copy-on-select = primary`
   と中クリックの貼り付けに使う選択範囲用のクリップボードがない、PowerShell の
   自動統合は作業ディレクトリだけを通知する、`bell-features` は `system`、
   `attention`、`title` に対応。

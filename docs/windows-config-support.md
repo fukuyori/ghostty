@@ -53,7 +53,7 @@ recorded. △ and ✕ are also judged from the code.
 | `adjust-icon-height` | Font | ○ | Adjusts the maximum height of Nerd Font icons. |
 | `grapheme-width-method` | Terminal | ○ | Method for calculating the cell width of grapheme clusters: `unicode` or `legacy`. |
 | `freetype-load-flags` | Font | ○ | FreeType glyph loading flags, such as hinting, autohint, and monochrome rendering. |
-| `theme` | Colors | △ | Color theme to load by name or path, optionally with separate themes for light and dark mode. |
+| `theme` | Colors | ◎ | Color theme to load by name or path, optionally with separate themes for light and dark mode. |
 | `background` | Colors | ◎ | Background color of the window. |
 | `foreground` | Colors | ○ | Foreground (text) color of the window. |
 | `background-image` | Background | ○ | Path to a PNG or JPEG image shown as the terminal background. |
@@ -125,7 +125,7 @@ recorded. △ and ✕ are also judged from the code.
 | `window-inherit-working-directory` | Working directory | ◎ | Whether new windows inherit the working directory of the previously focused window. |
 | `tab-inherit-working-directory` | Working directory | ◎ | Whether new tabs inherit the working directory of the previously focused tab. |
 | `split-inherit-working-directory` | Working directory | ◎ | Whether new split panes inherit the working directory of the previously focused split. |
-| `window-inherit-font-size` | Window | ✕ | Whether new windows and tabs inherit the font size of the previously focused window. |
+| `window-inherit-font-size` | Window | ◎ | Whether new windows and tabs inherit the font size of the previously focused window. |
 | `window-decoration` | Window | ○ | Preferred window decorations such as the titlebar and borders, which the OS may override. |
 | `window-title-font-family` | Titlebar | ✕ | Font used for the application's window and tab titles. |
 | `window-subtitle` | GTK | - | Text shown in the window subtitle, such as the surface's `working-directory`. |

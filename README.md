@@ -184,26 +184,26 @@ installed at the same time. Nothing is carried over automatically:
 
 Gooztty reads the same configuration file format as upstream Ghostty, from
 `%LOCALAPPDATA%\gooztty\config.gooztty`, but not every option has an effect
-on Windows. As of `1.3.2-windows.16`, 136 of the 212 upstream options (64%,
+on Windows. As of `1.4.1-windows.1`, 138 of the 212 upstream options (65%,
 ◎ and ○) can be used on Windows. Including the options that work in part,
-144 (68%) can be used.
+145 (68%) can be used.
 
 | Status | Options | Meaning |
 |---|---:|---|
-| ◎ | 41 | Works on Windows, with a recorded runtime check |
+| ◎ | 43 | Works on Windows, with a recorded runtime check |
 | ○ | 95 | Works on Windows, judged from the code |
-| △ | 8 | Works in part |
-| ✕ | 24 | Not implemented on Windows |
+| △ | 7 | Works in part |
+| ✕ | 23 | Not implemented on Windows |
 | - | 44 | Not applicable: macOS, GTK, Linux, X11 or Wayland only |
 
 Notable gaps:
 
 - Not implemented: dimming of unfocused splits and `split-divider-color`,
-  initial window position, `window-inherit-font-size`, resize overlay,
-  `focus-follows-mouse`, `undo-timeout`, link previews, custom shaders
+  initial window position, resize overlay, `focus-follows-mouse`,
+  `undo-timeout`, link previews, custom shaders
   ([#14](https://github.com/fukuyori/ghostty/issues/14)), and the audio
   bell.
-- Partial: `light:`/`dark:` theme pairs always use the light theme, only the
+- Partial: only the
   `discrete` value of `mouse-scroll-multiplier` applies, there is no
   selection clipboard for `copy-on-select = primary` or middle-click paste,
   the automatic PowerShell integration reports only the working directory,

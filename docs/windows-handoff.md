@@ -207,7 +207,7 @@ The owner decided to bring the December candidates that fit into November; see S
 ### Immediate continuation
 
 1. N12 is done: see the [GPU fault procedure record](windows-november-gpu-fault-plan.md). Whether N13 may run on this machine is an owner decision.
-2. On `windows`: implement and verify N09 and N10, and commit them with the soak fix and a port-log entry when the owner asks.
-3. N08: document the `+ssh` limitation and plain `ssh` use in `docs/windows.md`.
-4. Merge `windows` into `gooztty`, then rebuild and fix the candidate (N17), repeat N06, run N11 for 180 minutes, then N18 with owner-signed artifacts.
+2. N09 (#52), N10 (#57) and the soak fix are on `windows` (`0b28d0a3a`, `728dd9924`, `c47f092d4`) with owner display checks, and merged into `gooztty` at `90f286428`.
+3. N08 is done: the `+ssh` limitation and plain `ssh` use are in `docs/windows.md`.
+4. Rebuild and fix the candidate (N17), repeat N06, run N11 for 180 minutes, then N18 with owner-signed artifacts.
 5. Do not commit, push, or change a candidate without an explicit request.
