@@ -5,11 +5,14 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
-## 2026-10-31: Fixed upstream B integration (N15, pending commit)
+## 2026-10-31: Fixed upstream B integration (N15)
 
 - Merged fixed B `83fb95624b0439ee660c2679b43b38c8b63769cd` into the
   working tree at `c6669ed65`. Main is at B, version 1.4.0 / Zig 0.17.0.
-  No merge commit has been made for this stage.
+  These stage checks preceded Windows merge commit `33709d14e`.
+  Gooztty integrated it in `d9cbeef`; the final SHA/build/test ledger is
+  maintained on Gooztty in `docs/windows-november-b-migration.md` and
+  `docs/windows-november-b-committed-results.json`.
 - Kept deleted fork CI files deleted. Resolved Surface env ownership by
   retaining upstream's pre-Exec scope and moving brand cleanup into it.
   Adopted RenderState-based Kitty placement generations and the upstream
@@ -44,7 +47,9 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
   ledger, not HEAD alone, to identify the uncommitted implementation.
 - This log entry was added after the stage driver; application code is
   unchanged. Physical IME, real GPU faults/sleep and distribution acceptance
-  are not established. Gooztty integration and accepted SHAs remain pending.
+  are not established. After integration, both committed SHAs passed
+  normal fast builds, Win32 tests and CLI/resource version checks;
+  the final ledger above distinguishes these from the pre-commit checks.
 
 ## 2026-10-31: Fixed upstream A and Zig 0.17 migration (N05)
 
