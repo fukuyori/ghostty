@@ -1,5 +1,12 @@
 # Ghostty Native Windows Port (fukuyori/ghostty): Technical Specification and Comparison
 
+> This analysis was written on 2026-10-16, before the product was renamed to
+> Gooztty, and keeps the names of that time: `ghostty.exe`, `config.ghostty`
+> and the `Ghostty*` window classes are now `gooztty.exe`, `config.gooztty`
+> and `Gooztty*`. The maintained comparison with other ports is
+> [`windows-fork-comparison.md`](windows-fork-comparison.md); the current state
+> is in the [roadmap](windows-roadmap.md) and the [handoff](windows-handoff.md).
+
 ### 1. Project Purpose and Overview
 
 [Ghostty](https://ghostty.org/) is a GPU-accelerated terminal emulator written in Zig. At the time of this analysis, native Windows support in the official upstream (`ghostty-org/ghostty`) was still under development.
