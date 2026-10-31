@@ -707,7 +707,7 @@ fn actionCommands(action: Action.Key) []const Command {
 
         .text => comptime &.{.{
             .action = .{ .text = "👻" },
-            .title = if (builtin.target.os.tag == .windows) brand.display_name else i18n.N_("Ghostty"),
+            .title = if (builtin.target.os.tag == .windows) brand.display_name else "Ghostty",
             .description = if (builtin.target.os.tag == .windows)
                 "Put a little " ++ brand.display_name ++ " in your terminal."
             else

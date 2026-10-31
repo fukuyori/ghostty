@@ -5,6 +5,45 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-31: Fixed upstream C integration checks (N16)
+
+- Integrated fixed C `fbed180a5f181915c92a8f2f561903a6e4645b5a`
+  into the working tree based on `cbf203f9e`: 67 upstream commits after B,
+  version 1.4.1-dev, Zig 0.17.0. At verification time this was uncommitted.
+  Final integration status and accepted SHAs are maintained on Gooztty in
+  `docs/windows-november-c-migration.md` and its associated results ledger.
+- Kept deleted VOUCHED/test workflow files deleted. In the command title
+  conflict, preserved Windows brand.display_name and adopted upstream's
+  unlocalized Ghostty title for other platforms. No other port code changed.
+- Stage ledger: `zig-out/logs/n16-c-20261031-184237-939/summary.json`.
+  SourceUnchanged=true. Debug/normal fast/hook fast builds passed 145/145.
+  Full main tests passed 4,244 with 67 skipped; normal/hook Win32 main
+  tests passed 196 with one skipped. All three resource checks passed.
+- Normal GUI, both parity modes and controlled GPU/power recovery passed.
+  Inspected renderer, split-scrollbar and palette captures with prefix
+  `window-state-20261031-185842-922-668711ec`.
+  Config diagnostics passed 7/8; only the known wrong-owner assertion
+  failed. The script exited 1; each application exited 0 without force.
+- Lifecycle `lifecycle-acceptance-20261031-190017-195` passed 37/37 and
+  HooksDisabled. Inspected all four captures with prefix
+  `lifecycle-20261031-190133-934`; no leftover processes were reported.
+- Focused checks cover local SSH authentication-message stderr routing,
+  terminfo success/failure, configuration validation with regular-file
+  output, and Kitty images plus z2d glyph display. Details and helper
+  limitations are recorded in the Gooztty migration record.
+- Exploratory validate-config with stdout piped returned FileTooBig even
+  for valid config. The same failure was reproduced on fixed B; this
+  existing pipe-output defect is not fixed or counted as a passing check.
+  Physical IME, real SSH authentication, actual GPU faults/sleep and signed
+  distribution acceptance remain outside these controlled checks.
+- Normal fast SHA256:
+  `EDE55F4B1A0966E18067A9B697237D48EEAC928DB3AD63410954FFE470B920BD`.
+  Hook fast SHA256:
+  `C91107B127F7C21B3BB40B6348F7957ECBEF9BBF39562EE174F822F9839E6DE7`.
+  Binaries identify the pre-merge HEAD; use the stage source hashes/patch.
+  This documentation entry was added after the stage driver completed;
+  application inputs remain unchanged.
+
 ## 2026-10-31: Fixed upstream B integration (N15)
 
 - Merged fixed B `83fb95624b0439ee660c2679b43b38c8b63769cd` into the
