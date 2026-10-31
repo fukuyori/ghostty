@@ -12,7 +12,11 @@ Publication status is maintained in
 [GitHub Releases](https://github.com/fukuyori/ghostty/releases). These notes
 record each version's changes, verification results and limitations.
 
-## 1.4.0-windows.1
+## 1.4.0-windows.1 (development stage)
+
+This entry records development-stage verification at fixed point B.
+The version aligns the working tree with the upstream base; N17 determines
+the final distribution candidate and its acceptance results.
 
 - Base: upstream 1.4.0 at `83fb95624`, integrated through Windows
   `33709d14e`, using Zig 0.17.0. The preview sequence restarts for 1.4.0.

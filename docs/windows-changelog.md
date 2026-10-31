@@ -7,7 +7,10 @@ known issues, and known limitations of each version; the
 [version update checklist](version-update-checklist.md) describes the
 `X.Y.Z-windows.N` numbering.
 
-## 1.4.0-windows.1
+## 1.4.0-windows.1 (development stage)
+
+This entry records the fixed-B integration and version-base alignment.
+It is not the final distribution candidate; N17 determines that version.
 
 ### Changed
 
