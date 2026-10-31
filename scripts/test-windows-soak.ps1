@@ -144,15 +144,15 @@ $problemPattern = [regex]::new(
     [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
 )
 $testStateRoot = Join-Path $repositoryRoot "zig-out\test-state"
-$baselineTestStateEntries = if (Test-Path -LiteralPath $testStateRoot) {
-    @(
+# Wrap the whole if: an if statement unrolls an empty array to $null, which
+# Compare-Object rejects as ReferenceObject.
+$baselineTestStateEntries = @(
+    if (Test-Path -LiteralPath $testStateRoot) {
         Get-ChildItem -LiteralPath $testStateRoot -Force |
             ForEach-Object FullName |
             Sort-Object
-    )
-} else {
-    @()
-}
+    }
+)
 
 function Write-SoakSummary {
     param(
@@ -255,15 +255,13 @@ try {
                 throw "Regression log contains '$($problem.Value)'."
             }
 
-            $currentTestStateEntries = if (Test-Path -LiteralPath $testStateRoot) {
-                @(
+            $currentTestStateEntries = @(
+                if (Test-Path -LiteralPath $testStateRoot) {
                     Get-ChildItem -LiteralPath $testStateRoot -Force |
                         ForEach-Object FullName |
                         Sort-Object
-                )
-            } else {
-                @()
-            }
+                }
+            )
             $testStateChanges = @(
                 Compare-Object `
                     -ReferenceObject $baselineTestStateEntries `
