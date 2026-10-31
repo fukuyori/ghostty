@@ -25,8 +25,10 @@
 
 `zig-out/n16-ssh-probe.c`はssh -G、terminfo用stdin受信、認証案内のstderr出力、最終sessionのTERM記録を模擬する。ネットワーク接続は行わない。
 両製品でverbose有無×install成功/失敗の4条件、計8条件が成功。認証案内は通常時も届き、remote scriptのstderr抑制は非verboseのみ。成功時はブランドterminfo、失敗時はxterm-256colorへfallbackし、後続sessionはexit 0。
-`zig-out/n16-ssh-windows-results.json`、`n16-ssh-gooztty-results.json`に保存。実サーバーの認証・対話入力・別コンソール問題#72の解決は確認していない。
+`zig-out/n16-ssh-windows-results.json`、`n16-ssh-gooztty-results.json`に保存。統合時点では実サーバーの認証を未確認だった。
 初回はPowerShellからGUI exeを直接呼ぶ検証器が終了待ち/標準ハンドルを正しく扱えず、argsログ作成前に読み出して失敗。ProcessStartInfoで明示的にpipeを設定し、終了を待つよう検証器を修正。初回のログも保持し、製品修正とは扱わない。
+
+2026-10-31追試では、`fuk@192.168.12.12:22`へのWindows OpenSSH接続が公開鍵認証で成功し、`exit`の終了コードは0。N16 Gooztty Debugビルド（SHA-256 `BA9C958C687742ABF6ECE4B52EC72ABE3C736AE06C2D342B964E0C5F7FDBF348`）から `+ssh --terminfo=false --forward-env=false ... exit 37` を実行し、終了コード37が返ることを確認した。既知ホストはリポジトリ内の一時known_hostsで検証した。パスワード/keyboard-interactiveのプロンプト、terminfo転送中の認証、別コンソール問題#72は未確認。
 
 ### 設定CLIと今回見つかった既存制約
 
@@ -39,7 +41,7 @@
 - B比較: `zig-out/logs/n16-config-windows-b-20261031-184458/summary.json`。
 - `validate_config.zig`はstdout_writer.end()を呼ぶ。Zig 0.17のFile.Writer.endはflush後、positionalモードならsetLengthする。Windows実装はNtSetInformationFileのINVALID_PARAMETERをFileTooBigへ変換する。通常ファイル出力での成功との対応から、この終端処理が原因と推測される。APIの使い方の修正と専用回帰試験は別途必要。
 
-既知の#66（設定ダイアログ試験の誤った所有者指定）、#69（間欠事象）、#72は引き続き未解決。物理IME、実GPU障害/sleep、実SSH認証、最終耐久、署名配布受入は後続フェーズ。
+既知の#66（設定ダイアログ試験の誤った所有者指定）、#69（間欠事象）、#72は引き続き未解決。物理IME、実GPU障害/sleep、SSHの対話認証とterminfo転送中の認証、最終耐久、署名配布受入は後続フェーズ。
 
 ### 画像・z2d描画
 
