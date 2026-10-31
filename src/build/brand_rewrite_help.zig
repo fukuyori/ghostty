@@ -199,7 +199,7 @@ fn keptEntry(struct_name: []const u8, entry: []const u8, stats: ?*Stats) bool {
 /// Placeholders use control bytes, which neither the docs nor any rule
 /// contain.
 fn token(arena: Allocator, index: usize) Allocator.Error![]const u8 {
-    return std.fmt.allocPrint(arena, "\x01{d}\x02", .{index});
+    return arena.print("\x01{d}\x02", .{index});
 }
 
 fn placeholder(arena: Allocator, protected: *std.ArrayList([]const u8), original: []const u8) Allocator.Error![]const u8 {
@@ -300,11 +300,11 @@ pub fn guard(gpa: Allocator, substitute: Names, input: []const u8) GuardError!vo
     defer arena_state.deinit();
     const arena = arena_state.allocator();
     const required = [_][]const u8{
-        try std.fmt.allocPrint(arena, "{s} +list-fonts", .{substitute.identifier}),
-        try std.fmt.allocPrint(arena, "{s}RESOURCES_DIR", .{substitute.env_prefix}),
+        try arena.print("{s} +list-fonts", .{substitute.identifier}),
+        try arena.print("{s}RESOURCES_DIR", .{substitute.env_prefix}),
         substitute.terminfo,
-        try std.fmt.allocPrint(arena, "share/{s}/themes", .{substitute.resources_dir}),
-        try std.fmt.allocPrint(arena, "{s}/config.{s}", .{ substitute.config_dir, substitute.config_ext }),
+        try arena.print("share/{s}/themes", .{substitute.resources_dir}),
+        try arena.print("{s}/config.{s}", .{ substitute.config_dir, substitute.config_ext }),
         substitute.display,
     };
     for (required) |pattern| {

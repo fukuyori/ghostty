@@ -88,7 +88,7 @@ pub fn show(
     point: win32.POINT,
 ) void {
     const menu = win32.CreatePopupMenu() orelse {
-        log.warn("CreatePopupMenu failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("CreatePopupMenu failed: err={d}", .{@backingInt(win32.GetLastError())});
         return;
     };
     defer _ = win32.DestroyMenu(menu);
@@ -151,13 +151,13 @@ fn appendEntries(
 
 fn append(menu: win32.HMENU, flags: win32.MENU_ITEM_FLAGS, id: usize, label: ?[*:0]const u16) !void {
     if (win32.AppendMenuW(menu, flags, id, label) == 0) {
-        log.warn("AppendMenuW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("AppendMenuW failed: err={d}", .{@backingInt(win32.GetLastError())});
         return error.Win32Error;
     }
 }
 
 test "context menu layout references every item once" {
-    var seen = [_]bool{false} ** items.len;
+    var seen = @as([items.len]bool, @splat(false));
     markSeen(&layout, &seen);
     for (seen) |s| try std.testing.expect(s);
 }

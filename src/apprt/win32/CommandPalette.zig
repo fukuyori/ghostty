@@ -50,7 +50,7 @@ pub fn requestShow(target: apprt.Target) bool {
     const surface = App.targetSurface(target) orelse return false;
     if (win32.PostMessageW(surface.hwnd, WM_SHOW_COMMAND_PALETTE, 0, 0) == 0) {
         log.warn("PostMessage(WM_SHOW_COMMAND_PALETTE) failed: err={d}", .{
-            @intFromEnum(win32.GetLastError()),
+            @backingInt(win32.GetLastError()),
         });
         return false;
     }
@@ -114,7 +114,7 @@ pub fn init(alloc: std.mem.Allocator, config: *const Config, jumps: []const Jump
     for (config.@"command-palette-entry".value.items) |command| {
         if (!supported(command.action)) continue;
         const shortcut = if (config.keybind.set.getTrigger(command.action)) |trigger|
-            try std.fmt.allocPrint(a, "{f}", .{trigger})
+            try a.print("{f}", .{trigger})
         else
             "";
         try self.entries.append(a, .{
@@ -126,7 +126,7 @@ pub fn init(alloc: std.mem.Allocator, config: *const Config, jumps: []const Jump
     }
     for (jumps) |jump| {
         try self.entries.append(a, .{
-            .title = try std.fmt.allocPrint(a, "Focus: {s}", .{jump.title}),
+            .title = try a.print("Focus: {s}", .{jump.title}),
             .description = "Switch to this terminal pane",
             .kind = .{ .jump = .{ .surface = jump.surface, .id = jump.id } },
         });
@@ -216,7 +216,7 @@ fn refresh(self: *Self, hwnd: win32.HWND) void {
         if (!matches(entry.title, query) and !matches(entry.description, query)) continue;
         self.visible.append(self.arena.allocator(), index) catch return;
         const label = if (entry.shortcut.len > 0)
-            std.fmt.allocPrint(a, "{s}    {s}", .{ entry.title, entry.shortcut }) catch return
+            a.print("{s}    {s}", .{ entry.title, entry.shortcut }) catch return
         else
             entry.title;
         const label_wide = std.unicode.utf8ToUtf16LeAllocZ(a, label) catch return;
@@ -267,11 +267,11 @@ fn editProc(edit: win32.HWND, msg: u32, wparam: win32.WPARAM, lparam: win32.LPAR
         return win32.CallWindowProcW(original, edit, msg, wparam, lparam) | win32.DLGC_WANTARROWS;
     }
     if (msg == win32.WM_KEYDOWN) {
-        if (wparam == @intFromEnum(win32.VK_UP)) {
+        if (wparam == @backingInt(win32.VK_UP)) {
             self.moveSelection(dialog, -1);
             return 0;
         }
-        if (wparam == @intFromEnum(win32.VK_DOWN)) {
+        if (wparam == @backingInt(win32.VK_DOWN)) {
             self.moveSelection(dialog, 1);
             return 0;
         }

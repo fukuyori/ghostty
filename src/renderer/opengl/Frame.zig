@@ -61,7 +61,7 @@ pub fn complete(self: *const Self, sync: bool) void {
     // If there are any GL errors, consider the frame unhealthy.
     const health: Health = if (gl.errors.getError()) .healthy else |_| .unhealthy;
 
-    if (comptime builtin.os.tag == .windows) {
+    if (comptime builtin.target.os.tag == .windows) {
         self.renderer.api.present(
             self.target.*,
             self.renderer.presentationHealth(),

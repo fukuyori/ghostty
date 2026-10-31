@@ -64,8 +64,8 @@ pub fn run(alloc: Allocator) !u8 {
         \\
     , &.{ "open -na Ghostty.app", "open -na ghostty.app" }));
 
-    inline for (@typeInfo(Action).@"enum".fields) |field| {
-        try stdout.print("  +{s}\n", .{field.name});
+    inline for (@typeInfo(Action).@"enum".field_names) |field| {
+        try stdout.print("  +{s}\n", .{field});
     }
 
     try stdout.writeAll(

@@ -65,11 +65,11 @@ pub const Operation = struct {
     ) !WaitResult {
         const handles = [_]?win32.HANDLE{ self.event, shutdown_event };
         const wait_result = win32.WaitForMultipleObjects(handles.len, &handles, 0, timeout_ms);
-        if (@intFromEnum(wait_result) == 0) return .{
+        if (@backingInt(wait_result) == 0) return .{
             .completed = try self.collectResult(handle, false),
         };
 
-        const reason: WaitResult = if (@intFromEnum(wait_result) == 1)
+        const reason: WaitResult = if (@backingInt(wait_result) == 1)
             .shutdown
         else if (wait_result == .WAIT_TIMEOUT)
             .timeout
@@ -436,7 +436,7 @@ pub const Server = struct {
                         self.shutdown_event,
                         accept_retry_delay_ms,
                     );
-                    if (@intFromEnum(retry_wait) == 0) return;
+                    if (@backingInt(retry_wait) == 0) return;
                     if (retry_wait != .WAIT_TIMEOUT) return error.WaitFailed;
                     continue;
                 },
@@ -636,7 +636,7 @@ pub const Identity = struct {
     }
 
     pub fn pipeName(self: Identity, alloc: Allocator) ![:0]u16 {
-        const channel = if (builtin.mode == .Debug) "debug" else "release";
+        const channel = if (builtin.mode == .debug) "debug" else "release";
         return self.pipeNameWithChannel(alloc, channel);
     }
 
@@ -645,8 +645,7 @@ pub const Identity = struct {
         alloc: Allocator,
         channel: []const u8,
     ) ![:0]u16 {
-        const utf8 = try std.fmt.allocPrint(
-            alloc,
+        const utf8 = try alloc.print(
             pipe_prefix ++ "-{d}-{x:0>16}-{s}",
             .{ self.session_id, self.sid_hash, channel },
         );
@@ -700,7 +699,7 @@ pub const Listener = struct {
     first: win32.HANDLE,
 
     pub fn init(alloc: Allocator) !Listener {
-        const channel = if (builtin.mode == .Debug) "debug" else "release";
+        const channel = if (builtin.mode == .debug) "debug" else "release";
         return initWithChannel(alloc, channel);
     }
 
@@ -769,7 +768,7 @@ fn createInstance(
 }
 
 test "Win32 IPC identity produces a scoped pipe name and ACL" {
-    if (comptime builtin.os.tag != .windows) return error.SkipZigTest;
+    if (comptime builtin.target.os.tag != .windows) return error.SkipZigTest;
     const testing = std.testing;
     var identity = try Identity.init(testing.allocator);
     defer identity.deinit(testing.allocator);
@@ -786,10 +785,10 @@ test "Win32 IPC identity produces a scoped pipe name and ACL" {
 }
 
 test "Win32 IPC first pipe instance owns the endpoint" {
-    if (comptime builtin.os.tag != .windows) return error.SkipZigTest;
+    if (comptime builtin.target.os.tag != .windows) return error.SkipZigTest;
     const testing = std.testing;
     var channel_buf: [64]u8 = undefined;
-    const channel = try std.fmt.bufPrint(
+    const channel = try std.mem.print(
         &channel_buf,
         "test-{d}",
         .{win32.GetCurrentProcessId()},
@@ -806,7 +805,7 @@ test "Win32 IPC first pipe instance owns the endpoint" {
 }
 
 test "Win32 IPC operation owns an event and client uses identification SQOS" {
-    if (comptime builtin.os.tag != .windows) return error.SkipZigTest;
+    if (comptime builtin.target.os.tag != .windows) return error.SkipZigTest;
     var operation = try Operation.init();
     defer operation.deinit();
     try std.testing.expect(operation.overlapped.hEvent == operation.event);
@@ -831,10 +830,10 @@ test "Win32 IPC operation owns an event and client uses identification SQOS" {
 }
 
 test "Win32 IPC shutdown cancels and reaps an overlapped accept" {
-    if (comptime builtin.os.tag != .windows) return error.SkipZigTest;
+    if (comptime builtin.target.os.tag != .windows) return error.SkipZigTest;
     const testing = std.testing;
     var channel_buf: [64]u8 = undefined;
-    const channel = try std.fmt.bufPrint(
+    const channel = try std.mem.print(
         &channel_buf,
         "test-cancel-{d}",
         .{win32.GetCurrentProcessId()},
@@ -856,7 +855,7 @@ test "Win32 IPC shutdown cancels and reaps an overlapped accept" {
 }
 
 test "Win32 IPC server accepts repeated framed requests" {
-    if (comptime builtin.os.tag != .windows) return error.SkipZigTest;
+    if (comptime builtin.target.os.tag != .windows) return error.SkipZigTest;
     const testing = std.testing;
     const Test = struct {
         fn echo(
@@ -959,7 +958,7 @@ test "Win32 IPC server accepts repeated framed requests" {
     };
 
     var channel_buf: [64]u8 = undefined;
-    const channel = try std.fmt.bufPrint(
+    const channel = try std.mem.print(
         &channel_buf,
         "test-server-{d}",
         .{win32.GetCurrentProcessId()},

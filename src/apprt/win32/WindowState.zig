@@ -58,7 +58,7 @@ pub fn enterFullscreen(surface: *Surface) bool {
     var placement: win32.WINDOWPLACEMENT = std.mem.zeroes(win32.WINDOWPLACEMENT);
     placement.length = @sizeOf(win32.WINDOWPLACEMENT);
     if (win32.GetWindowPlacement(hwnd, &placement) == 0) {
-        log.warn("GetWindowPlacement failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("GetWindowPlacement failed: err={d}", .{@backingInt(win32.GetLastError())});
         return false;
     }
     const style = getWindowStyle(hwnd) orelse return false;
@@ -77,7 +77,7 @@ pub fn enterFullscreen(surface: *Surface) bool {
         .dwFlags = 0,
     };
     if (win32.GetMonitorInfoW(monitor, &info) == 0) {
-        log.warn("GetMonitorInfoW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("GetMonitorInfoW failed: err={d}", .{@backingInt(win32.GetLastError())});
         return false;
     }
 
@@ -94,7 +94,7 @@ pub fn enterFullscreen(surface: *Surface) bool {
         rect.bottom - rect.top,
         .{ .NOOWNERZORDER = 1, .DRAWFRAME = 1 },
     ) == 0) {
-        log.warn("SetWindowPos entering fullscreen failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("SetWindowPos entering fullscreen failed: err={d}", .{@backingInt(win32.GetLastError())});
         _ = setWindowStyle(hwnd, style);
         _ = win32.SetWindowPlacement(hwnd, &placement);
         _ = refreshWindowFrame(hwnd);
@@ -125,7 +125,7 @@ pub fn leaveFullscreen(surface: *Surface) bool {
     if (!setWindowStyle(hwnd, restored_style)) return false;
 
     if (win32.SetWindowPlacement(hwnd, &placement) == 0) {
-        log.warn("SetWindowPlacement leaving fullscreen failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("SetWindowPlacement leaving fullscreen failed: err={d}", .{@backingInt(win32.GetLastError())});
         _ = setWindowStyle(hwnd, current_style);
         return false;
     }
@@ -179,7 +179,7 @@ pub fn getWindowStyle(hwnd: win32.HWND) ?u32 {
     win32.SetLastError(.NO_ERROR);
     const value = win32.GetWindowLongPtrW(hwnd, win32.GWL_STYLE);
     if (value == 0 and win32.GetLastError() != .NO_ERROR) {
-        log.warn("GetWindowLongPtrW(GWL_STYLE) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("GetWindowLongPtrW(GWL_STYLE) failed: err={d}", .{@backingInt(win32.GetLastError())});
         return null;
     }
     return @truncate(@as(usize, @bitCast(value)));
@@ -193,7 +193,7 @@ fn setWindowStyle(hwnd: win32.HWND, style: u32) bool {
         @bitCast(@as(usize, style)),
     );
     if (value == 0 and win32.GetLastError() != .NO_ERROR) {
-        log.warn("SetWindowLongPtrW(GWL_STYLE) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("SetWindowLongPtrW(GWL_STYLE) failed: err={d}", .{@backingInt(win32.GetLastError())});
         return false;
     }
     return true;
@@ -215,7 +215,7 @@ fn refreshWindowFrame(hwnd: win32.HWND) bool {
             .DRAWFRAME = 1,
         },
     ) == 0) {
-        log.warn("SetWindowPos refreshing frame failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("SetWindowPos refreshing frame failed: err={d}", .{@backingInt(win32.GetLastError())});
         return false;
     }
     return true;
@@ -250,7 +250,7 @@ pub fn setAlwaysOnTop(surface: *Surface, enabled: bool) bool {
         0,
         .{ .NOMOVE = 1, .NOSIZE = 1, .NOACTIVATE = 1 },
     ) == 0) {
-        log.warn("SetWindowPos changing topmost state failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("SetWindowPos changing topmost state failed: err={d}", .{@backingInt(win32.GetLastError())});
         return false;
     }
 
@@ -338,7 +338,7 @@ fn resizeClientArea(
         ex_style,
         dpi,
     ) == 0) {
-        log.warn("AdjustWindowRectExForDpi failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("AdjustWindowRectExForDpi failed: err={d}", .{@backingInt(win32.GetLastError())});
         return false;
     }
 
@@ -370,7 +370,7 @@ pub fn resizeWindow(
 
     var rect: win32.RECT = undefined;
     if (win32.GetWindowRect(hwnd, &rect) == 0) {
-        log.warn("GetWindowRect failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("GetWindowRect failed: err={d}", .{@backingInt(win32.GetLastError())});
         return false;
     }
     const current: WindowExtent = .{
@@ -420,7 +420,7 @@ fn isSnapped(hwnd: win32.HWND, current: WindowExtent) bool {
     var placement: win32.WINDOWPLACEMENT = std.mem.zeroes(win32.WINDOWPLACEMENT);
     placement.length = @sizeOf(win32.WINDOWPLACEMENT);
     if (win32.GetWindowPlacement(hwnd, &placement) == 0) {
-        log.warn("GetWindowPlacement failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("GetWindowPlacement failed: err={d}", .{@backingInt(win32.GetLastError())});
         return true;
     }
     const normal = placement.rcNormalPosition;
@@ -466,7 +466,7 @@ fn setWindowExtent(
             if (clamp.width) outer.width = clamped.width;
             if (clamp.height) outer.height = clamped.height;
         } else {
-            log.warn("GetMonitorInfoW failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.warn("GetMonitorInfoW failed: err={d}", .{@backingInt(win32.GetLastError())});
         }
     }
 
@@ -479,7 +479,7 @@ fn setWindowExtent(
         outer.height,
         .{ .NOMOVE = 1, .NOZORDER = 1, .NOACTIVATE = 1 },
     ) == 0) {
-        log.warn("SetWindowPos resizing the window failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("SetWindowPos resizing the window failed: err={d}", .{@backingInt(win32.GetLastError())});
         return false;
     }
     return true;

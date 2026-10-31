@@ -265,7 +265,7 @@ fn registerAppUserModelId() Error!void {
         null,
     );
     if (created != .NO_ERROR) {
-        log.warn("RegCreateKeyExW(AppUserModelId) failed: err={d}", .{@intFromEnum(created)});
+        log.warn("RegCreateKeyExW(AppUserModelId) failed: err={d}", .{@backingInt(created)});
         return error.RegisterAppUserModelId;
     }
     defer _ = win32.RegCloseKey(key);
@@ -281,7 +281,7 @@ fn setString(key: ?win32.HKEY, name: [*:0]const u16, value: [:0]const u16) Error
     const bytes: u32 = @intCast((value.len + 1) * @sizeOf(u16));
     const result = win32.RegSetValueExW(key, name, 0, win32.REG_SZ, @ptrCast(value.ptr), bytes);
     if (result != .NO_ERROR) {
-        log.warn("RegSetValueExW(AppUserModelId) failed: err={d}", .{@intFromEnum(result)});
+        log.warn("RegSetValueExW(AppUserModelId) failed: err={d}", .{@backingInt(result)});
         return error.RegisterAppUserModelId;
     }
 }
@@ -308,7 +308,7 @@ fn iconPath(buf: []u16) ?[:0]const u16 {
 /// within the 64-character group limit.
 fn groupFor(buf: *[17]u16, surface_id: u64) [:0]const u16 {
     var ascii: [16]u8 = undefined;
-    _ = std.fmt.bufPrint(&ascii, "{x:0>16}", .{surface_id}) catch unreachable;
+    _ = std.mem.print(&ascii, "{x:0>16}", .{surface_id}) catch unreachable;
     for (ascii, 0..) |c, i| buf[i] = c;
     buf[16] = 0;
     return buf[0..16 :0];
@@ -365,8 +365,8 @@ pub fn commandFinishedBody(
     duration: configpkg.Config.Duration,
 ) ![]u8 {
     const rounded = duration.round(std.time.ns_per_ms);
-    const code = exit_code orelse return std.fmt.allocPrint(alloc, "Command took {f}.", .{rounded});
-    return std.fmt.allocPrint(alloc, "Command took {f} and exited with code {d}.", .{ rounded, code });
+    const code = exit_code orelse return alloc.print("Command took {f}.", .{rounded});
+    return alloc.print("Command took {f} and exited with code {d}.", .{ rounded, code });
 }
 
 fn createString(value: [:0]const u16) Error!win32.HSTRING {

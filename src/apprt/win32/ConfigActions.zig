@@ -148,7 +148,7 @@ fn armDiagnosticsTimer(self: *App) void {
     if (self.wakeup_hwnd) |hwnd| {
         if (win32.SetTimer(hwnd, diagnostics_timer_id, 50, null) != 0) return;
         log.warn("SetTimer for configuration diagnostics failed: err={d}", .{
-            @intFromEnum(win32.GetLastError()),
+            @backingInt(win32.GetLastError()),
         });
     }
     self.wakeup();
@@ -256,8 +256,7 @@ pub fn openConfig(
             };
             defer command.deinit(self.alloc);
 
-            const title = try std.fmt.allocPrintSentinel(
-                self.alloc,
+            const title = try self.alloc.printSentinel(
                 "Editing configuration file {s}",
                 .{path},
                 0,
@@ -306,13 +305,13 @@ fn parseWindowsEditorCommand(
         args.deinit(alloc);
     }
     while (iter.next()) |arg| {
-        const copy = try alloc.dupeZ(u8, arg);
+        const copy = try alloc.dupeSentinel(u8, arg, 0);
         errdefer alloc.free(copy);
         try args.append(alloc, copy);
     }
     if (args.items.len == 0) return error.InvalidEditorCommand;
     {
-        const path_copy = try alloc.dupeZ(u8, path);
+        const path_copy = try alloc.dupeSentinel(u8, path, 0);
         errdefer alloc.free(path_copy);
         try args.append(alloc, path_copy);
     }

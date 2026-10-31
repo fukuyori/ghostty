@@ -58,7 +58,7 @@ pub fn ensureUserEntry(
     environ_map: *const std.process.Environ.Map,
     terminfo_dir: []const u8,
 ) void {
-    if (comptime builtin.os.tag != .windows) return;
+    if (comptime builtin.target.os.tag != .windows) return;
 
     register(gpa, io, environ_map, terminfo_dir) catch |err| log.warn(
         "unable to register the terminfo entry for this user err={t}",
@@ -127,8 +127,7 @@ fn install(
     // final path directly would leave a Ghostty that starts alongside this
     // one, or one that starts after this one was killed mid-write, treating
     // an incomplete entry as registered, and nothing would repair it.
-    const tmp_name = try std.fmt.allocPrint(
-        gpa,
+    const tmp_name = try gpa.print(
         "{s}.{d}.tmp",
         .{ entry_name, windows.GetCurrentProcessId() },
     );
@@ -188,7 +187,7 @@ fn testDir(gpa: Allocator) ![]u8 {
     // counts leftover temporary files.
     var name_buf: [osfile.random_basename_len:0]u8 = undefined;
     const base = try osfile.randomBasename(&name_buf);
-    const name = try std.fmt.allocPrint(gpa, "ghostty-terminfo-test-{s}", .{base});
+    const name = try gpa.print("ghostty-terminfo-test-{s}", .{base});
     defer gpa.free(name);
     return try std.fs.path.join(gpa, &.{ root, name });
 }
@@ -205,7 +204,7 @@ fn testCount(io: std.Io, dir: []const u8) !usize {
 }
 
 test "install writes the entry when the directory is empty" {
-    if (comptime builtin.os.tag != .windows) return error.SkipZigTest;
+    if (comptime builtin.target.os.tag != .windows) return error.SkipZigTest;
 
     const testing = std.testing;
     const alloc = testing.allocator;
@@ -237,7 +236,7 @@ test "install writes the entry when the directory is empty" {
 }
 
 test "install never replaces an entry that is already there" {
-    if (comptime builtin.os.tag != .windows) return error.SkipZigTest;
+    if (comptime builtin.target.os.tag != .windows) return error.SkipZigTest;
 
     // What a second Ghostty starting alongside the first one runs into, and
     // what protects an entry the user compiled with tic.
@@ -271,7 +270,7 @@ test "install never replaces an entry that is already there" {
 }
 
 test "install works with a temporary file left by an earlier run" {
-    if (comptime builtin.os.tag != .windows) return error.SkipZigTest;
+    if (comptime builtin.target.os.tag != .windows) return error.SkipZigTest;
 
     // What a Ghostty killed part way through a write leaves behind. The name
     // carries the pid, so a later process can meet its own.
@@ -293,8 +292,7 @@ test "install works with a temporary file left by an earlier run" {
     defer alloc.free(dest_dir);
     try cwd.createDirPath(io, dest_dir);
 
-    const stale_name = try std.fmt.allocPrint(
-        alloc,
+    const stale_name = try alloc.print(
         "{s}.{d}.tmp",
         .{ entry_name, windows.GetCurrentProcessId() },
     );

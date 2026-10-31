@@ -5,6 +5,57 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-31: Fixed upstream A and Zig 0.17 migration (N05)
+
+- Fast-forwarded `main` to `3d07ef9e28c4af05065b9e2e546b8ac8f9b62df0`.
+  Merged into `windows` from `ac3ad2b6c`. The checks below were performed
+  before the merge commit; the final commit ledger is maintained on Gooztty.
+- Resolved ten conflicts, retaining the deleted upstream CI, brand indirection,
+  Windows synchronous-read cancellation, OSC 7 drive paths, SSH ControlMaster
+  workaround and generated version resources. Upstream's new hostname
+  validation errors are handled without dropping the local Windows URI case.
+- Migrated Windows code to Zig 0.17 allocator, bit-set, reflection, enum and
+  formatting APIs. D3D11 uses `[4][4]f32` for its externally laid-out matrix,
+  matching upstream OpenGL/Metal and the existing HLSL layout assertions.
+  The renderer test fixture uses the same bit conversion as the renderer.
+- Updated build-time program lookup and file access; declared icon/manifest
+  content and ConPTY metadata dependencies for the configuration cache.
+  PowerShell release tooling now requests `-Doptimize=fast`. No version,
+  package, signing or publication operation was performed.
+- Windows stage evidence: `zig-out/logs/n05-a-20261031-150305-776/summary.json`.
+  Debug, normal fast and hook fast builds each passed 145/145 steps. Full
+  tests passed (4,108 main tests, 64 skipped; helper tests also passed).
+  Normal/hook Win32 main tests each passed 196 with 1 skipped. Aggregate
+  counts differ when a helper test is reused from cache; no case was removed.
+- Normal GUI/IO, both parity modes, controlled GPU/power recovery, and
+  `ime-verification-20261031-150801-836` passed. Inspected the palette,
+  renderer, scrollbar and split captures with prefix
+  `window-state-20261031-150628-460-92b058c6`, plus both parity captures
+  `parity-20261031-150727-945.png` and `parity-20261031-150736-365.png`.
+- Config diagnostics passed 7/8; `OwnerCloseWithOtherWindow` still reports
+  `Stale diagnostic survived its owner`, as in the N04 baseline. All eight
+  processes exited 0 without forced termination. Track this under #66/N02.
+  A passing scrollbar/parity run does not resolve intermittent #69/N19.
+- The source manifest remained unchanged during the driver. All three exe
+  CLI/file/product versions agree; manifests, icons, terminfo and vendor
+  ConPTY hashes were checked. Normal fast SHA256:
+  `AF7FADDAA5FE708636F603295078EEF8CF2CEB6E54E927EC9ABDA14D0AB18773`.
+  Hook fast SHA256:
+  `B6591CE6CC1B4D233B0476B95A872308375900345CB3CED5D5B39765EA0F3F12`.
+- These binaries report `1.3.2-windows+ac3ad2b6c`; the uncommitted source is
+  identified by the recorded patch and hashes, not that HEAD alone. Subsequent documentation and an OpenGL-only correction are recorded below. Physical input/IME, real GPU faults/sleep, and endurance are
+  not established by these automated checks. Gooztty integration and the
+  accepted commit ledger remain pending.
+
+- Follow-up: the Windows OpenGL `Device.init` path did not return its
+  allocated device. Returning `self` restores the optional backend build.
+  OpenGL passed 145/145 build steps and the window-state/renderer-wakeup
+  check (exit 0, no forced termination); inspected
+  `window-state-20261031-152709-842-d2603aaa.renderer.png`.
+  The rebuilt default D3D11 fast executable has the identical AF7F... hash
+  recorded above. `opengl-followup.json` binds the supplemental build to
+  the original D3D11 evidence. The AGENTS WASM example now uses `small`.
+
 ## 2026-10-31: Explicit parity target and fresh-build evidence (N01)
 
 - `test-windows-parity.ps1` now rejects an omitted executable instead of
@@ -3072,3 +3123,4 @@ preserved.
   `vt-window-resize-allowed`, which defaults to `false`, so default behavior
   is unchanged. To be implemented on `windows`
   ([#45](https://github.com/fukuyori/ghostty/issues/45)).
+

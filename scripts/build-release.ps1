@@ -3,7 +3,7 @@
 Builds a portable Windows release of the terminal.
 
 .DESCRIPTION
-Runs the default Zig build in ReleaseFast mode for the baseline CPU and
+Runs the default Zig build in fast mode for the baseline CPU and
 installs the result into zig-out/release by default. It validates the PE
 format, Windows GUI subsystem, version information, embedded large and small
 icons, required resource directories, and output hash. This script does not
@@ -79,7 +79,7 @@ $buildArguments = @(
     "build"
     "--prefix"
     $releaseRoot
-    "-Doptimize=ReleaseFast"
+    "-Doptimize=fast"
     "-Dcpu=baseline"
     "-Demit-docs=false"
     "-Dversion-string=$expectedVersion"
@@ -375,7 +375,7 @@ if ($cliVersion -ne $versionInfo.FileVersion) {
 [pscustomobject]@{
     Executable   = $file.FullName
     Resources    = $resources
-    Optimization = "ReleaseFast"
+    Optimization = "fast"
     Cpu          = "baseline"
     PEFormat     = $peFormat
     Machine      = $machine

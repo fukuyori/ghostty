@@ -40,9 +40,9 @@ pub fn init(alloc: Allocator, options: Options) !*Device {
     errdefer alloc.destroy(self);
 
     // Win32 owns a WGL context per surface; there is no EGL device.
-    if (comptime builtin.os.tag == .windows) {
+    if (comptime builtin.target.os.tag == .windows) {
         self.* = undefined;
-        return;
+        return self;
     }
 
     try egl.load();

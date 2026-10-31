@@ -114,19 +114,19 @@ fn optionsForLeaf(app: *App, leaf: State.Leaf) !WindowLifecycle.Options {
     var result: WindowLifecycle.Options = .{};
     if (leaf.working_directory) |path| {
         if (directoryExists(path)) {
-            result.working_directory = try alloc.dupeZ(u8, path);
+            result.working_directory = try alloc.dupeSentinel(u8, path, 0);
         } else {
             log.warn("session working directory is unavailable; using configured default path={s}", .{path});
             if (app.config.@"working-directory") |configured_wd| {
                 if (configured_wd.value()) |configured| {
-                    if (directoryExists(configured)) result.working_directory = try alloc.dupeZ(u8, configured);
+                    if (directoryExists(configured)) result.working_directory = try alloc.dupeSentinel(u8, configured, 0);
                 }
             }
         }
     }
     errdefer deinitOptions(alloc, &result);
     if (leaf.title) |title| {
-        result.title = try alloc.dupeZ(u8, title);
+        result.title = try alloc.dupeSentinel(u8, title, 0);
         result.dynamic_title = true;
     }
     return result;
@@ -259,7 +259,7 @@ fn applyPlacement(hwnd: win32.HWND, saved: State.Window) void {
     placement.showCmd = if (saved.maximized) win32.SW_SHOWMAXIMIZED else win32.SW_SHOWNORMAL;
     placement.rcNormalPosition = rect;
     if (win32.SetWindowPlacement(hwnd, &placement) == 0) {
-        log.warn("SetWindowPlacement(session restore) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("SetWindowPlacement(session restore) failed: err={d}", .{@backingInt(win32.GetLastError())});
     }
 }
 

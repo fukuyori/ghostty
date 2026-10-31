@@ -23,7 +23,7 @@ pub fn parse(arena_alloc: Allocator, arguments: []const [:0]const u8) !Overrides
 
     for (arguments, 0..) |arg, i| {
         if (e_seen) {
-            try command_args.append(arena_alloc, try arena_alloc.dupeZ(u8, arg));
+            try command_args.append(arena_alloc, try arena_alloc.dupeSentinel(u8, arg, 0));
             continue;
         }
 
@@ -57,17 +57,19 @@ pub fn parse(arena_alloc: Allocator, arguments: []const [:0]const u8) !Overrides
         }
 
         if (std.mem.cutPrefix(u8, arg, "--working-directory=")) |value| {
-            result.working_directory = try arena_alloc.dupeZ(
+            result.working_directory = try arena_alloc.dupeSentinel(
                 u8,
                 std.mem.trim(u8, value, &std.ascii.whitespace),
+                0,
             );
             continue;
         }
 
         if (std.mem.cutPrefix(u8, arg, "--title=")) |value| {
-            result.title = try arena_alloc.dupeZ(
+            result.title = try arena_alloc.dupeSentinel(
                 u8,
                 std.mem.trim(u8, value, &std.ascii.whitespace),
+                0,
             );
         }
     }

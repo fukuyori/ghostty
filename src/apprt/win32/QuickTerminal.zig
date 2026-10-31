@@ -238,7 +238,7 @@ fn place(app: *App, window: *Window) bool {
         rect.bottom - rect.top,
         .{ .NOACTIVATE = 1 },
     ) == 0) {
-        log.warn("SetWindowPos(quick terminal) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("SetWindowPos(quick terminal) failed: err={d}", .{@backingInt(win32.GetLastError())});
         return false;
     }
     return true;
@@ -251,7 +251,7 @@ fn selectMonitor(screen: Config.QuickTerminalScreen) ?win32.HMONITOR {
             if (win32.GetCursorPos(&point) != 0) {
                 return win32.MonitorFromPoint(point, win32.MONITOR_DEFAULTTONEAREST);
             }
-            log.warn("GetCursorPos failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.warn("GetCursorPos failed: err={d}", .{@backingInt(win32.GetLastError())});
         },
         // Windows has no menu bar screen; follow Linux and use the main one.
         .main, .@"macos-menu-bar" => {},

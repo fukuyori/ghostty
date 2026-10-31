@@ -85,7 +85,7 @@ fn runInner(alloc: Allocator, stderr: *std.Io.Writer) !u8 {
     defer alloc.free(path);
 
     // We don't currently support Windows because we use the exec syscall.
-    if (comptime builtin.os.tag == .windows) {
+    if (comptime builtin.target.os.tag == .windows) {
         try stderr.print(
             brand_text.cli(
                 \\The `ghostty +edit-config` command is not supported on Windows.

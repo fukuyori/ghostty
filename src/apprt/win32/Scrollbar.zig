@@ -52,7 +52,7 @@ pub fn deinit(self: *Self) void {
     _ = win32.KillTimer(self.hwnd, timer_id);
     if (self.dragging) _ = win32.ReleaseCapture();
     if (win32.DestroyWindow(self.hwnd) == 0) {
-        log.warn("DestroyWindow(scrollbar) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("DestroyWindow(scrollbar) failed: err={d}", .{@backingInt(win32.GetLastError())});
     }
 }
 
@@ -97,7 +97,7 @@ pub fn layout(self: *Self, x: i32, y: i32, pane_width: i32, height: i32, visible
     var screen: win32.POINT = .{ .x = x + pane_width - bar_width, .y = y };
     if (win32.ClientToScreen(self.surface.windowHwnd(), &screen) == 0) return;
     if (win32.SetWindowPos(self.hwnd, null, screen.x, screen.y, bar_width, height, .{ .NOACTIVATE = 1 }) == 0) {
-        log.warn("SetWindowPos(scrollbar) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("SetWindowPos(scrollbar) failed: err={d}", .{@backingInt(win32.GetLastError())});
         return;
     }
     if (changed and self.shown) self.draw();
@@ -227,7 +227,7 @@ fn draw(self: *Self) void {
     var origin: win32.POINT = .{ .x = 0, .y = 0 };
     var blend: win32.BLENDFUNCTION = .{ .BlendOp = 0, .BlendFlags = 0, .SourceConstantAlpha = 255, .AlphaFormat = 1 };
     if (win32.UpdateLayeredWindow(self.hwnd, null, &destination, &size, memory, &origin, 0, &blend, .ALPHA) == 0) {
-        log.warn("UpdateLayeredWindow(scrollbar) failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("UpdateLayeredWindow(scrollbar) failed: err={d}", .{@backingInt(win32.GetLastError())});
     }
 }
 

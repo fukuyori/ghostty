@@ -139,22 +139,22 @@ pub fn bind(self: *const Self, context: *win32.ID3D11DeviceContext) void {
 fn inputElements(
     comptime T: type,
     step_fn: Options.StepFunction,
-) [@typeInfo(T).@"struct".fields.len]win32.D3D11_INPUT_ELEMENT_DESC {
-    const fields = @typeInfo(T).@"struct".fields;
-    var result: [fields.len]win32.D3D11_INPUT_ELEMENT_DESC = undefined;
+) [@typeInfo(T).@"struct".field_names.len]win32.D3D11_INPUT_ELEMENT_DESC {
+    const names = @typeInfo(T).@"struct".field_names;
+    var result: [names.len]win32.D3D11_INPUT_ELEMENT_DESC = undefined;
 
     const input_class, const step_rate: u32 = switch (step_fn) {
         .per_vertex => .{ win32.D3D11_INPUT_PER_VERTEX_DATA, 0 },
         .per_instance => .{ win32.D3D11_INPUT_PER_INSTANCE_DATA, 1 },
     };
 
-    inline for (fields, 0..) |field, i| {
+    inline for (names, @typeInfo(T).@"struct".field_types, 0..) |field_name, field_type, i| {
         result[i] = .{
             .SemanticName = "ATTR",
             .SemanticIndex = i,
-            .Format = inputFormat(field.type),
+            .Format = inputFormat(field_type),
             .InputSlot = 0,
-            .AlignedByteOffset = @offsetOf(T, field.name),
+            .AlignedByteOffset = @offsetOf(T, field_name),
             .InputSlotClass = input_class,
             .InstanceDataStepRate = step_rate,
         };
@@ -244,7 +244,7 @@ fn blendDescription(enabled: bool) win32.D3D11_BLEND_DESC {
         .SrcBlendAlpha = win32.D3D11_BLEND_ONE,
         .DestBlendAlpha = win32.D3D11_BLEND_INV_SRC_ALPHA,
         .BlendOpAlpha = win32.D3D11_BLEND_OP_ADD,
-        .RenderTargetWriteMask = @intFromEnum(win32.D3D11_COLOR_WRITE_ENABLE_ALL),
+        .RenderTargetWriteMask = @backingInt(win32.D3D11_COLOR_WRITE_ENABLE_ALL),
     };
     return desc;
 }

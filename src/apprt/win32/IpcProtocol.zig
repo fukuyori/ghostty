@@ -85,7 +85,7 @@ pub fn encodeRequest(alloc: Allocator, request: Request) ![]u8 {
     errdefer result.deinit(alloc);
     try result.appendSlice(alloc, magic);
     try appendInt(u16, alloc, &result, version);
-    try appendInt(u16, alloc, &result, @intFromEnum(request.action));
+    try appendInt(u16, alloc, &result, @backingInt(request.action));
     try appendInt(u64, alloc, &result, request.surface_id);
     try appendInt(u32, alloc, &result, @intCast(request.arguments.len));
     for (request.arguments) |argument| {
@@ -119,7 +119,7 @@ pub fn decodeRequest(arena_alloc: Allocator, payload: []const u8) !Request {
         const value = payload[cursor .. cursor + len];
         if (!std.unicode.utf8ValidateSlice(value)) return error.InvalidUtf8;
         if (std.mem.indexOfScalar(u8, value, 0) != null) return error.EmbeddedNul;
-        argument.* = try arena_alloc.dupeZ(u8, value);
+        argument.* = try arena_alloc.dupeSentinel(u8, value, 0);
         cursor += len;
     }
     if (cursor != payload.len) return error.TrailingData;
@@ -135,7 +135,7 @@ pub fn encodeResponse(alloc: Allocator, response: ResponsePayload) ![]u8 {
     var result: std.ArrayList(u8) = .empty;
     errdefer result.deinit(alloc);
     try appendInt(u16, alloc, &result, response.protocol_version);
-    try appendInt(u16, alloc, &result, @intFromEnum(response.status));
+    try appendInt(u16, alloc, &result, @backingInt(response.status));
     try appendInt(u32, alloc, &result, @intCast(response.message.len));
     try result.appendSlice(alloc, response.message);
     if (result.items.len > max_payload_size) return error.PayloadTooLarge;
@@ -181,19 +181,19 @@ fn readInt(comptime T: type, payload: []const u8, cursor: *usize) !T {
 
 fn parseAction(value: u16) ?Action {
     return switch (value) {
-        @intFromEnum(Action.new_tab) => .new_tab,
+        @backingInt(Action.new_tab) => .new_tab,
         else => null,
     };
 }
 
 fn parseStatus(value: u16) ?Status {
     return switch (value) {
-        @intFromEnum(Status.success) => .success,
-        @intFromEnum(Status.target_fallback) => .target_fallback,
-        @intFromEnum(Status.invalid_request) => .invalid_request,
-        @intFromEnum(Status.unsupported_version) => .unsupported_version,
-        @intFromEnum(Status.internal_error) => .internal_error,
-        @intFromEnum(Status.timeout) => .timeout,
+        @backingInt(Status.success) => .success,
+        @backingInt(Status.target_fallback) => .target_fallback,
+        @backingInt(Status.invalid_request) => .invalid_request,
+        @backingInt(Status.unsupported_version) => .unsupported_version,
+        @backingInt(Status.internal_error) => .internal_error,
+        @backingInt(Status.timeout) => .timeout,
         else => null,
     };
 }
@@ -345,7 +345,7 @@ test "Win32 IPC response round trip" {
     defer testing.allocator.free(encoded);
     const decoded = try decodeResponse(encoded);
     try testing.expectEqual(Status.target_fallback, decoded.status);
-    try testing.expectEqual(@intFromEnum(Status.target_fallback), decoded.status_code);
+    try testing.expectEqual(@backingInt(Status.target_fallback), decoded.status_code);
     try testing.expectEqualStrings("focused surface used", decoded.message);
 }
 

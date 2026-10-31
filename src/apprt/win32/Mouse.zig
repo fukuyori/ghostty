@@ -150,7 +150,7 @@ pub fn trackMouseLeave(surface: *Surface, hwnd: win32.HWND) void {
         .dwHoverTime = 0,
     };
     if (win32.TrackMouseEvent(&event) == 0) {
-        log.warn("TrackMouseEvent failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("TrackMouseEvent failed: err={d}", .{@backingInt(win32.GetLastError())});
         return;
     }
     surface.tracking_mouse_leave = true;
@@ -203,7 +203,7 @@ pub fn handleMouseButton(
         win32.GetCapture() == hwnd)
     {
         if (win32.ReleaseCapture() == 0) {
-            log.warn("ReleaseCapture failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+            log.warn("ReleaseCapture failed: err={d}", .{@backingInt(win32.GetLastError())});
         }
     }
 
@@ -257,7 +257,7 @@ fn updateWheelCursorPosition(
         .y = @intFromFloat(screen_pos.y),
     };
     if (win32.ScreenToClient(hwnd, &point) == 0) {
-        log.warn("ScreenToClient failed: err={d}", .{@intFromEnum(win32.GetLastError())});
+        log.warn("ScreenToClient failed: err={d}", .{@backingInt(win32.GetLastError())});
         return;
     }
     updateCursorPosition(surface, .{

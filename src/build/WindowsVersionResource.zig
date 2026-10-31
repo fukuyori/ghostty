@@ -19,7 +19,7 @@ pub fn add(
     b: *std.Build,
     module: *std.Build.Module,
     version: std.SemanticVersion,
-    optimize: std.builtin.OptimizeMode,
+    optimize: std.lang.Optimize,
     names: Names,
 ) !void {
     // The resource compiler's cache does not follow the files that
@@ -28,10 +28,11 @@ pub fn add(
     // recompile the resource.
     var hasher = std.hash.Wyhash.init(0);
     for ([_][]const u8{ "dist/windows/ghostty.ico", "dist/windows/ghostty.manifest" }) |path| {
-        const data = try b.build_root.handle.readFileAlloc(b.graph.io, path, b.allocator, .limited(16 * 1024 * 1024));
+        b.dependOnFileContents(b.path(path));
+        const data = try b.root.root_dir.handle.readFileAlloc(b.graph.io, try std.fs.path.join(b.allocator, &.{ b.root.sub_path, path }), b.allocator, .limited(16 * 1024 * 1024));
         hasher.update(data);
     }
-    const contents = try std.fmt.allocPrint(b.allocator, "{s}// embedded files {x:0>16}\n", .{
+    const contents = try b.allocator.print("{s}// embedded files {x:0>16}\n", .{
         try header(b.allocator, version, optimize, names),
         hasher.final(),
     });
@@ -49,7 +50,7 @@ pub fn add(
 fn header(
     allocator: std.mem.Allocator,
     version: std.SemanticVersion,
-    optimize: std.builtin.OptimizeMode,
+    optimize: std.lang.Optimize,
     names: Names,
 ) ![]u8 {
     if (version.major > max_component or
@@ -60,8 +61,7 @@ fn header(
     }
     const build = try buildComponent(version);
 
-    return std.fmt.allocPrint(
-        allocator,
+    return allocator.print(
         \\#define GHOSTTY_VERSION_MAJOR {d}
         \\#define GHOSTTY_VERSION_MINOR {d}
         \\#define GHOSTTY_VERSION_PATCH {d}
@@ -78,7 +78,7 @@ fn header(
             version.minor,
             version.patch,
             build,
-            @intFromBool(optimize == .Debug),
+            @intFromBool(optimize == .debug),
             version,
             names.display_name,
             names.display_name,
@@ -111,7 +111,7 @@ test "header preserves a stable semantic version" {
     const contents = try header(
         allocator,
         try std.SemanticVersion.parse("1.2.3"),
-        .ReleaseFast,
+        .fast,
         test_names,
     );
     defer allocator.free(contents);
@@ -137,7 +137,7 @@ test "header preserves prerelease and build metadata" {
     const contents = try header(
         allocator,
         try std.SemanticVersion.parse("1.3.2-windows-+abcdef0"),
-        .Debug,
+        .debug,
         test_names,
     );
     defer allocator.free(contents);
@@ -154,7 +154,7 @@ test "header maps the preview sequence to the fourth component" {
     const contents = try header(
         allocator,
         try std.SemanticVersion.parse("1.3.2-windows.4"),
-        .ReleaseFast,
+        .fast,
         test_names,
     );
     defer allocator.free(contents);
@@ -206,6 +206,6 @@ test "header rejects components that do not fit VERSIONINFO" {
     const version = try std.SemanticVersion.parse("65536.0.0");
     try std.testing.expectError(
         error.WindowsVersionComponentTooLarge,
-        header(std.testing.allocator, version, .Debug, test_names),
+        header(std.testing.allocator, version, .debug, test_names),
     );
 }
