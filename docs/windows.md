@@ -9,8 +9,10 @@ the verification results of each version. There are two distribution forms: a
 portable executable produced by the Release build script, and an installer
 created with Inno Setup.
 
-See the [Windows technical specification](windows-technical-spec.md)
-(Japanese) for the implementation overview and input handling details.
+See the [Windows technical specification](windows-technical-spec.md) for the
+implementation overview as of 2026-10-16, before the rename, and the
+[fork comparison](windows-fork-comparison.md) (Japanese) for a comparison with
+other Windows ports.
 
 ## Build and Launch
 
@@ -330,6 +332,25 @@ Two shell integration features cover this; set them with
 ```
 shell-integration-features = ssh-terminfo,ssh-env
 ```
+
+On Windows these features work through `gooztty +ssh`, which opens the
+session in a new console window instead of the current pane (#72; see Known
+Limitations). The bash, zsh, fish, elvish and nushell integrations define an
+`ssh` function that forwards to `gooztty +ssh` when an `ssh-*` feature is
+enabled; the PowerShell integration does not wrap `ssh`. To stay in the
+current pane, run plain `ssh` (from bash or zsh, `command ssh` bypasses the
+function) after installing the terminfo entry on the remote host once. The
+entry's source ships as `share\terminfo\gooztty.terminfo`; from PowerShell
+with the default per-user install:
+
+```
+Get-Content "$env:LOCALAPPDATA\Programs\Gooztty\share\terminfo\gooztty.terminfo" |
+  ssh user@host 'mkdir -p ~/.terminfo && tic -x -'
+```
+
+For a portable build, use the `share\terminfo` directory of the extracted
+folder. The remote host needs `tic`. Without the entry, set
+`TERM=xterm-256color` for the session instead.
 
 ## Startup Diagnostic Log
 
@@ -1017,21 +1038,15 @@ OSC 9, OSC 777, and BEL reach Gooztty only through the bundled
 
 ## Known Limitations
 
-- Basic operation has been verified on Windows 11, but Windows 10 is not
-  verified.
-- Keyboard layouts other than the Japanese layout are not verified on real
-  hardware.
-- Moving between 96 DPI and 120 DPI monitors has been automatically verified
-  on real hardware, but verification on real hardware at 144 DPI and 192 DPI
-  is not complete.
-- Restoring from maximized and minimized, and the 20-iteration soak baseline
-  test, are automatically verified. Controlled recreation of GPU resources and
-  terminal session preservation are automatically verified, but recovery from
-  an actual GPU device loss or driver failure, a resume test that actually
-  puts the PC to sleep, and multi-hour continuous tests are not verified. The
-  controlled resume test using Windows suspend and resume notifications is
-  verified. D3D11 present HRESULTs and device removal reasons are recorded in
-  the diagnostic log.
+- Operation is verified on Windows 11, including 144 and 192 DPI, high
+  contrast, Narrator, real sleep and resume, and the Japanese and German
+  keyboard layouts. Windows 10 is not a support target.
+- Restoring from maximized and minimized, the 20-iteration soak baseline,
+  controlled recreation of GPU resources with terminal sessions preserved,
+  and the controlled resume test are automatically verified. Recovery from an
+  actual GPU device loss or driver failure and multi-hour continuous use are
+  not verified (#10, #9). D3D11 present HRESULTs and device removal reasons
+  are recorded in the diagnostic log.
 - The terminfo database is compiled only when `tic` is available on the build
   machine. The ncurses build used by MSYS2, Git Bash, and Cygwin reads the
   Windows-style `TERMINFO` path Gooztty sets only from a working directory on
@@ -1050,6 +1065,14 @@ OSC 9, OSC 777, and BEL reach Gooztty only through the bundled
   outside macOS and returns early on Windows even when enabled at build time,
   so no crash reports are written and `gooztty +crash-report` lists nothing.
   Use the startup diagnostic log described above instead.
+- `gooztty +ssh` run from a shell opens the SSH session in a new console
+  window (Windows Terminal by default) instead of the current pane (#72).
+  The likely cause is that the GUI executable has no console for `ssh` to
+  inherit; this is not confirmed. Shell integration's `ssh` wrapper in bash,
+  zsh, fish, elvish and nushell goes through `+ssh` and is affected too. Use
+  plain `ssh` inside Gooztty; install the `xterm-gooztty` terminfo entry on
+  the remote host once as described in "Remote hosts over SSH", or let
+  `+ssh` install it once and close the extra window.
 
 For details on the implementation status and verification items, see the
 [Windows production-readiness roadmap](windows-roadmap.md).

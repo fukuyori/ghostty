@@ -1,6 +1,7 @@
 # Gooztty Handoff
 
 - Written: 2026-10-25, after `1.3.2-windows.17`
+- Updated: 2026-11-01, at the N17 candidate `1.4.1-windows.1`
 - Audience: whoever continues this work, people or coding agents
 - Read with: [`AGENTS.md`](../AGENTS.md) (rules and commands), the
   [roadmap](windows-roadmap.md) (status and open work), the
@@ -14,14 +15,14 @@ repository and GitHub before relying on any of it.
 
 ## 1. Current State
 
-| Item | State on 2026-10-25 |
+| Item | State on 2026-11-01 |
 |---|---|
 | Product | Gooztty, a native Windows terminal built from Ghostty. `1.3.2-windows.17` is the first version under this name; `1.3.2-windows.16` and earlier used the name Ghostty |
 | Default branch | `gooztty` |
 | `windows` | Windows port in step with upstream; merged into `gooztty` after every change |
-| `main` | Mirror of upstream `ghostty-org/ghostty`, synchronized through `b58ef1d67`, the last upstream commit that builds with Zig 0.16 |
-| Toolchain | Zig 0.16.0. Upstream moved to Zig 0.17 in `3d07ef9e2`; the migration is #50 |
-| Version | `dist/windows/version.txt` holds `1.3.2-windows.17` on `gooztty`; `windows` keeps the value it had at the cutover |
+| `main` | Mirror of upstream `ghostty-org/ghostty`, synchronized through `fbed180a5`, stage C of the November plan |
+| Toolchain | Zig 0.17.0 (`minimum_zig_version` in `build.zig.zon`). The migration, #50, closed on 2026-10-31 |
+| Version | `dist/windows/version.txt` holds `1.4.1-windows.1` on `gooztty`; `windows` keeps the value it had at the cutover |
 | Artifacts | `gooztty-<version>-x64-setup.exe` (Inno Setup) and `gooztty-<version>-x64-portable.zip`, both signed by the owner |
 | Rename | Complete; #31 is closed. `windows..gooztty` differs in code only in `src/brand.zig` |
 
@@ -112,8 +113,9 @@ them run an old build (see #69).
 The [November 2026 plan, revision 3](windows-plan-2026-11.md) provides the
 seven-phase calendar and acceptance criteria: staged upstream integration
 through `fbed180a5`, Gooztty integration at each stage, final audit and
-acceptance. Thirteen work items are tracked under `Gooztty > 2026-11` in tque;
-six deferred items are under `2026-12以降・候補`.
+acceptance. After the 2026-11-01 revision, eighteen work items are tracked
+under `Gooztty > 2026-11` in tque; one deferred item (N13) remains under
+`2026-12以降・候補`.
 It takes precedence over the suggested order below. The historical state
 in this handoff does not establish completion of any November work.
 
@@ -131,25 +133,28 @@ The owner accepted physical IME partial commit and focus resume on both products
 N05 is complete; see the [fixed-A migration record](windows-november-a-migration.md).
 main is at fixed A; Windows merged it at c6669ed65 and Gooztty integrated Windows at f2b98c662.
 Windows D3D11 stage checks passed except the baseline config owner-close failure;
-The Gooztty snapshot passed the same checks, with the same known config failure. OpenGL GUI checks passed; supplemental default builds match the tested binary hashes. Both merge commits are recorded in the migration ledger. Additional builds, Win32 tests, and resource checks at both committed SHAs passed. Claude Code found no defect requiring a fix; its notes and evidence timing corrections are recorded in windows-november-a-review-response.md. No push has been made.
+The Gooztty snapshot passed the same checks, with the same known config failure. OpenGL GUI checks passed; supplemental default builds match the tested binary hashes. Both merge commits are recorded in the migration ledger. Additional builds, Win32 tests, and resource checks at both committed SHAs passed. Claude Code found no defect requiring a fix; its notes and evidence timing corrections are recorded in
+[windows-november-a-review-response.md](windows-november-a-review-response.md).
+
+P0 investigation is complete; see [the investigation record](windows-november-p0-investigation.md). The #66 test closed a non-owner window; closing the actual owner passed on both products. The owner reported that taskbar close redirected to the dialog rather than closing the parent. The manual run timed out and remains a failed closure test. The test correction is still pending. N19 passed eight fixed-A runs without reproducing #69; the issue remains open.
+
+N07 was also part of P0 and has been completed as an options review, not a selected implementation; see [the SSH options review](windows-november-ssh-options.md). P0's six children and their parent are done. N15 is complete at Windows `33709d14e` and Gooztty `d9cbeef`. N16 is complete at Windows `06d12a298` and Gooztty `281c300ae`; see the [B migration record](windows-november-b-migration.md) and [C migration record](windows-november-c-migration.md) for stage results and known config failures. The config owner assertion and the validate-config stdout-pipe FileTooBig issue remain open; #72's separate-console behavior also remains unresolved. N17 fixed candidate SHA `0a7cba0cbdaa4fc20988ed637e7b0b1582836332` at version `1.4.1-windows.1` passed normal/hook Release build and identity/resource checks in a clean worktree; see [the candidate ledger](windows-november-final-candidate.json) and Section 7. N06 was accepted on that candidate on owner reports (Section 7). On 2026-11-01 the owner decided to bring N08 (option 3), N09, N10, N12 and N18 into November and to rebuild the candidate, so N17 and N06 are repeated on the new candidate before N11 and N18. Do not start N08 without an owner decision.
 
 Suggested order; details are in the issues and in roadmap Section 7.
 
-1. **#72** `+ssh` opens a new console window. Options: attach to the parent
-   console, a console helper executable for CLI actions, or document plain
-   `ssh`.
+1. **#72** `+ssh` opens a new console window. For November the owner chose
+   to document plain `ssh` (N08, option 3); attaching to the parent console
+   or a console helper executable remain options for a later fix.
 2. **#69** Intermittent parity pointer-hide and scrollbar timeouts remain
    (N19). N01 completed on 2026-10-31: the old default executable was
    removed; fresh-build parity passed in both cwd modes on Windows and
    Gooztty. See the [preflight record](windows-november-preflight.md).
-3. **#50** Zig 0.17 migration and the upstream commits after `b58ef1d67`,
-   on `windows`, then merged into `gooztty`.
-4. **#51-#65** Configuration options not implemented on Windows (see
+3. **#51-#65** Configuration options not implemented on Windows (see
    [configuration support](windows-config-support.md)).
-5. **#9, #10** Several-hour soak and real GPU device loss.
-6. **#66** Configuration diagnostic dialog outlives its owner in the
+4. **#9, #10** Several-hour soak and real GPU device loss.
+5. **#66** Configuration diagnostic dialog outlives its owner in the
    regression test.
-7. Other limitations and design questions: #11, #13, #14, #18, #25-#30, #44.
+6. Other limitations and design questions: #11, #13, #14, #18, #25-#30, #44.
 
 ## 6. Where Things Are
 
@@ -164,16 +169,45 @@ Suggested order; details are in the issues and in roadmap Section 7.
 | `scripts/*.ps1` | Release, installer, ZIP, diagnostics and regression scripts |
 | `docs/windows-port-log.md` | Dated evidence, newest first |
 
+## 7. Handoff update (2026-11-01)
 
+### Current candidate and worktree boundaries
 
+- Final candidate: detached worktree `.worktrees/n17-candidate-0a7cba0`, source SHA `0a7cba0cbdaa4fc20988ed637e7b0b1582836332`, version `1.4.1-windows.1`. Paths in this section are relative to that worktree. Candidate ledger: [`windows-november-final-candidate.json`](windows-november-final-candidate.json).
+  - Normal Release executable: `zig-out/n17-candidate-normal-ledger/bin/gooztty.exe`, SHA-256 `57B87BF2CB9265037AE3C3BE7E48E71DC7E318D523F8D8056C643B208D156573`.
+  - Hook Release executable: `zig-out/n17-candidate-hooks-ledger/bin/gooztty.exe`, SHA-256 `C16A94BC10B34C5DCBC609DC6B82FEB6551C38E7D0A4C5C0652AEDABEF4FC8B5`. Never distribute it.
+- The candidate worktree was clean after verification. The primary `gooztty` worktree has owner changes in several documents and generated review/progress records. Preserve them; do not reset or clean either worktree. The owner's installed Gooztty process is separate from the candidate and must not be closed.
 
-P0 investigation is complete; see [the investigation record](windows-november-p0-investigation.md). The #66 test closed a non-owner window; closing the actual owner passed on both products. The owner reported that taskbar close redirected to the dialog rather than closing the parent. The manual run timed out and remains a failed closure test. The test correction is still pending. N19 passed eight fixed-A runs without reproducing #69; the issue remains open. N15 resumes after this bounded investigation.
+### N06 acceptance evidence
 
+- Debug build and full Zig tests passed (4,259 passed, 67 skipped); normal and hook Win32 suites passed (197 and 196 respectively, one skipped each). Normal GUI/window-state, lifecycle (37/37 with four inspected captures), controlled GPU recovery and power notification checks passed. See candidate worktree `zig-out/logs` and `zig-out/test-fixtures` for the dated evidence.
+- `verify-windows-ime.ps1` passed all seven steps. Physical Japanese IME partial commit, focus departure/return, and composition placement during asynchronous output were exercised on the fixed normal Release. The partial-commit and focus sessions exited 0. The focus probe's trailing full-width space was inserted by the test probe after focus returned. The asynchronous-output view was visually inspected but no screenshot file was saved.
+- Owner confirmed the candidate's `mouse-hide-while-typing = true` behavior had no problem: typing hid the pointer and pointer movement restored it. The dedicated setting is in `zig-out/test-fixtures/mouse-hide-user-check/config`.
+- The owner confirmed mixed-DPI behavior on the candidate with four monitors at 100% (main), 125% (second), 150% (third) and 100% (fourth); the check used the first three monitors and ended normally. An earlier machine query found all four monitors at 96 DPI; that query predates the scale change and is not the mixed-DPI evidence.
+- The owner reported no problem after the #66 confirmation instructions. The #66 command's final JSON/result was not provided.
+- Cwd-inheritance-disabled parity was attempted three times and stopped at `typing hides pointer`. Evidence: `zig-out/logs/parity-20261031-203609-071.json`, `parity-20261031-203649-316.json`, and `parity-20261031-203715-666.json`. Retain these as the failed automated attempts. The script synthesizes text with `WM_CHAR` plus key-up messages; the owner's physical pointer check passed. Treat the pointer timeout as an automation/manual discrepancy, not a confirmed product regression.
+- The owner reported that the remainder of the disabled-cwd parity checks after `typing hides pointer` (pointer restore, OSC 22/OSC 7, new tab, split and new window cwd, per-pane search, clean exit; `scripts/test-windows-parity.ps1` lines 275-317) was tested and completed. How it was run, the executable used, and any result file were not recorded; no passing `parity-*.json` for the disabled mode is in the candidate's `zig-out/logs`.
+- Config diagnostics reported 7/8 with `OwnerCloseWithOtherWindow` failing `Stale diagnostic survived its owner` (`zig-out/logs/config-diagnostics-20261031-203751-125.json`). The P0 investigation recorded that this fixture closes a non-owner; closing the actual owner passed on both products. The owner separately reported no problem in the instructed #66 check. Keep the automated failure and owner report distinct; do not present it as a newly confirmed product defect or close #66 based only on the fixture result.
+- N06 was accepted on candidate `0a7cba0` on the owner's reports above. Keep each claim within its evidence scope: the mixed-DPI and parity-remainder results are owner-reported, and the automated parity failures remain on record. Because the candidate is being rebuilt (see "Plan revision" below), N06 is reopened and must be repeated on the new candidate.
 
-N07 was also part of P0 and has now been completed as an options review, not a selected implementation. See windows-november-ssh-options.md. P0's six children and its parent are done. N15 is complete at Windows 33709d14e and Gooztty d9cbeef; both snapshot stage checks are complete except the known config assertion (7/8 on each). Both lifecycle runs passed 37 cases with four inspected captures and no leftovers. The actual merges and committed build/Win32/version checks passed. N16 is now eligible but has not started. The preview version is aligned to 1.4.0-windows.1; final acceptance remains later work. See windows-november-b-migration.md and windows-november-b-results.json. Do not start N08 without an owner decision.
+### N11 soak attempt and restart point
 
+- The 180-minute run was attempted on the fixed normal Release with `-DurationMinutes 180`. It stopped in the first iteration after the window-state driver returned, when `scripts/test-windows-soak.ps1` passed an empty `$baselineTestStateEntries` value to `Compare-Object` (`ReferenceObject` null, line 269). Checkpoint: `zig-out/logs/n11-20261031-2117.json`. It records `Completed=false`, one failed attempt and zero passed runs. This is not soak acceptance evidence; retain it as the failed attempt.
+- At the time, the candidate's `zig-out/test-state` directory existed but was empty. A PowerShell `if` statement unrolls an empty array to `$null`, so the baseline became `$null`. Do not overwrite the failed checkpoint; use a new summary path.
+- The script is fixed in the `windows` worktree (`.worktrees/windows-nov`), not yet committed: both the baseline and the per-run entry lists now wrap the whole `if` in `@(...)`. The fix was checked for a missing, empty, grown and shrunk directory, and one `-Iterations 1` soak against the `0a7cba0` normal executable completed with one passed run, no failures and no leftover process. That single iteration is not soak acceptance evidence.
+- The 180-minute run is to be made on the rebuilt candidate: `scripts/test-windows-soak.ps1 -Executable <absolute new candidate exe> -DurationMinutes 180`. Any failed iteration or incomplete duration means N11 remains open. The script runs dedicated test processes; it must not target the owner's installed Gooztty process.
 
+### Plan revision (2026-11-01)
 
+The owner decided to bring the December candidates that fit into November; see Section 10 of the [November plan](windows-plan-2026-11.md).
 
-N16 is merged at Windows `06d12a298` and Gooztty `281c300ae`. Both lifecycle suites passed 37 cases with four inspected images. The config owner assertion and validate-config stdout-pipe FileTooBig issue remain open. See windows-november-c-migration.md.
+- New phase P3A (tque #247): N12 (#10 real GPU fault procedure), N09 (#52 light/dark theme following), N10 (#57 font size inheritance) and N08 (#72, option 3: document `+ssh`'s separate console as a known limitation and describe plain `ssh`). N18 moved to P5. N13 stays in the December candidates.
+- N09/N10 are Win32 code changes on `windows`. To include them and the soak fix, the candidate is rebuilt: P4 (#238), N17 (#244) and N06 (#225) are reopened, and N17 now depends on N08/N09/N10. The `0a7cba0` records stay as the earlier candidate.
 
+### Immediate continuation
+
+1. N12 is done: see the [GPU fault procedure record](windows-november-gpu-fault-plan.md). Whether N13 may run on this machine is an owner decision.
+2. On `windows`: implement and verify N09 and N10, and commit them with the soak fix and a port-log entry when the owner asks.
+3. N08: document the `+ssh` limitation and plain `ssh` use in `docs/windows.md`.
+4. Merge `windows` into `gooztty`, then rebuild and fix the candidate (N17), repeat N06, run N11 for 180 minutes, then N18 with owner-signed artifacts.
+5. Do not commit, push, or change a candidate without an explicit request.

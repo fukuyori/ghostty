@@ -1,0 +1,138 @@
+{
+  "Recorded": "2026-10-31T20:19:01.0977314+09:00",
+  "Task": "N17 (#244)",
+  "Status": "Candidate Release builds fixed; N17 build and identity checks complete",
+  "Candidate": {
+    "Product": "Gooztty",
+    "Branch": "gooztty",
+    "Commit": "0a7cba0cbdaa4fc20988ed637e7b0b1582836332",
+    "Worktree": ".worktrees/n17-candidate-0a7cba0",
+    "CleanTrackedAndUntrackedSourceAfterBuild": true,
+    "PushedToOrigin": false,
+    "OriginGoozttyHeadAtBuild": "5ee9860ffb92b6ce0aceb48187b93e0058eac9a9"
+  },
+  "VersionDecision": {
+    "CoreVersion": "1.4.1-dev",
+    "WindowsPreview": "1.4.1-windows.1",
+    "NumericBaseMatches": true,
+    "Sequence": 1,
+    "ExistingPreviewTags": [],
+    "LatestPublishedRelease": "v1.3.2-windows.17",
+    "Existing141PreviewRelease": false
+  },
+  "Toolchain": {
+    "ZigVersion": "0.17.0",
+    "ZigPath": "zig-out/toolchains/zig-x86_64-windows-0.17.0/zig.exe",
+    "ZigSha256": "F54B14F02A4D7D8AC62A94A0663486EB166BBA3745D85B466238C1B93E723D46",
+    "ZIG_GLOBAL_CACHE_DIR": "zig-out/n03-clean-cache",
+    "ZIG_LOCAL_PKG_DIR": "zig-out/n03-clean-pkg-c",
+    "CPU": "baseline",
+    "Optimize": "fast",
+    "EmitDocs": false
+  },
+  "Dependencies": {
+    "BuildZonSha256": "011E4124638AE225A5676AEBE798327E16A7BDA0CA477E7E0E1D7AD755C58C06",
+    "BuildZonJsonSha256": "4D0754C98140E9670CFF73AC0D0243E576B32065CED82F0350CBCE7E1FE29844",
+    "DependencyInventory": "docs/windows-november-dependencies.json",
+    "DependencyInventorySha256": "447B30823E0B3FE45B44635387E89B017328A4DDF30DA256DB9BED58B3ACE165"
+  },
+  "ConPTY": {
+    "Version": "1.24.260710001",
+    "PackageSha256": "175640566A3B59C4B132070EE96C2C77E5AB7EDD2E92732A5EB3610BBF63D90E",
+    "ExtractedDllSha256": "39FBA2713E2495117B1591AE8C32A3B904BEA7AA66069CF7815E2844C76D75D8",
+    "ExtractedOpenConsoleSha256": "B7FD936C2668B87B9ECF7B3366DC6568AFC1C6F981874CBA3E955A1C35CF8160"
+  },
+  "Brand": {
+    "GeneratedBrandJsonSha256": "0FDD4AE5A37CFC49727BB3C5FF8FF2AFB0774A56CB4C7EE7768E440824D3831B",
+    "DisplayName": "Gooztty",
+    "Identifier": "gooztty",
+    "EnvironmentPrefix": "GOOZTTY_",
+    "Executable": "gooztty.exe",
+    "Config": "gooztty/config.gooztty",
+    "Terminfo": "xterm-gooztty",
+    "TermProgram": "gooztty",
+    "AppUserModelID": "fukuyori.Gooztty",
+    "InstallerAppID": "{752F6F8F-9925-490F-9D0F-CFC2FE87D588}"
+  },
+  "Builds": [
+    {
+      "Variant": "normal Release",
+      "Command": "scripts/build-release.ps1 -OutputDirectory zig-out/n17-candidate-normal-ledger",
+      "ExitCode": 0,
+      "Log": ".worktrees/n17-candidate-0a7cba0/zig-out/logs/n17-candidate-normal-release.log",
+      "LogSha256": "B349BF2918DB2B96A13659786B7052391DB874E9EC6905F63EAF034DE56F84A3",
+      "Prefix": "zig-out/n17-candidate-normal-ledger",
+      "Executable": "bin/gooztty.exe",
+      "ExecutableBytes": 27044352,
+      "ExecutableSha256": "57B87BF2CB9265037AE3C3BE7E48E71DC7E318D523F8D8056C643B208D156573",
+      "FileVersion": "1.4.1-windows.1",
+      "ProductVersion": "1.4.1-windows.1",
+      "NumericVersion": "1.4.1.1",
+      "PE": "x64 WindowsGui; Debug=false; large and small icons present",
+      "ShellIntegrationFiles": 8,
+      "ThemeFiles": 819,
+      "CompiledTerminfo": true,
+      "ShareFileCount": 843,
+      "ShareManifest": ".worktrees/n17-candidate-0a7cba0/zig-out/logs/n17-candidate-share-normal.json",
+      "ShareManifestSha256": "F3E14AE2939DF543E8B35D8A52D85C7A8E7C424556A99CCCDD72BD61C206BEA1",
+      "TestHooks": false
+    },
+    {
+      "Variant": "hook Release",
+      "Command": "scripts/build-release.ps1 -TestHooks -OutputDirectory zig-out/n17-candidate-hooks-ledger",
+      "ExitCode": 0,
+      "Log": ".worktrees/n17-candidate-0a7cba0/zig-out/logs/n17-candidate-hook-release.log",
+      "LogSha256": "CDF6629378391717066A16097CC75E77E8BA66B09809B860F383BC6A9E3438F2",
+      "Prefix": "zig-out/n17-candidate-hooks-ledger",
+      "Executable": "bin/gooztty.exe",
+      "ExecutableBytes": 27063808,
+      "ExecutableSha256": "C16A94BC10B34C5DCBC609DC6B82FEB6551C38E7D0A4C5C0652AEDABEF4FC8B5",
+      "FileVersion": "1.4.1-windows.1",
+      "ProductVersion": "1.4.1-windows.1",
+      "NumericVersion": "1.4.1.1",
+      "PE": "x64 WindowsGui; Debug=false; large and small icons present",
+      "ShellIntegrationFiles": 8,
+      "ThemeFiles": 819,
+      "CompiledTerminfo": true,
+      "ShareFileCount": 843,
+      "ShareManifest": ".worktrees/n17-candidate-0a7cba0/zig-out/logs/n17-candidate-share-hooks.json",
+      "ShareManifestSha256": "F3E14AE2939DF543E8B35D8A52D85C7A8E7C424556A99CCCDD72BD61C206BEA1",
+      "TestHooks": true
+    }
+  ],
+  "VersionCommands": [
+    {
+      "Variant": "normal Release",
+      "Command": "+version",
+      "ExitCode": 0,
+      "Output": "Gooztty 1.4.1-windows.1",
+      "StdoutSha256": "F3A23136414B7E0616D0F219E480EAA4279D301398D57FDBCBC69051C03B7829",
+      "StderrSha256": "15BDEC434394DC80719C021E3F51CD7C5A99DCFFCEAFBBDBBFC0077872F024EC",
+      "StdoutLog": ".worktrees/n17-candidate-0a7cba0/zig-out/logs/n17-candidate-version-normal/ghostty-20261031-201807-426-0a339bdf.stdout.log",
+      "StderrLog": ".worktrees/n17-candidate-0a7cba0/zig-out/logs/n17-candidate-version-normal/ghostty-20261031-201807-426-0a339bdf.stderr.log"
+    },
+    {
+      "Variant": "hook Release",
+      "Command": "+version",
+      "ExitCode": 0,
+      "Output": "Gooztty 1.4.1-windows.1",
+      "StdoutSha256": "F3A23136414B7E0616D0F219E480EAA4279D301398D57FDBCBC69051C03B7829",
+      "StderrSha256": "15BDEC434394DC80719C021E3F51CD7C5A99DCFFCEAFBBDBBFC0077872F024EC",
+      "StdoutLog": ".worktrees/n17-candidate-0a7cba0/zig-out/logs/n17-candidate-version-hooks/ghostty-20261031-201807-935-5f6b6306.stdout.log",
+      "StderrLog": ".worktrees/n17-candidate-0a7cba0/zig-out/logs/n17-candidate-version-hooks/ghostty-20261031-201807-935-5f6b6306.stderr.log"
+    }
+  ],
+  "SourceDiffFromWindows": [
+    "src/brand.zig"
+  ],
+  "NotIncluded": [
+    "installer/ZIP packaging and signatures; N18 owner-provided artifact acceptance",
+    "physical GUI/input/IME acceptance; N06",
+    "180-minute endurance; N11",
+    "real GPU fault and sleep recovery acceptance"
+  ],
+  "KnownFailures": [
+    "Config diagnostic OwnerCloseWithOtherWindow wrong-owner assertion",
+    "validate-config stdout pipe returns FileTooBig; reproduced on fixed B"
+  ]
+}
