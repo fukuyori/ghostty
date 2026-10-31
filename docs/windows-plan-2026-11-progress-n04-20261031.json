@@ -1,0 +1,345 @@
+[
+  {
+    "id": 219,
+    "title": "2026-11",
+    "status": "todo",
+    "parent_id": 218,
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:45:18Z",
+    "depends_on": [],
+    "effective_progress": 7,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 220,
+    "title": "N01 [完了] #69 検証対象確定・Gooztty統合・両版確認",
+    "status": "done",
+    "parent_id": 234,
+    "start_date": "2026-11-02",
+    "due_date": "2026-11-04",
+    "progress": 100,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:44Z",
+    "completed_at": "2026-10-31T04:39:22Z",
+    "depends_on": [],
+    "effective_progress": 100,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 221,
+    "title": "N02 [最優先] #66 2作業日内の調査・切り分けと既知制約の記録",
+    "status": "todo",
+    "parent_id": 234,
+    "start_date": "2026-11-04",
+    "due_date": "2026-11-06",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 222,
+    "title": "N03 [完了] #50 固定A/B/C・版値・直接ビルド手順・依存とライセンス確認",
+    "status": "done",
+    "parent_id": 234,
+    "start_date": "2026-11-02",
+    "due_date": "2026-11-06",
+    "progress": 100,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "completed_at": "2026-10-31T04:42:33Z",
+    "depends_on": [],
+    "effective_progress": 100,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 223,
+    "title": "N04 [完了] Zig 0.16両版の比較基準・実IME確認・既知失敗を記録",
+    "status": "done",
+    "parent_id": 234,
+    "start_date": "2026-11-05",
+    "due_date": "2026-11-09",
+    "progress": 100,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "completed_at": "2026-10-31T05:45:56Z",
+    "depends_on": [
+      220
+    ],
+    "effective_progress": 100,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 224,
+    "title": "N05 [最優先] #50 A移行・GPU/IME検証・段階統合・合格SHA記録",
+    "status": "todo",
+    "parent_id": 235,
+    "start_date": "2026-11-09",
+    "due_date": "2026-11-13",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "depends_on": [
+      222,
+      223
+    ],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 225,
+    "title": "N06 [最優先] #50 固定Gooztty候補のGUI・入力・IME・lifecycle受入",
+    "status": "todo",
+    "parent_id": 239,
+    "start_date": "2026-11-26",
+    "due_date": "2026-11-27",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "depends_on": [
+      244
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      244
+    ]
+  },
+  {
+    "id": 226,
+    "title": "N07 [高] #72 SSH方式比較と所有者の決定・未決事項を記録",
+    "status": "todo",
+    "parent_id": 234,
+    "start_date": "2026-11-05",
+    "due_date": "2026-11-06",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 230,
+    "title": "N11 [最優先] #9 固定Gooztty Releaseで180分の反復耐久試験",
+    "status": "todo",
+    "parent_id": 239,
+    "start_date": "2026-11-27",
+    "due_date": "2026-11-30",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:46Z",
+    "depends_on": [
+      225
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      225
+    ]
+  },
+  {
+    "id": 233,
+    "title": "N14 [報告] #30 月末の実績・未完了・延期と文書整合を報告",
+    "status": "todo",
+    "parent_id": 240,
+    "start_date": "2026-11-30",
+    "due_date": "2026-11-30",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:46Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 234,
+    "title": "P0 比較基準と取り込み範囲の固定",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-02",
+    "due_date": "2026-11-09",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:02Z",
+    "depends_on": [],
+    "effective_progress": 50,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 235,
+    "title": "P1 Zig 0.17移行（A）",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-09",
+    "due_date": "2026-11-13",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:02Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 236,
+    "title": "P2 v1.4.0同期（B）",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-16",
+    "due_date": "2026-11-18",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:02Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 237,
+    "title": "P3 固定スナップショット同期（C）",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-19",
+    "due_date": "2026-11-20",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:02Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 238,
+    "title": "P4 Gooztty最終統合監査・凍結",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-24",
+    "due_date": "2026-11-25",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:03Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 239,
+    "title": "P5 最終受入と180分耐久",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-26",
+    "due_date": "2026-11-30",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:03Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 240,
+    "title": "P6 月末実績・残件報告",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-30",
+    "due_date": "2026-11-30",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:03Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 242,
+    "title": "N15 [最優先] #50 B同期・lifecycleケース照合・段階統合・合格SHA記録",
+    "status": "todo",
+    "parent_id": 236,
+    "start_date": "2026-11-16",
+    "due_date": "2026-11-18",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:03Z",
+    "depends_on": [
+      224
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      224
+    ]
+  },
+  {
+    "id": 243,
+    "title": "N16 [最優先] #50 C同期・設定/SSH検証・段階統合・合格SHA記録",
+    "status": "todo",
+    "parent_id": 237,
+    "start_date": "2026-11-19",
+    "due_date": "2026-11-20",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:03Z",
+    "depends_on": [
+      242
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      242
+    ]
+  },
+  {
+    "id": 244,
+    "title": "N17 [最優先] 版番号確定・クリーンSHA・通常/hook Releaseの候補台帳固定",
+    "status": "todo",
+    "parent_id": 238,
+    "start_date": "2026-11-24",
+    "due_date": "2026-11-25",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:03Z",
+    "depends_on": [
+      243
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      243
+    ]
+  },
+  {
+    "id": 246,
+    "title": "N19 [最優先] #69 間欠pointer/scrollbar失敗を2作業日内で調査・記録",
+    "status": "todo",
+    "parent_id": 234,
+    "start_date": "2026-11-04",
+    "due_date": "2026-11-06",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:04Z",
+    "depends_on": [
+      220
+    ],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  }
+]

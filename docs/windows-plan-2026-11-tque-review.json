@@ -1,0 +1,279 @@
+[
+  {
+    "id": 219,
+    "title": "2026-11",
+    "status": "todo",
+    "parent_id": 218,
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:45:18Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 220,
+    "title": "N01 [P1] #69 検証対象・ポインター・スクロールバー検証を是正",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-02",
+    "due_date": "2026-11-06",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:44Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 221,
+    "title": "N02 [P1] #66 診断ダイアログの寿命を調査・修正",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-02",
+    "due_date": "2026-11-06",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 222,
+    "title": "N03 [P1] #50 Zig 0.17.0移行の上流・依存関係・変更範囲を確定",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-04",
+    "due_date": "2026-11-06",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 223,
+    "title": "N04 [P1] Zig 0.16.0で移行前の基準結果を記録",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-06",
+    "due_date": "2026-11-06",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "depends_on": [
+      220,
+      221
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      220,
+      221
+    ]
+  },
+  {
+    "id": 224,
+    "title": "N05 [P1] #50 Zig 0.17.0移行・上流同期・ビルドと全テスト",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-09",
+    "due_date": "2026-11-13",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "depends_on": [
+      222,
+      223
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      222,
+      223
+    ]
+  },
+  {
+    "id": 225,
+    "title": "N06 [P1] #50 移行後のGUI・入力・IME・rollback・IPCを検証",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-16",
+    "due_date": "2026-11-20",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "depends_on": [
+      224
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      224
+    ]
+  },
+  {
+    "id": 226,
+    "title": "N07 [P2] #72 +sshのコンソール方式を決定",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-16",
+    "due_date": "2026-11-17",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "depends_on": [
+      224
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      224
+    ]
+  },
+  {
+    "id": 227,
+    "title": "N08 [P2] #72 決定したSSH方式を反映し実接続・終了後の操作を確認",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-18",
+    "due_date": "2026-11-20",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "depends_on": [
+      226
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      226
+    ]
+  },
+  {
+    "id": 228,
+    "title": "N09 [P3・余力] #52 Windowsの明暗設定への追従を実装・表示確認",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-23",
+    "due_date": "2026-11-25",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:46Z",
+    "depends_on": [
+      225,
+      227
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      225,
+      227
+    ]
+  },
+  {
+    "id": 229,
+    "title": "N10 [P3・余力] #57 フォントサイズ継承を実装・表示確認",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-26",
+    "due_date": "2026-11-27",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:46Z",
+    "depends_on": [
+      228
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      228
+    ]
+  },
+  {
+    "id": 230,
+    "title": "N11 [P2] #9 数時間の耐久試験と終了・残存プロセスを確認",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-23",
+    "due_date": "2026-11-27",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:46Z",
+    "depends_on": [
+      225,
+      227
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      225,
+      227
+    ]
+  },
+  {
+    "id": 231,
+    "title": "N12 [P2] #10 実GPU障害の検証手順・環境と実施可否を整理",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-02",
+    "due_date": "2026-11-06",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:46Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 232,
+    "title": "N13 [条件付き] #10 実GPU障害からの復旧を実機確認（環境不足なら持越し）",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-23",
+    "due_date": "2026-11-27",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:46Z",
+    "depends_on": [
+      225,
+      231
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      225,
+      231
+    ]
+  },
+  {
+    "id": 233,
+    "title": "N14 [P2] #30 制約文書・ロードマップ・引き継ぎ更新と月末総合確認",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-23",
+    "due_date": "2026-11-30",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:46Z",
+    "depends_on": [
+      225,
+      227,
+      230
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      225,
+      227,
+      230
+    ]
+  }
+]

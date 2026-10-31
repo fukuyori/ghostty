@@ -1,0 +1,478 @@
+[
+  {
+    "id": 218,
+    "title": "Gooztty",
+    "status": "todo",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:45:09Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 219,
+    "title": "2026-11",
+    "status": "todo",
+    "parent_id": 218,
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:45:18Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 220,
+    "title": "N01 [P1] #69 検証対象を明示しexe・ソースの対応を記録",
+    "status": "todo",
+    "parent_id": 234,
+    "start_date": "2026-11-02",
+    "due_date": "2026-11-04",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:44Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 221,
+    "title": "N02 [P1] #66 2作業日内の調査・切り分けと既知制約の記録",
+    "status": "todo",
+    "parent_id": 234,
+    "start_date": "2026-11-04",
+    "due_date": "2026-11-06",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 222,
+    "title": "N03 [P1] #50 固定地点A/B/C・依存・ライセンス・検証範囲を確定",
+    "status": "todo",
+    "parent_id": 234,
+    "start_date": "2026-11-02",
+    "due_date": "2026-11-06",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 223,
+    "title": "N04 [P1] Zig 0.16.0でwindows/goozttyの比較基準を記録",
+    "status": "todo",
+    "parent_id": 234,
+    "start_date": "2026-11-05",
+    "due_date": "2026-11-09",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "depends_on": [
+      220
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      220
+    ]
+  },
+  {
+    "id": 224,
+    "title": "N05 [P1] #50 A: Zig 0.17移行・段階検証・Gooztty統合",
+    "status": "todo",
+    "parent_id": 235,
+    "start_date": "2026-11-09",
+    "due_date": "2026-11-13",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "depends_on": [
+      222,
+      223
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      222,
+      223
+    ]
+  },
+  {
+    "id": 225,
+    "title": "N06 [P1] #50 固定Gooztty候補のGUI・入力・IME・lifecycle受入",
+    "status": "todo",
+    "parent_id": 239,
+    "start_date": "2026-11-26",
+    "due_date": "2026-11-27",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "depends_on": [
+      244
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      244
+    ]
+  },
+  {
+    "id": 226,
+    "title": "N07 [P2] #72 SSH方式比較と所有者の決定・未決事項を記録",
+    "status": "todo",
+    "parent_id": 234,
+    "start_date": "2026-11-05",
+    "due_date": "2026-11-06",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 227,
+    "title": "N08 [候補] #72 所有者の方式決定後にSSH対応・実接続確認",
+    "status": "todo",
+    "parent_id": 241,
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:45Z",
+    "depends_on": [
+      226,
+      243
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      226,
+      243
+    ]
+  },
+  {
+    "id": 228,
+    "title": "N09 [候補] #52 Windows明暗設定追従・実表示確認",
+    "status": "todo",
+    "parent_id": 241,
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:46Z",
+    "depends_on": [
+      225
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      225
+    ]
+  },
+  {
+    "id": 229,
+    "title": "N10 [候補] #57 フォントサイズ継承・実表示確認",
+    "status": "todo",
+    "parent_id": 241,
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:46Z",
+    "depends_on": [
+      225
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      225
+    ]
+  },
+  {
+    "id": 230,
+    "title": "N11 [P1] #9 固定Gooztty Releaseで180分の反復耐久試験",
+    "status": "todo",
+    "parent_id": 239,
+    "start_date": "2026-11-27",
+    "due_date": "2026-11-30",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:46Z",
+    "depends_on": [
+      225
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      225
+    ]
+  },
+  {
+    "id": 231,
+    "title": "N12 [候補] #10 実GPU障害の手順・環境と実施可否を整理",
+    "status": "todo",
+    "parent_id": 241,
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:46Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 232,
+    "title": "N13 [条件付き候補] #10 専用環境で実GPU障害復旧を確認",
+    "status": "todo",
+    "parent_id": 241,
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:46Z",
+    "depends_on": [
+      225,
+      231
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      225,
+      231
+    ]
+  },
+  {
+    "id": 233,
+    "title": "N14 [P2] #30 月末の実績・未完了・延期と文書整合を報告",
+    "status": "todo",
+    "parent_id": 240,
+    "start_date": "2026-11-30",
+    "due_date": "2026-11-30",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T03:49:46Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 234,
+    "title": "P0 比較基準と取り込み範囲の固定",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-02",
+    "due_date": "2026-11-09",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:02Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 235,
+    "title": "P1 Zig 0.17移行（A）",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-09",
+    "due_date": "2026-11-13",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:02Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 236,
+    "title": "P2 v1.4.0同期（B）",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-16",
+    "due_date": "2026-11-18",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:02Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 237,
+    "title": "P3 固定スナップショット同期（C）",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-19",
+    "due_date": "2026-11-20",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:02Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 238,
+    "title": "P4 Gooztty最終統合監査・凍結",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-24",
+    "due_date": "2026-11-25",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:03Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 239,
+    "title": "P5 最終受入と180分耐久",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-26",
+    "due_date": "2026-11-30",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:03Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 240,
+    "title": "P6 月末実績・残件報告",
+    "status": "todo",
+    "parent_id": 219,
+    "start_date": "2026-11-30",
+    "due_date": "2026-11-30",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:03Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 241,
+    "title": "2026-12以降・候補",
+    "status": "todo",
+    "parent_id": 218,
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:03Z",
+    "depends_on": [],
+    "effective_progress": 0,
+    "blocked": false,
+    "blocked_by": []
+  },
+  {
+    "id": 242,
+    "title": "N15 [P1] #50 B: v1.4.0同期・描画/解放/SSH検証・Gooztty統合",
+    "status": "todo",
+    "parent_id": 236,
+    "start_date": "2026-11-16",
+    "due_date": "2026-11-18",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:03Z",
+    "depends_on": [
+      224
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      224
+    ]
+  },
+  {
+    "id": 243,
+    "title": "N16 [P1] #50 C: fbed180a5同期・設定/SSH修正検証・Gooztty統合",
+    "status": "todo",
+    "parent_id": 237,
+    "start_date": "2026-11-19",
+    "due_date": "2026-11-20",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:03Z",
+    "depends_on": [
+      242
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      242
+    ]
+  },
+  {
+    "id": 244,
+    "title": "N17 [P1] Gooztty最終統合監査・版整合・候補凍結",
+    "status": "todo",
+    "parent_id": 238,
+    "start_date": "2026-11-24",
+    "due_date": "2026-11-25",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:03Z",
+    "depends_on": [
+      243
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      243
+    ]
+  },
+  {
+    "id": 245,
+    "title": "N18 [所有者成果物待ち] #50 署名成果物で更新・新規導入・削除を受入",
+    "status": "todo",
+    "parent_id": 241,
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:04Z",
+    "depends_on": [
+      225,
+      230
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      225,
+      230
+    ]
+  },
+  {
+    "id": 246,
+    "title": "N19 [P1] #69 間欠pointer/scrollbar失敗を2作業日内で調査・記録",
+    "status": "todo",
+    "parent_id": 234,
+    "start_date": "2026-11-04",
+    "due_date": "2026-11-06",
+    "progress": 0,
+    "progress_mode": "auto",
+    "created_at": "2026-10-31T04:07:04Z",
+    "depends_on": [
+      220
+    ],
+    "effective_progress": 0,
+    "blocked": true,
+    "blocked_by": [
+      220
+    ]
+  }
+]
