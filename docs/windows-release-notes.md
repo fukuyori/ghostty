@@ -18,8 +18,9 @@ This entry records development-stage verification at fixed point C.
 The version aligns the working tree with the upstream base; N17 determines
 the final distribution candidate and its acceptance results.
 
-- Base: upstream 1.4.0 at `83fb95624`, integrated through Windows
-  `33709d14e`, using Zig 0.17.0. The preview sequence restarts for 1.4.0.
+- Base: upstream 1.4.1-dev at fixed point C `fbed180a5`, integrated through
+  Windows `06d12a298`, using Zig 0.17.0. The preview sequence starts at 1
+  for 1.4.1.
 - Both product snapshots passed Debug/fast/hook builds, full Zig and
   targeted Win32 tests, GUI/parity, controlled GPU/power recovery and
   37 lifecycle cases with four inspected captures each.
@@ -27,12 +28,16 @@ the final distribution candidate and its acceptance results.
   `OwnerCloseWithOtherWindow` assertion uses the wrong owner; the formal
   test correction remains pending (#66). The intermittent #69 observation
   was not reproduced by the bounded P0 investigation and remains open.
+- `validate-config` fails with `FileTooBig` when stdout is piped. This was
+  reproduced on fixed B, remains unresolved, and is not a C regression.
 - Kitty image/animation and controlled recovery checks passed. SSH
-  argument/TERM probes used a local helper, not a remote server.
+  argument/TERM probes used a local helper. A later live check confirmed
+  public-key authentication through `+ssh`; password/keyboard-interactive
+  prompts and terminfo transfer during authentication remain unverified.
   The separate-console behavior of +ssh (#72) remains unresolved.
 - These are development-stage checks. Final physical IME, real sleep/GPU
   fault, endurance and signed installer/ZIP acceptance remain separate
-  tasks. See the November plan and B migration record.
+  tasks. See the November plan and C migration record.
 
 ## 1.3.2-windows.17
 

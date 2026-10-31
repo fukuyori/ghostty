@@ -57,7 +57,7 @@ Debug版でKitty配置/リサイズ/スクロール/削除/フレーム切替/�
 通常/hookのWin32試験も両製品でexit 0。ビルド・GUI等の残りは段階台帳の実行結果を参照。
 
 
-## 段階検証完了（未コミット）
+## 段階検証結果（検証時は未コミット）
 
 | 項目 | Windows / Gooztty |
 |---|---|
@@ -76,10 +76,10 @@ Debug版でKitty配置/リサイズ/スクロール/削除/フレーム切替/�
 Goozttyのlifecycle用ビルドはWindowsのGUIと並行して先行実行し、正式wrapperで再確認した。GUIは並列実行していない。
 
 Windowsのport-logは段階検証後に追記し、Windows側のマージでGoozttyへ取り込んだ。コードは不変で、最終パッチを`zig-out/n16-windows-final.patch`に保存。
-root Goozttyのport-logは編集していない。Goozttyの確定マージコミットである。
+root Goozttyではport-logを直接編集していない。Windows port-logの変更はWindowsのマージ経由で取り込んだ。
 検証時の版表示はWindows `1.4.1-windows+cbf203f9e`、Gooztty `1.4.1-HEAD+f5f4e7474`。確定した合格SHAはWindows `06d12a298958ee97ee3d46b0c7f16658eeca8a21`、Gooztty `281c300aee9cbc42f7a5ff08ab62561a113aa3b9`。
 Goozttyマージ時に`dist/windows/version.txt`を`1.4.1-windows.1`へ整合。開発段階の版であり、最終配布候補はN17で確定する。
 
-tque #243およびP3をマージ後に完了へ更新。今回の結果を物理IME/実SSH認証/実GPU障害/sleep/最終耐久/署名配布物の受入に読み替えない。
+tque #243およびP3をマージ後に完了へ更新。段階検証は模擬SSH認証メッセージの確認であり、上記の実サーバー公開鍵認証とは別である。今回の結果を物理IME/SSHの対話認証とterminfo転送中の認証/実GPU障害/sleep/最終耐久/署名配布物の受入に読み替えない。
 
 

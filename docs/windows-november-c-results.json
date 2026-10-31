@@ -1,9 +1,9 @@
 {
   "Recorded": "2026-10-31T19:07:52.9242897+09:00",
-  "Status": "Snapshot checks complete; merge commits pending",
+  "Status": "C integration merged and snapshot checks complete",
   "UpstreamC": "fbed180a5f181915c92a8f2f561903a6e4645b5a",
-  "AcceptedWindowsSHA": null,
-  "AcceptedGoozttySHA": null,
+  "AcceptedWindowsSHA": "06d12a298958ee97ee3d46b0c7f16658eeca8a21",
+  "AcceptedGoozttySHA": "281c300aee9cbc42f7a5ff08ab62561a113aa3b9",
   "KnownFailures": [
     "Config diagnostics: OwnerCloseWithOtherWindow wrong-owner assertion",
     "Exploratory validate-config stdout pipe: FileTooBig reproduced on B; not fixed"
