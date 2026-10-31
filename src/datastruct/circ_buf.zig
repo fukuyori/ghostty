@@ -117,7 +117,7 @@ pub fn CircBuf(comptime T: type, comptime default: T) type {
         pub fn clear(self: *Self) void {
             self.head = 0;
             self.tail = 0;
-            self.full = false;
+            self.full = self.storage.len == 0;
         }
 
         /// Iterate over the circular buffer.
@@ -918,4 +918,16 @@ test "CircBuf deleteOldest zero" {
     // Verify data is unchanged
     var it = buf.iterator(.forward);
     try testing.expectEqual(@as(u8, 'h'), it.next().?.*);
+}
+
+test "CircBuf clear zero capacity" {
+    const testing = std.testing;
+    const alloc = testing.allocator;
+
+    const Buf = CircBuf(u8, 0);
+    var buf = try Buf.init(alloc, 0);
+    defer buf.deinit(alloc);
+
+    buf.clear();
+    try testing.expectError(error.OutOfMemory, buf.append(1));
 }

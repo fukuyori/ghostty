@@ -12,9 +12,9 @@ Publication status is maintained in
 [GitHub Releases](https://github.com/fukuyori/ghostty/releases). These notes
 record each version's changes, verification results and limitations.
 
-## 1.4.0-windows.1 (development stage)
+## 1.4.1-windows.1 (development stage)
 
-This entry records development-stage verification at fixed point B.
+This entry records development-stage verification at fixed point C.
 The version aligns the working tree with the upstream base; N17 determines
 the final distribution candidate and its acceptance results.
 
@@ -1249,4 +1249,5 @@ All of these are fixed in `1.3.2-windows.2`.
 - If another process of the same user posts the power notification message,
   GPU resources are re-created for all surfaces. The display is only briefly
   disturbed and the session is preserved.
+
 

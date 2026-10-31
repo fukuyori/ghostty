@@ -7,14 +7,14 @@ known issues, and known limitations of each version; the
 [version update checklist](version-update-checklist.md) describes the
 `X.Y.Z-windows.N` numbering.
 
-## 1.4.0-windows.1 (development stage)
+## 1.4.1-windows.1 (development stage)
 
-This entry records the fixed-B integration and version-base alignment.
+This entry records the fixed-C integration and version-base alignment.
 It is not the final distribution candidate; N17 determines that version.
 
 ### Changed
 
-- Integrate upstream through fixed point B `83fb95624` on Windows
+- Integrate upstream through fixed point C `fbed180a5` on Windows (`06d12a298`), following B (`83fb95624`, `33709d14e`)
   (`33709d14e`), including Zig 0.17, Kitty placement and animation,
   terminal snapshots, SSH and shell integration updates.
 - Preserve Windows GPU recovery image rebuilds, input mode 9001 and
@@ -1139,4 +1139,5 @@ Released 2026-09-15. The first Windows preview of this fork, based on the
 in-development upstream `1.3.2-dev`. See the
 [release notes](windows-release-notes.md) for its contents, verification
 results, and known issues.
+
 
