@@ -1,0 +1,30 @@
+[
+  {
+    "Branch": "windows",
+    "Commit": "c6669ed65a74029f8d22799ab7fee77a7764ac12",
+    "Prefix": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n05-committed-normal",
+    "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n05-committed-normal\\bin\\ghostty.exe",
+    "Hash": "633237C3F2BED91CE64A471AA69ADEBC948F4BB162D2C3E351AA3FD582E31975",
+    "CLI": "Ghostty 1.3.2-windows+c6669ed65\r\n\r\nVersion\r\n  - version: 1.3.2-windows+c6669ed65\r\n  - channel: tip\r\nBuild Config\r\n  - Zig version   : 0.17.0\r\n  - build mode    : .fast\r\n  - app runtime   : .win32\r\n  - font engine   : .freetype_windows\r\n  - renderer      : renderer.generic.Renderer(renderer.D3D11)\r\n  - libxev        : iocp",
+    "FileVersion": "1.3.2-windows+c6669ed65",
+    "ProductVersion": "1.3.2-windows+c6669ed65",
+    "BuildLog": "D:\\home\\source\\zig\\ghostty\\zig-out\\n05-committed-windows-build.log",
+    "TestLog": "D:\\home\\source\\zig\\ghostty\\zig-out\\n05-committed-windows-test.log",
+    "BuildExitCode": 0,
+    "TestExitCode": 0
+  },
+  {
+    "Branch": "gooztty",
+    "Commit": "f2b98c662f677c6f23a900a8cb3f8df6aaf116b4",
+    "Prefix": "D:\\home\\source\\zig\\ghostty\\zig-out\\n05-committed-normal",
+    "Executable": "D:\\home\\source\\zig\\ghostty\\zig-out\\n05-committed-normal\\bin\\gooztty.exe",
+    "Hash": "51987A3D7D942AF7A06C34E8F7B63E2FCDDB9298BBA61DBB0D7FF8198783A787",
+    "CLI": "Gooztty 1.3.2-gooztty+f2b98c662\r\n\r\nVersion\r\n  - version: 1.3.2-gooztty+f2b98c662\r\n  - channel: tip\r\nBuild Config\r\n  - Zig version   : 0.17.0\r\n  - build mode    : .fast\r\n  - app runtime   : .win32\r\n  - font engine   : .freetype_windows\r\n  - renderer      : renderer.generic.Renderer(renderer.D3D11)\r\n  - libxev        : iocp",
+    "FileVersion": "1.3.2-gooztty+f2b98c662",
+    "ProductVersion": "1.3.2-gooztty+f2b98c662",
+    "BuildLog": "D:\\home\\source\\zig\\ghostty\\zig-out\\n05-committed-gooztty-build.log",
+    "TestLog": "D:\\home\\source\\zig\\ghostty\\zig-out\\n05-committed-gooztty-test.log",
+    "BuildExitCode": 0,
+    "TestExitCode": 0
+  }
+]

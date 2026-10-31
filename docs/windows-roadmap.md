@@ -1,12 +1,30 @@
 # Ghostty Windows Production-Readiness Roadmap
 
-- Last updated: 2026-10-25
+- Last updated: 2026-10-31
+- Current state: `1.3.2-windows.17`, the first version under the name Gooztty, was built on 2026-10-25; the rename is complete. Open work is listed in Section 7, and [`windows-handoff.md`](windows-handoff.md) summarizes how to continue
 - Target branch: `gooztty` (maintained there since the 2026-10-25 cutover; see Section 2)
 - Baseline commit: `132a5d078` (`docs: add Windows implementation roadmap`)
 - Phase breakdown basis: the six phases agreed in the conversation as of 2026-09-14
 - Phase 7 basis: the 2026-09-23 [upstream feature development plan](windows-upstream-feature-plan.md)
 
 ## 1. Purpose
+
+November N01 completed on 2026-10-31: `windows` commit `ac3ad2b6c` was
+merged into `gooztty` at `07be8fc21`. Parity now requires an explicit exe;
+the fresh-build wrapper records source/dependency hashes and failures.
+Both cwd inheritance modes passed on both products, with exit 0 and
+captures inspected. This does not resolve #69's intermittent failures
+(N19), or establish physical IME acceptance. See the
+[preflight record](windows-november-preflight.md) for evidence and N03 status.
+
+N04's [automated baseline comparison](windows-november-baseline.md) is
+recorded for both products. Full Zig tests passed 4,123 with 64 skipped per
+product; automated IME and all 37 lifecycle cases passed. Owner-close config
+diagnostics failed, and GUI/parity have recorded failures and capture limits.
+Additional Gooztty captures were inspected; a scrollbar timeout remains recorded for N19.
+The owner accepted partial commit and focus resume on both products; both sessions exited cleanly. The owner also accepted IME placement during asynchronous output. Both asynchronous-output sessions exited 0 with their probes stopped. N04 is complete as a baseline record; N05 dependencies are satisfied. Config and scrollbar failures remain tracked by N02/N19.
+
+N05 fixed-A / Zig 0.17 implementation and both product snapshot checks are recorded in [the migration record](windows-november-a-migration.md). The baseline config owner-close failure remains. Windows c6669ed65 and Gooztty f2b98c662 are merged; additional builds, Win32/resource checks at these SHAs and Claude Code review are complete. N05 is complete; N02/N19 and final physical acceptance remain separate.
 
 Bring the native Windows build of Ghostty up to the stability and usability
 needed for daily use. Full implementation parity with the macOS/Linux builds
@@ -36,8 +54,8 @@ order, or status changes.
 | Branch | Purpose | Status |
 |---|---|---|
 | `main` | Mirror upstream `main` without Windows-specific changes | Local and `origin/main` are at `b58ef1d67`, the 2026-10-25 pre-cutover synchronization: the last upstream commit that builds with Zig 0.16. Later upstream commits require Zig 0.17 and wait for [#50](https://github.com/fukuyori/ghostty/issues/50) |
-| `windows` | Track upstream via `main`, implement upstream Ghostty features on Windows (including F4-F8), and fix port defects. This responsibility continues after `gooztty` is created. Publishes nothing and edits only the port log among the documentation | Merged into `gooztty`; `gooztty` was created from `842825597` |
-| `gooztty` | Long-lived branch created from `windows`: the rename, features or behavior extensions not provided by upstream Ghostty, product distribution, and user-facing documentation | Created and pushed on 2026-10-25 from `842825597`; GitHub default branch. Rename implementation (step 9) has not started |
+| `windows` | Track upstream via `main`, implement upstream Ghostty features on Windows (including F4-F8), and fix port defects. This responsibility continues after `gooztty` is created. Publishes nothing and edits only the port log among the documentation | Merged into `gooztty` after each change |
+| `gooztty` | Long-lived branch created from `windows`: the rename, features or behavior extensions not provided by upstream Ghostty, product distribution, and user-facing documentation | Created on 2026-10-25 from `842825597`; GitHub default branch and current working branch. The rename is complete (`1.3.2-windows.17`) |
 | `rebrand/gozitty` | Provisional rename branch, superseded by `gooztty` | Local branch from `windows` at `d440594ab`; not pushed; deleted only on request |
 
 Branch ownership follows purpose, not implementation date: Windows support
@@ -1436,6 +1454,40 @@ scope must be reassessed after F1-F8; they are not part of Phase 7 completion.
 
 ## 7. Next Steps
 
+### November 2026 plan
+
+The [November work plan, revision 3](windows-plan-2026-11.md) has seven
+phases: baseline, Zig 0.17 migration at `3d07ef9e2`, synchronization through
+`v1.4.0`, synchronization through fixed commit `fbed180a5`, final Gooztty
+integration audit, acceptance/endurance, and month-end reporting. Each
+integration stage flows through `main` → `windows` → `gooztty` with checks.
+The 13 November work items are tracked under `Gooztty > 2026-11` in tque;
+six deferred items are under `2026-12以降・候補`. This calendar takes precedence
+over the suggested order below; it does not change implementation or
+verification status. Upstream Test CI is not Windows GUI acceptance.
+
+### After 1.3.2-windows.17
+
+The schedule below is complete: `1.3.2-windows.17`, the first version under
+the name Gooztty, was built on 2026-10-25 and the rename
+([#31](https://github.com/fukuyori/ghostty/issues/31)) is closed. Open work is
+tracked as [issues](https://github.com/fukuyori/ghostty/issues); in suggested
+order:
+
+| Work | Issue | Notes |
+|---|---|---|
+| `+ssh` opens the session in a new console window | [#72](https://github.com/fukuyori/ghostty/issues/72) | Decide between attaching to the parent console, a console helper executable, or documenting plain `ssh` |
+| Intermittent parity and scrollbar timeouts; parity's default executable is an old build | [#69](https://github.com/fukuyori/ghostty/issues/69) | The default-executable part is small |
+| Zig 0.17 migration and the upstream commits after `b58ef1d67` | [#50](https://github.com/fukuyori/ghostty/issues/50) | On `windows`, then merged into `gooztty` |
+| Configuration options not implemented on Windows | #51-#65 | See [configuration support](windows-config-support.md) |
+| Real-hardware verification | #9, #10 | Several-hour soak and real GPU device loss |
+| Other limitations and design questions | #11, #13, #14, #18, #25-#30, #44, #66 | |
+
+[`windows-handoff.md`](windows-handoff.md) summarizes the current state,
+procedures and known pitfalls for whoever continues the work.
+
+### Schedule through the rename (completed)
+
 The schedule was revised on 2026-10-16: fix #48 and implement F4-F8 on
 `windows` before the rename, then the owner performs a release under the
 current Ghostty name. Create `gooztty` immediately before rename
@@ -1462,7 +1514,7 @@ Completed work is excluded from the remaining schedule:
 | F1 command palette, F2 scrollbar, F3 file/directory drop | Done | Implementation and acceptance verification complete |
 | Creation rollback and IPC timeout verification | Done | 37 controlled cases verified; #49 closed on 2026-10-18 |
 
-### Schedule before and after the rename
+#### Ordered work
 
 This is a dependency-based sequence, not a calendar or effort estimate.
 It records planned work only; this revision does not start implementation,
@@ -1490,20 +1542,20 @@ and window-state regression passed. The owner confirmed that the corrected
 build no longer overlaps; the probe recorded `庭にはにわ` and exit 0. See the
 [diagnostic record](windows-port-log.md#2026-10-16-partial-ime-commit-diagnostics-48).
 
-#### Additional work before the rename
+#### Additional work around the rename
 
-These items can proceed alongside the ordered work as their prerequisites
-become available. The F4-F8 order is a priority order; specification work
-does not have to wait for the preceding feature's implementation.
+These items ran alongside the ordered work. The rename-related items are
+done; real-hardware verification, the Zig migration and the remaining
+acceptance gaps stay open after the rename.
 
 | Work | Timing and prerequisites |
 |---|---|
-| Real-hardware verification (#5-#10) | On the existing-name build: 144/192 DPI, high contrast, screen readers, actual sleep/resume, several-hour endurance and real GPU-loss recovery. Sleep/resume is confirmed working by the owner (2026-10-17). High contrast was verified on 2026-10-14; the owner reported 144/192 DPI title bar, tab bar and divider checks and Narrator tab selection-state speech on 2026-10-18 (#5-#8 closed). Windows 10 is outside the support target. Real GPU-loss reproduction and the several-hour soak procedure remain unscheduled until reproducible steps are available; continue other checks when hardware is available |
-| F4-F8 specifications | Resolve open decisions early, before implementing each feature. Separate any new-name-dependent integration from upstream-compatible Windows behavior |
-| Build, distribution and output name indirection | Implement on `windows` with `ghostty` values before step 8. Extend the runtime name module to build/resource generation, installed outputs, CLI parsing and PowerShell tooling; decide how tools receive the shared values. Verify unchanged names, paths and behavior before cutover. Preserve source-file names and other exceptions listed in the rebranding plan |
-| Upstream synchronization before cutover | Before step 8, check the upstream state, select and record the integration revision, synchronize through `main` into `windows`, and pass the build/tests and affected runtime checks. Record the range and results in the port log; reconcile Zig/dependency changes with #50. The 2026-10-12 baseline alone does not satisfy this later check. Done on 2026-10-25 through `b58ef1d67` (`ab098bf02`), the last Zig 0.16 commit; upstream's Zig 0.17 migration and the 121 later commits follow with #50 |
-| Rename preparation | Inventory naming sites including F4-F8, prepare icon assets, and draft migration instructions and acceptance cases. This does not apply the product rename or require early creation of `gooztty` |
-| Zig migration (#50) | Advance investigation and preparation on `windows`; migration and regression checks require upstream's Zig 0.17 support to be complete. This schedule does not assert that the prerequisite is met |
+| Real-hardware verification (#5-#10) | On the existing-name build: 144/192 DPI, high contrast, screen readers, actual sleep/resume, several-hour endurance and real GPU-loss recovery. Sleep/resume is confirmed working by the owner (2026-10-17). High contrast was verified on 2026-10-14; the owner reported 144/192 DPI title bar, tab bar and divider checks and Narrator tab selection-state speech on 2026-10-18 (#5-#8 closed). Windows 10 is outside the support target. The November plan schedules the three-hour repeated-process soak as N11; real GPU-loss investigation and acceptance are deferred to the December-or-later candidate queue (N12/N13). Continue other checks when hardware is available |
+| F4-F8 specifications | Done — F4-F8 were specified, implemented and accepted on `windows` before the rename |
+| Build, distribution and output name indirection | Done on `windows` with `ghostty` values before step 8; `gooztty` changes only the values in `src/brand.zig` |
+| Upstream synchronization before cutover | Done on 2026-10-25 through `b58ef1d67` (`ab098bf02`) |
+| Rename preparation | Done — naming sites inventoried, icon assets prepared, and migration instructions written in the README |
+| Zig migration (#50) | Upstream's Zig 0.17 migration PR #14519 and libxev PR #249 were merged on 2026-10-20 (checked 2026-10-31). The November plan now schedules Windows migration and staged integration through `fbed180a5`; local Windows compatibility and final Gooztty acceptance remain unverified |
 | Other recorded acceptance gaps | Track search-specific physical IME/mixed-DPI checks, OpenGL, forced Acrylic fallback, terminal/divider capture loss and remaining accessibility checks against their existing evidence. Schedule checks when their environments are available; the completion of historical phases does not prove these checks passed. Windows 10 is unsupported and excluded from acceptance |
 
 Unavailable hardware and upstream prerequisites remain explicit pending
@@ -1512,7 +1564,7 @@ conditions; they do not turn these items into rename-dependent work. Windows
 
 #### Verification after the rename
 
-Step 10 uses the renamed build and covers:
+Step 10 used the renamed build and was completed on 2026-10-25 for `1.3.2-windows.17` (see the [release notes](windows-release-notes.md#132-windows17)). It covered:
 
 - Product names and icons in the UI, CLI, file properties and accessibility.
 - Configuration/resource paths, terminal identity, shell integration and
@@ -2905,3 +2957,15 @@ an immediately following documentation change.
 
 When adding or removing steps, also review the completion criteria and
 overall progress at the same time.
+
+
+
+
+November P0 investigation is complete, including N07's three-option SSH comparison with the choice still open. See [P0 evidence](windows-november-p0-investigation.md) and [SSH options](windows-november-ssh-options.md). N08 remains gated on the owner's decision. Fixed-B N15 implementation and validation are in [the B migration record](windows-november-b-migration.md); no B merge commits have been created.
+
+`N15` fixed-B snapshot validation is complete on Windows and Gooztty: full Zig/Win32, GUI/parity, controlled GPU/power and lifecycle 37/37 with four inspected captures each. Config diagnostics retain the known wrong-owner failure (7/8 each). Merge commits, actual Gooztty integration and accepted SHAs remain pending; N16 is blocked.
+
+N15 completed at Windows 33709d14e and Gooztty d9cbeef: committed fast builds, Win32 tests and CLI/resource versions passed after source equivalence checks. The preview base is aligned to 1.4.0-windows.1. N16 is eligible; C integration has not started. Known config diagnostics and final physical/distribution acceptance remain open.
+
+N16 merged fixed C at Windows `06d12a298` and Gooztty `281c300ae`. Full Zig/Win32, GUI/parity, controlled GPU/power and lifecycle 37/37 passed on both snapshots. Config diagnostics retain the known wrong-owner assertion; validate-config stdout-pipe FileTooBig also reproduces on B. Both remain open. See [C evidence](windows-november-c-migration.md).
+

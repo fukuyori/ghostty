@@ -1,0 +1,90 @@
+[
+  {
+    "Product": "windows",
+    "Attempt": 1,
+    "Kind": "parity",
+    "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n05-committed-normal\\bin\\ghostty.exe",
+    "Hash": "633237C3F2BED91CE64A471AA69ADEBC948F4BB162D2C3E351AA3FD582E31975",
+    "Started": "2026-10-31T15:42:43.8908320+09:00",
+    "Finished": "2026-10-31T15:42:52.3615647+09:00",
+    "ExitCode": 0,
+    "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\p0-a\\zig-out\\logs\\p0-repeat\\windows-1-parity.log"
+  },
+  {
+    "Product": "windows",
+    "Attempt": 1,
+    "Kind": "window-state",
+    "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n05-committed-normal\\bin\\ghostty.exe",
+    "Hash": "633237C3F2BED91CE64A471AA69ADEBC948F4BB162D2C3E351AA3FD582E31975",
+    "Started": "2026-10-31T15:42:52.3739480+09:00",
+    "Finished": "2026-10-31T15:43:11.4757574+09:00",
+    "ExitCode": 0,
+    "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\p0-a\\zig-out\\logs\\p0-repeat\\windows-1-window-state.log"
+  },
+  {
+    "Product": "windows",
+    "Attempt": 2,
+    "Kind": "parity",
+    "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n05-committed-normal\\bin\\ghostty.exe",
+    "Hash": "633237C3F2BED91CE64A471AA69ADEBC948F4BB162D2C3E351AA3FD582E31975",
+    "Started": "2026-10-31T15:43:11.4781420+09:00",
+    "Finished": "2026-10-31T15:43:19.8767484+09:00",
+    "ExitCode": 0,
+    "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\p0-a\\zig-out\\logs\\p0-repeat\\windows-2-parity.log"
+  },
+  {
+    "Product": "windows",
+    "Attempt": 2,
+    "Kind": "window-state",
+    "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n05-committed-normal\\bin\\ghostty.exe",
+    "Hash": "633237C3F2BED91CE64A471AA69ADEBC948F4BB162D2C3E351AA3FD582E31975",
+    "Started": "2026-10-31T15:43:19.8781111+09:00",
+    "Finished": "2026-10-31T15:43:38.9194698+09:00",
+    "ExitCode": 0,
+    "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\p0-a\\zig-out\\logs\\p0-repeat\\windows-2-window-state.log"
+  },
+  {
+    "Product": "gooztty",
+    "Attempt": 1,
+    "Kind": "parity",
+    "Executable": "D:\\home\\source\\zig\\ghostty\\zig-out\\n05-committed-normal\\bin\\gooztty.exe",
+    "Hash": "51987A3D7D942AF7A06C34E8F7B63E2FCDDB9298BBA61DBB0D7FF8198783A787",
+    "Started": "2026-10-31T15:43:38.9210194+09:00",
+    "Finished": "2026-10-31T15:43:47.3900514+09:00",
+    "ExitCode": 0,
+    "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\p0-a\\zig-out\\logs\\p0-repeat\\gooztty-1-parity.log"
+  },
+  {
+    "Product": "gooztty",
+    "Attempt": 1,
+    "Kind": "window-state",
+    "Executable": "D:\\home\\source\\zig\\ghostty\\zig-out\\n05-committed-normal\\bin\\gooztty.exe",
+    "Hash": "51987A3D7D942AF7A06C34E8F7B63E2FCDDB9298BBA61DBB0D7FF8198783A787",
+    "Started": "2026-10-31T15:43:47.3913449+09:00",
+    "Finished": "2026-10-31T15:44:06.5729146+09:00",
+    "ExitCode": 0,
+    "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\p0-a\\zig-out\\logs\\p0-repeat\\gooztty-1-window-state.log"
+  },
+  {
+    "Product": "gooztty",
+    "Attempt": 2,
+    "Kind": "parity",
+    "Executable": "D:\\home\\source\\zig\\ghostty\\zig-out\\n05-committed-normal\\bin\\gooztty.exe",
+    "Hash": "51987A3D7D942AF7A06C34E8F7B63E2FCDDB9298BBA61DBB0D7FF8198783A787",
+    "Started": "2026-10-31T15:44:06.5742543+09:00",
+    "Finished": "2026-10-31T15:44:14.9358534+09:00",
+    "ExitCode": 0,
+    "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\p0-a\\zig-out\\logs\\p0-repeat\\gooztty-2-parity.log"
+  },
+  {
+    "Product": "gooztty",
+    "Attempt": 2,
+    "Kind": "window-state",
+    "Executable": "D:\\home\\source\\zig\\ghostty\\zig-out\\n05-committed-normal\\bin\\gooztty.exe",
+    "Hash": "51987A3D7D942AF7A06C34E8F7B63E2FCDDB9298BBA61DBB0D7FF8198783A787",
+    "Started": "2026-10-31T15:44:14.9370574+09:00",
+    "Finished": "2026-10-31T15:44:34.0431277+09:00",
+    "ExitCode": 0,
+    "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\p0-a\\zig-out\\logs\\p0-repeat\\gooztty-2-window-state.log"
+  }
+]

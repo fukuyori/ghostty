@@ -18,7 +18,7 @@ It is not the final distribution candidate; N17 determines that version.
   (`33709d14e`), including Zig 0.17, Kitty placement and animation,
   terminal snapshots, SSH and shell integration updates.
 - Preserve Windows GPU recovery image rebuilds, input mode 9001 and
-  Gooztty branding. Align the preview base with upstream 1.4.0.
+  Gooztty branding. Align the preview base with upstream 1.4.1.
 - Both product snapshots passed stage checks except the known config
   diagnostic owner assertion. Final physical and distribution acceptance
   remain separate November plan tasks.
@@ -1139,5 +1139,7 @@ Released 2026-09-15. The first Windows preview of this fork, based on the
 in-development upstream `1.3.2-dev`. See the
 [release notes](windows-release-notes.md) for its contents, verification
 results, and known issues.
+
+
 
 

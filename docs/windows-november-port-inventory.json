@@ -1,0 +1,753 @@
+{
+  "Baseline": "b58ef1d678be2747c830bc1b1e6c0a086afecf9a",
+  "Windows": "ac3ad2b6cb615469b4e458a4128e1f643d7753df",
+  "Files": [
+    {
+      "Path": "build.zig",
+      "UpstreamTouches": [
+        "A",
+        "B"
+      ]
+    },
+    {
+      "Path": "build.zig.zon",
+      "UpstreamTouches": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    {
+      "Path": "scripts/build-installer.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/build-release.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/build-zip.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/fetch-conpty.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/run-windows-diagnostics.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/test-windows-config-diagnostics.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/test-windows-context-menu.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/test-windows-html-clipboard.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/test-windows-ime-position.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/test-windows-ime.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/test-windows-lifecycle.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/test-windows-modal-actions.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/test-windows-parity.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/test-windows-shell.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/test-windows-soak.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/test-windows-window-state.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/verify-windows-ime.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/verify-windows-lifecycle.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/verify-windows-parity.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/windows-brand.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "scripts/windows-version.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/App.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/Surface.zig",
+      "UpstreamTouches": [
+        "A",
+        "B"
+      ]
+    },
+    {
+      "Path": "src/apprt.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/action.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/apprt/runtime.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/structs.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/Actions.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/App.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/Backdrop.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/Bell.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/CommandPalette.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/ConfigActions.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/ContextMenu.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/DeferredActions.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/DirectComposition.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/FileDrop.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/GaussianBlur.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/GlobalHotkeys.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/ImeDiagnostics.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/IpcHandler.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/IpcProtocol.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/IpcTransport.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/Keyboard.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/LifecycleTestHooks.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/Mouse.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/NativeWindow.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/Notifications.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/Overrides.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/QuickTerminal.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/Recovery.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/Scrollbar.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/SearchBar.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/SessionPersistence.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/SessionState.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/ShellOpen.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/SplitDivider.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/SplitTree.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/Surface.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/Tab.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/TabBar.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/TabBarAccessibility.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/TabBarController.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/TabTitles.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/TaskbarProgress.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/Titlebar.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/Window.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/WindowAppearance.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/WindowCommands.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/WindowLayout.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/WindowLifecycle.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/WindowState.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/apprt/win32/WndProc.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/brand.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/brand_env.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/brand_text.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/build/BrandRewriteStep.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/build/Config.zig",
+      "UpstreamTouches": [
+        "A",
+        "B"
+      ]
+    },
+    {
+      "Path": "src/build/GhosttyExe.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/build/GhosttyResources.zig",
+      "UpstreamTouches": [
+        "A",
+        "B"
+      ]
+    },
+    {
+      "Path": "src/build/HelpStrings.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/build/SharedDeps.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/build/WindowsVersionResource.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/build/brand_rewrite.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/build/brand_rewrite_help.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/build_config.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/cli/Pager.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/cli/edit_config.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/cli/explain_config.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/cli/help.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/cli/list_themes.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/cli/new_tab.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/cli/show_face.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/cli/ssh-cache/Entry.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/cli/ssh.zig",
+      "UpstreamTouches": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    {
+      "Path": "src/cli/ssh_cache.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/cli/version.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/config/Config.zig",
+      "UpstreamTouches": [
+        "A",
+        "C"
+      ]
+    },
+    {
+      "Path": "src/config/config_template.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/config/file_load.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/config/theme.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/font/DeferredFace.zig",
+      "UpstreamTouches": [
+        "A",
+        "B"
+      ]
+    },
+    {
+      "Path": "src/font/discovery.zig",
+      "UpstreamTouches": [
+        "A",
+        "B"
+      ]
+    },
+    {
+      "Path": "src/font/face/freetype.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/global.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/input/command.zig",
+      "UpstreamTouches": [
+        "A",
+        "C"
+      ]
+    },
+    {
+      "Path": "src/input/key.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/input/key_encode.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/main_ghostty.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/os/conpty.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/os/hostname.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/os/main.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/os/resourcesdir.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/os/terminfo.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/os/uri.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/os/windows.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/os/windows_path.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/os/windows_xev.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/pty.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/renderer.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/renderer/D3D11.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/renderer/OpenGL.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/renderer/Thread.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/renderer/backend.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/renderer/d3d11/Device.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/renderer/d3d11/Frame.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/renderer/d3d11/Pipeline.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/renderer/d3d11/RenderPass.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/renderer/d3d11/Sampler.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/renderer/d3d11/Shader.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/renderer/d3d11/Target.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/renderer/d3d11/Texture.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/renderer/d3d11/buffer.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/renderer/d3d11/shaders.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/renderer/d3d11/shaders/terminal.hlsl",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/renderer/generic.zig",
+      "UpstreamTouches": [
+        "A",
+        "B"
+      ]
+    },
+    {
+      "Path": "src/renderer/message.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/renderer/opengl/Device.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/renderer/opengl/Frame.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/shell-integration/README.md",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/shell-integration/powershell/ghostty-integration.ps1",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/surface_mouse.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/terminal/PageList.zig",
+      "UpstreamTouches": [
+        "A",
+        "B"
+      ]
+    },
+    {
+      "Path": "src/terminal/modes.zig",
+      "UpstreamTouches": [
+        "A",
+        "B"
+      ]
+    },
+    {
+      "Path": "src/terminal/mouse.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/terminal/snapshot/snapshot.ksy",
+      "UpstreamTouches": [
+        "B"
+      ]
+    },
+    {
+      "Path": "src/terminal/snapshot/terminal.zig",
+      "UpstreamTouches": [
+        "A",
+        "B"
+      ]
+    },
+    {
+      "Path": "src/terminal/stream.zig",
+      "UpstreamTouches": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    {
+      "Path": "src/terminal/stream_terminal.zig",
+      "UpstreamTouches": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    {
+      "Path": "src/terminfo/ghostty.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/termio/Exec.zig",
+      "UpstreamTouches": [
+        "A",
+        "B"
+      ]
+    },
+    {
+      "Path": "src/termio/Thread.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/termio/message.zig",
+      "UpstreamTouches": []
+    },
+    {
+      "Path": "src/termio/shell_integration.zig",
+      "UpstreamTouches": [
+        "A"
+      ]
+    },
+    {
+      "Path": "src/termio/stream_handler.zig",
+      "UpstreamTouches": [
+        "A",
+        "B",
+        "C"
+      ]
+    }
+  ]
+}

@@ -272,3 +272,6 @@ N07は[SSH方式比較](windows-november-ssh-options.md)として検討完了、
 `N15`は固定Bの競合解消と両製品の段階検証を完了。設定診断の既知失敗1件を除き成功し、lifecycleは各37/37・4画像確認。tque #242は検証済・マージ待ちで未完了。詳細は[固定B記録](windows-november-b-migration.md)。マージコミットと本ブランチ統合・合格SHA記録前にN16へ進まない。
 
 N15はWindows 33709d14e、Gooztty d9cbeefのマージと確定SHAでの追加照合・台帳記録を終えて完了。既存の文書作業は保持。N16の依存を解消したが、C取り込みは未着手。
+
+N16はWindows `06d12a298`、Gooztty `281c300ae`としてマージ完了。段階検証結果と確定SHAを[C記録](windows-november-c-migration.md)へ保存。設定診断の既知1件とvalidate-config pipe出力失敗は未修正。N17へ進む。[C記録](windows-november-c-migration.md)参照。
+

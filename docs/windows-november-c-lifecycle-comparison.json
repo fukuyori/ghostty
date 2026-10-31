@@ -1,0 +1,578 @@
+{
+  "Windows": {
+    "Baseline": ".worktrees/windows-nov/zig-out/logs/lifecycle-acceptance-20261031-161455-803-cases.json",
+    "Current": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\lifecycle-acceptance-20261031-190017-195-cases.json",
+    "BaselineCases": 37,
+    "CurrentCases": 37,
+    "NamesUnchanged": true,
+    "AllPassed": true,
+    "Leftovers": [],
+    "Captures": [
+      {
+        "Case": "window-core_ready",
+        "Screenshot": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\lifecycle-20261031-190133-934-window-core_ready.png"
+      },
+      {
+        "Case": "window-tab_bar_hwnd",
+        "Screenshot": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\lifecycle-20261031-190133-934-window-tab_bar_hwnd.png"
+      },
+      {
+        "Case": "tab-core_ready",
+        "Screenshot": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\lifecycle-20261031-190133-934-tab-core_ready.png"
+      },
+      {
+        "Case": "split-core_ready",
+        "Screenshot": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\lifecycle-20261031-190133-934-split-core_ready.png"
+      }
+    ],
+    "CaseMap": [
+      {
+        "Case": "window-parent_hwnd",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-child_hwnd",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-surface_init",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-window_init",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-window_append",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-window_owned",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-core_alloc",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-core_register",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-core_config",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-core_init",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-core_ready",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-scrollbar_ready",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-tab_bar_hwnd",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-child_hwnd",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-surface_init",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-tab_insert",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-tab_owned",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-core_alloc",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-core_register",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-core_config",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-core_init",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-core_ready",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-scrollbar_ready",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-child_hwnd",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-surface_init",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-split_insert",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-split_owned",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-core_alloc",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-core_register",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-core_config",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-core_init",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-core_ready",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-scrollbar_ready",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "ipc-late-success",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "ipc-late-failure",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "ipc-shutdown-before-timeout",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "ipc-shutdown-after-timeout",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      }
+    ]
+  },
+  "Gooztty": {
+    "Baseline": ".worktrees/n15-gooztty/zig-out/logs/lifecycle-acceptance-20261031-163448-225-cases.json",
+    "Current": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n16-gooztty\\zig-out\\logs\\lifecycle-acceptance-20261031-190536-295-cases.json",
+    "BaselineCases": 37,
+    "CurrentCases": 37,
+    "NamesUnchanged": true,
+    "AllPassed": true,
+    "Leftovers": [],
+    "Captures": [
+      {
+        "Case": "window-core_ready",
+        "Screenshot": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n16-gooztty\\zig-out\\logs\\lifecycle-20261031-190541-203-window-core_ready.png"
+      },
+      {
+        "Case": "window-tab_bar_hwnd",
+        "Screenshot": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n16-gooztty\\zig-out\\logs\\lifecycle-20261031-190541-203-window-tab_bar_hwnd.png"
+      },
+      {
+        "Case": "tab-core_ready",
+        "Screenshot": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n16-gooztty\\zig-out\\logs\\lifecycle-20261031-190541-203-tab-core_ready.png"
+      },
+      {
+        "Case": "split-core_ready",
+        "Screenshot": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n16-gooztty\\zig-out\\logs\\lifecycle-20261031-190541-203-split-core_ready.png"
+      }
+    ],
+    "CaseMap": [
+      {
+        "Case": "window-parent_hwnd",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-child_hwnd",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-surface_init",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-window_init",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-window_append",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-window_owned",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-core_alloc",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-core_register",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-core_config",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-core_init",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-core_ready",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-scrollbar_ready",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "window-tab_bar_hwnd",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-child_hwnd",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-surface_init",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-tab_insert",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-tab_owned",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-core_alloc",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-core_register",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-core_config",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-core_init",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-core_ready",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "tab-scrollbar_ready",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-child_hwnd",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-surface_init",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-split_insert",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-split_owned",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-core_alloc",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-core_register",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-core_config",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-core_init",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-core_ready",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "split-scrollbar_ready",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "ipc-late-success",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "ipc-late-failure",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "ipc-shutdown-before-timeout",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      },
+      {
+        "Case": "ipc-shutdown-after-timeout",
+        "Passed": true,
+        "ExitCode": 0,
+        "ForcedTermination": false,
+        "CrashOrLeak": false
+      }
+    ]
+  }
+}

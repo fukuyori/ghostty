@@ -1,0 +1,954 @@
+{
+  "Date": "2026-10-31",
+  "N04Status": "Complete: baseline recorded with known config/scrollbar failures; physical IME accepted on both products",
+  "OperatingSystem": {
+    "Caption": "Microsoft Windows 11 Pro",
+    "Version": "10.0.26300",
+    "BuildNumber": "26300"
+  },
+  "CPU": {
+    "Name": "AMD Ryzen 7 7700 8-Core Processor              ",
+    "NumberOfCores": 8,
+    "NumberOfLogicalProcessors": 16
+  },
+  "Products": [
+    {
+      "Repository": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov",
+      "Commit": "ac3ad2b6cb615469b4e458a4128e1f643d7753df",
+      "Branch": "windows",
+      "ZigVersion": "0.16.0",
+      "SourceUnchanged": true,
+      "RawSummary": ".worktrees/windows-nov/zig-out/logs/n04-20261031-134611-469/summary.json",
+      "Steps": [
+        {
+          "Name": "conpty",
+          "Command": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          "Arguments": [
+            "-NoProfile",
+            "-File",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\scripts\\fetch-conpty.ps1"
+          ],
+          "Started": "2026-10-31T13:46:12.9948798+09:00",
+          "Finished": "2026-10-31T13:46:13.4801674+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\conpty.log"
+        },
+        {
+          "Name": "debug-build",
+          "Command": "C:\\Users\\n_fuk\\AppData\\Local\\Microsoft\\WinGet\\Links\\zig.exe",
+          "Arguments": [
+            "build",
+            "--prefix",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-debug",
+            "-Dcpu=baseline",
+            "-Demit-docs=false",
+            "--summary",
+            "all"
+          ],
+          "Started": "2026-10-31T13:46:13.4839269+09:00",
+          "Finished": "2026-10-31T13:47:23.5223052+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\debug-build.log"
+        },
+        {
+          "Name": "full-tests",
+          "Command": "C:\\Users\\n_fuk\\AppData\\Local\\Microsoft\\WinGet\\Links\\zig.exe",
+          "Arguments": [
+            "build",
+            "test",
+            "--summary",
+            "all"
+          ],
+          "Started": "2026-10-31T13:47:23.5262307+09:00",
+          "Finished": "2026-10-31T13:57:46.0856531+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\full-tests.log"
+        },
+        {
+          "Name": "win32-tests",
+          "Command": "C:\\Users\\n_fuk\\AppData\\Local\\Microsoft\\WinGet\\Links\\zig.exe",
+          "Arguments": [
+            "build",
+            "test",
+            "-Dtest-filter=Win32",
+            "--summary",
+            "all"
+          ],
+          "Started": "2026-10-31T13:57:46.0871742+09:00",
+          "Finished": "2026-10-31T13:58:27.4846403+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\win32-tests.log"
+        },
+        {
+          "Name": "win32-hook-tests",
+          "Command": "C:\\Users\\n_fuk\\AppData\\Local\\Microsoft\\WinGet\\Links\\zig.exe",
+          "Arguments": [
+            "build",
+            "test",
+            "-Dtest-filter=Win32",
+            "-Dwin32-test-hooks=true",
+            "--summary",
+            "all"
+          ],
+          "Started": "2026-10-31T13:58:27.48613+09:00",
+          "Finished": "2026-10-31T13:59:11.7400573+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\win32-hook-tests.log"
+        },
+        {
+          "Name": "normal-release-build",
+          "Command": "C:\\Users\\n_fuk\\AppData\\Local\\Microsoft\\WinGet\\Links\\zig.exe",
+          "Arguments": [
+            "build",
+            "--prefix",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-normal",
+            "-Doptimize=ReleaseFast",
+            "-Dcpu=baseline",
+            "-Demit-docs=false",
+            "--summary",
+            "all"
+          ],
+          "Started": "2026-10-31T13:59:11.741549+09:00",
+          "Finished": "2026-10-31T14:01:56.1794251+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\normal-release-build.log"
+        },
+        {
+          "Name": "hook-release-build",
+          "Command": "C:\\Users\\n_fuk\\AppData\\Local\\Microsoft\\WinGet\\Links\\zig.exe",
+          "Arguments": [
+            "build",
+            "--prefix",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-hooks",
+            "-Doptimize=ReleaseFast",
+            "-Dcpu=baseline",
+            "-Demit-docs=false",
+            "-Dwin32-test-hooks=true",
+            "--summary",
+            "all"
+          ],
+          "Started": "2026-10-31T14:01:56.1805921+09:00",
+          "Finished": "2026-10-31T14:03:31.7579196+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\hook-release-build.log"
+        },
+        {
+          "Name": "version-n04-20261031-134611-469-debug",
+          "Command": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-debug\\bin\\ghostty.exe",
+          "Arguments": [
+            "--version"
+          ],
+          "Started": "2026-10-31T14:03:31.8405637+09:00",
+          "Finished": "2026-10-31T14:03:31.9312043+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\version-n04-20261031-134611-469-debug.log"
+        },
+        {
+          "Name": "version-n04-20261031-134611-469-normal",
+          "Command": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-normal\\bin\\ghostty.exe",
+          "Arguments": [
+            "--version"
+          ],
+          "Started": "2026-10-31T14:03:32.382695+09:00",
+          "Finished": "2026-10-31T14:03:32.4609073+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\version-n04-20261031-134611-469-normal.log"
+        },
+        {
+          "Name": "version-n04-20261031-134611-469-hooks",
+          "Command": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-hooks\\bin\\ghostty.exe",
+          "Arguments": [
+            "--version"
+          ],
+          "Started": "2026-10-31T14:03:32.953454+09:00",
+          "Finished": "2026-10-31T14:03:33.0297752+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\version-n04-20261031-134611-469-hooks.log"
+        },
+        {
+          "Name": "normal-gui",
+          "Command": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          "Arguments": [
+            "-NoProfile",
+            "-File",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\scripts\\test-windows-window-state.ps1",
+            "-Executable",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-normal\\bin\\ghostty.exe",
+            "-TestRendererWakeup",
+            "-TestOverlayScrollbar",
+            "-TestCommandPalette"
+          ],
+          "Started": "2026-10-31T14:03:33.3137039+09:00",
+          "Finished": "2026-10-31T14:04:48.4067136+09:00",
+          "ExitCode": 1,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\normal-gui.log"
+        },
+        {
+          "Name": "parity-enabled",
+          "Command": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          "Arguments": [
+            "-NoProfile",
+            "-File",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\scripts\\test-windows-parity.ps1",
+            "-Executable",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-normal\\bin\\ghostty.exe"
+          ],
+          "Started": "2026-10-31T14:04:48.4082457+09:00",
+          "Finished": "2026-10-31T14:05:08.8359597+09:00",
+          "ExitCode": 1,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\parity-enabled.log"
+        },
+        {
+          "Name": "parity-disabled",
+          "Command": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          "Arguments": [
+            "-NoProfile",
+            "-File",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\scripts\\test-windows-parity.ps1",
+            "-Executable",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-normal\\bin\\ghostty.exe",
+            "-DisableCwdInheritance"
+          ],
+          "Started": "2026-10-31T14:05:08.8374497+09:00",
+          "Finished": "2026-10-31T14:05:30.4270384+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\parity-disabled.log"
+        },
+        {
+          "Name": "config-diagnostics",
+          "Command": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          "Arguments": [
+            "-NoProfile",
+            "-File",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\scripts\\test-windows-config-diagnostics.ps1",
+            "-Executable",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-normal\\bin\\ghostty.exe"
+          ],
+          "Started": "2026-10-31T14:05:30.4284546+09:00",
+          "Finished": "2026-10-31T14:05:41.5116486+09:00",
+          "ExitCode": 1,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\config-diagnostics.log"
+        },
+        {
+          "Name": "gpu-power",
+          "Command": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          "Arguments": [
+            "-NoProfile",
+            "-File",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\scripts\\test-windows-window-state.ps1",
+            "-Executable",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-hooks\\bin\\ghostty.exe",
+            "-TestGpuRecovery",
+            "-TestPowerResume"
+          ],
+          "Started": "2026-10-31T14:05:41.5140654+09:00",
+          "Finished": "2026-10-31T14:05:48.1984642+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\gpu-power.log"
+        },
+        {
+          "Name": "ime-automated",
+          "Command": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          "Arguments": [
+            "-NoProfile",
+            "-File",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\scripts\\verify-windows-ime.ps1"
+          ],
+          "Started": "2026-10-31T14:05:48.1998859+09:00",
+          "Finished": "2026-10-31T14:08:05.5346942+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\ime-automated.log"
+        },
+        {
+          "Name": "lifecycle",
+          "Command": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          "Arguments": [
+            "-NoProfile",
+            "-File",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\scripts\\verify-windows-lifecycle.ps1"
+          ],
+          "Started": "2026-10-31T14:08:05.5364815+09:00",
+          "Finished": "2026-10-31T14:10:08.4404864+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\lifecycle.log"
+        }
+      ],
+      "Artifacts": [
+        {
+          "Prefix": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-debug",
+          "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-debug\\bin\\ghostty.exe",
+          "Hash": "375CCB6A8142DB87DBC6816F9C00AAB800A4F71DEDB460DB779C6D1C5C24B5A6",
+          "FileVersion": "1.3.2-windows+ac3ad2b6c",
+          "ProductVersion": "1.3.2-windows+ac3ad2b6c",
+          "Brand": {
+            "schema": 1,
+            "display_name": "Ghostty",
+            "identifier": "ghostty",
+            "env_prefix": "GHOSTTY_",
+            "exe_name": "ghostty",
+            "resources_dir_name": "ghostty",
+            "config_dir_name": "ghostty",
+            "config_file_name": "config.ghostty",
+            "terminfo_name": "xterm-ghostty",
+            "term_program": "ghostty",
+            "window_class_prefix": "Ghostty",
+            "ipc_pipe_prefix": "\\\\.\\pipe\\fukuyori.ghostty.win32-ipc",
+            "app_user_model_id": "fukuyori.Ghostty",
+            "installer_app_id": "{6F0C5B4E-2B6D-4E4A-9C2E-3A1D5F7B8C90}"
+          }
+        },
+        {
+          "Prefix": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-normal",
+          "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-normal\\bin\\ghostty.exe",
+          "Hash": "4D8212E6110291829AE7361A7B53436A2D1363F89BFB4D088BAAC8E9E776CEBB",
+          "FileVersion": "1.3.2-windows+ac3ad2b6c",
+          "ProductVersion": "1.3.2-windows+ac3ad2b6c",
+          "Brand": {
+            "schema": 1,
+            "display_name": "Ghostty",
+            "identifier": "ghostty",
+            "env_prefix": "GHOSTTY_",
+            "exe_name": "ghostty",
+            "resources_dir_name": "ghostty",
+            "config_dir_name": "ghostty",
+            "config_file_name": "config.ghostty",
+            "terminfo_name": "xterm-ghostty",
+            "term_program": "ghostty",
+            "window_class_prefix": "Ghostty",
+            "ipc_pipe_prefix": "\\\\.\\pipe\\fukuyori.ghostty.win32-ipc",
+            "app_user_model_id": "fukuyori.Ghostty",
+            "installer_app_id": "{6F0C5B4E-2B6D-4E4A-9C2E-3A1D5F7B8C90}"
+          }
+        },
+        {
+          "Prefix": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-hooks",
+          "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-hooks\\bin\\ghostty.exe",
+          "Hash": "3A456955737C45920F8225F7C32C8BE16575B3B20B3D384901106A459A789232",
+          "FileVersion": "1.3.2-windows+ac3ad2b6c",
+          "ProductVersion": "1.3.2-windows+ac3ad2b6c",
+          "Brand": {
+            "schema": 1,
+            "display_name": "Ghostty",
+            "identifier": "ghostty",
+            "env_prefix": "GHOSTTY_",
+            "exe_name": "ghostty",
+            "resources_dir_name": "ghostty",
+            "config_dir_name": "ghostty",
+            "config_file_name": "config.ghostty",
+            "terminfo_name": "xterm-ghostty",
+            "term_program": "ghostty",
+            "window_class_prefix": "Ghostty",
+            "ipc_pipe_prefix": "\\\\.\\pipe\\fukuyori.ghostty.win32-ipc",
+            "app_user_model_id": "fukuyori.Ghostty",
+            "installer_app_id": "{6F0C5B4E-2B6D-4E4A-9C2E-3A1D5F7B8C90}"
+          }
+        }
+      ],
+      "FinalHashChecks": [
+        {
+          "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-debug\\bin\\ghostty.exe",
+          "HashMatches": true
+        },
+        {
+          "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-normal\\bin\\ghostty.exe",
+          "HashMatches": true
+        },
+        {
+          "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-hooks\\bin\\ghostty.exe",
+          "HashMatches": true
+        }
+      ],
+      "MetadataCollectionFailure": "パス 'D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-packages' は存在しないため、見つかりません。",
+      "MetadataSupplement": ".worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469/resolved-packages-supplement.json",
+      "Repeats": {
+        "Reason": "One repeat after initial timeout and occluded captures; keep both results",
+        "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-normal\\bin\\ghostty.exe",
+        "BeforeHash": "4D8212E6110291829AE7361A7B53436A2D1363F89BFB4D088BAAC8E9E776CEBB",
+        "Commands": [
+          {
+            "Name": "normal-gui-repeat",
+            "Arguments": [
+              "-NoProfile",
+              "-File",
+              "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\scripts\\test-windows-window-state.ps1",
+              "-Executable",
+              "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-normal\\bin\\ghostty.exe",
+              "-TestRendererWakeup",
+              "-TestOverlayScrollbar",
+              "-TestCommandPalette"
+            ],
+            "ExitCode": 0,
+            "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\normal-gui-repeat.log"
+          },
+          {
+            "Name": "parity-enabled-repeat",
+            "Arguments": [
+              "-NoProfile",
+              "-File",
+              "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\scripts\\test-windows-parity.ps1",
+              "-Executable",
+              "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-normal\\bin\\ghostty.exe"
+            ],
+            "ExitCode": 0,
+            "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\logs\\n04-20261031-134611-469\\parity-enabled-repeat.log"
+          }
+        ],
+        "Finished": "2026-10-31T14:11:28.4144034+09:00",
+        "AfterHash": "4D8212E6110291829AE7361A7B53436A2D1363F89BFB4D088BAAC8E9E776CEBB"
+      },
+      "PhysicalIME": "Not performed",
+      "VisualStatus": "See windows-november-baseline.md"
+    },
+    {
+      "Repository": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty",
+      "Commit": "07be8fc21e7dd1c699d13d89e734b4e0cd51f234",
+      "Branch": null,
+      "ZigVersion": "0.16.0",
+      "SourceUnchanged": true,
+      "RawSummary": ".worktrees/n04-gooztty/zig-out/logs/n04-20261031-135311-377/summary.json",
+      "Steps": [
+        {
+          "Name": "conpty",
+          "Command": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          "Arguments": [
+            "-NoProfile",
+            "-File",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\scripts\\fetch-conpty.ps1"
+          ],
+          "Started": "2026-10-31T13:53:13.8610488+09:00",
+          "Finished": "2026-10-31T13:53:14.3756633+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\conpty.log"
+        },
+        {
+          "Name": "debug-build",
+          "Command": "C:\\Users\\n_fuk\\AppData\\Local\\Microsoft\\WinGet\\Links\\zig.exe",
+          "Arguments": [
+            "build",
+            "--prefix",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-debug",
+            "-Dcpu=baseline",
+            "-Demit-docs=false",
+            "--summary",
+            "all"
+          ],
+          "Started": "2026-10-31T13:53:14.3907369+09:00",
+          "Finished": "2026-10-31T13:55:05.7805528+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\debug-build.log"
+        },
+        {
+          "Name": "full-tests",
+          "Command": "C:\\Users\\n_fuk\\AppData\\Local\\Microsoft\\WinGet\\Links\\zig.exe",
+          "Arguments": [
+            "build",
+            "test",
+            "--summary",
+            "all"
+          ],
+          "Started": "2026-10-31T13:55:05.7818584+09:00",
+          "Finished": "2026-10-31T14:06:30.9069374+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\full-tests.log"
+        },
+        {
+          "Name": "win32-tests",
+          "Command": "C:\\Users\\n_fuk\\AppData\\Local\\Microsoft\\WinGet\\Links\\zig.exe",
+          "Arguments": [
+            "build",
+            "test",
+            "-Dtest-filter=Win32",
+            "--summary",
+            "all"
+          ],
+          "Started": "2026-10-31T14:06:30.9084628+09:00",
+          "Finished": "2026-10-31T14:07:12.7095675+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\win32-tests.log"
+        },
+        {
+          "Name": "win32-hook-tests",
+          "Command": "C:\\Users\\n_fuk\\AppData\\Local\\Microsoft\\WinGet\\Links\\zig.exe",
+          "Arguments": [
+            "build",
+            "test",
+            "-Dtest-filter=Win32",
+            "-Dwin32-test-hooks=true",
+            "--summary",
+            "all"
+          ],
+          "Started": "2026-10-31T14:07:12.7110712+09:00",
+          "Finished": "2026-10-31T14:07:54.5926247+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\win32-hook-tests.log"
+        },
+        {
+          "Name": "normal-release-build",
+          "Command": "C:\\Users\\n_fuk\\AppData\\Local\\Microsoft\\WinGet\\Links\\zig.exe",
+          "Arguments": [
+            "build",
+            "--prefix",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal",
+            "-Doptimize=ReleaseFast",
+            "-Dcpu=baseline",
+            "-Demit-docs=false",
+            "--summary",
+            "all"
+          ],
+          "Started": "2026-10-31T14:07:54.5940282+09:00",
+          "Finished": "2026-10-31T14:10:23.6192004+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\normal-release-build.log"
+        },
+        {
+          "Name": "hook-release-build",
+          "Command": "C:\\Users\\n_fuk\\AppData\\Local\\Microsoft\\WinGet\\Links\\zig.exe",
+          "Arguments": [
+            "build",
+            "--prefix",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-hooks",
+            "-Doptimize=ReleaseFast",
+            "-Dcpu=baseline",
+            "-Demit-docs=false",
+            "-Dwin32-test-hooks=true",
+            "--summary",
+            "all"
+          ],
+          "Started": "2026-10-31T14:10:23.620571+09:00",
+          "Finished": "2026-10-31T14:11:53.1158003+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\hook-release-build.log"
+        },
+        {
+          "Name": "version-n04-20261031-135311-377-debug",
+          "Command": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-debug\\bin\\gooztty.exe",
+          "Arguments": [
+            "--version"
+          ],
+          "Started": "2026-10-31T14:11:53.1927918+09:00",
+          "Finished": "2026-10-31T14:11:53.2752885+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\version-n04-20261031-135311-377-debug.log"
+        },
+        {
+          "Name": "version-n04-20261031-135311-377-normal",
+          "Command": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe",
+          "Arguments": [
+            "--version"
+          ],
+          "Started": "2026-10-31T14:11:53.6869131+09:00",
+          "Finished": "2026-10-31T14:11:53.7765715+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\version-n04-20261031-135311-377-normal.log"
+        },
+        {
+          "Name": "version-n04-20261031-135311-377-hooks",
+          "Command": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-hooks\\bin\\gooztty.exe",
+          "Arguments": [
+            "--version"
+          ],
+          "Started": "2026-10-31T14:11:54.4214619+09:00",
+          "Finished": "2026-10-31T14:11:54.5083904+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\version-n04-20261031-135311-377-hooks.log"
+        },
+        {
+          "Name": "normal-gui",
+          "Command": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          "Arguments": [
+            "-NoProfile",
+            "-File",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\scripts\\test-windows-window-state.ps1",
+            "-Executable",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe",
+            "-TestRendererWakeup",
+            "-TestOverlayScrollbar",
+            "-TestCommandPalette"
+          ],
+          "Started": "2026-10-31T14:11:54.7810803+09:00",
+          "Finished": "2026-10-31T14:12:08.3262559+09:00",
+          "ExitCode": 1,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\normal-gui.log"
+        },
+        {
+          "Name": "parity-enabled",
+          "Command": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          "Arguments": [
+            "-NoProfile",
+            "-File",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\scripts\\test-windows-parity.ps1",
+            "-Executable",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe"
+          ],
+          "Started": "2026-10-31T14:12:08.327867+09:00",
+          "Finished": "2026-10-31T14:12:16.5995816+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\parity-enabled.log"
+        },
+        {
+          "Name": "parity-disabled",
+          "Command": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          "Arguments": [
+            "-NoProfile",
+            "-File",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\scripts\\test-windows-parity.ps1",
+            "-Executable",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe",
+            "-DisableCwdInheritance"
+          ],
+          "Started": "2026-10-31T14:12:16.6012735+09:00",
+          "Finished": "2026-10-31T14:12:24.8344957+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\parity-disabled.log"
+        },
+        {
+          "Name": "config-diagnostics",
+          "Command": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          "Arguments": [
+            "-NoProfile",
+            "-File",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\scripts\\test-windows-config-diagnostics.ps1",
+            "-Executable",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe"
+          ],
+          "Started": "2026-10-31T14:12:24.8360761+09:00",
+          "Finished": "2026-10-31T14:12:36.3453432+09:00",
+          "ExitCode": 1,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\config-diagnostics.log"
+        },
+        {
+          "Name": "gpu-power",
+          "Command": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          "Arguments": [
+            "-NoProfile",
+            "-File",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\scripts\\test-windows-window-state.ps1",
+            "-Executable",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-hooks\\bin\\gooztty.exe",
+            "-TestGpuRecovery",
+            "-TestPowerResume"
+          ],
+          "Started": "2026-10-31T14:12:36.3478208+09:00",
+          "Finished": "2026-10-31T14:12:42.9240795+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\gpu-power.log"
+        },
+        {
+          "Name": "ime-automated",
+          "Command": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          "Arguments": [
+            "-NoProfile",
+            "-File",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\scripts\\verify-windows-ime.ps1"
+          ],
+          "Started": "2026-10-31T14:12:42.9256297+09:00",
+          "Finished": "2026-10-31T14:14:28.4280778+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\ime-automated.log"
+        },
+        {
+          "Name": "lifecycle",
+          "Command": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+          "Arguments": [
+            "-NoProfile",
+            "-File",
+            "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\scripts\\verify-windows-lifecycle.ps1"
+          ],
+          "Started": "2026-10-31T14:14:28.4298523+09:00",
+          "Finished": "2026-10-31T14:16:17.7373367+09:00",
+          "ExitCode": 0,
+          "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\lifecycle.log"
+        }
+      ],
+      "Artifacts": [
+        {
+          "Prefix": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-debug",
+          "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-debug\\bin\\gooztty.exe",
+          "Hash": "7CB865F16C96AE1D721E01D6674C375CC7D83CAE2F73AA0C93F5308258781A81",
+          "FileVersion": "1.3.2-HEAD+07be8fc21",
+          "ProductVersion": "1.3.2-HEAD+07be8fc21",
+          "Brand": {
+            "schema": 1,
+            "display_name": "Gooztty",
+            "identifier": "gooztty",
+            "env_prefix": "GOOZTTY_",
+            "exe_name": "gooztty",
+            "resources_dir_name": "gooztty",
+            "config_dir_name": "gooztty",
+            "config_file_name": "config.gooztty",
+            "terminfo_name": "xterm-gooztty",
+            "term_program": "gooztty",
+            "window_class_prefix": "Gooztty",
+            "ipc_pipe_prefix": "\\\\.\\pipe\\fukuyori.gooztty.win32-ipc",
+            "app_user_model_id": "fukuyori.Gooztty",
+            "installer_app_id": "{752F6F8F-9925-490F-9D0F-CFC2FE87D588}"
+          }
+        },
+        {
+          "Prefix": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal",
+          "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe",
+          "Hash": "F33CC3CF5E60DE0D45F56A1A7C3632DB7D95E1060613BCE75F04D45758A1E21E",
+          "FileVersion": "1.3.2-HEAD+07be8fc21",
+          "ProductVersion": "1.3.2-HEAD+07be8fc21",
+          "Brand": {
+            "schema": 1,
+            "display_name": "Gooztty",
+            "identifier": "gooztty",
+            "env_prefix": "GOOZTTY_",
+            "exe_name": "gooztty",
+            "resources_dir_name": "gooztty",
+            "config_dir_name": "gooztty",
+            "config_file_name": "config.gooztty",
+            "terminfo_name": "xterm-gooztty",
+            "term_program": "gooztty",
+            "window_class_prefix": "Gooztty",
+            "ipc_pipe_prefix": "\\\\.\\pipe\\fukuyori.gooztty.win32-ipc",
+            "app_user_model_id": "fukuyori.Gooztty",
+            "installer_app_id": "{752F6F8F-9925-490F-9D0F-CFC2FE87D588}"
+          }
+        },
+        {
+          "Prefix": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-hooks",
+          "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-hooks\\bin\\gooztty.exe",
+          "Hash": "EA12215F621B116151CE7060673ED335D0D92C9917C7B29C1F05FE29E587A069",
+          "FileVersion": "1.3.2-HEAD+07be8fc21",
+          "ProductVersion": "1.3.2-HEAD+07be8fc21",
+          "Brand": {
+            "schema": 1,
+            "display_name": "Gooztty",
+            "identifier": "gooztty",
+            "env_prefix": "GOOZTTY_",
+            "exe_name": "gooztty",
+            "resources_dir_name": "gooztty",
+            "config_dir_name": "gooztty",
+            "config_file_name": "config.gooztty",
+            "terminfo_name": "xterm-gooztty",
+            "term_program": "gooztty",
+            "window_class_prefix": "Gooztty",
+            "ipc_pipe_prefix": "\\\\.\\pipe\\fukuyori.gooztty.win32-ipc",
+            "app_user_model_id": "fukuyori.Gooztty",
+            "installer_app_id": "{752F6F8F-9925-490F-9D0F-CFC2FE87D588}"
+          }
+        }
+      ],
+      "FinalHashChecks": [
+        {
+          "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-debug\\bin\\gooztty.exe",
+          "HashMatches": true
+        },
+        {
+          "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe",
+          "HashMatches": true
+        },
+        {
+          "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-hooks\\bin\\gooztty.exe",
+          "HashMatches": true
+        }
+      ],
+      "MetadataCollectionFailure": "パス 'D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-packages' は存在しないため、見つかりません。",
+      "MetadataSupplement": ".worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377/resolved-packages-supplement.json",
+      "Repeats": {
+        "Reason": "One repeat after initial GUI timeout and unusable captures; keep initial results",
+        "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe",
+        "BeforeHash": "F33CC3CF5E60DE0D45F56A1A7C3632DB7D95E1060613BCE75F04D45758A1E21E",
+        "Commands": [
+          {
+            "Name": "normal-gui-repeat",
+            "Arguments": [
+              "-NoProfile",
+              "-File",
+              "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\scripts\\test-windows-window-state.ps1",
+              "-Executable",
+              "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe",
+              "-TestRendererWakeup",
+              "-TestOverlayScrollbar",
+              "-TestCommandPalette"
+            ],
+            "ExitCode": 1,
+            "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\normal-gui-repeat.log"
+          },
+          {
+            "Name": "parity-enabled-repeat",
+            "Arguments": [
+              "-NoProfile",
+              "-File",
+              "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\scripts\\test-windows-parity.ps1",
+              "-Executable",
+              "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe"
+            ],
+            "ExitCode": 1,
+            "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\parity-enabled-repeat.log"
+          },
+          {
+            "Name": "parity-disabled-repeat",
+            "Arguments": [
+              "-NoProfile",
+              "-File",
+              "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\scripts\\test-windows-parity.ps1",
+              "-Executable",
+              "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe",
+              "-DisableCwdInheritance"
+            ],
+            "ExitCode": 0,
+            "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377\\parity-disabled-repeat.log"
+          }
+        ],
+        "Finished": "2026-10-31T14:17:08.4643137+09:00",
+        "AfterHash": "F33CC3CF5E60DE0D45F56A1A7C3632DB7D95E1060613BCE75F04D45758A1E21E"
+      },
+      "PhysicalIME": "Not performed",
+      "VisualStatus": "See windows-november-baseline.md",
+      "WakeupPaletteSupplement": {
+        "Reason": "Cover wakeup and palette independently after overlay scrollbar stopped the combined check",
+        "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe",
+        "BeforeHash": "F33CC3CF5E60DE0D45F56A1A7C3632DB7D95E1060613BCE75F04D45758A1E21E",
+        "Arguments": [
+          "-NoProfile",
+          "-File",
+          "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\scripts\\test-windows-window-state.ps1",
+          "-Executable",
+          "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe",
+          "-TestRendererWakeup",
+          "-TestCommandPalette"
+        ],
+        "ExitCode": 0,
+        "AfterHash": "F33CC3CF5E60DE0D45F56A1A7C3632DB7D95E1060613BCE75F04D45758A1E21E",
+        "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-20261031-135311-377/wakeup-palette.log"
+      }
+    }
+  ],
+  "GoozttyAttendedRecheck": {
+    "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe",
+    "Hash": "F33CC3CF5E60DE0D45F56A1A7C3632DB7D95E1060613BCE75F04D45758A1E21E",
+    "Started": "2026-10-31T14:22:22.3374781+09:00",
+    "Steps": [
+      {
+        "Name": "gui",
+        "Arguments": [
+          "-NoProfile",
+          "-File",
+          "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\scripts\\test-windows-window-state.ps1",
+          "-Executable",
+          "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe",
+          "-TestRendererWakeup",
+          "-TestOverlayScrollbar",
+          "-TestCommandPalette"
+        ],
+        "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-attended-20261031-142222\\gui.log",
+        "ExitCode": 1
+      },
+      {
+        "Name": "parity-on",
+        "Arguments": [
+          "-NoProfile",
+          "-File",
+          "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\scripts\\test-windows-parity.ps1",
+          "-Executable",
+          "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe"
+        ],
+        "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-attended-20261031-142222\\parity-on.log",
+        "ExitCode": 0
+      },
+      {
+        "Name": "parity-off",
+        "Arguments": [
+          "-NoProfile",
+          "-File",
+          "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\scripts\\test-windows-parity.ps1",
+          "-Executable",
+          "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe",
+          "-DisableCwdInheritance"
+        ],
+        "Log": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\logs\\n04-attended-20261031-142222\\parity-off.log",
+        "ExitCode": 0
+      }
+    ],
+    "Finished": "2026-10-31T14:23:47.5872209+09:00",
+    "VisualInspection": "Six captures inspected: target palette, renderer output, scrollbar, split panes and both parity search views visible. GUI timeout before close-during-drag remains unresolved."
+  },
+  "PhysicalIme": {
+    "Date": "2026-10-31",
+    "OwnerReport": "2つとも問題ない",
+    "AcceptedCases": [
+      "partial commit",
+      "focus leave/resume"
+    ],
+    "UnverifiedCases": [],
+    "Sessions": [
+      {
+        "Pid": 23512,
+        "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-normal\\bin\\ghostty.exe",
+        "Sha256": "4D8212E6110291829AE7361A7B53436A2D1363F89BFB4D088BAAC8E9E776CEBB",
+        "ExitCode": 0,
+        "Commit": "ac3ad2b6cb615469b4e458a4128e1f643d7753df",
+        "Command": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\scripts\\test-windows-ime.ps1",
+        "Arguments": {
+          "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-normal\\bin\\ghostty.exe"
+        },
+        "TraceEnvironment": "GHOSTTY_TEST_IME_TRACE=1",
+        "MainProcessExited": true,
+        "ObservedProbePid": 12816,
+        "ProbeExited": true,
+        "RemainingObservedProcessIds": [],
+        "TracePresent": false,
+        "CrashOrLeak": false,
+        "EvidenceDirectory": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\test-fixtures\\ime-20261031-142518-653"
+      },
+      {
+        "Pid": 28000,
+        "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe",
+        "Sha256": "F33CC3CF5E60DE0D45F56A1A7C3632DB7D95E1060613BCE75F04D45758A1E21E",
+        "ExitCode": 0,
+        "Commit": "07be8fc21e7dd1c699d13d89e734b4e0cd51f234",
+        "Command": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\scripts\\test-windows-ime.ps1",
+        "Arguments": {
+          "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe"
+        },
+        "TraceEnvironment": "GOOZTTY_TEST_IME_TRACE=1",
+        "MainProcessExited": true,
+        "ObservedProbePid": 11460,
+        "ProbeExited": true,
+        "RemainingObservedProcessIds": [],
+        "TracePresent": false,
+        "CrashOrLeak": false,
+        "EvidenceDirectory": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\test-fixtures\\ime-20261031-142643-093"
+      }
+    ]
+  },
+  "AsyncIme": {
+    "OwnerReport": "ＯＫ",
+    "AcceptedCases": [
+      "IME placement during asynchronous output on both products"
+    ],
+    "EvidenceDirectory": "D:\\home\\source\\zig\\ghostty\\zig-out\\n04-async-ime-20261031-142829",
+    "WindowsSession": {
+      "Commit": "ac3ad2b6cb615469b4e458a4128e1f643d7753df",
+      "Finished": "2026-10-31T14:39:34.2835125+09:00",
+      "ExitCode": 0,
+      "Pid": 10384,
+      "ProbeExited": true,
+      "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\windows-nov\\zig-out\\n04-20261031-134611-469-normal\\bin\\ghostty.exe",
+      "PhysicalResult": "awaiting owner report",
+      "Started": "2026-10-31T14:28:29.2434668+09:00",
+      "CrashOrLeak": false,
+      "Product": "Windows",
+      "Sha256": "4D8212E6110291829AE7361A7B53436A2D1363F89BFB4D088BAAC8E9E776CEBB"
+    },
+    "GoozttySessionStatus": "Exited 0; probe exited; no crash/leak detected; normal CloseMainWindow after owner reported finished",
+    "Script": "zig-out/n04-async-ime.ps1",
+    "IntervalMs": 500,
+    "GoozttySession": {
+      "Commit": "07be8fc21e7dd1c699d13d89e734b4e0cd51f234",
+      "Finished": "2026-10-31T14:45:43.0834018+09:00",
+      "ExitCode": 0,
+      "Pid": 15064,
+      "ProbeExited": true,
+      "Executable": "D:\\home\\source\\zig\\ghostty\\.worktrees\\n04-gooztty\\zig-out\\n04-20261031-135311-377-normal\\bin\\gooztty.exe",
+      "PhysicalResult": "awaiting owner report",
+      "Started": "2026-10-31T14:39:34.3455832+09:00",
+      "CrashOrLeak": false,
+      "Product": "Gooztty",
+      "Sha256": "F33CC3CF5E60DE0D45F56A1A7C3632DB7D95E1060613BCE75F04D45758A1E21E"
+    }
+  }
+}

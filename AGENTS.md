@@ -47,8 +47,9 @@ repository targets Win32, D3D11, and the PowerShell tooling around them.
   conflicts in it, keep the `gooztty` text and port relevant `windows`
   changes by hand. Resolve `README.md` conflicts the same way.
 
-See `docs/windows-rebranding-plan.md` Section 1.2 for the full boundary and
-`docs/windows-roadmap.md` Section 7 for the schedule.
+See `docs/windows-rebranding-plan.md` Section 1.2 for the full boundary,
+`docs/windows-roadmap.md` Section 7 for open work, and
+`docs/windows-handoff.md` for the current state, procedures and known pitfalls.
 
 ## Commands
 
@@ -128,7 +129,8 @@ the exit code.
 - Windows packaging: `dist/windows` (icon, manifest, resource script, and the
   Inno Setup script)
 - Windows tooling: `scripts/*.ps1`
-- Documentation maintained here: `docs/windows.md` (user guide),
+- Documentation maintained here: `docs/windows-handoff.md` (current state
+  and pitfalls for whoever continues), `docs/windows.md` (user guide),
   `docs/windows-roadmap.md` (implementation status and verification matrix),
   `docs/windows-release-notes.md`, `docs/windows-changelog.md`,
   `docs/version-update-checklist.md`, `docs/windows-upstream-feature-plan.md`
@@ -171,3 +173,4 @@ These rules are about the upstream repository, `ghostty-org/ghostty`:
 
 Issues on this fork, `fukuyori/ghostty`, are fine when the repository owner
 asks for them. The fork does not use pull requests.
+
