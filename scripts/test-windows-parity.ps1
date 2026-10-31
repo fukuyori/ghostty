@@ -5,6 +5,9 @@ Controlled native regression for OSC 7 inheritance, search, resize, and cursors.
 Uses only dedicated test processes and configuration. Saves a search screenshot
 for visual inspection. Keyboard messages are synthetic; physical IME operation
 and mixed-DPI monitors still require separate checks.
+.PARAMETER Executable
+Required path to the build under test. No existing output directory is selected
+implicitly. Use verify-windows-parity.ps1 to bind a fresh build to source evidence.
 #>
 [CmdletBinding()]
 param(
@@ -16,15 +19,16 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 . (Join-Path $PSScriptRoot 'windows-brand.ps1')
-if (-not $Executable) {
-    $defaultPrefix = Join-Path $root 'zig-out/parity-d3d11'
-    $Executable = Get-GhosttyBrandExecutable -Prefix $defaultPrefix -Brand (Get-GhosttyBrandForPrefix -Prefix $defaultPrefix -RepositoryRoot $root)
+if ([string]::IsNullOrWhiteSpace($Executable)) {
+    throw 'Specify -Executable explicitly; no default build is tested. Use verify-windows-parity.ps1 for a fresh build.'
 }
 $exe = if ([IO.Path]::IsPathRooted($Executable)) {
     (Resolve-Path -LiteralPath $Executable).Path
 } else {
     (Resolve-Path -LiteralPath (Join-Path $root $Executable)).Path
 }
+if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "Executable is not a file: $exe" }
+$executableHash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
 $brand = Get-GhosttyBrandForExecutable -Executable $exe -RepositoryRoot $root
 $windowClass = $brand.window_class_prefix + 'Window'
 $name = 'parity-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff')
@@ -39,6 +43,16 @@ $startup = Join-Path $state 'startup.ps1'
 $config = Join-Path $state 'config'
 $screenshot = Join-Path $logs "$name.png"
 $resultPath = Join-Path $logs "$name.json"
+$evidence = [ordered]@{
+    Started = (Get-Date).ToString('o'); Finished = $null
+    Executable = $exe; ExecutableHash = $executableHash
+    ScriptHash = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash
+    BuildProvenance = 'Not established by this runtime-only script; see the build verification summary.'
+    CwdInheritanceEnabled = -not $DisableCwdInheritance
+    Passed = $false; Failure = $null; ExitCode = $null; ForcedTermination = $false
+    Result = $null
+}
+$evidence | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $resultPath -Encoding utf8
 
 if (-not ('GhosttyParityNative' -as [type])) {
     Add-Type -TypeDefinition @'
@@ -302,13 +316,30 @@ try {
     if (-not $process.WaitForExit($TimeoutSeconds * 1000)) { throw 'Ghostty did not exit cleanly' }
     if ($process.ExitCode -ne 0) { throw "Ghostty exit code: $($process.ExitCode)" }
     $result.ExitCode = $process.ExitCode
-    $result | ConvertTo-Json | Set-Content -LiteralPath $resultPath -Encoding utf8
+    if ((Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash -ne $executableHash) {
+        throw 'Executable changed during the parity check.'
+    }
+    $evidence.Result = $result
+    $evidence.Passed = $true
     [pscustomobject]$result
+} catch {
+    $evidence.Failure = $_.Exception.Message
+    throw
 } finally {
-    $null = [GhosttyParityNative]::SetCursorPos($pointer.X, $pointer.Y)
-    if ($process -and -not $process.HasExited) {
-        foreach ($h in [GhosttyParityNative]::Windows($process.Id)) { $null = [GhosttyParityNative]::PostMessageW($h, 0x10, [UIntPtr]::Zero, [IntPtr]::Zero) }
-        if (-not $process.WaitForExit(5000)) { $process.Kill(); $process.WaitForExit() }
+    try {
+        $null = [GhosttyParityNative]::SetCursorPos($pointer.X, $pointer.Y)
+        if ($process -and -not $process.HasExited) {
+            foreach ($h in [GhosttyParityNative]::Windows($process.Id)) { $null = [GhosttyParityNative]::PostMessageW($h, 0x10, [UIntPtr]::Zero, [IntPtr]::Zero) }
+            if (-not $process.WaitForExit(5000)) {
+                $evidence.ForcedTermination = $true
+                $process.Kill(); $process.WaitForExit()
+            }
+        }
+    } finally {
+        if ($process -and $process.HasExited) { $evidence.ExitCode = $process.ExitCode }
+        $evidence.Finished = (Get-Date).ToString('o')
+        $evidence | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $resultPath -Encoding utf8
+        Write-Host "Parity evidence: $resultPath"
     }
     # Keep dedicated inputs and logs under zig-out so failures are reproducible.
 }

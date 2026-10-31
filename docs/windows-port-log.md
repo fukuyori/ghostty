@@ -5,6 +5,29 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-31: Explicit parity target and fresh-build evidence (N01)
+
+- `test-windows-parity.ps1` now rejects an omitted executable instead of
+  selecting an old build. It records executable/script hashes, failure,
+  exit code and forced termination even when runtime checks fail.
+- `verify-windows-parity.ps1` builds into a unique prefix and runs both cwd
+  inheritance modes. Its manifest binds HEAD, branch, tracked/untracked
+  file hashes and ConPTY files to the commands, Zig version and exe hash;
+  changed inputs fail verification.
+- On `0e889194bf82212a3493cc17ec33d3bfaceda2d7` with the two uncommitted
+  scripts, Zig 0.16.0 completed 142/142 steps. Both runtime modes passed,
+  exited 0 and preserved inputs in run
+  `zig-out/logs/parity-verification-20261031-133059-678/summary.json`.
+  Executable SHA256: `1AB9C982C570BFC74505A04874C9946DDF6C9FF4BD505E5025A9FC7EE9C5EC62`.
+- Inspected captures `parity-20261031-133105-706.png` and
+  `parity-20261031-133116-254.png` in `zig-out/logs`: search controls,
+  highlighted matches and Japanese text are visible. These are controlled
+  message tests, not physical keyboard/IME acceptance or endurance proof.
+- Earlier failed verification records remain: source changed during the
+  first build; the next run exposed multiple pwsh resolutions. The wrapper
+  now uses its current PSHOME. One successful run per mode does not resolve
+  issue #69's intermittent failures. Gooztty integration/verification remains.
+
 ## 2026-10-25: Portable ZIP script and a clean release prefix
 
 - The first Gooztty installer built from `zig-out\release` carried
