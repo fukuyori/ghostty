@@ -5,6 +5,47 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-10-31: Fixed upstream B integration (N15, pending commit)
+
+- Merged fixed B `83fb95624b0439ee660c2679b43b38c8b63769cd` into the
+  working tree at `c6669ed65`. Main is at B, version 1.4.0 / Zig 0.17.0.
+  No merge commit has been made for this stage.
+- Kept deleted fork CI files deleted. Resolved Surface env ownership by
+  retaining upstream's pre-Exec scope and moving brand cleanup into it.
+  Adopted RenderState-based Kitty placement generations and the upstream
+  pre-update animation tick without duplicating it. Preserved Windows
+  device-recovery image rebuilds and mode 9001. Kitty clipboard paste
+  events remain disabled only for the unsupported Windows app, not lib-vt.
+- Stage ledger: `zig-out/logs/n15-b-20261031-155820-299/summary.json`.
+  SourceUnchanged=true. Debug/normal fast/hook fast passed 145/145 steps.
+  Full tests passed 4,211 main cases with 65 skipped; normal/hook Win32
+  main tests passed 196 with one skipped. All resource checks passed.
+- Normal GUI, both parity modes, and controlled GPU/power recovery passed.
+  Renderer, palette and split-scrollbar captures with prefix
+  `window-state-20261031-161259-404-47dad0e4` were inspected.
+  Config diagnostics retain only OwnerCloseWithOtherWindow's stale-owner
+  assertion. P0 investigation identified that this test closes a non-owner;
+  it is not treated as a new B regression or as a product fix.
+- Lifecycle `lifecycle-acceptance-20261031-161455-803` passed all 37 cases,
+  HooksDisabled, and four captures. Case names match the N04 baseline;
+  scripts and expected counts were not changed. Inspected the four images
+  with prefix `lifecycle-20261031-161815-114`; no leftovers were reported.
+- Additional root-workspace evidence: Kitty placement/resize/scroll/delete,
+  frame control and animation passed on Debug, and again on hook fast with
+  a controlled GPU recovery (counter 0 -> 1). SSH argument/environment
+  probes preserve user SetEnv without connecting to a remote server. Bash
+  cwd reporting strips injected controls while retaining backslashes.
+  Detailed paths and limitations are in the Gooztty migration record.
+- Tested normal fast SHA256:
+  `5D1401B2F37E934B81B1D44338637E65FADBCE273140A07E5B60814FED646761`.
+  Hook fast SHA256:
+  `C1CADB4C993A7043FE56A6FC8A985C8589C16E6C80522129A40D784DF9A14AD4`.
+  Binaries report `1.4.0-windows+c6669ed65`; use the source patch/hash
+  ledger, not HEAD alone, to identify the uncommitted implementation.
+- This log entry was added after the stage driver; application code is
+  unchanged. Physical IME, real GPU faults/sleep and distribution acceptance
+  are not established. Gooztty integration and accepted SHAs remain pending.
+
 ## 2026-10-31: Fixed upstream A and Zig 0.17 migration (N05)
 
 - Fast-forwarded `main` to `3d07ef9e28c4af05065b9e2e546b8ac8f9b62df0`.
@@ -3123,4 +3164,5 @@ preserved.
   `vt-window-resize-allowed`, which defaults to `false`, so default behavior
   is unchanged. To be implemented on `windows`
   ([#45](https://github.com/fukuyori/ghostty/issues/45)).
+
 

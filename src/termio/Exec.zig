@@ -636,6 +636,10 @@ pub const ThreadData = struct {
 
 pub const Config = struct {
     command: ?configpkg.Command = null,
+
+    /// The environment for the subprocess. init takes ownership of this
+    /// whether or not it succeeds, so the caller must not free it after
+    /// calling init.
     env: EnvMap,
     env_override: configpkg.RepeatableStringMap = .{},
     shell_integration: configpkg.Config.ShellIntegration = .detect,
@@ -696,6 +700,7 @@ const Subprocess = struct {
         // Get our env. If a default env isn't provided by the caller
         // then we get it ourselves.
         var env = cfg.env;
+        errdefer env.deinit();
 
         // If we have a resources dir then set our env var
         if (cfg.resources_dir) |dir| {
@@ -2433,4 +2438,54 @@ test "execCommand windows: direct command is passed through unchanged" {
     try testing.expectEqual(2, result.len);
     try testing.expectEqualStrings("C:\\tools\\foo.exe", result[0]);
     try testing.expectEqualStrings("arg with spaces", result[1]);
+}
+
+test "init frees the env when it fails" {
+    const testing = std.testing;
+
+    var config = try configpkg.Config.default(testing.allocator);
+    defer config.deinit();
+
+    const Run = struct {
+        fn initWithEnv(alloc: Allocator, cfg: *const configpkg.Config) !void {
+            var env: EnvMap = .init(alloc);
+            {
+                errdefer env.deinit();
+                try env.put("HOME", "/home/ghostty");
+                try env.put("SHELL", "/bin/sh");
+            }
+
+            // The env is not freed here once init has it: the failing
+            // allocator reports it as a leak unless init freed it.
+            var exec = try init(alloc, .{
+                .env = env,
+                .resources_dir = null,
+                .term = "xterm-ghostty",
+                .rt_pre_exec_info = .init(cfg),
+                .rt_post_fork_info = .init(cfg),
+            });
+            exec.deinit();
+        }
+    };
+
+    // Fail each allocation in turn, while building the env and inside init,
+    // as std.testing.checkAllAllocationFailures does. That function cannot
+    // be used directly: init deliberately falls back to a basic shell when
+    // building the command fails, so some runs succeed despite the failure.
+    // Every run must still free all it allocated.
+    const count = count: {
+        var failing: testing.FailingAllocator = .init(testing.allocator, .{});
+        try Run.initWithEnv(failing.allocator(), &config);
+        break :count failing.alloc_index;
+    };
+    for (0..count) |fail_index| {
+        var failing: testing.FailingAllocator = .init(testing.allocator, .{
+            .fail_index = fail_index,
+        });
+        Run.initWithEnv(failing.allocator(), &config) catch |err| switch (err) {
+            error.OutOfMemory => {},
+            else => return err,
+        };
+        try testing.expectEqual(failing.allocated_bytes, failing.freed_bytes);
+    }
 }
