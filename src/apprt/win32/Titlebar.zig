@@ -15,11 +15,12 @@ const Appearance = struct {
 /// Apply the configured light/dark preference and optional Ghostty colors to
 /// the native non-client area. Color attributes are supported by Windows 11;
 /// older systems retain their native colors while still attempting dark mode.
-pub fn apply(hwnd: win32.HWND, config: *const Config, high_contrast: bool) void {
+/// `system_dark` is the Windows app mode, used by `window-theme = system`.
+pub fn apply(hwnd: win32.HWND, config: *const Config, high_contrast: bool, system_dark: bool) void {
     const value = if (high_contrast)
         highContrastAppearance(win32.GetSysColor(win32.COLOR_WINDOW))
     else
-        appearance(config);
+        appearance(config, system_dark);
 
     var dark: win32.BOOL = if (value.dark) win32.TRUE else win32.FALSE;
     setAttribute(hwnd, dwmwa_use_immersive_dark_mode, &dark) catch |err|
@@ -34,7 +35,7 @@ pub fn apply(hwnd: win32.HWND, config: *const Config, high_contrast: bool) void 
         log.debug("native titlebar text color unavailable: {}", .{err});
 }
 
-fn appearance(config: *const Config) Appearance {
+fn appearance(config: *const Config, system_dark: bool) Appearance {
     const caption_background = config.@"window-titlebar-background" orelse
         config.background;
     const dark = switch (config.@"window-theme") {
@@ -44,8 +45,9 @@ fn appearance(config: *const Config) Appearance {
         .ghostty => caption_background
             .toTerminalRGB()
             .perceivedLuminance() <= 0.5,
-        // TRUE opts the frame into following the Windows dark-mode setting.
-        .system => true,
+        // DWM draws a dark frame for TRUE whatever the Windows mode, so the
+        // app sets the attribute from the mode itself.
+        .system => system_dark,
         .dark => true,
         .light => false,
     };
@@ -112,10 +114,19 @@ test "Win32 titlebar auto theme follows terminal background" {
 
     config.@"window-theme" = .auto;
     config.background = .{ .r = 0x10, .g = 0x20, .b = 0x30 };
-    try std.testing.expect(appearance(&config).dark);
+    try std.testing.expect(appearance(&config, false).dark);
 
     config.background = .{ .r = 0xEE, .g = 0xEE, .b = 0xEE };
-    try std.testing.expect(!appearance(&config).dark);
+    try std.testing.expect(!appearance(&config, true).dark);
+}
+
+test "Win32 system titlebar theme follows the Windows mode" {
+    var config = try Config.default(std.testing.allocator);
+    defer config.deinit();
+
+    config.@"window-theme" = .system;
+    try std.testing.expect(appearance(&config, true).dark);
+    try std.testing.expect(!appearance(&config, false).dark);
 }
 
 test "Win32 Ghostty titlebar uses configured colors" {
@@ -127,7 +138,7 @@ test "Win32 Ghostty titlebar uses configured colors" {
     config.@"window-titlebar-background" = .{ .r = 0x12, .g = 0x34, .b = 0x56 };
     config.@"window-titlebar-foreground" = .{ .r = 0xAB, .g = 0xCD, .b = 0xEF };
 
-    const value = appearance(&config);
+    const value = appearance(&config, false);
     try std.testing.expect(value.dark);
     try std.testing.expectEqual(@as(u32, 0x00563412), value.caption_color);
     try std.testing.expectEqual(@as(u32, 0x00EFCDAB), value.text_color);

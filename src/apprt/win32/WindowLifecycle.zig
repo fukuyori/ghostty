@@ -126,7 +126,7 @@ fn initCoreSurface(
         )) {
             log.warn("failed to apply initial window-decoration setting", .{});
         }
-        Titlebar.apply(surface.windowHwnd(), &config, self.high_contrast);
+        Titlebar.apply(surface.windowHwnd(), &config, self.high_contrast, self.color_scheme == .dark);
     }
     try TestHooks.fail(.core_init);
     core_surface.init(

@@ -38,7 +38,10 @@ pub fn refreshTheme(hwnd: win32.HWND) win32.LRESULT {
             const app = surface.rtApp();
             if (app.windowForHwnd(hwnd)) |window| {
                 app.high_contrast = highContrastEnabled();
-                Titlebar.apply(hwnd, app.config, app.high_contrast);
+                // Every top-level window receives the broadcast; only the
+                // first one that sees a new mode reloads the configuration.
+                app.refreshColorScheme();
+                Titlebar.apply(hwnd, app.config, app.high_contrast, app.color_scheme == .dark);
                 var bars = window.surfaceIterator();
                 while (bars.next()) |candidate| {
                     if (candidate.scrollbar) |bar| bar.setAppearance(app.config.background, app.high_contrast);

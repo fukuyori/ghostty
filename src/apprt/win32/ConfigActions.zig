@@ -334,7 +334,7 @@ pub fn configChange(
                 if (!WindowState.setWindowDecorations(state, decorated)) {
                     log.warn("failed to apply window-decoration setting", .{});
                 }
-                Titlebar.apply(state.windowHwnd(), value.config, self.high_contrast);
+                Titlebar.apply(state.windowHwnd(), value.config, self.high_contrast, self.color_scheme == .dark);
             }
             WindowAppearance.updateWindowBackgroundBlur(state, value.config);
             try configureScrollbar(self, core.rt_surface, value.config);
