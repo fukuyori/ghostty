@@ -190,7 +190,7 @@ function Find-SignTool {
     if ($candidates.Count -gt 0) {
         return $candidates[0].FullName
     }
-    $onPath = Get-Command signtool.exe -CommandType Application -ErrorAction SilentlyContinue
+    $onPath = Get-Command signtool.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($onPath) {
         return $onPath.Source
     }

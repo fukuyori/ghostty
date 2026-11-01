@@ -56,8 +56,8 @@ try {
     $changed = @(& git diff HEAD --name-only) + @(& git ls-files --others --exclude-standard)
     $summary.ChangedFileHashes = @($changed | Sort-Object -Unique | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
         ForEach-Object { Get-FileHash -LiteralPath $_ | Select-Object Path,Hash })
-    $zig = (Get-Command zig -CommandType Application).Source
-    $pwsh = (Get-Command pwsh -CommandType Application).Source
+    $zig = (Get-Command zig -CommandType Application | Select-Object -First 1).Source
+    $pwsh = Join-Path $PSHOME 'pwsh.exe'
     Invoke-Check 'normal-build' $zig @('build','--prefix','zig-out/ime-normal','--summary','all')
     Invoke-Check 'hook-build' $zig @('build','-Dwin32-test-hooks=true','--prefix','zig-out/ime-diagnostics','--summary','all')
     Invoke-Check 'normal-tests' $zig @('build','test','-Dtest-filter=Win32','--summary','all')
