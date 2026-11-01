@@ -103,7 +103,8 @@ installed Gooztty 1.3.2-windows.17, which stayed open.
 Result: recovery from a real TDR works, but the recovered window is not redrawn until an input
 event arrives. That delayed redraw is a #10 defect; its cause has not been investigated. The owner
 decided on 2026-11-01 to track it for December with the candidate unchanged, as
-[#74](https://github.com/fukuyori/ghostty/issues/74) (N26). #10 stays open.
+[#74](https://github.com/fukuyori/ghostty/issues/74) (N26). #10 was closed on 2026-11-01 with this
+result.
 
 ## Owner decisions for N13
 

@@ -1264,8 +1264,8 @@ Follow-up work is tracked as issues:
 
 - [#5](https://github.com/fukuyori/ghostty/issues/5): verify the GUI at 144 and 192 DPI on real hardware (owner-reported 2026-10-18; closed)
 - [#8](https://github.com/fukuyori/ghostty/issues/8): verify rendering and input after a real sleep and resume (confirmed by the owner on 2026-10-17; closed)
-- [#9](https://github.com/fukuyori/ghostty/issues/9): run a soak test lasting several hours
-- [#10](https://github.com/fukuyori/ghostty/issues/10): verify recovery from a real GPU device loss or driver failure
+- [#9](https://github.com/fukuyori/ghostty/issues/9): run a soak test lasting several hours (180-minute soak passed 2026-11-01; closed)
+- [#10](https://github.com/fukuyori/ghostty/issues/10): verify recovery from a real GPU device loss or driver failure (real TDR recovery 2026-11-01; closed, redraw defect in #74)
 - [#11](https://github.com/fukuyori/ghostty/issues/11): decide whether background-blur is supported or a limitation
 
 Deferred refactoring (raised in the 2026-09-15 code review):
@@ -1483,7 +1483,6 @@ under the name Gooztty, was built on 2026-10-25 and the rename
 | `+ssh` opens the session in a new console window | [#72](https://github.com/fukuyori/ghostty/issues/72) | Documented as a known limitation with plain `ssh` use (N08, option 3); attaching to the parent console or a console helper executable remain for a later fix |
 | Intermittent parity and scrollbar timeouts | [#69](https://github.com/fukuyori/ghostty/issues/69) | Parity now requires an explicit executable (N01) |
 | Configuration options not implemented on Windows | #51-#65 | #52 (light/dark mode) and #57 (font size inheritance) implemented on 2026-11-01; see [configuration support](windows-config-support.md) |
-| Real-hardware verification | #9, #10 | The 180-minute soak (N11) passed 1803/1803 runs and the real GPU fault check (N13) recovered on 2026-11-01; see the [release notes](windows-release-notes.md#141-windows1) and the [N12 record](windows-november-gpu-fault-plan.md). Closing the issues is an open decision |
 | Other limitations and design questions | #11, #13, #14, #18, #25-#30, #44, #66 | |
 
 [`windows-handoff.md`](windows-handoff.md) summarizes the current state,
@@ -2099,8 +2098,8 @@ Real-hardware verification in the user's environment:
 - [#6](https://github.com/fukuyori/ghostty/issues/6): high contrast (verified 2026-10-14; closed)
 - [#7](https://github.com/fukuyori/ghostty/issues/7): tab accessibility with a screen reader (owner-reported 2026-10-18; closed)
 - [#8](https://github.com/fukuyori/ghostty/issues/8): real sleep and resume (confirmed by the owner on 2026-10-17; closed)
-- [#9](https://github.com/fukuyori/ghostty/issues/9): multi-hour soak
-- [#10](https://github.com/fukuyori/ghostty/issues/10): real GPU device loss or driver failure
+- [#9](https://github.com/fukuyori/ghostty/issues/9): multi-hour soak (passed 2026-11-01; closed)
+- [#10](https://github.com/fukuyori/ghostty/issues/10): real GPU device loss or driver failure (recovered 2026-11-01; closed, #74 open)
 
 ### Detailed scopes
 
