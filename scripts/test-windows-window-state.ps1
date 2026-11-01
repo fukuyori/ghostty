@@ -249,6 +249,14 @@ public static class GhosttyWindowStateNative
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
 
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumChildWindows(
+        IntPtr parent,
+        EnumWindowsProc callback,
+        IntPtr lParam
+    );
+
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetClassNameW(
         IntPtr hWnd,
@@ -265,6 +273,22 @@ public static class GhosttyWindowStateNative
         if (GetClassNameW(hWnd, className, className.Capacity) == 0)
             return false;
         return String.Equals(className.ToString(), SurfaceClass, StringComparison.Ordinal);
+    }
+
+    // Direct child surfaces of a window. EnumChildWindows instead of a
+    // GetWindow loop: Microsoft documents it as the reliable way, and a
+    // loop can revisit or skip a pane while a split reorders the children.
+    public static IntPtr[] ChildSurfaces(IntPtr parent)
+    {
+        List<IntPtr> results = new List<IntPtr>();
+        HashSet<IntPtr> seen = new HashSet<IntPtr>();
+        EnumChildWindows(parent, delegate (IntPtr hWnd, IntPtr lParam)
+        {
+            if (GetAncestor(hWnd, 1) == parent && IsGhosttySurface(hWnd) && seen.Add(hWnd))
+                results.Add(hWnd);
+            return true;
+        }, IntPtr.Zero);
+        return results.ToArray();
     }
 
     [DllImport("user32.dll")]
@@ -495,9 +519,7 @@ $gwlStyle = -16
 $gwlExStyle = -20
 $gclpHIcon = -14
 $gclpHIconSm = -34
-$gwHwndNext = 2
 $gwOwner = 4
-$gwChild = 5
 $gaRoot = 2
 $dwmwaCloaked = 14
 $wsCaption = 0x00C00000
@@ -516,15 +538,7 @@ function Get-ChildWindowHandles {
         [IntPtr]$ParentHandle
     )
 
-    $result = [System.Collections.Generic.List[IntPtr]]::new()
-    $child = [GhosttyWindowStateNative]::GetWindow($ParentHandle, $gwChild)
-    while ($child -ne [IntPtr]::Zero) {
-        if ([GhosttyWindowStateNative]::IsGhosttySurface($child)) {
-            $result.Add($child)
-        }
-        $child = [GhosttyWindowStateNative]::GetWindow($child, $gwHwndNext)
-    }
-    return $result.ToArray()
+    return [GhosttyWindowStateNative]::ChildSurfaces($ParentHandle)
 }
 
 function Wait-ForCondition {
@@ -2584,9 +2598,14 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
     # Clicking a pane must move keyboard focus to it. Child windows never take
     # focus on their own, so without that the pane that was not focused by the
     # split looks unresponsive: typing keeps going to the other one.
-    $panes = @(Get-ChildWindowHandles -ParentHandle $windowHandle)
-    if ($panes.Count -ne 2) {
-        throw "Expected two terminal surfaces after the split; found $($panes.Count)."
+    $panes = @()
+    try {
+        Wait-ForCondition -Description "two distinct terminal surfaces after the split" -Condition {
+            $script:panes = @(Get-ChildWindowHandles -ParentHandle $windowHandle)
+            $script:panes.Count -eq 2 -and $script:panes -contains $surfaceHandle
+        }
+    } catch {
+        throw "Expected two terminal surfaces after the split, one of them the original; found $(@($panes).Count)."
     }
     $splitPane = @($panes | Where-Object { $_ -ne $surfaceHandle })[0]
     $null = [GhosttyWindowStateNative]::SetForegroundWindow($windowHandle)

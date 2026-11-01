@@ -57,8 +57,8 @@ try {
     if (-not (Get-Command Start-Process).Parameters.ContainsKey('Environment')) {
         throw 'This PowerShell lacks Start-Process -Environment; use a PowerShell version that supports it'
     }
-    $zig = (Get-Command zig -CommandType Application).Source
-    $pwsh = (Get-Command pwsh -CommandType Application).Source
+    $zig = (Get-Command zig -CommandType Application | Select-Object -First 1).Source
+    $pwsh = Join-Path $PSHOME 'pwsh.exe'
     $summary.Commit = (& git rev-parse HEAD)
     if ($LASTEXITCODE -ne 0) { throw 'Unable to identify repository HEAD' }
     $summary.WorkingTree = @(& git status --porcelain)

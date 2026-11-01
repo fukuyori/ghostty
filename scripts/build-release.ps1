@@ -61,7 +61,8 @@ if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $releaseRoot = [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot $OutputDirectory))
 }
 
-$zig = Get-Command zig -CommandType Application -ErrorAction Stop
+# Several zig on PATH return several commands; take the one a shell runs.
+$zig = Get-Command zig -CommandType Application -ErrorAction Stop | Select-Object -First 1
 $zigVersion = & $zig.Path version
 if ($LASTEXITCODE -ne 0) {
     throw "Failed to query the Zig version."

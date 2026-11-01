@@ -55,6 +55,7 @@ public static class GhosttyDiagnosticNative {
     static extern IntPtr ReadText(IntPtr h, uint msg, UIntPtr w, StringBuilder s, uint flags, uint timeout, out UIntPtr result);
     [DllImport("user32.dll")] public static extern bool PostMessageW(IntPtr h, uint m, UIntPtr w, IntPtr l);
     [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
+    [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint cmd);
     [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr h, int id);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int w, int height, uint flags);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
@@ -213,8 +214,15 @@ keybind = f5=toggle_command_palette
             }
             'ShellExit' { [IO.File]::WriteAllText($exitMarker, 'exit') }
             'OwnerCloseWithOtherWindow' {
-                Post $window 0x10
-                Wait-State 'owner closed and survivor remains' { [GhosttyDiagnosticNative]::Windows($process.Id, $windowClass).Count -eq 1 -and -not [GhosttyDiagnosticNative]::IsWindow($window) }
+                # The diagnostic belongs to whichever window was active at the
+                # reload, which need not be the first window (#66). Close the
+                # dialog's real owner (GW_OWNER) and keep the other window.
+                $owner = [GhosttyDiagnosticNative]::GetWindow($dialog, 4)
+                if (@([GhosttyDiagnosticNative]::Windows($process.Id, $windowClass)) -notcontains $owner) {
+                    throw "Diagnostic owner $owner is not one of the terminal windows"
+                }
+                Post $owner 0x10
+                Wait-State 'owner closed and survivor remains' { [GhosttyDiagnosticNative]::Windows($process.Id, $windowClass).Count -eq 1 -and -not [GhosttyDiagnosticNative]::IsWindow($owner) }
                 Start-Sleep -Milliseconds 250
                 if (@(Dialogs).Count -ne 0) { throw 'Stale diagnostic survived its owner' }
                 $survivor = [GhosttyDiagnosticNative]::Windows($process.Id, $windowClass)[0]
