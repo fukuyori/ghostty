@@ -53,7 +53,7 @@ order, or status changes.
 
 | Branch | Purpose | Status |
 |---|---|---|
-| `main` | Mirror upstream `main` without Windows-specific changes | Local and `origin/main` are at `b58ef1d67`, the 2026-10-25 pre-cutover synchronization: the last upstream commit that builds with Zig 0.16. Later upstream commits require Zig 0.17 and wait for [#50](https://github.com/fukuyori/ghostty/issues/50) |
+| `main` | Mirror upstream `main` without Windows-specific changes | Local `main` is at `fbed180a5` (2026-10-30, `1.4.1-dev`), the fixed point C of the November plan, merged into `windows` and `gooztty` with the Zig 0.17 migration ([#50](https://github.com/fukuyori/ghostty/issues/50), closed). `origin/main` is still at `b58ef1d67`, the 2026-10-25 pre-cutover synchronization. `1.4.1-windows.1` is based on `fbed180a5`; later upstream commits wait for the next synchronization |
 | `windows` | Track upstream via `main`, implement upstream Ghostty features on Windows (including F4-F8), and fix port defects. This responsibility continues after `gooztty` is created. Publishes nothing and edits only the port log among the documentation | Merged into `gooztty` after each change |
 | `gooztty` | Long-lived branch created from `windows`: the rename, features or behavior extensions not provided by upstream Ghostty, product distribution, and user-facing documentation | Created on 2026-10-25 from `842825597`; GitHub default branch and current working branch. The rename is complete (`1.3.2-windows.17`) |
 | `rebrand/gozitty` | Provisional rename branch, superseded by `gooztty` | Local branch from `windows` at `d440594ab`; not pushed; deleted only on request |
@@ -1557,7 +1557,7 @@ acceptance gaps stay open after the rename.
 | Build, distribution and output name indirection | Done on `windows` with `ghostty` values before step 8; `gooztty` changes only the values in `src/brand.zig` |
 | Upstream synchronization before cutover | Done on 2026-10-25 through `b58ef1d67` (`ab098bf02`) |
 | Rename preparation | Done — naming sites inventoried, icon assets prepared, and migration instructions written in the README |
-| Zig migration (#50) | Upstream's Zig 0.17 migration PR #14519 and libxev PR #249 were merged on 2026-10-20 (checked 2026-10-31). The November plan now schedules Windows migration and staged integration through `fbed180a5`; local Windows compatibility and final Gooztty acceptance remain unverified |
+| Zig migration (#50) | Upstream's Zig 0.17 migration PR #14519 and libxev PR #249 were merged on 2026-10-20 (checked 2026-10-31). The November plan migrated Windows to Zig 0.17 and integrated upstream in stages through `fbed180a5`; #50 closed on 2026-10-31, and `1.4.1-windows.1` passed acceptance and was released on 2026-11-01 |
 | Other recorded acceptance gaps | Track search-specific physical IME/mixed-DPI checks, OpenGL, forced Acrylic fallback, terminal/divider capture loss and remaining accessibility checks against their existing evidence. Schedule checks when their environments are available; the completion of historical phases does not prove these checks passed. Windows 10 is unsupported and excluded from acceptance |
 
 Unavailable hardware and upstream prerequisites remain explicit pending

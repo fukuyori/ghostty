@@ -38,6 +38,12 @@ Windows ネイティブの端末アプリケーションです。Ghostty を日�
 Windows へ移植するフォークとして始まり、Ghostty プロジェクトの求めに応じて
 独自の名前を付けました。端末そのものは Ghostty のものです。
 
+`1.4.1-windows.1` は、upstream の Ghostty をコミット
+[`fbed180a5`](https://github.com/ghostty-org/ghostty/commit/fbed180a5f181915c92a8f2f561903a6e4645b5a)
+(2026-10-30、版は `1.4.1-dev`)まで取り込み、Zig 0.17.0 でビルドしています。
+それ以降の upstream の変更は、次の同期で取り込みます。各版のもとになった
+upstream の地点は[リリースノート](docs/windows-release-notes.md)(英語)を参照してください。
+
 `1.3.2-windows.16` までのリリースは、Ghostty の名前で公開しました。
 
 主な特長:

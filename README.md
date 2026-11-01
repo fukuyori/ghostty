@@ -36,6 +36,12 @@ Gooztty is a native Windows terminal application built from
 brings Ghostty to Windows for daily use and takes a name of its own at the
 request of the Ghostty project; the terminal itself is Ghostty's.
 
+`1.4.1-windows.1` includes upstream Ghostty through commit
+[`fbed180a5`](https://github.com/ghostty-org/ghostty/commit/fbed180a5f181915c92a8f2f561903a6e4645b5a)
+(2026-10-30, version `1.4.1-dev`) and is built with Zig 0.17.0. Later
+upstream changes are taken in at the next synchronization; see the
+[release notes](docs/windows-release-notes.md) for each version's base.
+
 Releases up to `1.3.2-windows.16` were published under the name Ghostty.
 
 Highlights:
