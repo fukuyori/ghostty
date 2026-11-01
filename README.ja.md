@@ -182,7 +182,7 @@ Gooztty は、Ghostty for Windows のプレビュー版(`1.3.2-windows.16` 以�
 Gooztty は upstream の Ghostty と同じ形式の設定ファイルを
 `%LOCALAPPDATA%\gooztty\config.gooztty` から読みますが、すべての設定項目が
 Windows で効くわけではありません。`1.4.1-windows.1` 時点で、upstream の
-全 212 項目のうち Windows で使えるのは 138 項目(65%、◎ と ○)です。
+全 213 項目のうち Windows で使えるのは 138 項目(65%、◎ と ○)です。
 一部だけ使えるものを含めると 145 項目(68%)です。
 
 | 状態 | 項目数 | 意味 |
@@ -191,7 +191,7 @@ Windows で効くわけではありません。`1.4.1-windows.1` 時点で、ups
 | ○ | 95 | Windows で使える(コードから判断) |
 | △ | 7 | 一部だけ使える |
 | ✕ | 23 | Windows では未実装 |
-| - | 44 | 対象外。macOS、GTK、Linux、X11、Wayland だけの設定 |
+| - | 45 | 対象外。macOS、GTK、Linux、X11、Wayland だけの設定 |
 
 主な未対応の点:
 

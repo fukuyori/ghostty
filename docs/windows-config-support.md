@@ -2,7 +2,7 @@
 
 This table lists every option in upstream Ghostty's configuration
 (`src/config/Config.zig`) with its status in the native Windows build, as of
-`1.3.2-windows.16`. Options appear in the same order as in the upstream
+`1.4.1-windows.1`. Options appear in the same order as in the upstream
 reference, and the description summarizes the upstream documentation. See
 the [user guide](windows.md) for the configuration file location and
 Windows-specific behavior. A Japanese translation is in
@@ -213,6 +213,7 @@ recorded. △ and ✕ are also judged from the code.
 | `gtk-single-instance` | GTK | - | Whether the GTK app runs as a single instance that opens new windows for new launches. |
 | `gtk-titlebar` | GTK | - | Whether the full GTK titlebar is shown instead of the window manager's titlebar. |
 | `gtk-tabs-location` | GTK | - | Where the GTK tab bar is placed: `top`, `bottom`, or `hidden`. |
+| `gtk-tabs-inverted` | GTK | - | Shows each GTK tab's close button at the start of the tab and its icon at the end. |
 | `gtk-titlebar-hide-when-maximized` | GTK | - | Whether the GTK titlebar is hidden while the window is maximized. |
 | `gtk-toolbar-style` | GTK | - | Appearance of the GTK top and bottom bars: `flat`, `raised`, or `raised-border`. |
 | `gtk-titlebar-style` | GTK | - | Style of the GTK titlebar: `native`, or `tabs` to merge the tab bar into it. |

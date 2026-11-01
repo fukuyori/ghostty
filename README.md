@@ -184,7 +184,7 @@ installed at the same time. Nothing is carried over automatically:
 
 Gooztty reads the same configuration file format as upstream Ghostty, from
 `%LOCALAPPDATA%\gooztty\config.gooztty`, but not every option has an effect
-on Windows. As of `1.4.1-windows.1`, 138 of the 212 upstream options (65%,
+on Windows. As of `1.4.1-windows.1`, 138 of the 213 upstream options (65%,
 ◎ and ○) can be used on Windows. Including the options that work in part,
 145 (68%) can be used.
 
@@ -194,7 +194,7 @@ on Windows. As of `1.4.1-windows.1`, 138 of the 212 upstream options (65%,
 | ○ | 95 | Works on Windows, judged from the code |
 | △ | 7 | Works in part |
 | ✕ | 23 | Not implemented on Windows |
-| - | 44 | Not applicable: macOS, GTK, Linux, X11 or Wayland only |
+| - | 45 | Not applicable: macOS, GTK, Linux, X11 or Wayland only |
 
 Notable gaps:
 

@@ -1043,10 +1043,12 @@ OSC 9, OSC 777, and BEL reach Gooztty only through the bundled
   keyboard layouts. Windows 10 is not a support target.
 - Restoring from maximized and minimized, the 20-iteration soak baseline,
   controlled recreation of GPU resources with terminal sessions preserved,
-  and the controlled resume test are automatically verified. Recovery from an
-  actual GPU device loss or driver failure and multi-hour continuous use are
-  not verified (#10, #9). D3D11 present HRESULTs and device removal reasons
-  are recorded in the diagnostic log.
+  and the controlled resume test are automatically verified. A 180-minute
+  soak and recovery from a real GPU timeout (TDR) were verified for
+  `1.4.1-windows.1`. After a real GPU recovery the window stays transparent
+  below the title bar until the mouse pointer moves over it (#74). D3D11
+  present HRESULTs and device removal reasons are recorded in the diagnostic
+  log.
 - The terminfo database is compiled only when `tic` is available on the build
   machine. The ncurses build used by MSYS2, Git Bash, and Cygwin reads the
   Windows-style `TERMINFO` path Gooztty sets only from a working directory on
@@ -1073,6 +1075,46 @@ OSC 9, OSC 777, and BEL reach Gooztty only through the bundled
   plain `ssh` inside Gooztty; install the `xterm-gooztty` terminfo entry on
   the remote host once as described in "Remote hosts over SSH", or let
   `+ssh` install it once and close the extra window.
+- `gooztty +validate-config` fails with `FileTooBig` when its output is
+  piped, for example to `Select-String` or a file (#73). Run it without a
+  pipe to read the result.
+
+Features that upstream Ghostty has and Gooztty does not yet provide on
+Windows. Each is tracked as an issue and is a gap to close, not a design
+decision, unless the issue says otherwise:
+
+- The terminal inspector cannot be opened (#18).
+- Some smaller actions do nothing: `copy_title_to_clipboard`,
+  `set_window_title`, `move_tab_to_new_window`, `toggle_tab_overview`, the
+  readonly, key sequence and key table indicators, `export_terminal_io`,
+  the on-screen keyboard, and the minimum window size (#25).
+- The IME composition is drawn by the Windows composition window, which
+  follows the terminal cursor, not inside the terminal grid (#26; whether to
+  draw it inline is undecided).
+- `gooztty +edit-config` is not supported; open
+  `%LOCALAPPDATA%\gooztty\config.gooztty` in an editor instead (#27).
+- The interface is not localized; messages are in English (#28).
+- Kitty graphics sent through the shared-memory medium are rejected; the
+  direct, file and temporary-file media work (#29).
+- Custom shaders (`custom-shader`) are not supported by the D3D11 renderer;
+  the diagnostic log says so at startup (#14).
+- Support for the kittens (`icat`, `diff`, `themes`, `hints`, `transfer`) is
+  undecided (#44).
+- Configuration options that are accepted but have no effect on Windows are
+  listed in [configuration support](windows-config-support.md) (#51, #53-#65).
+
+Deliberate differences from upstream Ghostty:
+
+- Links from terminal output that point at local files (`file://` in OSC 8
+  hyperlinks) are not opened; Gooztty shows "Opening local files from
+  terminal output is blocked on Windows." Web links still go through the
+  allow, confirm and deny policy. This is hardening in this fork, not a
+  defect.
+- Shell integration engages only for bash, zsh, fish, elvish, nushell and
+  PowerShell (`pwsh`, `powershell`). The default command on Windows is
+  `cmd.exe`, which has no integration, so `shell-integration-features`
+  (including `cursor`, `title`, `path`, `ssh-env` and `ssh-terminfo`) take
+  effect only when `command` starts one of those shells.
 
 For details on the implementation status and verification items, see the
 [Windows production-readiness roadmap](windows-roadmap.md).

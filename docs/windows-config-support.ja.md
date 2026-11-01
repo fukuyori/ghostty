@@ -4,7 +4,7 @@
 日本語版です。内容が異なる場合は英語版が正です。
 
 upstream の Ghostty の全設定項目(`src/config/Config.zig`)について、
-`1.3.2-windows.16` 時点のネイティブ Windows ビルドでの対応状況をまとめています。
+`1.4.1-windows.1` 時点のネイティブ Windows ビルドでの対応状況をまとめています。
 項目は upstream のリファレンスと同じ順に並べ、内容は upstream の説明を要約した
 ものです。設定ファイルの場所と Windows 固有の動作は[ユーザーガイド](windows.md)
 (英語)を参照してください。
@@ -213,6 +213,7 @@ upstream の Ghostty の全設定項目(`src/config/Config.zig`)について、
 | `gtk-single-instance` | GTK | - | GTK アプリを単一インスタンスで動かし、新たな起動を新しいウィンドウとして開くかどうか。 |
 | `gtk-titlebar` | GTK | - | ウィンドウマネージャーのタイトルバーの代わりに GTK のタイトルバーを表示するかどうか。 |
 | `gtk-tabs-location` | GTK | - | GTK のタブバーの位置(`top`、`bottom`、`hidden`)。 |
+| `gtk-tabs-inverted` | GTK | - | GTK のタブで、閉じるボタンを先頭に、アイコンを末尾に表示する。 |
 | `gtk-titlebar-hide-when-maximized` | GTK | - | ウィンドウの最大化中に GTK のタイトルバーを隠すかどうか。 |
 | `gtk-toolbar-style` | GTK | - | GTK の上下のバーの外観(`flat`、`raised`、`raised-border`)。 |
 | `gtk-titlebar-style` | GTK | - | GTK のタイトルバーのスタイル(`native`、またはタブバーを統合する `tabs`)。 |
