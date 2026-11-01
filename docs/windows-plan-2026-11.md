@@ -289,4 +289,5 @@ N17は候補SHA `0a7cba0cbdaa4fc20988ed637e7b0b1582836332`をクリーンworktre
 - N11の初回試行は`scripts/test-windows-soak.ps1`が空の`zig-out/test-state`で停止した。windowsで修正し、1回の反復が成功することを確認したが未コミット。180分の実施は新候補で行う。
 - 順序: N12（独立）→ windowsでN09・N10とsoak修正 → N08の文書化 → goozttyへ統合 → P4/N17で候補を再固定 → N06 → N11 → N18。
 - tqueの照合はこの改訂の時点でCLIの再読込により行った。第3版のスナップショットは変更しない。
+- 同日の追加: P3A完了後、候補`dfe142a76`でN17・N06をやり直した（[候補台帳](windows-november-final-candidate-dfe142a.json)）。未確認・未追跡の項目を整理し、P3B（tque #248）にwindowsの検証スクリプト修正N20（#249、#66の試験修正）とN21（#250、PATH上の同名プログラム複数への対応）を追加した。どちらも候補の実行ファイルを変えないため、N18は候補SHA`dfe142a76`のdetached worktreeから所有者が作成する。候補親には N22（#251、#73 FileTooBig）と N23（#252、#72 案2）を追加した。
 

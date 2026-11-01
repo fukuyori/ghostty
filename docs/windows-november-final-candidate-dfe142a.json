@@ -1,0 +1,133 @@
+{
+  "Recorded": "2026-11-01T08:59:25+09:00",
+  "Task": "N17 (#244), repeated after the 2026-11-01 plan revision",
+  "Status": "Candidate Release builds fixed; N17 build and identity checks complete",
+  "Supersedes": {
+    "Commit": "0a7cba0cbdaa4fc20988ed637e7b0b1582836332",
+    "Ledger": "docs/windows-november-final-candidate.json",
+    "Reason": "Include N09 (#52), N10 (#57) and the soak baseline fix (plan Section 10)"
+  },
+  "Candidate": {
+    "Product": "Gooztty",
+    "Branch": "gooztty",
+    "Commit": "dfe142a764bfe7a40d52299eaf2be1fe74e453b5",
+    "Worktree": ".worktrees/n17-candidate-dfe142a",
+    "CleanTrackedAndUntrackedSourceAfterBuild": true,
+    "WindowsMergedAt": "139c75929",
+    "GoozttyMergeCommit": "90f286428"
+  },
+  "VersionDecision": {
+    "CoreVersion": "1.4.1-dev",
+    "WindowsPreview": "1.4.1-windows.1",
+    "NumericBaseMatches": true,
+    "Sequence": 1,
+    "ExistingPreviewTags": [],
+    "LatestPublishedRelease": "v1.3.2-windows.17",
+    "CheckedWith": "gh release list -R fukuyori/ghostty; git ls-remote --tags origin 'v1.4*' (2026-11-01)"
+  },
+  "Toolchain": {
+    "ZigVersion": "0.17.0",
+    "ZigPath": "zig-out/toolchains/zig-x86_64-windows-0.17.0/zig.exe",
+    "ZigSha256": "F54B14F02A4D7D8AC62A94A0663486EB166BBA3745D85B466238C1B93E723D46",
+    "ZIG_GLOBAL_CACHE_DIR": "zig-out/n03-clean-cache",
+    "ZIG_LOCAL_PKG_DIR": "zig-out/n03-clean-pkg-c",
+    "PathNote": "build-release.ps1 resolves zig from PATH; the WinGet Zig 0.16 link was removed from PATH in the build process so only 0.17.0 resolved",
+    "CPU": "baseline",
+    "Optimize": "fast",
+    "EmitDocs": false
+  },
+  "Dependencies": {
+    "BuildZonSha256": "011E4124638AE225A5676AEBE798327E16A7BDA0CA477E7E0E1D7AD755C58C06",
+    "BuildZonJsonSha256": "4D0754C98140E9670CFF73AC0D0243E576B32065CED82F0350CBCE7E1FE29844",
+    "DependencyInventory": "docs/windows-november-dependencies.json",
+    "DependencyInventorySha256": "447B30823E0B3FE45B44635387E89B017328A4DDF30DA256DB9BED58B3ACE165",
+    "UnchangedFrom0a7cba0": true
+  },
+  "Builds": [
+    {
+      "Variant": "normal Release",
+      "Command": "scripts/build-release.ps1 -OutputDirectory zig-out/n17-candidate-normal-ledger",
+      "Result": "145/145 build steps succeeded",
+      "Log": ".worktrees/n17-candidate-dfe142a/zig-out/logs/n17-candidate-normal-release.log",
+      "LogSha256": "54C827F913BEDC541695581F05A5EFFAA612D4D5DE60BD96F48F32E135CB5544",
+      "Prefix": "zig-out/n17-candidate-normal-ledger",
+      "Executable": "bin/gooztty.exe",
+      "ExecutableBytes": 27051520,
+      "ExecutableSha256": "73EC1252059675A13703E88AEEEF5B8172991F66435DC299CB436E18B4B45940",
+      "BinFiles": ["conpty.dll", "gooztty.exe", "OpenConsole.exe"],
+      "FileVersion": "1.4.1-windows.1",
+      "ProductVersion": "1.4.1-windows.1",
+      "NumericVersion": "1.4.1.1",
+      "PE": "x64 WindowsGui; Debug=false; large and small icons present",
+      "ShellIntegrationFiles": 8,
+      "ThemeFiles": 819,
+      "CompiledTerminfo": true,
+      "ShareFileCount": 843,
+      "ShareManifest": ".worktrees/n17-candidate-dfe142a/zig-out/logs/n17-candidate-share-normal.json",
+      "ShareManifestSha256": "862B051B2173F53A18E936120F3831042F8F04F240DFEFA7F2A8852F493038E4",
+      "ShareIdenticalTo0a7cba0": true,
+      "TestHooks": false
+    },
+    {
+      "Variant": "hook Release",
+      "Command": "scripts/build-release.ps1 -TestHooks -OutputDirectory zig-out/n17-candidate-hooks-ledger",
+      "Result": "145/145 build steps succeeded",
+      "Log": ".worktrees/n17-candidate-dfe142a/zig-out/logs/n17-candidate-hook-release.log",
+      "LogSha256": "097FBBAF1F5B53E1C66976A89BC0EAA18F678B63AA37D333D357451FFA839F3F",
+      "Prefix": "zig-out/n17-candidate-hooks-ledger",
+      "Executable": "bin/gooztty.exe",
+      "ExecutableBytes": 27072000,
+      "ExecutableSha256": "0CA27F117690BB297406409D894A40BF7C4053F867C61F3C566BEE9B848B9803",
+      "FileVersion": "1.4.1-windows.1",
+      "ProductVersion": "1.4.1-windows.1",
+      "NumericVersion": "1.4.1.1",
+      "PE": "x64 WindowsGui; Debug=false; large and small icons present",
+      "ShellIntegrationFiles": 8,
+      "ThemeFiles": 819,
+      "CompiledTerminfo": true,
+      "ShareFileCount": 843,
+      "ShareManifest": ".worktrees/n17-candidate-dfe142a/zig-out/logs/n17-candidate-share-hooks.json",
+      "ShareManifestSha256": "862B051B2173F53A18E936120F3831042F8F04F240DFEFA7F2A8852F493038E4",
+      "TestHooks": true
+    }
+  ],
+  "VersionCommands": [
+    {
+      "Variant": "normal Release",
+      "Command": "scripts/run-windows-diagnostics.ps1 -AdditionalArguments +version -Wait",
+      "ExitCode": 0,
+      "Output": "Gooztty 1.4.1-windows.1; Zig 0.17.0; .fast; win32; D3D11; iocp",
+      "StdoutSha256": "F3A23136414B7E0616D0F219E480EAA4279D301398D57FDBCBC69051C03B7829",
+      "StderrSha256": "15BDEC434394DC80719C021E3F51CD7C5A99DCFFCEAFBBDBBFC0077872F024EC",
+      "StdoutLog": ".worktrees/n17-candidate-dfe142a/zig-out/logs/n17-candidate-version-normal/ghostty-20261101-085811-845-f00f0849.stdout.log"
+    },
+    {
+      "Variant": "hook Release",
+      "Command": "scripts/run-windows-diagnostics.ps1 -AdditionalArguments +version -Wait",
+      "ExitCode": 0,
+      "Output": "Gooztty 1.4.1-windows.1; Zig 0.17.0; .fast; win32; D3D11; iocp",
+      "StdoutSha256": "F3A23136414B7E0616D0F219E480EAA4279D301398D57FDBCBC69051C03B7829",
+      "StderrSha256": "15BDEC434394DC80719C021E3F51CD7C5A99DCFFCEAFBBDBBFC0077872F024EC",
+      "StdoutLog": ".worktrees/n17-candidate-dfe142a/zig-out/logs/n17-candidate-version-hooks/ghostty-20261101-085812-158-1b53759a.stdout.log"
+    }
+  ],
+  "SourceDiffFromWindows": [
+    "src/brand.zig"
+  ],
+  "IncludedSince0a7cba0": [
+    "0b28d0a3a scripts: keep empty soak test-state baselines as arrays",
+    "728dd9924 win32: inherit the previous font size for new surfaces (#57)",
+    "c47f092d4 win32: follow the Windows light/dark app mode (#52)",
+    "Documentation only: N08, N12, plan revision and records"
+  ],
+  "NotIncluded": [
+    "installer/ZIP packaging and signatures; N18 owner-provided artifact acceptance",
+    "physical GUI/input/IME acceptance; N06 on this candidate",
+    "180-minute endurance; N11",
+    "real GPU fault and sleep recovery acceptance; N13"
+  ],
+  "KnownFailures": [
+    "Config diagnostic OwnerCloseWithOtherWindow wrong-owner assertion",
+    "validate-config stdout pipe returns FileTooBig; reproduced on fixed B"
+  ]
+}
