@@ -1,7 +1,7 @@
 # Ghostty Windows Production-Readiness Roadmap
 
 - Last updated: 2026-11-01
-- Current state: `1.3.2-windows.17`, the first version under the name Gooztty, was built on 2026-10-25; the rename is complete. Open work is listed in Section 7, and [`windows-handoff.md`](windows-handoff.md) summarizes how to continue
+- Current state: `1.4.1-windows.1`, based on upstream 1.4.1 with Zig 0.17, was released on 2026-11-01 after the November acceptance (N06, N11, N13, N18); the rename is complete. Open work is listed in Section 7, and [`windows-handoff.md`](windows-handoff.md) summarizes how to continue
 - Target branch: `gooztty` (maintained there since the 2026-10-25 cutover; see Section 2)
 - Baseline commit: `132a5d078` (`docs: add Windows implementation roadmap`)
 - Phase breakdown basis: the six phases agreed in the conversation as of 2026-09-14
@@ -1461,26 +1461,29 @@ phases: baseline, Zig 0.17 migration at `3d07ef9e2`, synchronization through
 `v1.4.0`, synchronization through fixed commit `fbed180a5`, final Gooztty
 integration audit, acceptance/endurance, and month-end reporting. Each
 integration stage flows through `main` → `windows` → `gooztty` with checks.
-After the 2026-11-01 revision (plan Section 10), 18 November work items are
-tracked under `Gooztty > 2026-11` in tque and one deferred item (N13) remains
-under `2026-12以降・候補`. This calendar takes precedence
+After the 2026-11-01 revision (plan Section 10), the November work items are
+tracked under `Gooztty > 2026-11` in tque. All technical items are complete
+and `1.4.1-windows.1` was released on 2026-11-01; the month-end report (N14)
+remains, and N22 (#73), N23 (#72) and N26 (#74) are December candidates. This calendar takes precedence
 over the suggested order below; it does not change implementation or
 verification status. Upstream Test CI is not Windows GUI acceptance.
 
-### After 1.3.2-windows.17
+### After 1.4.1-windows.1
 
-The schedule below is complete: `1.3.2-windows.17`, the first version under
-the name Gooztty, was built on 2026-10-25 and the rename
-([#31](https://github.com/fukuyori/ghostty/issues/31)) is closed. Open work is
-tracked as [issues](https://github.com/fukuyori/ghostty/issues); in suggested
-order:
+The rename schedule below is complete: `1.3.2-windows.17`, the first version
+under the name Gooztty, was built on 2026-10-25 and the rename
+([#31](https://github.com/fukuyori/ghostty/issues/31)) is closed.
+`1.4.1-windows.1` followed on 2026-11-01. Open work is tracked as
+[issues](https://github.com/fukuyori/ghostty/issues); in suggested order:
 
 | Work | Issue | Notes |
 |---|---|---|
+| Window stays transparent after GPU TDR recovery until the pointer moves over it | [#74](https://github.com/fukuyori/ghostty/issues/74) | Found by the real GPU fault check (N13); December candidate N26 |
+| `validate-config` fails with `FileTooBig` when stdout is a pipe | [#73](https://github.com/fukuyori/ghostty/issues/73) | December candidate N22 |
 | `+ssh` opens the session in a new console window | [#72](https://github.com/fukuyori/ghostty/issues/72) | Documented as a known limitation with plain `ssh` use (N08, option 3); attaching to the parent console or a console helper executable remain for a later fix |
 | Intermittent parity and scrollbar timeouts | [#69](https://github.com/fukuyori/ghostty/issues/69) | Parity now requires an explicit executable (N01) |
 | Configuration options not implemented on Windows | #51-#65 | #52 (light/dark mode) and #57 (font size inheritance) implemented on 2026-11-01; see [configuration support](windows-config-support.md) |
-| Real-hardware verification | #9, #10 | 180-minute soak is N11; the real GPU fault procedure is in the [N12 record](windows-november-gpu-fault-plan.md) |
+| Real-hardware verification | #9, #10 | The 180-minute soak (N11) passed 1803/1803 runs and the real GPU fault check (N13) recovered on 2026-11-01; see the [release notes](windows-release-notes.md#141-windows1) and the [N12 record](windows-november-gpu-fault-plan.md). Closing the issues is an open decision |
 | Other limitations and design questions | #11, #13, #14, #18, #25-#30, #44, #66 | |
 
 [`windows-handoff.md`](windows-handoff.md) summarizes the current state,
@@ -2800,6 +2803,7 @@ pass. The partial IME commit correction (#48) has its own verification row.
 | Release | `1.3.2-windows.13` | Source: `v1.3.2-windows.13` (`9a45da6f7`). ReleaseFast build passed 128/128 steps and reports `1.3.2-windows.13`, numeric `1.3.2.13`, x64 WindowsGui, ReleaseFast. CLI version and default-keybinding checks exited 0. Signed staged executable and installer signatures are Valid and timestamped; the uninstaller was signed during compilation. The published installer size and SHA-256 match the local artifact. Owner confirmed real display and basic input plus installation, upgrade from `.12`, and uninstallation on real hardware. A separate installed-tree inspection remains |
 | Release | `1.3.2-windows.14` | Source: `v1.3.2-windows.14` (`cdfeab50c`) for Win32 input mode (#43). Source verification passed targeted/libghostty-vt/full tests and physical input through bundled and OS ConPTY. ReleaseFast passed 128/128 steps and reports `1.3.2-windows.14`, numeric `1.3.2.14`, x64 WindowsGui, ReleaseFast. CLI checks exited 0. The staged executable and installer signatures are Valid and timestamped; the uninstaller was signed during compilation. The published installer was downloaded again with matching size and SHA-256 and a Valid timestamped signature. The owner confirmed installation, upgrade, installed-runtime execution, and uninstallation on real hardware |
 | Release | `1.3.2-windows.15` | Final full Zig suite: 4040 passed, 62 skipped, 91/91 steps, exit 0. ReleaseFast build passed 128/128 steps; unsigned distribution passed CLI, hook rejection, window-state/palette, parity, modal/config-diagnostic/context-menu checks and 20/20 soak. Local staged executable and installer signatures were Valid and timestamped; signed CLI and hook rejection passed. Owner confirmed upgrade, uninstall/install, terminal display, keyboard, mouse and Japanese IME. #48 was present in this build; the subsequent correction is recorded in the separate input row. See the release notes for capture limitations and evidence |
+| Release | `1.4.1-windows.1` | Source: `v1.4.1-windows.1` (`a993a4ef8`); candidate `dfe142a76`, distribution built at `badab046a` with no `src` change. Full Zig suite 4262 passed, 67 skipped; hook Win32 tests 200 with one skipped; window-state, controlled GPU/power recovery, parity, config diagnostics 8/8, 37 lifecycle cases and IME verification 7/7 passed. 180-minute soak 1803/1803. Real `dxcap -forcetdr` recovery passed with delayed redraw (#74). Release tree identical to the candidate; installer, installed executable and uninstaller signatures Valid and timestamped; the published asset hashes match; owner upgrade, uninstall and new install. See the release notes and the [N18 ledger](windows-november-n18-artifacts.json) |
 | Fonts | Configured family matching (#1) | 2026-09-28: missing-family warnings reached diagnostic stderr; English family names, localized Yu Gothic records, typographic family records, full-name rejection, and agreement between `+list-fonts --family` and configured discovery were measured. The Windows guide documents exact-name checking. No code change was required |
 | Fonts | Configured style selection (#2) | 2026-09-28: targeted Windows tests selected Arial Regular/Bold/Italic/Bold Italic and rejected a missing explicit style; Moralerspace Neon selected separate Regular/Bold files and synthesized missing italic styles. Captured Latin and Japanese output showed the four distinct styles without missing glyphs or visible cell overflow. System fallback remains unchanged |
 | Fonts | Fallback size adjustment (#3) | 2026-09-28: Cascadia Code NF with automatic/explicit BIZ UDGothic passed at 12/16/24 pt and 96/120/144/192 DPI; Noto Sans JP passed at 16 pt and 96 DPI. Moralerspace Neon supplied the real primary `ic_width` glyph `水` while missing `龘` exercised a separate `微軟正黑體` fallback. Two-cell placement, baseline, and clipping were normal. The configured/fallback size asymmetry remains the upstream `.none`/`.ic_width` behavior, so no code or setting was added |

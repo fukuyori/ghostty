@@ -7,10 +7,11 @@ known issues, and known limitations of each version; the
 [version update checklist](version-update-checklist.md) describes the
 `X.Y.Z-windows.N` numbering.
 
-## 1.4.1-windows.1 (development stage)
+## 1.4.1-windows.1
 
-This entry records the fixed-C integration and version-base alignment.
-It is not the final distribution candidate; N17 determines that version.
+Includes the changes after `1.3.2-windows.17` on `windows` and `gooztty`,
+released from the candidate `dfe142a76`; verification is recorded in the
+[release notes](windows-release-notes.md#141-windows1).
 
 ### Changed
 
@@ -18,11 +19,9 @@ It is not the final distribution candidate; N17 determines that version.
   terminal snapshots, SSH and shell integration updates.
 - Preserve Windows GPU recovery image rebuilds, input mode 9001 and
   Gooztty branding. Align the preview base with upstream 1.4.1.
-- Both product snapshots passed stage checks except the known config
-  diagnostic owner assertion. Final physical and distribution acceptance
-  remain separate November plan tasks.
 - Piped `validate-config` output still fails with `FileTooBig`, reproduced
-  on fixed B. This existing issue remains unresolved and is not a C regression.
+  on fixed B. This existing issue remains unresolved (#73) and is not a C
+  regression.
 - Document that `+ssh`, and the bash, zsh, fish, elvish and nushell `ssh`
   wrappers that use it, open a new console window (#72), and how to install
   the terminfo entry for plain `ssh`.
@@ -41,6 +40,16 @@ It is not the final distribution candidate; N17 determines that version.
   (`c47f092d4`).
 - The soak check stopped on its first run when `zig-out/test-state` was
   empty (`0b28d0a3a`).
+- The config diagnostic test closed the wrong window in the owner-close case
+  (#66, `14b911e80`).
+- `build-release.ps1`, `build-installer.ps1`, `build-zip.ps1`,
+  `verify-windows-lifecycle.ps1` and `verify-windows-ime.ps1` failed when
+  several `zig` or `pwsh` executables were on `PATH`; they now use the first
+  (`bf90fbe7f`).
+- The window-state check could stop with `Index was outside the bounds of
+  the array.`: it now enumerates split panes with `EnumChildWindows`
+  (`c851ab1a9`) and waits for a new window's surface before using it
+  (`fcffb9a38`).
 
 ## 1.3.2-windows.17
 

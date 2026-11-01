@@ -12,32 +12,85 @@ Publication status is maintained in
 [GitHub Releases](https://github.com/fukuyori/ghostty/releases). These notes
 record each version's changes, verification results and limitations.
 
-## 1.4.1-windows.1 (development stage)
+## 1.4.1-windows.1
 
-This entry records development-stage verification at fixed point C.
-The version aligns the working tree with the upstream base; N17 determines
-the final distribution candidate and its acceptance results.
-
-- Base: upstream 1.4.1-dev at fixed point C `fbed180a5`, integrated through
-  Windows `06d12a298`, using Zig 0.17.0. The preview sequence starts at 1
+- Source: tag `v1.4.1-windows.1` (`a993a4ef8`) on `gooztty`. The release
+  candidate was fixed at `dfe142a76`; the distribution was built at
+  `badab046a`, and the commits after the candidate change documentation and
+  verification scripts only.
+- Base version: upstream Ghostty 1.4.1 series (`1.4.1-dev`), synchronized
+  through `v1.4.0` and fixed commit `fbed180a5` on `windows`
+  (`06d12a298`), built with Zig 0.17.0. The preview sequence starts at 1
   for 1.4.1.
-- Both product snapshots passed Debug/fast/hook builds, full Zig and
-  targeted Win32 tests, GUI/parity, controlled GPU/power recovery and
-  37 lifecycle cases with four inspected captures each.
-- Config diagnostics passed 7/8 on each product. The existing
-  `OwnerCloseWithOtherWindow` assertion uses the wrong owner; the formal
-  test correction remains pending (#66). The intermittent #69 observation
-  was not reproduced by the bounded P0 investigation and remains open.
-- `validate-config` fails with `FileTooBig` when stdout is piped. This was
-  reproduced on fixed B, remains unresolved, and is not a C regression.
-- Kitty image/animation and controlled recovery checks passed. SSH
-  argument/TERM probes used a local helper. A later live check confirmed
-  public-key authentication through `+ssh`; password/keyboard-interactive
-  prompts and terminfo transfer during authentication remain unverified.
-  The separate-console behavior of +ssh (#72) remains unresolved.
-- These are development-stage checks. Final physical IME, real sleep/GPU
-  fault, endurance and signed installer/ZIP acceptance remain separate
-  tasks. See the November plan and C migration record.
+
+### Changes Since 1.3.2-windows.17
+
+- Upstream changes through `fbed180a5`, including Kitty graphics placement
+  and animation, terminal snapshots, and SSH and shell integration updates.
+  Windows GPU recovery image rebuilds, input mode 9001 and the Gooztty
+  names are kept.
+- Follow the Windows light/dark app mode: `theme = light:X,dark:Y` and
+  `window-theme = system` use the current mode at startup and when it
+  changes (#52).
+- `window-inherit-font-size`: new windows, tabs and splits start at the
+  previously focused surface's font size (#57).
+- `window-theme = system` no longer draws a dark title bar in light mode.
+- The user guide describes how to install the terminfo entry for plain
+  `ssh` and that the shell `ssh` wrappers go through `+ssh` (#72).
+
+See the [changelog](windows-changelog.md#141-windows1) for the full list.
+
+### Verification
+
+Acceptance of the fixed candidate `dfe142a76` (ledger
+`docs/windows-november-final-candidate-dfe142a.json`), normal Release
+SHA-256 `73EC1252059675A13703E88AEEEF5B8172991F66435DC299CB436E18B4B45940`:
+
+- Full Zig suite: 4262 passed, 67 skipped. Hook Win32 tests: 200 passed,
+  one skipped.
+- Window state, controlled GPU recovery and power resume, both parity
+  modes, config diagnostics (8/8 after the #66 test correction), 37
+  lifecycle cases with hooks disabled, and IME verification (7/7) passed.
+- Owner checks: Japanese IME partial commit and focus departure on this
+  candidate; mixed DPI (100%, 125%, 150%), pointer hiding, light/dark mode
+  following and font size inheritance on earlier builds of the same code.
+- 180-minute soak on 2026-11-01: 1803 of 1803 runs passed, each with a
+  graceful exit, and no process was left (#9). Three earlier attempts
+  stopped on defects in the test scripts, which were fixed without changing
+  the executable.
+- Real GPU fault on 2026-11-01: one `dxcap -forcetdr` reset the NVIDIA
+  adapter in use; Gooztty detected the device loss and recovered on its
+  first attempt, and typing, resizing and exit worked afterwards (#10). The
+  window was not redrawn until the pointer moved over it (#74).
+
+Distribution checks of the artifacts the owner built with `-Sign` on
+2026-11-01 (ledger `docs/windows-november-n18-artifacts.json`):
+
+- The release tree matches the candidate: the executable, the ConPTY files,
+  `brand.json` and all 843 share files. A first build differed in the line
+  endings of the PowerShell shell integration script and was rebuilt.
+- `gooztty-1.4.1-windows.1-x64-setup.exe` (SHA-256
+  `B7969AA957D7AAD39CD47BCC31B7AAAAAF727C354F7DF2C9F07D57F4CA07FEB1`): the
+  installer, the installed executable and the uninstaller are signed
+  (`Valid`, timestamped). The owner upgraded `1.3.2-windows.17`, uninstalled
+  and installed it again; the installed version is `1.4.1-windows.1`.
+- `gooztty-1.4.1-windows.1-x64-portable.zip` (SHA-256
+  `945A4FB64AF2482CEA92E94CC0307C1A530C0D1DC142CF5358C88EE15D2A43CD`): 849
+  files under one folder. Apart from the signed executable and the added
+  `LICENSE` and third-party notices, it matches the release tree.
+
+### Known Issues
+
+- After a GPU timeout and recovery, the window stays transparent below the
+  title bar until the pointer moves over it (#74).
+- `gooztty +validate-config` fails with `FileTooBig` when its output is
+  piped (#73).
+- `gooztty +ssh`, and the shell `ssh` wrappers that use it, open the session
+  in a new console window instead of the current pane (#72). Plain `ssh`
+  works.
+- Closing the owner window from the taskbar while a configuration error
+  dialog is open is redirected to the dialog (#66).
+- The limitations listed for `1.3.2-windows.17` still apply.
 
 ## 1.3.2-windows.17
 
