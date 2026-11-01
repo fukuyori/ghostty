@@ -5,6 +5,26 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-11-01: Window-state waits for child surfaces (N25)
+
+- Correction to the N24 entry below: the split-pane enumeration was not the
+  cause of the soak stops. The third 180-minute attempt, run with the N24
+  fix, stopped at run 126 with the same `Index was outside the bounds of
+  the array.`. A loop that recorded the script stack reproduced it at run
+  316 of 600 and pointed at the new-window step: after waiting only for a
+  second top-level window, the script indexed `[0]` of that window's
+  surface children, which can still be empty; strict mode throws before
+  the script's own "not found" check. The N24 change stays as a harmless
+  improvement.
+- `Wait-ForChildSurface` now waits for the first surface child and reports
+  the original message on timeout. It replaces all four direct `[0]`
+  lookups: the main surface, the grid and scrollbar-history test windows,
+  and the second window.
+- 400 consecutive window-state runs against the Gooztty candidate's normal
+  Release (`dfe142a76`) passed with no leftover process. The previous
+  failure rate was one in 54 to 316 runs; the 180-minute soak is the
+  remaining check.
+
 ## 2026-11-01: Verification script fixes (N20, N21, N24)
 
 - N24: the second 180-minute soak on Gooztty candidate `dfe142a76` stopped

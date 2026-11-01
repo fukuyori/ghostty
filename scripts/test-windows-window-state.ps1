@@ -541,6 +541,28 @@ function Get-ChildWindowHandles {
     return [GhosttyWindowStateNative]::ChildSurfaces($ParentHandle)
 }
 
+# A top-level window exists before its surface child is created. Indexing
+# the child list right away fails under strict mode with an empty list, so
+# wait for the first surface and report a missing one with $Message.
+function Wait-ForChildSurface {
+    param(
+        [Parameter(Mandatory = $true)]
+        [IntPtr]$ParentHandle,
+        [Parameter(Mandatory = $true)]
+        [string]$Message
+    )
+
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($stopwatch.ElapsedMilliseconds -lt $timeoutMilliseconds) {
+        $surfaces = @(Get-ChildWindowHandles -ParentHandle $ParentHandle)
+        if ($surfaces.Count -gt 0) {
+            return $surfaces[0]
+        }
+        Start-Sleep -Milliseconds 50
+    }
+    throw $Message
+}
+
 function Wait-ForCondition {
     param(
         [Parameter(Mandatory)]
@@ -665,10 +687,9 @@ function Test-InitialGrid {
         $gridWindow = [GhosttyWindowStateNative]::FindWindow($gridProcess.Id, $surfaceClass)
         $null = [GhosttyWindowStateNative]::ShowWindow($gridWindow, $swRestore)
         $gridWindow = Wait-ForMainWindow -Process $gridProcess
-        $gridSurface = @(Get-ChildWindowHandles -ParentHandle $gridWindow)[0]
-        if ($gridSurface -eq [IntPtr]::Zero) {
-            throw "Ghostty surface child window was not found for the grid test."
-        }
+        $gridSurface = Wait-ForChildSurface `
+            -ParentHandle $gridWindow `
+            -Message "Ghostty surface child window was not found for the grid test."
 
         # The ConPTY is created with the placeholder grid and resized once
         # the core has synced the initial size; the IO thread applies that on
@@ -1232,10 +1253,9 @@ function Test-ScrollbarHistoryBoundaries {
             -RedirectStandardError $historyStderrPath `
             -PassThru
         $historyWindow = Wait-ForMainWindow -Process $historyProcess
-        $historySurface = @(Get-ChildWindowHandles -ParentHandle $historyWindow)[0]
-        if ($historySurface -eq [IntPtr]::Zero) {
-            throw "The scrollbar history test surface was not created."
-        }
+        $historySurface = Wait-ForChildSurface `
+            -ParentHandle $historyWindow `
+            -Message "The scrollbar history test surface was not created."
         $historyBar = [GhosttyWindowStateNative]::FindWindow(
             $historyProcess.Id,
             $scrollbarClass
@@ -1927,10 +1947,9 @@ try {
         -TabBarHandle $tabBarHandle
 
     Add-Type -AssemblyName System.Windows.Forms
-    $surfaceHandle = @(Get-ChildWindowHandles -ParentHandle $windowHandle)[0]
-    if ($surfaceHandle -eq [IntPtr]::Zero) {
-        throw "Ghostty surface child window was not found."
-    }
+    $surfaceHandle = Wait-ForChildSurface `
+        -ParentHandle $windowHandle `
+        -Message "Ghostty surface child window was not found."
 
     if ($TestGpuRecovery -or $TestPowerResume) {
         # Executables built without -Dwin32-test-hooks=true ignore the
@@ -2940,10 +2959,9 @@ Write-Host 'RENDERER WAKEUP COMPLETE'
             Where-Object { $_ -ne $windowHandle }
     )[0]
     $secondShellEligibility = Test-ShellEligibility -Handle $secondWindowHandle
-    $secondSurfaceHandle = @(Get-ChildWindowHandles -ParentHandle $secondWindowHandle)[0]
-    if ($secondSurfaceHandle -eq [IntPtr]::Zero) {
-        throw "The second Ghostty surface child window was not found."
-    }
+    $secondSurfaceHandle = Wait-ForChildSurface `
+        -ParentHandle $secondWindowHandle `
+        -Message "The second Ghostty surface child window was not found."
     $secondTabBarHandle = Wait-ForOwnedProcessWindow `
         -ProcessId $process.Id `
         -ClassName $tabBarClass `
