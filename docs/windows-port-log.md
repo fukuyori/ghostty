@@ -5,6 +5,18 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-11-01: Stale Windows comments in shared code (#30)
+
+- `src/config/Config.zig` `probableCliEnvironment` said Windows is "not a
+  real supported target"; the comment now says only what the code does:
+  Windows always reports a desktop launch.
+- `src/os/locale.zig` said there is no official Windows version and that the
+  function is likely unused on Windows. The native runtime calls it at
+  startup: the candidate's diagnostic logs show
+  `setlocale from env result=Japanese_Japan.932`. The comment now describes
+  the Windows fallback branch as reached only when that call fails.
+- Comments only; `zig fmt --check` passes on both files.
+
 ## 2026-11-01: Window-state waits for child surfaces (N25)
 
 - Correction to the N24 entry below: the split-pane enumeration was not the
