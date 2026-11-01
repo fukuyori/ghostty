@@ -74,6 +74,37 @@ Documented limits that bound a run: the default TDR limit is 5 TDRs within 60 se
 
 A failed recovery is recorded as a #10 defect, not retried until it passes.
 
+## N13 result (2026-11-01)
+
+Run on this machine after N11 passed, against the candidate `dfe142a76` normal Release
+(SHA-256 `73EC1252…4B45940`), started by `scripts/run-windows-diagnostics.ps1 -Wait` with logs in
+`zig-out/logs/n13` of the candidate worktree. The session hosting the agent ran in the owner's
+installed Gooztty 1.3.2-windows.17, which stayed open.
+
+- The first launch (PID 39964, 17:04:43) closed with exit code 0 at 17:07:24 after one surface
+  closed, before any fault; its log has no device loss. It is not N13 evidence.
+- The second launch (PID 40892, 17:07:51) drew with the NVIDIA GeForce RTX 5070: the process's GPU
+  engine counters used LUID `0x13059`, which DXGI reports for that adapter. The owner typed text,
+  opened a second tab and split it (`created Win32 tab tabs=2`, `created Win32 split`), then ran
+  `dxcap -forcetdr` once from an elevated terminal.
+- System log: `nvlddmkm` event 153 at 17:10:15.774 (`Resetting TDR occurred on GPUID:100`),
+  17:10:17.649 (`Reset TDR`) and 17:10:17.675 (`Restarting TDR`); no further `nvlddmkm` events.
+  NVIDIA driver 32.0.16.1088, AMD driver 32.0.21036.18, Windows 11 Pro 10.0.26300.
+- Candidate log: twice, `IDXGISwapChain.Present detected device loss: hresult=0x887a0005
+  removed_reason=0x887a0007`, then `recreating renderer GPU resources`, `renderer GPU resources
+  recovered` and `D3D11 renderer recovered`, each on recovery cycle 1 of 3.
+- Owner observation: the screen went black and came back. The candidate window was then
+  transparent except for its title bar (tab strip and terminal area) until the mouse pointer moved
+  over it, after which it drew normally.
+- After that, a capture at 17:12 (`after-forcetdr-171200.png`) shows both tabs and both panes drawn
+  correctly. The owner typed in both panes and resized the window without problems, then closed it
+  with the close button: exit code 0, three surfaces closed, and no candidate process left.
+
+Result: recovery from a real TDR works, but the recovered window is not redrawn until an input
+event arrives. That delayed redraw is a #10 defect; its cause has not been investigated. The owner
+decided on 2026-11-01 to track it for December with the candidate unchanged, as
+[#74](https://github.com/fukuyori/ghostty/issues/74) (N26). #10 stays open.
+
 ## Owner decisions for N13
 
 1. Whether N13 may run on this machine with running applications closed, or must wait for a
