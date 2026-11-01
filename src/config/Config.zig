@@ -5436,9 +5436,10 @@ pub const ChangeIterator = struct {
 /// as possible because magic sucks, but each place is well documented.
 fn probableCliEnvironment() bool {
     switch (builtin.target.os.tag) {
-        // Windows has its own problems, just ignore it for now since
-        // its not a real supported target and GTK via WSL2 assuming
-        // single instance is probably fine.
+        // Windows always reports a desktop launch. The native Win32
+        // runtime does not tell a shell launch apart from a Start menu or
+        // Explorer launch here, and GTK via WSL2 assuming single instance
+        // is probably fine.
         .windows => return false,
 
         // On macOS, we don't want to detect `open` calls as CLI envs.
