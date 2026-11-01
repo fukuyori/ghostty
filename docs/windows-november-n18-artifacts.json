@@ -1,0 +1,106 @@
+{
+  "Recorded": "2026-11-01",
+  "Task": "N18 (#245), #50 signed artifact acceptance",
+  "Status": "Complete: artifacts built by the owner in the main checkout, verified against the N17 candidate, and installed by the owner",
+  "CompletionCondition": "The accepted signed installer is in zig-out/installer of the main checkout (owner decision, 2026-11-01)",
+  "Candidate": {
+    "Commit": "dfe142a764bfe7a40d52299eaf2be1fe74e453b5",
+    "Ledger": "docs/windows-november-final-candidate-dfe142a.json",
+    "Version": "1.4.1-windows.1"
+  },
+  "BuildSource": {
+    "Checkout": "main checkout (D:/home/source/zig/ghostty)",
+    "Branch": "gooztty",
+    "Commit": "badab046a",
+    "ChangesSinceCandidate": "No src changes; docs and scripts only (N20, N21, N24, N25)",
+    "Untracked": ["docs/windows-november-n18-artifacts.json"],
+    "LineEndingCorrection": "The first build at this commit differed from the candidate in one share file, gooztty/shell-integration/powershell/gooztty-integration.ps1: LF (727 bytes) instead of CRLF (749 bytes), identical otherwise. The main checkout held src/shell-integration/powershell/ghostty-integration.ps1 with LF (git ls-files --eol: w/lf) while the candidate worktree had CRLF (w/crlf); both use core.autocrlf=true. The file was removed and restored with git checkout (now w/crlf, SHA-256 ACF77D14... as in the candidate worktree), with no change to the index, and the release was rebuilt."
+  },
+  "ReleaseBuild": {
+    "BuiltBy": "owner",
+    "Command": "scripts/build-release.ps1 (Zig 0.17.0 first on PATH, ZIG_GLOBAL_CACHE_DIR=zig-out/n03-clean-cache, ZIG_LOCAL_PKG_DIR=zig-out/n03-clean-pkg-c)",
+    "Prefix": "zig-out/release",
+    "BinDirectoryCreated": "2026-11-01T18:13:45+09:00",
+    "ExecutableBytes": 27051520,
+    "ExecutableSha256": "73EC1252059675A13703E88AEEEF5B8172991F66435DC299CB436E18B4B45940",
+    "BinFilesMatchN17": ["conpty.dll", "gooztty.exe", "OpenConsole.exe"],
+    "BrandJsonMatchesN17": true,
+    "ShareFiles": 843,
+    "ShareDifferencesFromN17Manifest": 0,
+    "FileVersion": "1.4.1-windows.1",
+    "ProductVersion": "1.4.1-windows.1",
+    "VersionOutput": "Gooztty 1.4.1-windows.1",
+    "UnsignedAfterBuild": true
+  },
+  "Installer": {
+    "BuiltBy": "owner",
+    "Command": "scripts/build-installer.ps1 -Sign",
+    "File": "zig-out/installer/gooztty-1.4.1-windows.1-x64-setup.exe",
+    "Built": "2026-11-01T18:14:12+09:00",
+    "Bytes": 18068064,
+    "Sha256": "B7969AA957D7AAD39CD47BCC31B7AAAAAF727C354F7DF2C9F07D57F4CA07FEB1",
+    "Signature": "Valid",
+    "Signer": "CN=Noriaki Fukuyori, O=Noriaki Fukuyori, L=Kawasaki, S=Kanagawa, C=JP",
+    "Timestamped": true,
+    "Note": "Not run by the agent. The installed executable and uninstaller are checked after the owner installs."
+  },
+  "PortableZip": {
+    "BuiltBy": "owner",
+    "Command": "scripts/build-zip.ps1 -Sign",
+    "File": "zig-out/zip/gooztty-1.4.1-windows.1-x64-portable.zip",
+    "Built": "2026-11-01T18:14:25+09:00",
+    "Bytes": 18574714,
+    "Sha256": "945A4FB64AF2482CEA92E94CC0307C1A530C0D1DC142CF5358C88EE15D2A43CD",
+    "TopFolder": "gooztty-1.4.1-windows.1-x64-portable",
+    "Files": 849,
+    "DifferencesFromRelease": "bin/gooztty.exe (signed) and the added LICENSE and THIRD-PARTY-NOTICES.md; the other 846 files are identical",
+    "LicenseMatches": "LICENSE",
+    "ThirdPartyNoticesMatches": "dist/windows/THIRD-PARTY-NOTICES.md",
+    "SignedExecutable": {
+      "Bytes": 27062640,
+      "Sha256": "E0533B8778D105A3A7BBA4DDC3FA94F6BD7742ACC1D20A7BB265A73853E6D144",
+      "Signature": "Valid",
+      "Signer": "CN=Noriaki Fukuyori, O=Noriaki Fukuyori, L=Kawasaki, S=Kanagawa, C=JP",
+      "Timestamped": true,
+      "DifferenceFromUnsigned": "Within the unsigned length only the PE checksum (0xD0-0xD3) and the security directory entry (0x121-0x125) differ; 11,120 signature bytes are appended",
+      "VersionOutput": "Gooztty 1.4.1-windows.1"
+    },
+    "OtherBinSignatures": "conpty.dll and OpenConsole.exe Valid, unchanged from the release build"
+  },
+  "EarlierSet": {
+    "Note": "Built first by the owner in the candidate worktree (.worktrees/n17-candidate-dfe142a) and verified the same way; kept but not used, since the completion condition names the main checkout",
+    "UnsignedExecutableSha256": "73EC1252059675A13703E88AEEEF5B8172991F66435DC299CB436E18B4B45940",
+    "InstallerSha256": "8B2DB064BA37A6A9D0E5170186FFF4E484E37DBD2F3BB9F450F854AD09CB252B",
+    "ZipSha256": "AFCE8330C9665B5F619E785CB68AE7E752E6FB6F13D661568CAEA123F5C86720",
+    "ZipSignedExecutableSha256": "ADEDF62B783D5D31954EECAF6CD505634FA9738D592ED7DDCD4A332DB95F0817"
+  },
+  "OwnerInstallChecks": {
+    "Installer": "zig-out/installer/gooztty-1.4.1-windows.1-x64-setup.exe in the main checkout",
+    "Order": ["upgrade over the installed 1.3.2-windows.17", "uninstall", "new install"],
+    "Result": "Owner reported all three complete on 2026-11-01, including starting Gooztty after the upgrade and after the new install",
+    "InstalledStateCheckedAt": "2026-11-01T18:18:50+09:00",
+    "Registration": "HKCU uninstall key {752F6F8F-9925-490F-9D0F-CFC2FE87D588}_is1: DisplayName Gooztty, DisplayVersion 1.4.1-windows.1, InstallDate 20261101, InstallLocation %LOCALAPPDATA%/Programs/Gooztty/, Publisher fukuyori",
+    "InstalledExecutable": {
+      "Sha256": "95FAD8EA48F17A0E073E60E779598C953210590B8CA649C014516A8D1A45134F",
+      "Bytes": 27062640,
+      "Signature": "Valid",
+      "Timestamped": true,
+      "ProductVersion": "1.4.1-windows.1",
+      "DifferenceFromUnsigned": "Within the unsigned length only the PE checksum (0xD0-0xD3) and the security directory entry (0x121-0x125) differ; 11,120 signature bytes are appended. Its hash differs from the ZIP's signed executable because each signing adds its own timestamp"
+    },
+    "Uninstaller": {
+      "File": "unins000.exe",
+      "Sha256": "2F61135F7150C8E33645A7D52DB113D3A4D81FB587AAA66D093B02470DC5B874",
+      "Signature": "Valid",
+      "Signer": "CN=Noriaki Fukuyori, O=Noriaki Fukuyori, L=Kawasaki, S=Kanagawa, C=JP",
+      "Timestamped": true
+    },
+    "OtherFiles": "conpty.dll and OpenConsole.exe identical to the release build (signatures Valid); THIRD-PARTY-NOTICES.md identical to dist/windows/THIRD-PARTY-NOTICES.md; 831 share files identical to the release build",
+    "ShareFilesNotInstalled": "By design of dist/windows/ghostty.iss, which installs only share/terminfo and share/gooztty: the 12 shell completion and editor files under share/bash-completion, bat, fish, nvim, vim and zsh are in the ZIP but not installed. This matches earlier installers",
+    "LeftoverProcesses": "No gooztty process running at the check"
+  },
+  "NotIncluded": [
+    "tag, GitHub release and publication",
+    "#74 post-TDR redraw defect, tracked for December"
+  ]
+}
