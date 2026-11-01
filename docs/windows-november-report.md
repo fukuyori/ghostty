@@ -63,7 +63,7 @@ than replaced.
 
 ## Issues
 
-Closed in November: #9, #10, #50, #52 and #57.
+Closed in November: #9, #10, #30, #50, #52 and #57.
 
 Open and deferred to December candidates:
 
