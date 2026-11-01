@@ -5,6 +5,37 @@ evidence for port fixes made on `windows`. Only `windows` edits this file;
 `gooztty` takes it unchanged through merges (see Section 1.2 of the
 [rebranding plan](windows-rebranding-plan.md)). Newest entries come first.
 
+## 2026-11-01: Verification script fixes (N20, N21, N24)
+
+- N24: the second 180-minute soak on Gooztty candidate `dfe142a76` stopped
+  at run 54 with `Index was outside the bounds of the array.` in
+  `test-windows-window-state.ps1`, between the split and the first pane
+  click. The only unguarded index there picks the non-original pane from
+  `Get-ChildWindowHandles`, which walked children with `GetWindow` in a
+  loop; Microsoft's `GetWindow` remarks say `EnumChildWindows` is more
+  reliable. A walk racing the split's z-order change is the likely cause,
+  not proven: 150 standalone runs afterwards passed. The helper now uses
+  `EnumChildWindows`, keeps direct children only, removes duplicates, and
+  the split step waits for two distinct panes including the original.
+- N20 (#66): `OwnerCloseWithOtherWindow` closed the first window, which is
+  not always the diagnostic's owner. It now closes `GetWindow(dialog,
+  GW_OWNER)` after checking that the owner is one of the terminal windows.
+  The owner's earlier report that taskbar close redirects to the dialog is
+  product behavior and is not changed here.
+- N21: `build-release.ps1`, `build-installer.ps1`, `build-zip.ps1`,
+  `verify-windows-lifecycle.ps1` and `verify-windows-ime.ps1` took every
+  match of `Get-Command` and failed when `zig`, `pwsh`, `ISCC.exe` or
+  `signtool.exe` appeared more than once on `PATH`. They now take the first
+  match, and the verify scripts run `pwsh` from `$PSHOME`, as
+  `verify-windows-parity.ps1` already did.
+- Checked against the candidate's normal Release with two `zig` and three
+  `pwsh` on `PATH`: a 20-iteration soak passed 20/20; config diagnostics
+  passed 8/8 including `OwnerCloseWithOtherWindow`, every app exiting 0
+  without force; `verify-windows-lifecycle.ps1` passed 37 cases and
+  HooksDisabled, four captures inspected. `build-release.ps1` stopped at
+  its version check because `windows` keeps `version.txt` at the cutover
+  value; its `zig` lookup is checked on `gooztty`.
+
 ## 2026-11-01: Follow the Windows light/dark mode (#52)
 
 - `theme = light:X,dark:Y` always used the light theme: the Win32 runtime
