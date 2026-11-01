@@ -232,8 +232,8 @@ upstream の Ghostty の全設定項目(`src/config/Config.zig`)について、
 
 凡例:
 
-- ◎ Windows で使える。動作確認の記録がある。
-- ○ Windows で使える(コードから判断)。動作確認の記録はない。
+- ◎ Windows で使える。動作確認済み。
+- ○ Windows で使える(コードから判断)。動作確認はしていない。
 - △ 一部だけ使える。
 - ✕ Windows では未実装。
 - \- 対象外。macOS、GTK、Linux、X11、Wayland だけに関係する設定。

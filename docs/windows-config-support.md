@@ -232,8 +232,8 @@ recorded. △ and ✕ are also judged from the code.
 
 Legend:
 
-- ◎ Supported on Windows; a runtime check is recorded.
-- ○ Supported on Windows, judged from the code; no runtime check is recorded.
+- ◎ Supported on Windows; verified at runtime.
+- ○ Supported on Windows, judged from the code; not verified at runtime.
 - △ Partially supported.
 - ✕ Not implemented on Windows.
 - \- Not applicable; the option only concerns macOS, GTK, Linux, X11 or

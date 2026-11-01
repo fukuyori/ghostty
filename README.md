@@ -196,7 +196,7 @@ on Windows. As of `1.4.1-windows.1`, 138 of the 213 upstream options (65%,
 
 | Status | Options | Meaning |
 |---|---:|---|
-| ◎ | 43 | Works on Windows, with a recorded runtime check |
+| ◎ | 43 | Works on Windows, verified at runtime |
 | ○ | 95 | Works on Windows, judged from the code |
 | △ | 7 | Works in part |
 | ✕ | 23 | Not implemented on Windows |
